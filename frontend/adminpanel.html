@@ -33,20 +33,17 @@
     button.deny-btn:hover { background: #991b1b; }
     button.muted { background: #e5e7eb; color: #6b7280; border-color: #d1d5db; cursor: not-allowed; }
 
-    /* Admin-page-only tweaks */
-    /* Make Logout bold in the profile dropdown on this page only */
-    #profileMenu #menuLogout { font-weight: 700; }
+    /* ✅ Admin-specific UI tweaks */
+    #profileMenu #menuLogout { font-weight: 400 !important; } /* remove bold */
   </style>
 </head>
 <body>
 
-  <!-- Shared header/footer/modals (profile dropdown stays available) -->
+  <!-- Shared header/footer/modals -->
   <div data-include="/partials/header.html"></div>
 
   <!-- Main -->
   <main class="max-w-7xl mx-auto w-full">
-    <!-- (Removed the extra “Solennia Admin Panel” title row per your request) -->
-
     <h2 class="text-2xl font-semibold mb-6 mt-2">Vendor Applications</h2>
     <div id="vendorApplications" class="table-container">
       <table>
@@ -104,59 +101,45 @@
   <div data-include="/partials/footer.html"></div>
   <div data-include="/partials/modals.html"></div>
 
-  <!-- Loader that injects header/footer/modals and wires UI -->
   <script type="module" src="/src/partials-loader.js"></script>
 
   <script>
-    // After header is injected, change the brand to “Solennia Admin Panel”
-    // (not clickable, not bold) for this page only.
+    /* ================= ADMIN BRAND PATCH ================= */
     function adminBrandPatch() {
       const nav = document.querySelector('header nav');
       if (!nav) return;
-      // The brand link is the first <a> inside the nav in your header partial.
       const brandLink = nav.querySelector('a[href="/index.html"]');
       if (!brandLink) return;
 
       const span = document.createElement('span');
       span.textContent = 'Solennia Admin Panel';
-      // Keep same class sizes for layout but ensure NOT bold/clickable
       span.className = 'text-xl tracking-wide font-normal cursor-default';
-      // Replace the clickable brand with a plain span
       brandLink.replaceWith(span);
-
-      // Hide "Admin Panel" item inside profile dropdown on this page (if present)
-      const adminItem = document.getElementById('menuAdmin');
-      if (adminItem) adminItem.classList.add('hidden');
     }
 
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', ()=> setTimeout(adminBrandPatch, 0));
     } else {
-      // run after partials-loader injects header
       setTimeout(adminBrandPatch, 0);
     }
 
-    /* ================= API + AUTH (updated) =================
-       Robust API base without using import.meta in this non-module script.
-       Uses window.__API_BASE__ if set, else Railway in prod, else /api in dev. */
+    /* ================= API + AUTH FIXED ================= */
     const API =
       (window.__API_BASE__ || null) ||
-      (location.hostname.includes('vercel.app') ? 'https://solennia.up.railway.app' : '/api');
+      (location.hostname.includes('vercel.app') || location.hostname.includes('railway.app')
+        ? 'https://solennia.up.railway.app/api'
+        : '/api');
 
     const token = localStorage.getItem('solennia_token');
     const headers = {
       'Content-Type': 'application/json',
-      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
     };
 
-    // Admin-only guard
-    const __role = parseInt(localStorage.getItem('solennia_role') || '0', 10);
-    if (__role !== 2) {
-      alert('Admins only.');
-      window.location.href = '/index.html';
+    function roleLabel(role) {
+      return role === 2 ? 'Admin' : role === 1 ? 'Supplier' : 'Client';
     }
 
-    function roleLabel(role) { return role === 2 ? 'Admin' : role === 1 ? 'Supplier' : 'Client'; }
     async function safeParse(res) {
       const ct = res.headers.get('content-type') || '';
       if (ct.includes('application/json')) return res.json();
@@ -192,27 +175,33 @@
           </tr>
         `).join('');
       } catch (err) {
-        body.innerHTML = `<tr><td colspan="6" class="text-center" style="color:#b91c1c;">Error loading applications</td></tr>`;
+        console.error('Vendor applications error:', err);
+        body.innerHTML = `<tr><td colspan="6" class="text-center text-red-600">Error loading applications</td></tr>`;
       }
     }
+
     async function handleDecision(id, action) {
       if (!confirm(`Are you sure you want to ${action} this vendor?`)) return;
       try {
         const res = await fetch(`${API}/admin/vendor-application/decision`, {
-          method: 'POST', headers, body: JSON.stringify({ id, action })
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ id, action }),
         });
         const json = await safeParse(res);
         if (!json.success) throw new Error(json.error || 'Failed');
         alert(json.message);
         loadVendorApplications();
-      } catch (err) { alert('Error: ' + err.message); }
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
     }
 
-    /* -------- Users (Promote/Demote) -------- */
+    /* -------- Users -------- */
     async function changeRole(user_id, role) {
       try {
         const res = await fetch(`${API}/admin/users/role`, {
-          method: 'POST', headers, body: JSON.stringify({ user_id, role })
+          method: 'POST', headers, body: JSON.stringify({ user_id, role }),
         });
         const json = await safeParse(res);
         if (!json.success) throw new Error(json.error || 'Failed');
@@ -226,14 +215,12 @@
       const promoteBtn = (u.role < 2)
         ? `<button class="approve-btn" onclick="if(confirm('Promote to ${roleLabel(u.role + 1)}?')) changeRole(${u.id}, ${u.role + 1})">Promote</button>`
         : `<span style="color:#6b7280;">Max role</span>`;
-
       const demoteBtn =
         (u.role === 2)
           ? `<button class="muted" disabled title="Admins cannot be demoted">Demote</button>`
           : (u.role === 1)
               ? `<button class="deny-btn" onclick="if(confirm('Demote Supplier to Client?')) changeRole(${u.id}, 0)">Demote</button>`
               : `<button class="muted" disabled title="Client is the lowest role">Demote</button>`;
-
       return `<div style="display:flex;gap:.5rem;flex-wrap:wrap;">${promoteBtn}${demoteBtn}</div>`;
     }
 
@@ -258,7 +245,8 @@
           </tr>
         `).join('');
       } catch (err) {
-        body.innerHTML = `<tr><td colspan="5" class="text-center" style="color:#b91c1c;">Error loading users</td></tr>`;
+        console.error('User list error:', err);
+        body.innerHTML = `<tr><td colspan="5" class="text-center text-red-600">Error loading users</td></tr>`;
       }
     }
 
@@ -282,11 +270,12 @@
           </tr>
         `).join('');
       } catch (err) {
-        body.innerHTML = `<tr><td colspan="3" class="text-center" style="color:#b91c1c;">Error loading feedback</td></tr>`;
+        console.error('Feedback load error:', err);
+        body.innerHTML = `<tr><td colspan="3" class="text-center text-red-600">Error loading feedback</td></tr>`;
       }
     }
 
-    // Initial loads + expose handlers
+    /* ===== INITIAL LOAD ===== */
     loadVendorApplications();
     loadUsers();
     loadFeedbacks();
