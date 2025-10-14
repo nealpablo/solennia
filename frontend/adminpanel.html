@@ -163,227 +163,203 @@
 
     // ========= API + AUTH (no import.meta here) =========
     const API =
-      (window.__API_BASE__ || null) ||
-      ((location.hostname.includes('vercel.app') || location.hostname.includes('railway.app'))
-        ? 'https://solennia-henna.vercel.app/api'
-        : '/api');
+    (window.__API_BASE__ || null) ||
+    ((location.hostname.includes('vercel.app') || location.hostname.includes('railway.app'))
+      ? 'https://solennia.up.railway.app/api'
+      : '/api');
 
-    const token = localStorage.getItem('solennia_token');
-    const headers = {
+  /* ====== Auth headers ====== */
+  function authHeaders() {
+    const t = localStorage.getItem('solennia_token');
+    return {
       'Content-Type': 'application/json',
-      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      ...(t ? { Authorization: `Bearer ${t}` } : {}),
     };
+  }
 
-    function roleLabel(role) { return role === 2 ? 'Admin' : role === 1 ? 'Supplier' : 'Client'; }
-    async function safeParse(res) {
-      const ct = res.headers.get('content-type') || '';
-      if (ct.includes('application/json')) return res.json();
-      const text = await res.text();
-      throw new Error(text || `${res.status} ${res.statusText}`);
+  /* ====== Helpers ====== */
+  function renderErrorRow(colspan, msg) {
+    return `<tr><td colspan="${colspan}" class="text-center py-4" style="color:#b91c1c;">${msg}</td></tr>`;
+  }
+
+  async function safeFetch(input, init = {}) {
+    // merge headers
+    const h = { ...(init.headers || {}), ...authHeaders() };
+    const req = { ...init, headers: h };
+    let res;
+    try {
+      res = await fetch(input, req);
+    } catch (e) {
+      console.error('[admin] Network error:', e);
+      throw new Error('Network error — check CORS / API base');
     }
 
-    // ---------- Lightbox ----------
-    const lb = document.getElementById('lightbox');
-    const lbImg = document.getElementById('lbImg');
-    const lbTitle = document.getElementById('lbTitle');
-    const lbClose = document.getElementById('lbClose');
-    function openLightbox(src, title) {
-      lbImg.src = src;
-      lbTitle.textContent = title || 'Document';
-      lb.style.display = 'flex';
-    }
-    function closeLightbox() {
-      lb.style.display = 'none';
-      lbImg.src = '';
-    }
-    lbClose?.addEventListener('click', closeLightbox);
-    lb?.addEventListener('click', (e)=>{ if (e.target === lb) closeLightbox(); });
-    document.addEventListener('keydown', (e)=>{ if (e.key === 'Escape') closeLightbox(); });
+    const ct = res.headers.get('content-type') || '';
+    const body = ct.includes('application/json') ? await res.json().catch(() => ({})) : await res.text();
 
-    // ---------- Robust document parsing/render ----------
-    function resolveDoc(u) {
-      if (!u) return '';
-      const s = String(u).trim().replace(/^"+|"+$/g,'').replace(/^'+|'+$/g,'');
-      if (!s) return '';
-      if (/^https?:\/\//i.test(s)) return s;
-      if (s.startsWith('/')) return `${API}${s}`;
-      return `${API}/${s}`;
+    if (!res.ok) {
+      const serverMsg =
+        (typeof body === 'object' ? (body.error || body.message) : body) ||
+        `${res.status} ${res.statusText}`;
+      console.error(`[admin] ${input} → ${res.status}`, body);
+      // Friendly messages for common cases
+      if (res.status === 401) throw new Error('Unauthorized (401) — Please log in (admin account)');
+      if (res.status === 403) throw new Error('Forbidden (403) — Admin role required');
+      throw new Error(serverMsg);
     }
-    function toList(value) {
-      if (!value && value !== 0) return [];
-      // already array?
-      if (Array.isArray(value)) return value;
-      const s = String(value).trim();
-      if (!s) return [];
-      // JSON array string
-      if (s.startsWith('[') && s.endsWith(']')) {
-        try {
-          const arr = JSON.parse(s);
-          return Array.isArray(arr) ? arr : [];
-        } catch { /* ignore */ }
+
+    return typeof body === 'string' ? { success: true, data: body } : body;
+  }
+
+  function roleLabel(role) { return role === 2 ? 'Admin' : role === 1 ? 'Supplier' : 'Client'; }
+
+  /* ====== Vendor Applications ====== */
+  async function loadVendorApplications() {
+    const body = document.getElementById('vendorTableBody');
+    try {
+      const json = await safeFetch(`${API}/admin/vendor-applications`);
+      const apps = json.applications || json.data || [];
+      if (!apps.length) {
+        body.innerHTML = renderErrorRow(7, 'No pending applications');
+        return;
       }
-      // CSV (comma/semicolon) or single path
-      return s.split(/[,;]+/).map(v => v.trim()).filter(Boolean);
+      body.innerHTML = apps
+        .map((a) => {
+          return `
+            <tr>
+              <td>${(a.first_name || '') + ' ' + (a.last_name || '')}</td>
+              <td>${a.business_name || '-'}</td>
+              <td>${a.category || '-'}</td>
+              <td>${a.address || '-'}</td>
+              <td>${a.pricing || '-'}</td>
+              <td>
+                ${[
+                  a.permits || a.permits_url ? `<a href="${(a.permits_url||a.permits)||'#'}" target="_blank" class="text-sm underline">Permits</a>` : '',
+                  a.gov_id || a.gov_id_url ? `<a href="${(a.gov_id_url||a.gov_id)||'#'}" target="_blank" class="text-sm underline ml-2">Gov ID</a>` : '',
+                  a.portfolio || a.portfolio_url ? `<a href="${(a.portfolio_url||a.portfolio)||'#'}" target="_blank" class="text-sm underline ml-2">Portfolio</a>` : '',
+                ].filter(Boolean).join('')}
+              </td>
+              <td>
+                <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+                  <button class="approve-btn" onclick="handleDecision(${a.id}, 'approve')">Approve</button>
+                  <button class="deny-btn" style="border:2px solid #7f1414" onclick="handleDecision(${a.id}, 'deny')">Deny</button>
+                </div>
+              </td>
+            </tr>
+          `;
+        })
+        .join('');
+    } catch (err) {
+      console.error('[admin] loadVendorApplications failed:', err);
+      const msg = String(err.message || err);
+      // show detailed reason in the table
+      body.innerHTML = renderErrorRow(7, `Error loading applications — ${msg}`);
     }
-    function renderDoc(url, label) {
-      const low = url.toLowerCase();
-      const isImg = /\.(png|jpe?g|gif|webp|bmp)$/i.test(low);
-      const isPdf = /\.pdf$/i.test(low);
-      if (isImg) {
-        return `<img src="${url}" alt="${label}" class="doc-thumb" data-doc="${url}" data-label="${label}" />`;
-      }
-      if (isPdf) {
-        return `<a href="${url}" target="_blank" class="doc-chip" title="${label}" data-doc="${url}" data-label="${label}" data-type="pdf">PDF</a>`;
-      }
-      return `<a href="${url}" target="_blank" class="doc-chip" title="${label}" data-doc="${url}" data-label="${label}">File</a>`;
-    }
-    function docCell(a) {
-      // Your SQL: permits, gov_id, portfolio — may be single path, CSV, or JSON array string
-      const permitsL = toList(a.permits);
-      const govidL   = toList(a.gov_id);
-      const portL    = toList(a.portfolio);
-      const urls = [
-        ...permitsL.map(v => ({ url: resolveDoc(v), label: 'Permits' })),
-        ...govidL.map(v   => ({ url: resolveDoc(v), label: 'Gov ID' })),
-        ...portL.map(v    => ({ url: resolveDoc(v), label: 'Portfolio' })),
-      ].filter(x => !!x.url);
+  }
 
-      if (!urls.length) return '<span class="text-gray-500">—</span>';
-      return `<div class="doc-wrap">${urls.map(x => renderDoc(x.url, x.label)).join('')}</div>`;
+  async function handleDecision(id, action) {
+    if (!confirm(`Are you sure you want to ${action} this vendor?`)) return;
+    try {
+      const json = await safeFetch(`${API}/admin/vendor-application/decision`, {
+        method: 'POST',
+        body: JSON.stringify({ id, action }),
+      });
+      alert(json.message || 'Updated');
+      loadVendorApplications();
+    } catch (err) {
+      console.error('[admin] handleDecision failed:', err);
+      alert('Error: ' + (err.message || err));
     }
+  }
+  window.handleDecision = handleDecision; // keep your global handler
 
-    /* -------- Vendor Applications -------- */
-    async function loadVendorApplications() {
-      const body = document.getElementById('vendorTableBody');
-      try {
-        const res = await fetch(`${API}/admin/vendor-applications`, { headers });
-        const json = await res.json();
-        if (!json.success) throw new Error(json.error || 'Failed to load');
-        const apps = json.applications || [];
-        if (!apps.length) {
-          body.innerHTML = '<tr><td colspan="7" class="text-center py-4">No pending applications</td></tr>';
-          return;
-        }
-        body.innerHTML = apps.map(a => `
-          <tr>
-            <td>${[(a.first_name||''), (a.last_name||'')].filter(Boolean).join(' ')}</td>
-            <td>${a.business_name || '-'}</td>
-            <td>${a.category || '-'}</td>
-            <td>${a.address || '-'}</td>
-            <td>${a.pricing || '-'}</td>
-            <td>${docCell(a)}</td>
-            <td>
-              <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
-                <button class="approve-btn" onclick="handleDecision(${a.id}, 'approve')">Approve</button>
-                <button class="deny-btn" style="border:2px solid #7f1414" onclick="handleDecision(${a.id}, 'deny')">Deny</button>
-              </div>
-            </td>
-          </tr>
-        `).join('');
-
-        // Wire thumbnails after render
-        document.querySelectorAll('.doc-thumb').forEach(el => {
-          el.addEventListener('click', () => openLightbox(el.getAttribute('data-doc'), el.getAttribute('data-label')));
-        });
-      } catch (err) {
-        body.innerHTML = `<tr><td colspan="7" class="text-center" style="color:#b91c1c;">Error loading applications</td></tr>`;
-      }
+  /* ====== Users ====== */
+  async function changeRole(user_id, role) {
+    try {
+      const json = await safeFetch(`${API}/admin/users/role`, {
+        method: 'POST',
+        body: JSON.stringify({ user_id, role }),
+      });
+      if (!json.success) throw new Error(json.error || 'Failed');
+      loadUsers();
+    } catch (err) {
+      console.error('[admin] changeRole failed:', err);
+      alert('Error: ' + (err.message || err));
     }
-    async function handleDecision(id, action) {
-      if (!confirm(`Are you sure you want to ${action} this vendor?`)) return;
-      try {
-        const res = await fetch(`${API}/admin/vendor-application/decision`, {
-          method: 'POST', headers, body: JSON.stringify({ id, action })
-        });
-        const json = await safeParse(res);
-        if (!json.success) throw new Error(json.error || 'Failed');
-        alert(json.message);
-        loadVendorApplications();
-      } catch (err) { alert('Error: ' + err.message); }
-    }
+  }
+  window.changeRole = changeRole;
 
-    /* -------- Users (Promote/Demote) -------- */
-    async function changeRole(user_id, role) {
-      try {
-        const res = await fetch(`${API}/admin/users`, { method:'HEAD', headers });
-        // just warming connection; optional
-      } catch {}
-      try {
-        const res = await fetch(`${API}/admin/users/role`, {
-          method: 'POST', headers, body: JSON.stringify({ user_id, role })
-        });
-        const json = await safeParse(res);
-        if (!json.success) throw new Error(json.error || 'Failed');
-        loadUsers();
-      } catch (err) { alert('Error: ' + err.message); }
-    }
-
-    function renderUserActions(u) {
-      const promoteBtn = (u.role < 2)
+  function renderUserActions(u) {
+    const promoteBtn =
+      u.role < 2
         ? `<button class="approve-btn" onclick="if(confirm('Promote to ${roleLabel(u.role + 1)}?')) changeRole(${u.id}, ${u.role + 1})">Promote</button>`
         : `<span style="color:#6b7280;">Max role</span>`;
-      const demoteBtn =
-        (u.role === 2)
-          ? `<button class="muted" disabled title="Admins cannot be demoted">Demote</button>`
-          : (u.role === 1)
-              ? `<button class="deny-btn" onclick="if(confirm('Demote Supplier to Client?')) changeRole(${u.id}, 0)">Demote</button>`
-              : `<button class="muted" disabled title="Client is the lowest role">Demote</button>`;
-      return `<div style="display:flex;gap:.5rem;flex-wrap:wrap;">${promoteBtn}${demoteBtn}</div>`;
-    }
+    const demoteBtn =
+      u.role === 2
+        ? `<button class="muted" disabled title="Admins cannot be demoted">Demote</button>`
+        : u.role === 1
+        ? `<button class="deny-btn" onclick="if(confirm('Demote Supplier to Client?')) changeRole(${u.id}, 0)">Demote</button>`
+        : `<button class="muted" disabled title="Client is the lowest role">Demote</button>`;
+    return `<div style="display:flex;gap:.5rem;flex-wrap:wrap;">${promoteBtn}${demoteBtn}</div>`;
+  }
 
-    async function loadUsers() {
-      const body = document.getElementById('userTableBody');
-      try {
-        const res = await fetch(`${API}/admin/users`, { headers });
-        const json = await res.json();
-        if (!json.success) throw new Error(json.error || 'Failed');
-        const users = json.users || [];
-        if (!users.length) {
-          body.innerHTML = '<tr><td colspan="5" class="text-center py-4">No users found</td></tr>';
-          return;
-        }
-        body.innerHTML = users.map(u => `
+  async function loadUsers() {
+    const body = document.getElementById('userTableBody');
+    try {
+      const json = await safeFetch(`${API}/admin/users`);
+      const users = json.users || json.data || [];
+      if (!users.length) {
+        body.innerHTML = renderErrorRow(5, 'No users found');
+        return;
+      }
+      body.innerHTML = users
+        .map(
+          (u) => `
           <tr>
-            <td>${[(u.first_name||''), (u.last_name||'')].filter(Boolean).join(' ')}</td>
+            <td>${(u.first_name || '') + ' ' + (u.last_name || '')}</td>
             <td>${u.email || ''}</td>
             <td>${u.username || ''}</td>
             <td>${roleLabel(u.role)}</td>
             <td>${renderUserActions(u)}</td>
-          </tr>
-        `).join('');
-      } catch (err) {
-        body.innerHTML = `<tr><td colspan="5" class="text-center" style="color:#b91c1c;">Error loading users</td></tr>`;
-      }
+          </tr>`
+        )
+        .join('');
+    } catch (err) {
+      console.error('[admin] loadUsers failed:', err);
+      body.innerHTML = renderErrorRow(5, `Error loading users — ${err.message || err}`);
     }
+  }
 
-    /* -------- Feedbacks -------- */
-    async function loadFeedbacks() {
-      const body = document.getElementById('feedbackTableBody');
-      try {
-        const res = await fetch(`${API}/admin/feedbacks`, { headers });
-        const json = await res.json();
-        if (!json.success) throw new Error(json.error || 'Failed');
-        const list = json.feedbacks || [];
-        if (!list.length) {
-          body.innerHTML = '<tr><td colspan="3" class="text-center py-4">No feedback yet</td></tr>';
-          return;
-        }
-        body.innerHTML = list.map(f => `
+  /* ====== Feedbacks ====== */
+  async function loadFeedbacks() {
+    const body = document.getElementById('feedbackTableBody');
+    try {
+      const json = await safeFetch(`${API}/admin/feedbacks`);
+      const list = json.feedbacks || json.data || [];
+      if (!list.length) {
+        body.innerHTML = renderErrorRow(3, 'No feedback yet');
+        return;
+      }
+      body.innerHTML = list
+        .map(
+          (f) => `
           <tr>
-            <td>${[(f.first_name||''), (f.last_name||'')].filter(Boolean).join(' ')}</td>
+            <td>${(f.first_name || '') + ' ' + (f.last_name || '')}</td>
             <td>${f.message || ''}</td>
             <td>${f.created_at ? new Date(f.created_at).toLocaleString() : ''}</td>
-          </tr>
-        `).join('');
-      } catch (err) {
-        body.innerHTML = `<tr><td colspan="3" class="text-center" style="color:#b91c1c;">Error loading feedback</td></tr>`;
-      }
+          </tr>`
+        )
+        .join('');
+    } catch (err) {
+      console.error('[admin] loadFeedbacks failed:', err);
+      body.innerHTML = renderErrorRow(3, `Error loading feedback — ${err.message || err}`);
     }
+  }
 
-    // Initial loads + expose handlers
-    loadVendorApplications();
-    loadUsers();
-    loadFeedbacks();
+  /* ====== Kick off loads ====== */
+  loadVendorApplications();
+  loadUsers();
+  loadFeedbacks();
     window.handleDecision = handleDecision;
     window.changeRole = changeRole;
   </script>
