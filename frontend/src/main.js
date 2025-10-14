@@ -578,17 +578,13 @@ choiceExploreHome?.addEventListener('click', () => {
 applyProfileNameFromCache();
 refreshProfileFromServerIfNeeded();
 
-(() => {
-  const role = parseInt(localStorage.getItem('solennia_role') || '0', 10);
-  if (role === 2) {
-    const menuProfile = document.getElementById('menuProfile');
-    if (menuProfile && !document.getElementById('menuAdminDynamic')) {
-      const adminLink = document.createElement('a');
-      adminLink.id = 'menuAdminDynamic';
-      adminLink.href = '/adminpanel.html';
-      adminLink.textContent = 'Admin Panel';
-      adminLink.className = 'block px-4 py-2 text-sm hover:bg-gray-100';
-      menuProfile.insertAdjacentElement('afterend', adminLink);
-    }
+if (json.user.role === 2) {
+  const menuProfile = document.getElementById('menuProfile');
+  if (menuProfile) {
+    const adminLink = document.createElement('a');
+    adminLink.href = '/adminpanel.html';
+    adminLink.textContent = 'Admin Panel';
+    adminLink.className = 'block px-4 py-2 text-sm hover:bg-gray-100';
+    menuProfile.insertAdjacentElement('afterend', adminLink);
   }
-})();
+}
