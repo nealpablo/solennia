@@ -73,6 +73,10 @@ $loadRoutes('/src/Routes/adminRoutes.php');
 // -------------------------------------------------------------
 // Health / debug
 // -------------------------------------------------------------
+
+$displayErrorDetails = true; // change to false later in production
+$errorMiddleware = $app->addErrorMiddleware($displayErrorDetails, true, true);
+
 $app->get('/', function ($req, $res) {
     $res->getBody()->write('Solennia backend is running');
     return $res->withHeader('Content-Type', 'text/plain');
