@@ -102,22 +102,20 @@ $app->get('/api/dbtest', function ($req, $res) {
 
 $app->get('/api/dbdiag', function ($req, $res) {
     $seen = [
-        'DB_HOST' => $_ENV['DB_HOST'] ?? null,
-        'DB_PORT' => $_ENV['DB_PORT'] ?? null,
-        'DB_DATABASE' => $_ENV['DB_DATABASE'] ?? null,
-        'DB_USERNAME' => $_ENV['DB_USERNAME'] ?? null,
-        'APP_ENV' => $_ENV['APP_ENV'] ?? null
+        'APP_ENV'     => getenv('APP_ENV') ?: ($_ENV['APP_ENV'] ?? null),
+        'DB_HOST'     => getenv('DB_HOST') ?: ($_ENV['DB_HOST'] ?? null),
+        'DB_PORT'     => getenv('DB_PORT') ?: ($_ENV['DB_PORT'] ?? null),
+        'DATABASE_URL'=> getenv('DATABASE_URL') ?: null,
     ];
     try {
         \Illuminate\Database\Capsule\Manager::connection()->getPdo();
         $result = 'connected';
     } catch (\Throwable $e) {
-        $result = 'error: ' . $e->getMessage();
+        $result = 'error: '.$e->getMessage();
     }
-    $res->getBody()->write(json_encode(['seen' => $seen, 'result' => $result]));
+    $res->getBody()->write(json_encode(['seen'=>$seen,'result'=>$result]));
     return $res->withHeader('Content-Type', 'application/json');
 });
-
 
 $app->get('/routes', function ($request, $response) use ($app) {
     $routes = [];

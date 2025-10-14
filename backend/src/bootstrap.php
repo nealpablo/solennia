@@ -2,64 +2,62 @@
 use Illuminate\Database\Capsule\Manager as Capsule;
 use Dotenv\Dotenv;
 
-$ROOT = realpath(__DIR__ . '/..');
+require_once __DIR__ . '/../vendor/autoload.php';
 
-function envx($k,$d=null){ $v=getenv($k); if($v!==false)return $v; return $_ENV[$k]??$_SERVER[$k]??$d; }
-
-$databaseUrl = envx('DATABASE_URL');
-if ($databaseUrl) {
-    $p = parse_url($databaseUrl);
-    $host = $p['host'] ?? '127.0.0.1';
-    $port = (int)($p['port'] ?? 3306);
-    $user = $p['user'] ?? 'root';
-    $pass = $p['pass'] ?? '';
-    $db   = ltrim($p['path'] ?? '/railway','/');
-} else {
-    $host = envx('DB_HOST');
-    $port = (int)envx('DB_PORT');
-    $user = envx('DB_USERNAME');
-    $pass = envx('DB_PASSWORD','');
-    $db   = envx('DB_DATABASE');
+function envx(string $k, $d = null) {
+    if (array_key_exists($k, $_ENV))    return $_ENV[$k];
+    if (array_key_exists($k, $_SERVER)) return $_SERVER[$k];
+    $v = getenv($k);
+    return $v !== false ? $v : $d;
 }
 
-// load .env locally only
+$ROOT    = realpath(__DIR__ . '/..');
 $APP_ENV = envx('APP_ENV', 'production');
-if ($APP_ENV !== 'production' && is_file($ROOT . '/.env')) {
+
+if ($APP_ENV !== 'production' && is_file($ROOT.'/.env')) {
     Dotenv::createImmutable($ROOT)->load();
 } else {
     Dotenv::createImmutable($ROOT)->safeLoad();
 }
 
-// read DB config from env (with envx)
-$driver = envx('DB_CONNECTION', 'mysql');
-$host   = envx('DB_HOST');
-$port   = envx('DB_PORT');
-$db     = envx('DB_DATABASE');
-$user   = envx('DB_USERNAME');
-$pass   = envx('DB_PASSWORD', '');
+/** ---- Build DB config (DATABASE_URL preferred) ---- */
+$host = $user = $pass = $db = $port = null;
 
-if (!$host || !$port || !$db || !$user) {
-    throw new \RuntimeException('Missing DB envs. Set DB_HOST, DB_PORT, DB_DATABASE, DB_USERNAME, DB_PASSWORD in Railway.');
+if ($url = envx('DATABASE_URL')) {
+    $p = parse_url($url);
+    $host = $p['host'] ?? null;
+    $port = isset($p['port']) ? (int)$p['port'] : null;
+    $user = $p['user'] ?? null;
+    $pass = $p['pass'] ?? '';
+    $db   = isset($p['path']) ? ltrim($p['path'], '/') : null;
+} else {
+    $host = envx('DB_HOST');
+    $port = envx('DB_PORT');
+    $user = envx('DB_USERNAME');
+    $pass = envx('DB_PASSWORD', '');
+    $db   = envx('DB_DATABASE');
 }
 
-$capsule = new Capsule();
-$capsule->addConnection([
-    'driver'    => $driver,
-    'host'      => $host,
-    'port'      => (int)$port,
-    'database'  => $db,
-    'username'  => $user,
-    'password'  => $pass,
-    'charset'   => 'utf8mb4',
-    'collation' => 'utf8mb4_unicode_ci',
-    'prefix'    => '',
-]);
+$driver = envx('DB_CONNECTION', 'mysql');
 
-try {
-    $capsule->getConnection()->getPdo();
-} catch (\Throwable $e) {
-    error_log("DB_CONNECT_FAIL to {$host}:{$port} as {$user}/{$db} -> " . $e->getMessage());
-    throw $e;
+$capsule = new Capsule();
+if ($host && $port && $db && $user) {
+    $capsule->addConnection([
+        'driver'    => $driver,
+        'host'      => $host,
+        'port'      => (int)$port,
+        'database'  => $db,
+        'username'  => $user,
+        'password'  => $pass,
+        'charset'   => 'utf8mb4',
+        'collation' => 'utf8mb4_unicode_ci',
+        'prefix'    => '',
+    ]);
+    // do NOT touch the connection here — let routes try it
+    $GLOBALS['DB_CONFIG_OK'] = true;
+} else {
+    error_log('DB_CONFIG_INCOMPLETE: host/port/db/user missing');
+    $GLOBALS['DB_CONFIG_OK'] = false;
 }
 
 $capsule->setAsGlobal();
