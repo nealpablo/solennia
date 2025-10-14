@@ -4,7 +4,7 @@
   "type": "project",
   "license": "MIT",
   "require": {
-    "php": "^8.1",
+    "php": "^8.2",
     "ext-pdo": "*",
     "slim/slim": "^4.13",
     "slim/psr7": "^1.6",
