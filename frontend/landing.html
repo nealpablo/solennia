@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en" class="scroll-smooth">
+
+<head>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Solennia — Where Events and Vendors Click</title>
+  <style>
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    main {
+      flex: 1;
+    }
+  </style>
+</head>
+
+<body class="font-[Cinzel] text-[#1c1b1a] bg-[#f6f0e8]">
+  <!-- Header -->
+  <header class="bg-[#e8ddae] border-b border-gray-300">
+    <nav class="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
+      <a href="#" class="text-xl tracking-wide">SOLENNIA</a>
+    </nav>
+  </header>
+
+  <!-- Main -->
+  <main>
+    <section class="relative">
+
+      <div class="relative max-w-6xl mx-auto px-4 py-20 md:py-28 text-center">
+        <h1 class="text-4xl md:text-5xl font-semibold tracking-wide">
+          Where Events and Vendors Click
+        </h1>
+        <p class="mt-19 text-lg text-gray-700">
+          Plan less. Celebrate more connect with trusted suppliers in seconds.
+        </p>
+
+        <div class="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
+          <a id="btnGetStarted" href="index.html"
+            class="inline-flex items-center justify-center px-6 py-3 rounded-md bg-[#7a5d47] text-white font-semibold hover:opacity-90">
+            Let’s Get Started
+          </a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-[#353946] text-[#f6f0e8] py-10">
+    <div class="max-w-6xl mx-auto px-6 flex items-center justify-center space-x-4">
+      <img src="/images/solennia.png" alt="Solennia logo" class="h-30 w-20 select-none" />
+      <p class="text-sm text-gray-300">
+        © <span id="year"></span> Solennia. All rights reserved.
+      </p>
+    </div>
+  </footer>
+
+  <script type="module" src="/src/landing.js"></script>
+  <script>
+    document.getElementById('year').textContent = new Date().getFullYear();
+  </script>
+</body>
+
+</html>

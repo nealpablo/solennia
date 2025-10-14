@@ -1,0 +1,37 @@
+{
+  "name": "vendor-neal/solennia-backend",
+  "description": "Solennia is an online booking platform",
+  "type": "project",
+  "license": "MIT",
+  "require": {
+    "php": "^8.1",
+    "ext-pdo": "*",
+    "slim/slim": "^4.13",
+    "slim/psr7": "^1.6",
+    "illuminate/database": "^12.33",
+    "vlucas/phpdotenv": "^5.6",
+    "firebase/php-jwt": "^6.11",
+    "php-di/php-di": "^7.1"
+  },
+  "autoload": {
+    "psr-4": {
+      "Src\\": "src/",
+      "App\\": "src/"
+    }
+  },
+  "scripts": {
+    "start": "php -S 0.0.0.0:8080 -t public public/index.php",
+    "post-install-cmd": [
+      "@composer dump-autoload -o"
+    ],
+    "post-update-cmd": [
+      "@composer dump-autoload -o"
+    ]
+  },
+  "config": {
+    "optimize-autoloader": true,
+    "sort-packages": true
+  },
+  "minimum-stability": "stable",
+  "prefer-stable": true
+}

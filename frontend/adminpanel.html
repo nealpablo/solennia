@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Solennia — Admin Control Panel</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Keep your Vite entry if you need shared logic -->
+  <script type="module" src="/src/main.js"></script>
+  <style>
+    body {
+      font-family: 'Cinzel', serif;
+      background-color: #f6f0e8;
+      color: #1c1b1a;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header { background: #e8ddae; border-bottom: 1px solid #d1d5db; }
+    main { flex: 1; padding: 2rem; }
+    footer { background: #353946; color: #f6f0e8; text-align: center; padding: 1rem; font-size: 0.9rem; }
+    .table-container {
+      overflow-x: auto; background: #fff; border: 1px solid #d1d5db; border-radius: 1rem;
+      padding: 1rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 2rem;
+    }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 0.75rem; text-align: left; border-bottom: 1px solid #e5e5e5; vertical-align: middle; }
+    th { background: #e8ddae; color: #1c1b1a; }
+    button {
+      border: 2px solid transparent; padding: 0.4rem 0.8rem; border-radius: 0.5rem; cursor: pointer;
+      font-weight: 600; transition: all 0.2s ease;
+    }
+    button.approve-btn { background: #7a5d47; color: #fff; border-color: #5a4333; }
+    button.approve-btn:hover { background: #6a503d; }
+    button.deny-btn { background: #b91c1c; color: #fff; border-color: #7f1414; }
+    button.deny-btn:hover { background: #991b1b; }
+    button.muted { background: #e5e7eb; color: #6b7280; border-color: #d1d5db; cursor: not-allowed; }
+    #profileMenu { background: #f6f0e8; }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="shadow-md">
+    <nav class="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between"
+         style="display:flex;align-items:center;justify-content:space-between;max-width:80rem;padding:0 1.5rem;height:3.5rem;">
+      <h1 class="text-xl font-semibold tracking-wide" style="font-size:1.25rem;font-weight:600;">Solennia Admin Panel</h1>
+
+      <!-- Profile Dropdown -->
+      <div class="relative" style="position:relative;">
+        <button id="profileBtn"
+          class="inline-flex items-center justify-center w-9 h-9 rounded-full border border-black bg-transparent hover:bg-black/5 overflow-hidden"
+          aria-haspopup="menu" aria-expanded="false"
+          style="display:inline-flex;align-items:center;justify-content:center;width:2.25rem;height:2.25rem;border:2px solid #000;border-radius:9999px;background:transparent;overflow:hidden;">
+          <img id="navAvatar" alt="Avatar" class="w-full h-full object-cover hidden rounded-full"
+               style="display:none;width:100%;height:100%;object-fit:cover;border-radius:9999px;" />
+          <div id="navAvatarFallback" class="flex items-center justify-center w-full h-full rounded-full bg-transparent"
+               style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;">
+            <svg class="w-5 h-5 text-gray-700" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"
+                 style="width:1.25rem;height:1.25rem;color:#374151;">
+              <path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-5 0-9 2.5-9 5.5V21h18v-1.5C21 16.5 17 14 12 14Z"/>
+            </svg>
+          </div>
+        </button>
+        <div id="profileMenu" class="hidden absolute right-0 mt-2 w-56 rounded-xl border border-gray-300 shadow-xl z-50" role="menu"
+             style="position:absolute;right:0;margin-top:.5rem;width:14rem;border:1px solid #d1d5db;border-radius:.75rem;box-shadow:0 10px 25px rgba(0,0,0,.15);display:none;z-index:50;">
+          <div class="py-1" style="padding:.25rem 0;">
+            <a href="/index.html" class="block px-4 py-2 text-sm hover:bg-gray-100" role="menuitem"
+               style="display:block;padding:.5rem 1rem;font-size:.9rem;">Home</a>
+          </div>
+        </div>
+      </div>
+    </nav>
+  </header>
+
+  <!-- Main -->
+  <main class="max-w-7xl mx-auto w-full" style="max-width:80rem;margin:0 auto;width:100%;">
+    <h2 class="text-2xl font-semibold mb-6" style="font-size:1.5rem;font-weight:600;margin-bottom:1.5rem;">Vendor Applications</h2>
+    <div id="vendorApplications" class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>Applicant</th>
+            <th>Business Name</th>
+            <th>Category</th>
+            <th>Address</th>
+            <th>Pricing</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="vendorTableBody">
+          <tr><td colspan="6" class="text-center py-4">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 class="text-2xl font-semibold mb-6" style="font-size:1.5rem;font-weight:600;margin-bottom:1.5rem;">User Management</h2>
+    <div id="usersSection" class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>User</th>
+            <th>Email</th>
+            <th>Username</th>
+            <th>Role</th>
+            <th style="min-width:240px;">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="userTableBody">
+          <tr><td colspan="5" class="text-center py-4">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 class="text-2xl font-semibold mb-6" style="font-size:1.5rem;font-weight:600;margin-bottom:1.5rem;">User Feedback</h2>
+    <div id="feedbackSection" class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>User</th>
+            <th>Message</th>
+            <th>Date</th>
+          </tr>
+        </thead>
+        <tbody id="feedbackTableBody">
+          <tr><td colspan="3" class="text-center py-4">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer>© <span id="year"></span> Solennia. All rights reserved.</footer>
+
+  <script>
+    // Footer year
+    document.getElementById('year').textContent = new Date().getFullYear();
+
+    // API + auth headers
+    const API = '/api';
+    const token = localStorage.getItem('solennia_token');
+    const headers = {
+      'Content-Type': 'application/json',
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+    };
+
+    // Profile menu toggle + logout
+    const profileBtn = document.getElementById('profileBtn');
+    const profileMenu = document.getElementById('profileMenu');
+    profileBtn?.addEventListener('click', () => {
+      profileMenu.style.display = (profileMenu.style.display === 'none' || !profileMenu.style.display) ? 'block' : 'none';
+    });
+    document.addEventListener('click', (e) => {
+      if (!profileMenu.contains(e.target) && !profileBtn.contains(e.target)) profileMenu.style.display = 'none';
+    });
+    document.getElementById('menuLogout')?.addEventListener('click', () => {
+      localStorage.removeItem('solennia_token');
+      localStorage.removeItem('solennia_profile');
+      window.location.href = '/index.html';
+    });
+
+    // Helpers
+    function roleLabel(role) { return role === 2 ? 'Admin' : role === 1 ? 'Supplier' : 'Client'; }
+    async function safeParse(res) {
+      const ct = res.headers.get('content-type') || '';
+      if (ct.includes('application/json')) return res.json();
+      const text = await res.text();
+      throw new Error(text || `${res.status} ${res.statusText}`);
+    }
+
+    /* -------- Vendor Applications -------- */
+    async function loadVendorApplications() {
+      const body = document.getElementById('vendorTableBody');
+      try {
+        const res = await fetch(`${API}/admin/vendor-applications`, { headers });
+        const json = await res.json();
+        if (!json.success) throw new Error(json.error || 'Failed to load');
+        const apps = json.applications || [];
+        if (!apps.length) {
+          body.innerHTML = '<tr><td colspan="6" class="text-center py-4">No pending applications</td></tr>';
+          return;
+        }
+        body.innerHTML = apps.map(a => `
+          <tr>
+            <td>${(a.first_name || '') + ' ' + (a.last_name || '')}</td>
+            <td>${a.business_name || '-'}</td>
+            <td>${a.category || '-'}</td>
+            <td>${a.address || '-'}</td>
+            <td>${a.pricing || '-'}</td>
+            <td>
+              <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+                <button class="approve-btn" onclick="handleDecision(${a.id}, 'approve')">Approve</button>
+                <button class="deny-btn" style="border:2px solid #7f1414" onclick="handleDecision(${a.id}, 'deny')">Deny</button>
+              </div>
+            </td>
+          </tr>
+        `).join('');
+      } catch (err) {
+        body.innerHTML = `<tr><td colspan="6" class="text-center" style="color:#b91c1c;">Error loading applications</td></tr>`;
+      }
+    }
+    async function handleDecision(id, action) {
+      if (!confirm(`Are you sure you want to ${action} this vendor?`)) return;
+      try {
+        const res = await fetch(`${API}/admin/vendor-application/decision`, {
+          method: 'POST', headers, body: JSON.stringify({ id, action })
+        });
+        const json = await safeParse(res);
+        if (!json.success) throw new Error(json.error || 'Failed');
+        alert(json.message);
+        loadVendorApplications();
+      } catch (err) { alert('Error: ' + err.message); }
+    }
+
+    /* -------- Users (Promote/Demote) -------- */
+    async function changeRole(user_id, role) {
+      try {
+        const res = await fetch(`${API}/admin/users/role`, {
+          method: 'POST', headers, body: JSON.stringify({ user_id, role })
+        });
+        const json = await safeParse(res);
+        if (!json.success) throw new Error(json.error || 'Failed');
+        loadUsers();
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    }
+
+    function renderUserActions(u) {
+      // Promote allowed if role < 2
+      const promoteBtn = (u.role < 2)
+        ? `<button class="approve-btn" onclick="if(confirm('Promote to ${roleLabel(u.role + 1)}?')) changeRole(${u.id}, ${u.role + 1})">Promote</button>`
+        : `<span style="color:#6b7280;">Max role</span>`;
+
+      // Demote rules:
+      // - Admin → Admin: cannot demote
+      // - Admin → Supplier: can demote to Client
+      // - Admin → Client: cannot demote (already lowest)
+      const demoteBtn =
+        (u.role === 2)
+          ? `<button class="muted" disabled title="Admins cannot be demoted">Demote</button>`
+          : (u.role === 1)
+              ? `<button class="deny-btn" onclick="if(confirm('Demote Supplier to Client?')) changeRole(${u.id}, 0)">Demote</button>`
+              : `<button class="muted" disabled title="Client is the lowest role">Demote</button>`;
+
+      return `<div style="display:flex;gap:.5rem;flex-wrap:wrap;">${promoteBtn}${demoteBtn}</div>`;
+    }
+
+    async function loadUsers() {
+      const body = document.getElementById('userTableBody');
+      try {
+        const res = await fetch(`${API}/admin/users`, { headers });
+        const json = await res.json();
+        if (!json.success) throw new Error(json.error || 'Failed');
+        const users = json.users || [];
+        if (!users.length) {
+          body.innerHTML = '<tr><td colspan="5" class="text-center py-4">No users found</td></tr>';
+          return;
+        }
+        body.innerHTML = users.map(u => `
+          <tr>
+            <td>${(u.first_name || '') + ' ' + (u.last_name || '')}</td>
+            <td>${u.email || ''}</td>
+            <td>${u.username || ''}</td>
+            <td>${roleLabel(u.role)}</td>
+            <td>${renderUserActions(u)}</td>
+          </tr>
+        `).join('');
+      } catch (err) {
+        body.innerHTML = `<tr><td colspan="5" class="text-center" style="color:#b91c1c;">Error loading users</td></tr>`;
+      }
+    }
+
+    /* -------- Feedbacks -------- */
+    async function loadFeedbacks() {
+      const body = document.getElementById('feedbackTableBody');
+      try {
+        const res = await fetch(`${API}/admin/feedbacks`, { headers });
+        const json = await res.json();
+        if (!json.success) throw new Error(json.error || 'Failed');
+        const list = json.feedbacks || [];
+        if (!list.length) {
+          body.innerHTML = '<tr><td colspan="3" class="text-center py-4">No feedback yet</td></tr>';
+          return;
+        }
+        body.innerHTML = list.map(f => `
+          <tr>
+            <td>${(f.first_name || '') + ' ' + (f.last_name || '')}</td>
+            <td>${f.message || ''}</td>
+            <td>${f.created_at ? new Date(f.created_at).toLocaleString() : ''}</td>
+          </tr>
+        `).join('');
+      } catch (err) {
+        body.innerHTML = `<tr><td colspan="3" class="text-center" style="color:#b91c1c;">Error loading feedback</td></tr>`;
+      }
+    }
+
+    // Initial loads
+    loadVendorApplications();
+    loadUsers();
+    loadFeedbacks();
+  </script>
+</body>
+</html>

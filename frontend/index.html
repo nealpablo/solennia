@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+  <head>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <style>
+      #carousel {
+        scrollbar-width: none;
+      }
+      #carousel::-webkit-scrollbar {
+        display: none;
+      }
+    </style>
+
+    <!-- ✅ Enforce solid BLACK border on the nav avatar button, no matter what -->
+    <style>
+      #profileBtn {
+        border-width: 2px !important;
+        border-color: #000 !important;
+        background: transparent !important;
+        border-radius: 9999px !important;
+      }
+    </style>
+
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+  <body
+    class="min-h-screen flex flex-col font-[Cinzel] text-[#1c1b1a] bg-[#f6f0e8]"
+  >
+    <!-- Navbar -->
+    <header class="bg-[#e8ddae] border-b border-gray-300">
+      <nav
+        class="max-w-7xl mx-auto px-4 flex items-center justify-between h-14"
+      >
+        <a href="" class="text-xl tracking-wide">SOLENNIA</a>
+
+        <button
+          id="mobileToggle"
+          class="md:hidden p-2 rounded hover:bg-black/5"
+          aria-label="Open menu"
+        >
+          <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none">
+            <path
+              d="M4 7h16M4 12h16M4 17h16"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+            />
+          </svg>
+        </button>
+
+        <ul
+          id="mobileMenu"
+          class="md:flex items-center gap-6 text-sm font-medium hidden"
+        >
+          <li><a href="#gallery" class="hover:underline">VENUE</a></li>
+          <li><a href="#gallery" class="hover:underline">SUPPLIERS</a></li>
+          <li><a href="/aboutus.html" class="hover:underline">ABOUT US</a></li>
+        </ul>
+
+        <!-- Right side: quick icons + profile dropdown -->
+        <div class="flex items-center gap-2">
+          <!-- Search (dropdown) -->
+          <div class="relative">
+            <button
+              id="searchBtn"
+              class="p-2 rounded hover:bg-black/5"
+              aria-label="Search"
+              aria-expanded="false"
+            >
+              <svg
+                class="w-5 h-5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <circle cx="11" cy="11" r="7"></circle>
+                <path d="M20 20l-3.5-3.5"></path>
+              </svg>
+            </button>
+
+            <div
+              id="searchPanel"
+              class="hidden absolute right-0 mt-2 w-80 bg-white border border-gray-300 rounded-2xl shadow-xl z-50"
+            >
+              <div class="p-3">
+                <input
+                  id="searchInput"
+                  type="text"
+                  placeholder="Search Solennia..."
+                  class="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#7a5d47] focus:border-[#7a5d47]"
+                />
+                <ul
+                  id="searchResults"
+                  class="mt-3 max-h-64 overflow-y-auto divide-y divide-gray-200 text-sm"
+                ></ul>
+              </div>
+            </div>
+          </div>
+          <!-- Messages -->
+          <button class="p-2 rounded hover:bg-black/5" aria-label="Messages">
+            <svg
+              class="w-5 h-5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path
+                d="M21 15a4 4 0 0 1-4 4H8l-4 3V7a4 4 0 0 1 4-4h9a4 4 0 0 1 4 4z"
+              ></path>
+            </svg>
+          </button>
+          <!-- Notifications (dropdown) -->
+          <div class="relative">
+            <button
+              id="notifBtn"
+              class="p-2 rounded hover:bg-black/5"
+              aria-label="Notifications"
+              aria-expanded="false"
+            >
+              <svg
+                class="w-5 h-5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5"
+                ></path>
+                <path d="M9 17a3 3 0 0 0 6 0"></path>
+              </svg>
+            </button>
+
+            <!-- Panel -->
+            <div
+              id="notifPanel"
+              class="hidden absolute right-0 mt-2 w-80 bg-white border border-gray-300 rounded-2xl shadow-xl z-50"
+            >
+              <!-- cute notch -->
+              <div
+                class="absolute -top-3 right-3 w-8 h-8 bg-white border-t border-l border-gray-300 rounded-tl-xl"
+              ></div>
+
+              <div class="p-4">
+                <div class="border-b border-gray-300 mb-4"></div>
+                <div class="flex flex-col items-center text-center py-6">
+                  <svg
+                    class="w-10 h-10 mb-3"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                  >
+                    <path
+                      d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5"
+                    ></path>
+                    <path d="M9 17a3 3 0 0 0 6 0"></path>
+                  </svg>
+                  <p class="text-base">no notifications yet.</p>
+                  <p class="text-sm text-gray-600">We will let you know!</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Profile dropdown -->
+<div class="relative">
+  <button id="profileBtn"
+    class="inline-flex items-center justify-center w-9 h-9 rounded-full border border-gray-400 bg-transparent hover:bg-black/5 overflow-hidden"
+    aria-haspopup="menu" aria-expanded="false">
+    <!-- Custom image (shown when user uploads one) -->
+    <img id="navAvatar" alt="Avatar" class="w-full h-full object-cover hidden rounded-full" />
+    <!-- Default SVG fallback (transparent background) -->
+    <div id="navAvatarFallback" class="flex items-center justify-center w-full h-full rounded-full bg-transparent">
+      <svg class="w-5 h-5 text-gray-700" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-5 0-9 2.5-9 5.5V21h18v-1.5C21 16.5 17 14 12 14Z"/>
+      </svg>
+    </div>
+  </button>
+
+  <div id="profileMenu"
+    class="hidden absolute right-0 mt-2 w-56 rounded-xl border border-gray-300 bg-[#f6f0e8] shadow-xl z-50"
+    role="menu" aria-label="Profile">
+    <div class="py-1">
+      <a href="/profile.html" id="menuProfile" class="block px-4 py-2 text-sm hover:bg-gray-100" role="menuitem">Profile</a>
+      <div class="my-1 border-t border-gray-300"></div>
+      <!-- Add this in your dropdown menu list -->
+<a href="/adminpanel.html" id="menuAdmin"
+   class="block px-4 py-2 text-sm hover:bg-gray-100 hidden"
+   role="menuitem">Admin Panel</a>
+      <button id="menuSignIn" class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100" role="menuitem">Login</button>
+      <button id="menuSignUp" class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100" role="menuitem">Register</button>
+      <button id="menuLogout" class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 hidden" role="menuitem">Logout</button>
+    </div>
+  </div>
+</div>
+
+      </nav>
+    </header>
+
+    <!-- ===== MAIN CONTENT WRAPPER (keeps footer at bottom on zoom-out) ===== -->
+    <main class="flex-1">
+      <!-- Gallery (Auto-scrolling carousel) -->
+      <section id="gallery" class="mt-16 bg-[#7a5d47] py-10">
+        <div class="max-w-6xl mx-auto px-4">
+          <div
+            id="carousel"
+            class="relative overflow-x-auto rounded-xl bg-[#7a5d47]"
+          >
+            <ul id="carouselTrack" class="flex gap-8 py-2">
+              <!-- Items (feel free to add more) -->
+              <li class="shrink-0 w-[420px]">
+                <img
+                  src="/images/gallery1.jpg"
+                  alt="Kids Party"
+                  class="w-full h-60 object-cover rounded-xl cursor-pointer"
+                />
+              </li>
+              <li class="shrink-0 w-[420px]">
+                <img
+                  src="/images/gallery2.jpg"
+                  alt="Wedding"
+                  class="w-full h-60 object-cover rounded-xl cursor-pointer"
+                />
+              </li>
+              <li class="shrink-0 w-[420px]">
+                <img
+                  src="/images/gallery3.jpg"
+                  alt="Clients"
+                  class="w-full h-60 object-cover rounded-xl cursor-pointer"
+                />
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- Plan Section -->
+      <section class="max-w-5xl mx-auto text-center mt-16 px-4">
+        <h2 class="text-2xl md:text-3xl font-semibold">
+          Plan your dream Event Now
+        </h2>
+        <p class="mt-2 text-gray-700">
+          Let Solennia AI handle the stress — you enjoy the Yes!
+        </p>
+        <div class="mt-6 max-w-md mx-auto">
+          <input
+            type="text"
+            placeholder="Type..."
+            class="w-full border-b border-gray-500 bg-transparent focus:outline-none py-2 text-sm text-gray-800"
+          />
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="mt-20 bg-[#353946] text-[#f6f0e8] py-10">
+      <div class="max-w-6xl mx-auto px-6 grid md:grid-cols-3 gap-10 text-sm">
+        <div>
+          <img
+            src="/images/solennia.png"
+            alt="Solennia logo"
+            class="h-12 w-auto select-none"
+          />
+          <h3 class="text-lg font-semibold mb-3">Solennia</h3>
+          <p class="text-gray-300">“One click closer to the perfect event.”</p>
+          <p class="mt-4 text-gray-400" id="footerYear">
+            © 2025 Solennia. All rights reserved.
+          </p>
+          <p class="mt-2">solenniainquires@gmail.com</p>
+        </div>
+        <ul class="space-y-2">
+          <li><a href="/index.html" class="hover:underline">HOME</a></li>
+          <li><a href="/aboutus.html" class="hover:underline">ABOUT US</a></li>
+          <li>
+            <a href="#gallery" class="hover:underline">EXPLORE VENDORS</a>
+          </li>
+          <li><a href="#" class="hover:underline">WEDDING PLANNER AI</a></li>
+        </ul>
+        <ul class="space-y-2">
+          <li>
+            <a href="#" id="footerPrivacyPolicy" class="hover:underline"
+              >PRIVACY POLICY</a
+            >
+          </li>
+          <li>
+            <a href="#" id="footerTermsLink" class="hover:underline"
+              >TERMS & CONDITIONS</a
+            >
+          </li>
+          <li><a href="#" class="hover:underline">VENDOR AGREEMENT</a></li>
+          <li>
+            <a href="#" id="footerFeedbackLink" class="hover:underline"
+              >GIVE FEEDBACK</a
+            >
+          </li>
+        </ul>
+      </div>
+    </footer>
+
+    <!-- Choice Modal, Vendor, Feedback, Privacy (UNCHANGED) -->
+
+    <!-- ===================== AUTH MODALS ===================== -->
+    <div
+      id="authBackdrop"
+      class="fixed inset-0 bg-black/40 hidden z-[90]"
+    ></div>
+
+    <!-- Login Modal -->
+    <div
+      id="loginModal"
+      class="fixed inset-0 hidden z-[100] grid place-items-center p-4"
+    >
+      <div
+        class="w-full max-w-md rounded-2xl bg-[#f6f0e8] shadow-xl border border-gray-300"
+      >
+        <div
+          class="px-6 py-4 border-b border-gray-300 bg-[#e8ddae] rounded-t-2xl"
+        >
+          <h3 class="text-lg font-semibold tracking-wide">Login</h3>
+        </div>
+        <form id="loginForm" class="px-6 py-5 space-y-4">
+          <div>
+            <label class="block text-sm">Username</label>
+            <!-- ✅ name changed from 'email' to 'username'; type text so non-email usernames work -->
+            <input
+              name="username"
+              type="text"
+              required
+              class="mt-1 w-full rounded-lg border-gray-300 bg-white focus:ring-2 focus:ring-[#7a5d47] focus:border-[#7a5d47]"
+            />
+          </div>
+          <div>
+            <label class="block text-sm">Password</label>
+            <input
+              name="password"
+              type="password"
+              required
+              class="mt-1 w-full rounded-lg border-gray-300 bg-white focus:ring-2 focus:ring-[#7a5d47] focus:border-[#7a5d47]"
+            />
+          </div>
+          <p id="loginError" class="hidden text-sm text-red-600"></p>
+          <div class="flex items-center justify-end gap-3 pt-2">
+            <button
+              type="button"
+              data-close
+              class="px-4 py-2 rounded-md border hover:bg-gray-100"
+            >
+              Cancel
+            </button>
+            <button
+              class="px-5 py-2 rounded-md bg-[#7a5d47] text-white font-semibold hover:opacity-90"
+            >
+              Login
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Register Modal -->
+    <div
+      id="registerModal"
+      class="fixed inset-0 hidden z-[100] grid place-items-center p-4"
+    >
+      <div
+        class="w-full max-w-md rounded-2xl bg-[#f6f0e8] shadow-xl border border-gray-300"
+      >
+        <div
+          class="px-6 py-4 border-b border-gray-300 bg-[#e8ddae] rounded-t-2xl"
+        >
+          <h3 class="text-lg font-semibold tracking-wide">Register</h3>
+        </div>
+        <form id="registerForm" class="px-6 py-5 space-y-4">
+          <div>
+            <label class="block text-sm">First Name</label>
+            <input
+              name="first_name"
+              required
+              class="mt-1 w-full rounded-lg border-gray-300 bg-white focus:ring-2 focus:ring-[#7a5d47] focus:border-[#7a5d47]"
+            />
+          </div>
+          <div>
+            <label class="block text-sm">Last Name</label>
+            <input
+              name="last_name"
+              required
+              class="mt-1 w-full rounded-lg border-gray-300 bg-white focus:ring-2 focus:ring-[#7a5d47] focus:border-[#7a5d47]"
+            />
+          </div>
+          <div>
+            <label class="block text-sm">Username</label>
+            <input
+              name="username"
+              required
+              class="mt-1 w-full rounded-lg border-gray-300 bg-white focus:ring-2 focus:ring-[#7a5d47] focus:border-[#7a5d47]"
+            />
+          </div>
+          <div>
+            <label class="block text-sm">Email</label>
+            <input
+              name="email"
+              type="email"
+              required
+              class="mt-1 w-full rounded-lg border-gray-300 bg-white focus:ring-2 focus:ring-[#7a5d47] focus:border-[#7a5d47]"
+            />
+          </div>
+          <div>
+            <label class="block text-sm">Password</label>
+            <input
+              name="password"
+              type="password"
+              minlength="6"
+              required
+              class="mt-1 w-full rounded-lg border-gray-300 bg-white focus:ring-2 focus:ring-[#7a5d47] focus:border-[#7a5d47]"
+            />
+          </div>
+          <p id="registerError" class="hidden text-sm text-red-600"></p>
+          <div class="flex items-center justify-end gap-3 pt-2">
+            <button
+              type="button"
+              data-close
+              class="px-4 py-2 rounded-md border hover:bg-gray-100"
+            >
+              Cancel
+            </button>
+            <button
+              class="px-5 py-2 rounded-md bg-[#7a5d47] text-white font-semibold hover:opacity-90"
+            >
+              Register
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ===================== FEEDBACK MODAL (FIXED) ===================== -->
+    <!-- fixed items-center -->
+    <div
+      id="feedbackModal"
+      class="hidden fixed inset-0 z-[260] bg-black/40 flex items-center justify-center p-4"
+    >
+      <div
+        class="bg-[#f6f0e8] w-full max-w-md rounded-2xl shadow-xl border border-gray-300 overflow-hidden"
+      >
+        <div
+          class="flex justify-between items-center px-6 py-4 border-b border-gray-300 bg-[#e8ddae]"
+        >
+          <h3 class="text-lg font-semibold tracking-wide">Your Feedback</h3>
+          <button
+            id="closeFeedback"
+            class="text-2xl font-light hover:text-gray-600"
+            aria-label="Close"
+          >
+            &times;
+          </button>
+        </div>
+        <form id="feedbackForm" class="px-6 py-5 space-y-4">
+          <div>
+            <label class="block text-xs font-medium mb-1">
+              How was your experience?
+            </label>
+            <textarea
+              name="message"
+              rows="4"
+              placeholder="Type your feedback here..."
+              required
+              class="w-full rounded-lg border border-gray-300 bg-white focus:ring-2 focus:ring-[#7a5d47] focus:border-[#7a5d47] p-2 text-sm"
+            ></textarea>
+          </div>
+          <div class="flex justify-end">
+            <button
+              type="submit"
+              class="px-6 py-2 rounded-md bg-[#7a5d47] text-white font-semibold hover:opacity-90"
+            >
+              Send Feedback
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ===== PRIVACY POLICY MODAL ===== -->
+    <div
+      id="privacyModal"
+      class="hidden fixed inset-0 z-[270] bg-black/40 flex items-center justify-center p-4"
+    >
+      <div
+        class="bg-[#f6f0e8] w-full max-w-2xl rounded-2xl shadow-xl border border-gray-300 overflow-hidden"
+      >
+        <div
+          class="flex justify-between items-center px-6 py-4 border-b border-gray-300 bg-[#e8ddae]"
+        >
+          <h3 class="text-lg font-semibold tracking-wide">Privacy Policy</h3>
+          <button
+            id="closePrivacy"
+            class="text-2xl font-light hover:text-gray-600"
+            aria-label="Close"
+          >
+            &times;
+          </button>
+        </div>
+        <div
+          class="p-6 space-y-4 text-sm leading-relaxed text-gray-800 max-h-[70vh] overflow-y-auto"
+        >
+          <p>
+            <strong>1. Introduction</strong><br />Solennia values your privacy.
+            This Privacy Policy outlines how we collect, use, and protect your
+            information.
+          </p>
+          <p>
+            <strong>2. Information We Collect</strong><br />We may collect
+            personal information such as your name, email, and contact details
+            when you register or interact with our platform.
+          </p>
+          <p>
+            <strong>3. How We Use Your Information</strong><br />Information
+            collected is used to improve user experience, process vendor
+            applications, and enhance our services.
+          </p>
+          <p>
+            <strong>4. Data Protection</strong><br />We implement appropriate
+            technical and organizational measures to protect your data against
+            unauthorized access or disclosure.
+          </p>
+          <p>
+            <strong>5. Cookies</strong><br />Our website may use cookies to
+            personalize your experience and analyze site usage. You can disable
+            cookies in your browser settings.
+          </p>
+          <p>
+            <strong>6. Sharing of Data</strong><br />We do not sell your
+            personal data. Limited data may be shared with trusted partners
+            strictly for operational purposes.
+          </p>
+          <p>
+            <strong>7. Your Rights</strong><br />You may request access,
+            correction, or deletion of your personal data by contacting us at
+            solenniainquires@gmail.com.
+          </p>
+          <p>
+            <strong>8. Policy Updates</strong><br />We may update this Privacy
+            Policy periodically. Continued use of Solennia means you accept the
+            latest version.
+          </p>
+          <p>
+            <strong>9. Contact</strong><br />For questions or concerns regarding
+            your privacy, please contact solenniainquires@gmail.com.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== TERMS & CONDITIONS MODAL ===== -->
+    <div
+      id="termsModal"
+      class="hidden fixed inset-0 z-[275] bg-black/40 flex items-center justify-center p-4"
+    >
+      <div
+        class="bg-[#f6f0e8] w-full max-w-4xl rounded-2xl shadow-xl border border-gray-300 overflow-hidden"
+      >
+        <div
+          class="flex justify-between items-center px-6 py-4 border-b border-gray-300 bg-[#e8ddae]"
+        >
+          <h3 class="text-xl font-semibold tracking-wide">
+            Terms and Conditions
+          </h3>
+          <button
+            id="closeTerms"
+            class="text-2xl font-light hover:text-gray-600"
+            aria-label="Close"
+          >
+            &times;
+          </button>
+        </div>
+        <div
+          class="p-6 space-y-5 text-sm leading-relaxed text-gray-800 max-h-[70vh] overflow-y-auto"
+        >
+          <p>
+            Welcome to Solennia. By accessing or using our website, mobile
+            application, or any services provided through our platform, you
+            agree to be bound by these Terms and Conditions. Please read them
+            carefully. If you do not agree with these terms, you must refrain
+            from using our platform.
+          </p>
+          <p>
+            Solennia is a digital platform designed to connect couples planning
+            their weddings with professional vendors offering relevant services.
+            These services may include, but are not limited to, venue rentals,
+            catering, photography, floral design, gown rentals, and
+            entertainment. Our goal is to simplify and personalize the wedding
+            planning experience through smart tools, including our AI-based
+            wedding assistant.
+          </p>
+          <p>
+            All users—whether couples or vendors—must provide accurate and
+            truthful information during registration. Vendors are responsible
+            for ensuring that the content they submit, including photos,
+            descriptions, and business information, is lawful, not misleading,
+            and does not infringe on any third-party rights. Solennia reserves
+            the right to verify, approve, or reject listings that do not meet
+            quality standards or violate our policies.
+          </p>
+          <p>
+            Users understand that Solennia acts only as an intermediary between
+            clients and vendors. While we facilitate the discovery and
+            connection process, Solennia is not responsible for any agreements,
+            disputes, payments, or service outcomes between the two parties. All
+            bookings, negotiations, and final arrangements are handled directly
+            by the user and vendor. Solennia is not liable for any damages,
+            losses, or service failures resulting from interactions on the
+            platform.
+          </p>
+          <p>
+            Vendors who apply to be listed on Solennia agree to be professional,
+            responsive, and transparent in their communications and services.
+            They must not engage in fraudulent, abusive, or unethical behavior.
+            Solennia may suspend or terminate accounts that violate our
+            community standards or receive repeated complaints.
+          </p>
+          <p>
+            Solennia respects user privacy and data security. All information
+            collected is handled in accordance with our Privacy Policy. By using
+            the platform, you consent to the collection and use of your
+            information as outlined in that policy.
+          </p>
+          <p>
+            We reserve the right to update or modify these Terms and Conditions
+            at any time without prior notice. Changes will be effective upon
+            posting on the website or app. Continued use of Solennia after such
+            changes indicates your acceptance of the updated terms.
+          </p>
+          <p>
+            If you have any questions regarding these terms, you may contact us
+            at <strong>solenniainquires@gmail.com</strong>. Thank you for being
+            a part of the Solennia community. We’re here to support your journey
+            toward a seamless and memorable wedding experience.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+
+    <!-- 🔥 NEW: Avatar upload & persistence (no database) -->
+<script>
+/* No-conflict NAV avatar applicator for index.html */
+(function () {
+  const TOKEN_KEY  = 'solennia_token';
+  const AVATAR_KEY = 'solennia_avatar_dataurl';
+
+  const navBtn       = document.getElementById('profileBtn');
+  const navImg       = document.getElementById('navAvatar');
+  const navFallback  = document.getElementById('navAvatarFallback');
+
+  // Ensure transparent background + round mask; strip any gray border classes
+  if (navBtn) {
+    navBtn.classList.add('bg-transparent','rounded-full','overflow-hidden','border','border-2');
+    navBtn.classList.remove('border-gray-50','border-gray-100','border-gray-200','border-gray-300','border-gray-400','border-gray-500');
+    navBtn.style.borderColor = '#000';
+  }
+  if (navImg) navImg.classList.add('rounded-full');
+
+  function isLoggedIn() {
+    return !!localStorage.getItem(TOKEN_KEY);
+  }
+
+  function applyNavAvatar() {
+    const dataUrl = isLoggedIn() ? localStorage.getItem(AVATAR_KEY) : null;
+    if (dataUrl && navImg && navFallback) {
+      navImg.src = dataUrl;
+      navImg.classList.remove('hidden');
+      navFallback.classList.add('hidden');
+    } else if (navImg && navFallback) {
+      navImg.classList.add('hidden');
+      navFallback.classList.remove('hidden');
+    }
+  }
+
+  // Initial paint
+  applyNavAvatar();
+
+  // Update when avatar saved/cleared in profile page or on login/logout
+  window.addEventListener('storage', (e) => {
+    if (e.key === AVATAR_KEY || e.key === TOKEN_KEY) applyNavAvatar();
+  });
+
+  // Also re-apply on visibility change (returning from other pages)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') applyNavAvatar();
+  });
+})();
+</script>
+
+<!-- 🔧 Wire PRIVACY + TERMS modals (click to open, backdrop + Esc to close) -->
+<script>
+(function () {
+  const $ = (s) => document.querySelector(s);
+
+  const privacyLink  = $('#footerPrivacyPolicy');
+  const termsLink    = $('#footerTermsLink');
+
+  const privacyModal = $('#privacyModal');
+  const termsModal   = $('#termsModal');
+
+  const closePrivacy = $('#closePrivacy');
+  const closeTerms   = $('#closeTerms');
+
+  const open = (el) => el && el.classList.remove('hidden');
+  const close = (el) => el && el.classList.add('hidden');
+
+  // Openers
+  privacyLink?.addEventListener('click', (e) => { e.preventDefault(); open(privacyModal); });
+  termsLink?.addEventListener('click', (e) => { e.preventDefault(); open(termsModal); });
+
+  // Closers
+  closePrivacy?.addEventListener('click', () => close(privacyModal));
+  closeTerms?.addEventListener('click',   () => close(termsModal));
+
+  // Backdrop click closes
+  [privacyModal, termsModal].forEach((m) => {
+    m?.addEventListener('click', (e) => { if (e.target === m) close(m); });
+  });
+
+  // Esc to close whichever is open
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      close(privacyModal);
+      close(termsModal);
+    }
+  });
+})();
+</script>
+  </body>
+</html>

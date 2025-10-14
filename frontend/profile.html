@@ -1,0 +1,838 @@
+<!doctype html>
+<html lang="en" class="scroll-smooth">
+
+<head>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Solennia — My Profile</title>
+  <meta name="theme-color" content="#e8ddae" />
+  <style>
+    .ring-outer {
+      box-shadow: 0 0 0 3px #e8ddae inset, 0 0 0 4px #353946 inset;
+    }
+
+    /* ✅ Make page comfortably scrollable */
+    html {
+      min-height: 100%;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      /* allow vertical scroll */
+      overflow-x: hidden;
+      /* avoid side scroll */
+    }
+
+    main {
+      flex: 1 0 auto;
+    }
+
+    /* grow but don't clamp height */
+
+    /* Panels to match your mock */
+    .panel {
+      background: #ece8e1;
+      border: 1px solid #d9d6cf;
+      border-radius: 12px;
+    }
+
+    .kcard {
+      background: #efebe4;
+      border: 1px solid #ddd6c8;
+      border-radius: 14px;
+    }
+
+    .btn-brown {
+      background: #7a5d47;
+      color: #fff;
+      border-radius: 8px;
+      padding: .55rem 1rem;
+    }
+
+    .btn-brown:hover {
+      opacity: .9;
+    }
+
+    .btn-ghost {
+      background: #e0d6c6;
+      color: #3b2f25;
+      border-radius: 8px;
+      padding: .55rem 1rem;
+    }
+
+    .shadow-soft {
+      box-shadow: 0 4px 14px rgba(0, 0, 0, .06);
+    }
+
+    .badge-sep::after {
+      content: " / ";
+      margin: 0 .65rem;
+      color: #6b6b6b;
+    }
+
+    .icon-btn {
+      width: 34px;
+      height: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 9999px;
+      border: 1px solid #bfbfbf;
+      background: #fff;
+    }
+
+    .avatar {
+      width: 7.5rem;
+      height: 7.5rem;
+      border-radius: 9999px;
+      border: 2px solid #1c1b1a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #fff;
+      overflow: hidden;
+    }
+
+    .fav-img {
+      width: 100%;
+      height: 170px;
+      object-fit: cover;
+      display: block;
+    }
+
+    @media (min-width: 768px) {
+      .fav-img {
+        height: 220px;
+      }
+    }
+  </style>
+</head>
+
+    <style>
+      #profileBtn {
+        border-width: 2px !important;
+        border-color: #000 !important;
+        background: transparent !important;
+        border-radius: 9999px !important;
+      }
+    </style>
+
+<body class="font-[Cinzel] text-[#1c1b1a] bg-[#f6f0e8]">
+  <!-- ===== hidden file input for avatar uploads ===== -->
+  <input id="avatarFile" type="file" accept="image/*" class="hidden" />
+
+  <!-- Navbar -->
+  <header class="bg-[#e8ddae] border-b border-gray-300">
+    <nav class="max-w-7xl mx-auto px-4 flex items-center justify-between h-14">
+      <a href="/index.html" class="text-xl tracking-wide">SOLENNIA</a>
+
+      <!-- breadcrumb-like nav with separators -->
+      <ul class="hidden md:flex items-center gap-1 text-sm font-medium">
+        <li class="badge-sep"><a href="/index.html#gallery" class="hover:underline">VENUE</a></li>
+        <li class="badge-sep"><a href="/index.html#gallery" class="hover:underline">SUPPLIERS</a></li>
+        <li><a href="/aboutus.html" class="hover:underline">ABOUT US</a></li>
+      </ul>
+
+      <!-- Right: quick icons + Profile dropdown -->
+      <div class="flex items-center gap-2">
+        <!-- Search (dropdown) -->
+        <div class="relative">
+          <button id="searchBtn" class="p-2 rounded hover:bg-black/5" aria-label="Search" aria-expanded="false">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="7"></circle>
+              <path d="M20 20l-3.5-3.5"></path>
+            </svg>
+          </button>
+          <div id="searchPanel"
+            class="hidden absolute right-0 mt-2 w-80 bg-white border border-gray-300 rounded-2xl shadow-xl z-50">
+            <div class="p-3">
+              <input id="searchInput" type="text" placeholder="Search Solennia..."
+                class="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#7a5d47] focus:border-[#7a5d47]" />
+              <ul id="searchResults" class="mt-3 max-h-64 overflow-y-auto divide-y divide-gray-200 text-sm"></ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- Messages -->
+        <button class="p-2 rounded hover:bg-black/5" aria-label="Messages">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15a4 4 0 0 1-4 4H8l-4 3V7a4 4 0 0 1 4-4h9a4 4 0 0 1 4 4z"></path>
+          </svg>
+        </button>
+
+        <!-- Notifications (dropdown) -->
+        <div class="relative">
+          <button id="notifBtn" class="p-2 rounded hover:bg-black/5" aria-label="Notifications" aria-expanded="false">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5"></path>
+              <path d="M9 17a3 3 0 0 0 6 0"></path>
+            </svg>
+          </button>
+          <div id="notifPanel"
+            class="hidden absolute right-0 mt-2 w-80 bg-white border border-gray-300 rounded-2xl shadow-xl z-50">
+            <div class="absolute -top-3 right-3 w-8 h-8 bg-white border-t border-l border-gray-300 rounded-tl-xl"></div>
+            <div class="p-4">
+              <div class="border-b border-gray-300 mb-4"></div>
+              <div class="flex flex-col items-center text-center py-6">
+                <svg class="w-10 h-10 mb-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                  <path d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5"></path>
+                  <path d="M9 17a3 3 0 0 0 6 0"></path>
+                </svg>
+                <p class="text-base">no notifications yet.</p>
+                <p class="text-sm text-gray-600">We will let you know!</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Profile dropdown (now supports custom avatar image) -->
+        <!-- Profile dropdown (transparent fallback background) -->
+        <div class="relative">
+          <button id="profileBtn"
+            class="inline-flex items-center justify-center w-9 h-9 rounded-full border border-gray-400 bg-transparent overflow-hidden"
+            aria-haspopup="menu" aria-expanded="false">
+            <!-- Custom image (hidden until user picks one) -->
+            <img id="navAvatar" alt="Avatar" class="w-full h-full object-cover hidden rounded-full" />
+            <!-- Default SVG fallback (transparent background + circular border) -->
+            <div id="navAvatarFallback"
+              class="flex items-center justify-center w-full h-full rounded-full bg-transparent">
+              <svg class="w-5 h-5 text-gray-700" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-5 0-9 2.5-9 5.5V21h18v-1.5C21 16.5 17 14 12 14Z" />
+              </svg>
+            </div>
+          </button>
+
+          <div id="profileMenu"
+            class="hidden absolute right-0 mt-2 w-56 rounded-xl border border-gray-300 bg-[#f6f0e8] shadow-xl z-50"
+            role="menu" aria-label="Profile">
+            <div class="py-1">
+              <a href="/index.html" id="menuProfile" class="block px-4 py-2 text-sm hover:bg-gray-100"
+                role="menuitem">Home</a>
+              <div class="my-1 border-t border-gray-300"></div>
+              <!-- Add this in your dropdown menu list -->
+<a href="/adminpanel.html" id="menuAdmin"
+   class="block px-4 py-2 text-sm hover:bg-gray-100 hidden"
+   role="menuitem">Admin Panel</a>
+
+              <button id="menuSignIn" class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
+                role="menuitem">Login</button>
+              <button id="menuSignUp" class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
+                role="menuitem">Register</button>
+              <button id="menuLogout" class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
+                role="menuitem">Logout</button>
+            </div>
+          </div>
+        </div>
+
+    </nav>
+  </header>
+
+  <!-- ===================== MAIN ===================== -->
+  <main>
+    <div class="max-w-6xl mx-auto px-4">
+
+      <!-- ===== TITLE: PROFILE ===== -->
+      <h2 class="mt-6 text-xl md:text-2xl font-semibold tracking-wide">PROFILE</h2>
+
+      <!-- ===== PROFILE CARD ===== -->
+
+
+      <div class="flex flex-col items-center text-center space-y-4">
+        <!-- ✅ Clickable avatar WITH ALWAYS-VISIBLE BLACK CIRCLE BORDER -->
+        <div id="avatarContainer" style="cursor:pointer; position:relative; width:112px; height:112px;
+            border:2px solid #000; border-radius:9999px; overflow:hidden;
+            display:flex; align-items:center; justify-content:center; background:transparent;">
+          <!-- Uploaded image -->
+          <img id="profileAvatar" alt="Avatar" style="width:100%; height:100%; object-fit:cover; display:none;" />
+
+          <!-- Guest fallback (no background) -->
+          <svg id="profileAvatarFallback" viewBox="0 0 24 24" aria-hidden="true"
+            style="width:48px; height:48px; color:#1c1b1a; fill:currentColor;">
+            <path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-5 0-9 2.5-9 5.5V21h18v-1.5C21 16.5 17 14 12 14Z" />
+          </svg>
+        </div>
+        <input id="avatarFile" type="file" accept="image/*" style="display:none;" />
+
+
+        <div class="text-sm">
+          <span class="font-semibold uppercase tracking-wide">Name :</span>
+          <span id="profileName" class="ml-1">Guest</span>
+        </div>
+
+        <a href="#" class="btn-ghost inline-block">View Dashboard</a>
+      </div>
+      </section>
+
+      <!-- ===== TITLE: FAVORITES ===== -->
+      <h2 class="mt-10 text-xl md:text-2xl font-semibold tracking-wide">FAVORITES</h2>
+
+      <!-- ===== FAVORITES PANEL ===== -->
+      <section class="mt-3 panel shadow-soft p-4 md:p-6">
+        <article class="rounded-xl border border-[#ded7c9] overflow-hidden bg-[#f5f0ea] mb-4">
+          <img src="/images/gallery1.jpg" alt="Lagen Island Chapel, El Nido" class="fav-img">
+          <div class="p-3">
+            <h4 class="text-[13px] font-semibold leading-tight uppercase">Lagen Island Chapel, El Nido</h4>
+            <p class="text-[11px] text-gray-700 mt-1">90 kilometers away</p>
+            <div class="mt-2 flex items-center gap-3">
+              <!-- ⭐ added class hooks -->
+              <svg class="w-5 h-5 fav-heart cursor-pointer transition-colors"
+                   viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-label="Like">
+                <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 1 0-7.8 7.8l1 1L12 22l7.8-8.6 1-1a5.5 5.5 0 0 0 0-7.8z" />
+              </svg>
+              <svg class="w-5 h-5 fav-star cursor-pointer transition-colors"
+                   viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-label="Favorite">
+                <path d="m12 17.27 6.18 3.73-1.64-7.03L21 9.24l-7.19-.61L12 2 10.19 8.63 3 9.24l4.46 4.73L5.82 21z" />
+              </svg>
+            </div>
+          </div>
+        </article>
+
+        <article class="rounded-xl border border-[#ded7c9] overflow-hidden bg-[#f5f0ea]">
+          <img src="/images/gallery2.jpg" alt="Shangri-La Mactan, Cebu" class="fav-img">
+          <div class="p-3">
+            <h4 class="text-[13px] font-semibold leading-tight uppercase">Shangri-La Mactan, Cebu</h4>
+            <p class="text-[11px] text-gray-700 mt-1">90 kilometers away</p>
+            <div class="mt-2 flex items-center gap-3">
+              <!-- ⭐ added class hooks -->
+              <svg class="w-5 h-5 fav-heart cursor-pointer transition-colors"
+                   viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-label="Like">
+                <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 1 0-7.8 7.8l1 1L12 22l7.8-8.6 1-1a5.5 5.5 0 0 0 0-7.8z" />
+              </svg>
+              <svg class="w-5 h-5 fav-star cursor-pointer transition-colors"
+                   viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-label="Favorite">
+                <path d="m12 17.27 6.18 3.73-1.64-7.03L21 9.24l-7.19-.61L12 2 10.19 8.63 3 9.24l4.46 4.73L5.82 21z" />
+              </svg>
+            </div>
+          </div>
+        </article>
+
+        <div class="mt-6 flex justify-center">
+          <button class="btn-brown">Compare Favorites</button>
+        </div>
+      </section>
+
+      <!-- ===== CTA: POST YOUR SERVICES ===== -->
+      <section class="mt-10 text-center">
+        <h3 class="text-xl font-semibold tracking-wide">POST YOUR SERVICES</h3>
+        <div class="mt-4">
+          <button id="joinVendorBtn" class="btn-brown">Join as a Vendor</button>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- ======= VENDOR ONBOARDING MODALS (IDs unchanged) ======= -->
+  <!-- Step 1: Terms -->
+  <div id="vendorTerms" class="fixed inset-0 hidden z-[200] grid place-items-center bg-black/40 p-4">
+    <div class="bg-[#f6f0e8] w-full max-w-3xl rounded-2xl shadow-xl overflow-y-auto max-h-[80vh]">
+      <div class="flex justify-between items-center p-6 border-b border-gray-300">
+        <h2 class="text-xl font-semibold">Terms & Conditions</h2>
+        <button data-closevendor class="text-2xl font-light" aria-label="Close">&times;</button>
+      </div>
+      <div class="p-6 space-y-4 text-sm leading-relaxed text-gray-800">
+        <p>By applying to become a vendor on Solennia, you agree to the following terms and conditions...</p>
+        <p>As a vendor, you are responsible for providing accurate and up-to-date information...</p>
+        <p>Currently, listing your services on Solennia is free of charge...</p>
+        <p>Solennia acts only as a facilitator between clients and vendors...</p>
+        <p>Solennia reserves the right to remove any vendor from the platform at any time...</p>
+        <p>We are committed to respecting your privacy...</p>
+      </div>
+      <div class="p-6 border-t border-gray-300 flex justify-end">
+        <button id="agreeTerms" class="px-6 py-2 rounded-md bg-[#e8ddae] hover:bg-[#dbcf9f] font-medium">
+          Agree and Continue
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 2: Background -->
+  <div id="vendorBackground" class="fixed inset-0 hidden z-[200] grid place-items-center bg-black/40 p-4">
+    <div class="bg-[#f6f0e8] w-full max-w-2xl rounded-2xl shadow-xl overflow-y-auto max-h-[80vh]">
+      <div class="flex justify-between items-center p-6 border-b border-gray-300">
+        <h2 class="text-lg font-semibold">Become a Vendor!</h2>
+        <button data-closevendor class="text-2xl font-light" aria-label="Close">&times;</button>
+      </div>
+      <form id="vendorForm1" class="p-6 space-y-5">
+        <div>
+          <label class="block text-sm font-semibold uppercase">Business Name <span class="text-red-600">*</span></label>
+          <input name="business_name" required class="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
+            placeholder="Your business / brand name" />
+        </div>
+        <div>
+          <label class="block text-sm font-semibold uppercase">Category</label>
+          <select name="category" class="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2">
+            <option value="">Select a category</option>
+            <option value="Venue">Venue</option>
+            <option value="Catering">Catering</option>
+            <option value="Photography & Videography">Photography & Videography</option>
+            <option value="Decoration">Decoration</option>
+            <option value="Entertainment">Entertainment</option>
+            <option value="Others">Others</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-semibold uppercase">Business Address / Service Areas</label>
+          <textarea name="address" class="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"></textarea>
+        </div>
+        <div>
+          <label class="block text-sm font-semibold uppercase">Provide Business Permits (for companies)</label>
+          <textarea name="permits" class="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"></textarea>
+        </div>
+        <div>
+          <label class="block text-sm font-semibold uppercase">Valid Government ID (for individuals)</label>
+          <textarea name="gov_id" class="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"></textarea>
+        </div>
+        <div class="flex justify-end">
+          <button type="button" id="toMedia"
+            class="w-10 h-10 bg-[#7a5d47] rounded-full text-white flex items-center justify-center">➜</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Step 3: Media -->
+  <div id="vendorMedia" class="fixed inset-0 hidden z-[200] grid place-items-center bg-black/40 p-4">
+    <div class="bg-[#f6f0e8] w-full max-w-2xl rounded-2xl shadow-xl overflow-y-auto max-h-[80vh]">
+      <div class="flex justify-between items-center p-6 border-b border-gray-300">
+        <h2 class="text-lg font-semibold">Media & Content</h2>
+        <button data-closevendor class="text-2xl font-light" aria-label="Close">&times;</button>
+      </div>
+      <form id="vendorForm2" class="p-6 space-y-5">
+        <div>
+          <label class="block text-sm font-semibold uppercase">Photos/Videos of previous work (Portfolio)</label>
+          <textarea name="portfolio" class="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"></textarea>
+        </div>
+        <div>
+          <label class="block text-sm font-semibold uppercase">Description of Services</label>
+          <textarea name="description" class="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
+            placeholder="Tell clients about your services..."></textarea>
+        </div>
+        <div>
+          <label class="block text-sm font-semibold uppercase">Package List/Sample Pricing</label>
+          <textarea name="pricing" class="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"></textarea>
+        </div>
+        <div class="flex justify-end pt-4">
+          <button id="submitVendor" class="px-5 py-2 bg-[#e8ddae] hover:bg-[#dbcf9f] text-sm font-medium">
+            Make Listing
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Login Modal -->
+  <div id="loginModal" class="fixed inset-0 hidden z-[100] grid place-items-center p-4">
+    <div class="w-full max-w-md rounded-2xl bg-[#f6f0e8] shadow-xl border border-gray-300">
+      <div class="px-6 py-4 border-b border-gray-300 bg-[#e8ddae] rounded-t-2xl">
+        <h3 class="text-lg font-semibold tracking-wide">Login</h3>
+      </div>
+      <form id="loginForm" class="px-6 py-5 space-y-4">
+        <div>
+          <label class="block text-sm">Username</label>
+          <!-- ✅ name changed from 'email' to 'username'; type text so non-email usernames work -->
+          <input name="username" type="text" required
+            class="mt-1 w-full rounded-lg border-gray-300 bg-white focus:ring-2 focus:ring-[#7a5d47] focus:border-[#7a5d47]" />
+        </div>
+        <div>
+          <label class="block text-sm">Password</label>
+          <input name="password" type="password" required
+            class="mt-1 w-full rounded-lg border-gray-300 bg-white focus:ring-2 focus:ring-[#7a5d47] focus:border-[#7a5d47]" />
+        </div>
+        <p id="loginError" class="hidden text-sm text-red-600"></p>
+        <div class="flex items-center justify-end gap-3 pt-2">
+          <button type="button" data-close class="px-4 py-2 rounded-md border hover:bg-gray-100">
+            Cancel
+          </button>
+          <button class="px-5 py-2 rounded-md bg-[#7a5d47] text-white font-semibold hover:opacity-90">
+            Login
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Register Modal -->
+  <div id="registerModal" class="fixed inset-0 hidden z-[100] grid place-items-center p-4">
+    <div class="w-full max-w-md rounded-2xl bg-[#f6f0e8] shadow-xl border border-gray-300">
+      <div class="px-6 py-4 border-b border-gray-300 bg-[#e8ddae] rounded-t-2xl">
+        <h3 class="text-lg font-semibold tracking-wide">Register</h3>
+      </div>
+      <form id="registerForm" class="px-6 py-5 space-y-4">
+        <div>
+          <label class="block text-sm">First Name</label>
+          <input name="first_name" required
+            class="mt-1 w-full rounded-lg border-gray-300 bg-white focus:ring-2 focus:ring-[#7a5d47] focus:border-[#7a5d47]" />
+        </div>
+        <div>
+          <label class="block text-sm">Last Name</label>
+          <input name="last_name" required
+            class="mt-1 w-full rounded-lg border-gray-300 bg-white focus:ring-2 focus:ring-[#7a5d47] focus:border-[#7a5d47]" />
+        </div>
+        <div>
+          <label class="block text-sm">Username</label>
+          <input name="username" required
+            class="mt-1 w-full rounded-lg border-gray-300 bg-white focus:ring-2 focus:ring-[#7a5d47] focus:border-[#7a5d47]" />
+        </div>
+        <div>
+          <label class="block text-sm">Email</label>
+          <input name="email" type="email" required
+            class="mt-1 w-full rounded-lg border-gray-300 bg-white focus:ring-2 focus:ring-[#7a5d47] focus:border-[#7a5d47]" />
+        </div>
+        <div>
+          <label class="block text-sm">Password</label>
+          <input name="password" type="password" minlength="6" required
+            class="mt-1 w-full rounded-lg border-gray-300 bg-white focus:ring-2 focus:ring-[#7a5d47] focus:border-[#7a5d47]" />
+        </div>
+        <p id="registerError" class="hidden text-sm text-red-600"></p>
+        <div class="flex items-center justify-end gap-3 pt-2">
+          <button type="button" data-close class="px-4 py-2 rounded-md border hover:bg-gray-100">
+            Cancel
+          </button>
+          <button class="px-5 py-2 rounded-md bg-[#7a5d47] text-white font-semibold hover:opacity-90">
+            Register
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ===================== FEEDBACK MODAL ===================== -->
+  <div id="feedbackModal" class="hidden fixed inset-0 z-[260] bg-black/40 flex items-center justify-center p-4">
+    <div class="bg-[#f6f0e8] w-full max-w-md rounded-2xl shadow-xl border border-gray-300 overflow-hidden">
+      <div class="flex justify-between items-center px-6 py-4 border-b border-gray-300 bg-[#e8ddae]">
+        <h3 class="text-lg font-semibold tracking-wide">Your Feedback</h3>
+        <button id="closeFeedback" class="text-2xl font-light hover:text-gray-600" aria-label="Close">&times;</button>
+      </div>
+      <form id="feedbackForm" class="px-6 py-5 space-y-4">
+        <div>
+          <label class="block text-sm font-medium mb-1">How was your experience?</label>
+          <textarea name="message" rows="4" placeholder="Type your feedback here..." required
+            class="w-full rounded-lg border border-gray-300 bg-white focus:ring-2 focus:ring-[#7a5d47] focus:border-[#7a5d47] p-2 text-sm"></textarea>
+        </div>
+        <div class="flex justify-end">
+          <button type="submit" class="px-6 py-2 rounded-md bg-[#7a5d47] text-white font-semibold hover:opacity-90">Send
+            Feedback</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ===== PRIVACY POLICY MODAL ===== -->
+  <div id="privacyModal" class="hidden fixed inset-0 z-[270] bg-black/40 flex items-center justify-center p-4">
+    <div class="bg-[#f6f0e8] w-full max-w-2xl rounded-2xl shadow-xl border border-gray-300 overflow-hidden">
+      <div class="flex justify-between items-center px-6 py-4 border-b border-gray-300 bg-[#e8ddae]">
+        <h3 class="text-lg font-semibold tracking-wide">Privacy Policy</h3>
+        <button id="closePrivacy" class="text-2xl font-light hover:text-gray-600" aria-label="Close">&times;</button>
+      </div>
+      <div class="p-6 space-y-4 text-sm leading-relaxed text-gray-800 max-h-[70vh] overflow-y-auto">
+        <p><strong>1. Introduction</strong><br>Solennia values your privacy. This Privacy Policy outlines how we
+          collect, use, and protect your information.</p>
+        <p><strong>2. Information We Collect</strong><br>We may collect personal information such as your name, email,
+          and contact details when you register or interact with our platform.</p>
+        <p><strong>3. How We Use Your Information</strong><br>Information collected is used to improve user experience,
+          process vendor applications, and enhance our services.</p>
+        <p><strong>4. Data Protection</strong><br>We implement appropriate technical and organizational measures to
+          protect your data against unauthorized access or disclosure.</p>
+        <p><strong>5. Cookies</strong><br>Our website may use cookies to personalize your experience and analyze site
+          usage. You can disable cookies in your browser settings.</p>
+        <p><strong>6. Sharing of Data</strong><br>We do not sell your personal data. Limited data may be shared with
+          trusted partners strictly for operational purposes.</p>
+        <p><strong>7. Your Rights</strong><br>You may request access, correction, or deletion of your personal data by
+          contacting us at solenniainquires@gmail.com.</p>
+        <p><strong>8. Policy Updates</strong><br>We may update this Privacy Policy periodically. Continued use of
+          Solennia means you accept the latest version.</p>
+        <p><strong>9. Contact</strong><br>For questions or concerns regarding your privacy, please contact
+          solenniainquires@gmail.com.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== TERMS & CONDITIONS MODAL ===== -->
+  <div id="termsModal" class="hidden fixed inset-0 z-[275] bg-black/40 flex items-center justify-center p-4">
+    <div class="bg-[#f6f0e8] w-full max-w-4xl rounded-2xl shadow-xl border border-gray-300 overflow-hidden">
+      <div class="flex justify-between items-center px-6 py-4 border-b border-gray-300 bg-[#e8ddae]">
+        <h3 class="text-xl font-semibold tracking-wide">Terms and Conditions</h3>
+        <button id="closeTerms" class="text-2xl font-light hover:text-gray-600" aria-label="Close">&times;</button>
+      </div>
+      <div class="p-6 space-y-5 text-sm leading-relaxed text-gray-800 max-h-[70vh] overflow-y-auto">
+        <p>Welcome to Solennia. By accessing or using our website, mobile application, or any services provided through
+          our platform, you agree to be bound by these Terms and Conditions. Please read them carefully. If you do not
+          agree with these terms, you must refrain from using our platform.</p>
+        <p>Solennia is a digital platform designed to connect couples planning their weddings with professional vendors
+          offering relevant services. These services may include, but are not limited to, venue rentals, catering,
+          photography, floral design, gown rentals, and entertainment. Our goal is to simplify and personalize the
+          wedding planning experience through smart tools, including our AI-based wedding assistant.</p>
+        <p>All users—whether couples or vendors—must provide accurate and truthful information during registration.
+          Vendors are responsible for ensuring that the content they submit, including photos, descriptions, and
+          business information, is lawful, not misleading, and does not infringe on any third-party rights. Solennia
+          reserves the right to verify, approve, or reject listings that do not meet quality standards or violate our
+          policies.</p>
+        <p>Users understand that Solennia acts only as an intermediary between clients and vendors. While we facilitate
+          the discovery and connection process, Solennia is not responsible for any agreements, disputes, payments, or
+          service outcomes between the two parties. All bookings, negotiations, and final arrangements are handled
+          directly by the user and vendor. Solennia is not liable for any damages, losses, or service failures resulting
+          from interactions on the platform.</p>
+        <p>Vendors who apply to be listed on Solennia agree to be professional, responsive, and transparent in their
+          communications and services. They must not engage in fraudulent, abusive, or unethical behavior. Solennia may
+          suspend or terminate accounts that violate our community standards or receive repeated complaints.</p>
+        <p>Solennia respects user privacy and data security. All information collected is handled in accordance with our
+          Privacy Policy. By using the platform, you consent to the collection and use of your information as outlined
+          in that policy.</p>
+        <p>We reserve the right to update or modify these Terms and Conditions at any time without prior notice. Changes
+          will be effective upon posting on the website or app. Continued use of Solennia after such changes indicates
+          your acceptance of the updated terms.</p>
+        <p>If you have any questions regarding these terms, you may contact us at
+          <strong>solenniainquires@gmail.com</strong>. Thank you for being a part of the Solennia community. We’re here
+          to support your journey toward a seamless and memorable wedding experience.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="bg-[#353946] text-[#f6f0e8]">
+    <div class="max-w-6xl mx-auto px-6 py-10 grid md:grid-cols-3 gap-10 text-sm">
+      <div>
+        <img src="/images/solennia.png" alt="Solennia logo" class="h-12 w-auto select-none" />
+        <h3 class="text-lg font-semibold mb-3">Solennia</h3>
+        <p class="text-gray-300">“One click closer to the perfect event.”</p>
+        <p class="mt-4 text-gray-400" id="footerYear">© 2025 Solennia. All rights reserved.</p>
+        <p class="mt-2">solenniainquires@gmail.com</p>
+      </div>
+      <ul class="space-y-2">
+        <li><a href="/index.html" class="hover:underline">HOME</a></li>
+        <li><a href="/aboutus.html" class="hover:underline">ABOUT US</a></li>
+        <li><a href="/index.html#gallery" class="hover:underline">EXPLORE VENDORS</a></li>
+        <li><a href="#" class="hover:underline">WEDDING PLANNER AI</a></li>
+      </ul>
+      <ul class="space-y-2">
+        <li><a href="#" id="footerPrivacyPolicy" class="hover:underline">PRIVACY POLICY</a></li>
+        <li><a href="#" id="footerTermsLink" class="hover:underline">TERMS & CONDITIONS</a></li>
+        <li><a href="#" class="hover:underline">VENDOR AGREEMENT</a></li>
+        <li><a href="#" id="footerFeedbackLink" class="hover:underline">GIVE FEEDBACK</a></li>
+      </ul>
+    </div>
+  </footer>
+
+  <!-- Reuse all logic from main.js -->
+  <script type="module" src="/src/main.js"></script>
+
+  <!-- Sync name from localStorage or API (kept) -->
+  <script>
+    (function () {
+      const nameEl = document.getElementById('profileName');
+      if (!nameEl) return;
+
+      function setName(first, last) {
+        const full = [first, last].filter(Boolean).join(' ');
+        nameEl.textContent = full || 'User';
+      }
+
+      try {
+        const cached = localStorage.getItem('solennia_profile');
+        if (cached) {
+          const u = JSON.parse(cached);
+          if (u && (u.first_name || u.last_name)) {
+            setName(u.first_name || '', u.last_name || '');
+            return;
+          }
+        }
+      } catch { }
+
+      const token = localStorage.getItem('solennia_token');
+      if (!token) return;
+
+      const endpoints = ['/api/auth/me', '/api/me', '/api/profile', '/api/users/me'];
+      (async () => {
+        for (const url of endpoints) {
+          try {
+            const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (!res.ok) continue;
+            const data = await res.json().catch(() => null);
+            if (!data) continue;
+
+            const first = data.first_name || data.firstName || data.given_name || '';
+            const last = data.last_name || data.lastName || data.family_name || '';
+
+            if (first || last) {
+              localStorage.setItem('solennia_profile', JSON.stringify({ first_name: first, last_name: last }));
+              setName(first, last);
+              break;
+            }
+          } catch { }
+        }
+      })();
+    })();
+  </script>
+
+  <!-- Footer modal handlers (kept) -->
+  <script>
+    const fy = document.getElementById('footerYear');
+    if (fy) fy.textContent = `© ${new Date().getFullYear()} Solennia. All rights reserved.`;
+
+    const privacyLink = document.getElementById('footerPrivacyPolicy');
+    const privacyModal = document.getElementById('privacyModal');
+    const closePrivacy = document.getElementById('closePrivacy');
+    privacyLink?.addEventListener('click', (e) => { e.preventDefault(); privacyModal?.classList.remove('hidden'); });
+    closePrivacy?.addEventListener('click', () => privacyModal?.classList.add('hidden'));
+    privacyModal?.addEventListener('click', (e) => { if (e.target === privacyModal) privacyModal?.classList.add('hidden'); });
+
+    const termsLink = document.getElementById('footerTermsLink');
+    const termsModal = document.getElementById('termsModal');
+    const closeTerms = document.getElementById('closeTerms');
+    termsLink?.addEventListener('click', (e) => { e.preventDefault(); termsModal?.classList.remove('hidden'); });
+    closeTerms?.addEventListener('click', () => termsModal?.classList.add('hidden'));
+    termsModal?.addEventListener('click', (e) => { if (e.target === termsModal) termsModal?.classList.add('hidden'); });
+  </script>
+
+  <!-- 🔥 NEW: Avatar upload & persistence (no database) -->
+  <script>
+    (function () {
+      const LS_KEY = 'solennia_avatar_dataurl';
+      const TOKEN_KEY = 'solennia_token';
+
+      const avatarContainer = document.getElementById('avatarContainer');
+      const fileInput = document.getElementById('avatarFile');
+      const profileImg = document.getElementById('profileAvatar');
+      const fallback = document.getElementById('profileAvatarFallback');
+      const navImg = document.getElementById('navAvatar');
+      const navFallback = document.getElementById('navAvatarFallback');
+      const logoutBtn = document.getElementById('menuLogout');
+
+      const isLoggedIn = () => !!localStorage.getItem(TOKEN_KEY);
+
+      function applyAvatar(dataUrl) {
+        if (dataUrl) {
+          profileImg.src = dataUrl;
+          profileImg.style.display = 'block';
+          fallback.style.display = 'none';
+          if (navImg) {
+            navImg.src = dataUrl;
+            navImg.classList.remove('hidden');
+            navFallback.classList.add('hidden');
+          }
+        } else {
+          profileImg.style.display = 'none';
+          fallback.style.display = 'block';
+          if (navImg) {
+            navImg.classList.add('hidden');
+            navFallback.classList.remove('hidden');
+          }
+        }
+      }
+
+      // Load saved avatar (if logged in)
+      if (isLoggedIn()) {
+        const saved = localStorage.getItem(LS_KEY);
+        if (saved) applyAvatar(saved);
+      } else {
+        applyAvatar(null);
+      }
+
+      // Click avatar to open file dialog
+      avatarContainer?.addEventListener('click', () => fileInput?.click());
+
+      // Handle image upload
+      fileInput?.addEventListener('change', async () => {
+        const file = fileInput.files?.[0];
+        if (!file) return;
+
+        // ✅ 1️⃣ File type check
+        if (!file.type.startsWith('image/')) {
+          alert('Please upload a valid image file.');
+          return;
+        }
+
+        // ✅ 2️⃣ File size check
+        if (file.size > 500 * 1024) { // 500 KB
+          alert('Please upload an image smaller than 500KB.');
+          return;
+        }
+
+        // ✅ 3️⃣ Dimension check
+        const img = new Image();
+        const objectURL = URL.createObjectURL(file);
+        img.src = objectURL;
+        img.onload = () => {
+          const { width, height } = img;
+          URL.revokeObjectURL(objectURL);
+
+          // Require square image (1:1)
+          if (Math.abs(width - height) > 5) {
+            alert('Please upload a square image (equal width and height).');
+            return;
+          }
+
+          // Require minimum resolution
+          if (width < 300 || height < 300) {
+            alert('Please upload an image at least 300x300 pixels.');
+            return;
+          }
+
+          // ✅ Passed validation
+          const reader = new FileReader();
+          reader.onload = () => {
+            const dataUrl = reader.result;
+            applyAvatar(dataUrl);
+
+            if (isLoggedIn()) {
+              localStorage.setItem(LS_KEY, dataUrl);
+            } else {
+              alert("You're not logged in — this avatar will reset after refresh.");
+            }
+          };
+          reader.readAsDataURL(file);
+        };
+      });
+
+      // Reset on logout
+      logoutBtn?.addEventListener('click', () => {
+        localStorage.removeItem(LS_KEY);
+        applyAvatar(null);
+      });
+    })();
+  </script>
+
+  <!-- 💖⭐ Toggle heart (red) & star (yellow) -->
+  <script>
+    // HEART: toggles to red filled
+    document.querySelectorAll('.fav-heart').forEach((svg) => {
+      svg.addEventListener('click', () => {
+        const active = svg.getAttribute('data-active') === '1';
+        if (active) {
+          svg.setAttribute('data-active', '0');
+          svg.setAttribute('fill', 'none');
+          svg.setAttribute('stroke', 'currentColor');
+          svg.classList.remove('text-red-600');
+        } else {
+          svg.setAttribute('data-active', '1');
+          svg.setAttribute('fill', 'currentColor');
+          svg.setAttribute('stroke', 'none');
+          svg.classList.add('text-red-600');
+        }
+      });
+    });
+
+    // STAR: toggles to yellow filled
+    document.querySelectorAll('.fav-star').forEach((svg) => {
+      svg.addEventListener('click', () => {
+        const active = svg.getAttribute('data-active') === '1';
+        if (active) {
+          svg.setAttribute('data-active', '0');
+          svg.setAttribute('fill', 'none');
+          svg.setAttribute('stroke', 'currentColor');
+          svg.classList.remove('text-yellow-400');
+        } else {
+          svg.setAttribute('data-active', '1');
+          svg.setAttribute('fill', 'currentColor');
+          svg.setAttribute('stroke', 'none');
+          svg.classList.add('text-yellow-400');
+        }
+      });
+    });
+  </script>
+</body>
+</html>
