@@ -5,7 +5,7 @@
   "license": "MIT",
   "require": {
     "php": "^8.2",
-    "ext-pdo": "*",
+    "ext-pdo_mysql": "*",
     "slim/slim": "^4.13",
     "slim/psr7": "^1.6",
     "illuminate/database": "^12.33",
