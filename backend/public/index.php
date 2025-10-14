@@ -6,11 +6,22 @@ require __DIR__ . '/../vendor/autoload.php';
 
 /*
 |--------------------------------------------------------------------------
-| Environment Configuration
+| Environment Configuration (safe for Railway)
 |--------------------------------------------------------------------------
 */
-$dotenv = Dotenv::createImmutable(__DIR__ . '/../');
-$dotenv->load();
+$envPath = __DIR__ . '/../';
+
+if (file_exists($envPath . '.env')) {
+    // Local dev: load .env normally
+    $dotenv = Dotenv::createImmutable($envPath);
+    $dotenv->load();
+} else {
+    // Production (Railway): load injected env vars without crashing
+    if (class_exists(Dotenv::class)) {
+        $dotenv = Dotenv::createImmutable($envPath);
+        $dotenv->safeLoad();
+    }
+}
 
 /*
 |--------------------------------------------------------------------------
@@ -29,18 +40,24 @@ $app->addBodyParsingMiddleware();
 // CORS + headers
 $app->add(function ($request, $handler) {
     $response = $handler->handle($request);
+
+    // Allow specific origins from env or fallback to *
+    $allowedOrigin = $_ENV['CORS_ALLOWED_ORIGINS'] ?? '*';
+
     return $response
-        ->withHeader('Access-Control-Allow-Origin', '*')
+        ->withHeader('Access-Control-Allow-Origin', $allowedOrigin)
         ->withHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
-        ->withHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+        ->withHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+        ->withHeader('Access-Control-Allow-Credentials', 'true');
 });
 
 // Respond to all OPTIONS preflight requests
 $app->options('/{routes:.+}', function ($req, $res) {
-    return $res
-        ->withHeader('Access-Control-Allow-Origin', '*')
+    $res = $res
+        ->withHeader('Access-Control-Allow-Origin', $_ENV['CORS_ALLOWED_ORIGINS'] ?? '*')
         ->withHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
         ->withHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    return $res;
 });
 
 /*
@@ -55,20 +72,21 @@ require __DIR__ . '/../src/bootstrap.php';
 | Routes from files
 |--------------------------------------------------------------------------
 */
-// ---- Safe route loader: calls the returned closure only if present ----
+// ---- Safe route loader ----
 $loadRoutes = function (string $path) use ($app) {
-    $ret = require $path;   // returns 1 if file defines routes directly
+    $ret = require $path;
     if (is_callable($ret)) {
-        $ret($app);         // older files that "return function(App $app) { ... }"
+        $ret($app);
     }
 };
 
-// Include all your route files via the safe loader
+// Include all route files
 $loadRoutes(__DIR__ . '/../src/routes/authRoutes.php');
 $loadRoutes(__DIR__ . '/../src/routes/userRoutes.php');
 $loadRoutes(__DIR__ . '/../src/routes/vendorRoutes.php');
 $loadRoutes(__DIR__ . '/../src/routes/feedbackRoutes.php');
 $loadRoutes(__DIR__ . '/../src/routes/adminRoutes.php');
+
 /*
 |--------------------------------------------------------------------------
 | Health / Debug
