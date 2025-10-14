@@ -2,64 +2,61 @@
 use Slim\Factory\AppFactory;
 use Dotenv\Dotenv;
 
-// --- Find project root based on the web server's docroot ---
-$DOCROOT = rtrim($_SERVER['DOCUMENT_ROOT'] ?? __DIR__, '/'); // fallback for CLI
+// -------------------------------------------------------------
+// Absolute base path (works locally and on Railway)
+// /app/public  -> BASE_PATH = /app
+// -------------------------------------------------------------
 define('BASE_PATH', realpath(__DIR__ . '/..'));
 
-// Autoload (always resolve from project root)
-require $PROJECT_ROOT . '/vendor/autoload.php';
+// Autoload
+require BASE_PATH . '/vendor/autoload.php';
 
-/*
-|--------------------------------------------------------------------------
-| Environment Configuration (safe if .env is missing)
-|--------------------------------------------------------------------------
-*/
-if (file_exists($PROJECT_ROOT . '/.env')) {
-    Dotenv::createImmutable($PROJECT_ROOT)->load();
+// -------------------------------------------------------------
+// Environment (.env optional in production)
+// -------------------------------------------------------------
+if (file_exists(BASE_PATH . '/.env')) {
+    Dotenv::createImmutable(BASE_PATH)->load();
 } else {
-    Dotenv::createImmutable($PROJECT_ROOT)->safeLoad();
+    Dotenv::createImmutable(BASE_PATH)->safeLoad();
 }
 
-/*
-|--------------------------------------------------------------------------
-| Slim App
-|--------------------------------------------------------------------------
-*/
+// -------------------------------------------------------------
+// Slim app & middleware
+// -------------------------------------------------------------
 $app = AppFactory::create();
 $app->addBodyParsingMiddleware();
 
-// CORS
-$app->add(function ($req, $handler) {
+// CORS (use env or fallback to *)
+$app->add(function ($request, $handler) {
     $allowed = $_ENV['CORS_ALLOWED_ORIGINS'] ?? '*';
-    $res = $handler->handle($req);
-    return $res
+
+    if ($request->getMethod() === 'OPTIONS') {
+        $response = new \Slim\Psr7\Response(200);
+        return $response
+            ->withHeader('Access-Control-Allow-Origin', $allowed)
+            ->withHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+            ->withHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
+            ->withHeader('Access-Control-Allow-Credentials', 'true');
+    }
+
+    $response = $handler->handle($request);
+    return $response
         ->withHeader('Access-Control-Allow-Origin', $allowed)
         ->withHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
         ->withHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
         ->withHeader('Access-Control-Allow-Credentials', 'true');
 });
-$app->options('/{routes:.+}', function ($req, $res) {
-    $allowed = $_ENV['CORS_ALLOWED_ORIGINS'] ?? '*';
-    return $res
-        ->withHeader('Access-Control-Allow-Origin', $allowed)
-        ->withHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
-        ->withHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-});
 
-/*
-|--------------------------------------------------------------------------
-| Bootstrap DB (resolve from project root)
-|--------------------------------------------------------------------------
-*/
-require $PROJECT_ROOT . '/src/bootstrap.php';
+// -------------------------------------------------------------
+// DB bootstrap
+// -------------------------------------------------------------
+require BASE_PATH . '/src/bootstrap.php';
 
-/*
-|--------------------------------------------------------------------------
-| Routes (resolve from project root)
-|--------------------------------------------------------------------------
-*/
-$loadRoutes = function (string $relPath) use ($app, $PROJECT_ROOT) {
-    $file = $PROJECT_ROOT . $relPath;
+// -------------------------------------------------------------
+// Routes (case-sensitive: folder is "Routes")
+// -------------------------------------------------------------
+$loadRoutes = function (string $rel) use ($app) {
+    $file = BASE_PATH . $rel;
     if (!is_file($file)) {
         throw new RuntimeException("Route file not found: {$file}");
     }
@@ -67,31 +64,27 @@ $loadRoutes = function (string $relPath) use ($app, $PROJECT_ROOT) {
     if (is_callable($ret)) { $ret($app); }
 };
 
-require BASE_PATH . '/src/bootstrap.php';
+$loadRoutes('/src/Routes/authRoutes.php');
+$loadRoutes('/src/Routes/userRoutes.php');
+$loadRoutes('/src/Routes/vendorRoutes.php');
+$loadRoutes('/src/Routes/feedbackRoutes.php');
+$loadRoutes('/src/Routes/adminRoutes.php');
 
-$loadRoutes(BASE_PATH . '/src/Routes/authRoutes.php');
-$loadRoutes(BASE_PATH . '/src/Routes/userRoutes.php');
-$loadRoutes(BASE_PATH . '/src/Routes/vendorRoutes.php');
-$loadRoutes(BASE_PATH . '/src/Routes/feedbackRoutes.php');
-$loadRoutes(BASE_PATH . '/src/Routes/adminRoutes.php');
-
-
-/*
-|--------------------------------------------------------------------------
-| Health / Debug
-|--------------------------------------------------------------------------
-*/
+// -------------------------------------------------------------
+// Health / debug
+// -------------------------------------------------------------
 $app->get('/', function ($req, $res) {
     $res->getBody()->write('Solennia backend is running');
     return $res->withHeader('Content-Type', 'text/plain');
 });
-$app->get('/routes', function ($req, $res) use ($app) {
+
+$app->get('/routes', function ($request, $response) use ($app) {
     $routes = [];
     foreach ($app->getRouteCollector()->getRoutes() as $route) {
         $routes[] = ['pattern' => $route->getPattern(), 'methods' => $route->getMethods()];
     }
-    $res->getBody()->write(json_encode($routes, JSON_PRETTY_PRINT));
-    return $res->withHeader('Content-Type', 'application/json');
+    $response->getBody()->write(json_encode($routes, JSON_PRETTY_PRINT));
+    return $response->withHeader('Content-Type', 'application/json');
 });
 
 $app->run();
