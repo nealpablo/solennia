@@ -20,6 +20,14 @@ if (file_exists(BASE_PATH . '/.env')) {
     Dotenv::createImmutable(BASE_PATH)->safeLoad();
 }
 
+$env = $_ENV['APP_ENV'] ?? getenv('APP_ENV') ?? 'production';
+if ($env !== 'production' && file_exists(BASE_PATH . '/.env')) {
+    Dotenv::createImmutable(BASE_PATH)->load();
+} else {
+    Dotenv::createImmutable(BASE_PATH)->safeLoad();
+}
+
+
 // -------------------------------------------------------------
 // Slim app & middleware
 // -------------------------------------------------------------
@@ -89,6 +97,24 @@ $app->get('/api/dbtest', function ($req, $res) {
     } catch (Throwable $e) {
         $res->getBody()->write(json_encode(['error' => $e->getMessage()]));
     }
+    return $res->withHeader('Content-Type', 'application/json');
+});
+
+$app->get('/api/dbdiag', function ($req, $res) {
+    $seen = [
+        'DB_HOST' => $_ENV['DB_HOST'] ?? null,
+        'DB_PORT' => $_ENV['DB_PORT'] ?? null,
+        'DB_DATABASE' => $_ENV['DB_DATABASE'] ?? null,
+        'DB_USERNAME' => $_ENV['DB_USERNAME'] ?? null,
+        'APP_ENV' => $_ENV['APP_ENV'] ?? null
+    ];
+    try {
+        \Illuminate\Database\Capsule\Manager::connection()->getPdo();
+        $result = 'connected';
+    } catch (\Throwable $e) {
+        $result = 'error: ' . $e->getMessage();
+    }
+    $res->getBody()->write(json_encode(['seen' => $seen, 'result' => $result]));
     return $res->withHeader('Content-Type', 'application/json');
 });
 

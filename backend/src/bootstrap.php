@@ -4,6 +4,14 @@ use Dotenv\Dotenv;
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
+$env = $_ENV['APP_ENV'] ?? getenv('APP_ENV') ?? 'production';
+if ($env !== 'production' && file_exists($rootPath . '/.env')) {
+    Dotenv::createImmutable($rootPath)->load();
+} else {
+    Dotenv::createImmutable($rootPath)->safeLoad();
+}
+
+
 /*
 |----------------------------------------------------------------------
 | Env loading (safe in Railway; works locally with .env)
