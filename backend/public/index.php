@@ -4,7 +4,7 @@ use Dotenv\Dotenv;
 
 // --- Find project root based on the web server's docroot ---
 $DOCROOT = rtrim($_SERVER['DOCUMENT_ROOT'] ?? __DIR__, '/'); // fallback for CLI
-$PROJECT_ROOT = dirname(__DIR__);
+define('BASE_PATH', realpath(__DIR__ . '/..'));
 
 // Autoload (always resolve from project root)
 require $PROJECT_ROOT . '/vendor/autoload.php';
@@ -67,11 +67,13 @@ $loadRoutes = function (string $relPath) use ($app, $PROJECT_ROOT) {
     if (is_callable($ret)) { $ret($app); }
 };
 
-$loadRoutes(__DIR__ . '/../src/Routes/authRoutes.php');
-$loadRoutes(__DIR__ . '/../src/Routes/userRoutes.php');
-$loadRoutes(__DIR__ . '/../src/Routes/vendorRoutes.php');
-$loadRoutes(__DIR__ . '/../src/Routes/feedbackRoutes.php');
-$loadRoutes(__DIR__ . '/../src/Routes/adminRoutes.php');
+require BASE_PATH . '/src/bootstrap.php';
+
+$loadRoutes(BASE_PATH . '/src/Routes/authRoutes.php');
+$loadRoutes(BASE_PATH . '/src/Routes/userRoutes.php');
+$loadRoutes(BASE_PATH . '/src/Routes/vendorRoutes.php');
+$loadRoutes(BASE_PATH . '/src/Routes/feedbackRoutes.php');
+$loadRoutes(BASE_PATH . '/src/Routes/adminRoutes.php');
 
 
 /*
