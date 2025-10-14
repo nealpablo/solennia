@@ -82,6 +82,17 @@ $app->get('/', function ($req, $res) {
     return $res->withHeader('Content-Type', 'text/plain');
 });
 
+$app->get('/api/dbtest', function ($req, $res) {
+    try {
+        \Illuminate\Database\Capsule\Manager::connection()->getPdo();
+        $res->getBody()->write(json_encode(['ok' => true]));
+    } catch (Throwable $e) {
+        $res->getBody()->write(json_encode(['error' => $e->getMessage()]));
+    }
+    return $res->withHeader('Content-Type', 'application/json');
+});
+
+
 $app->get('/routes', function ($request, $response) use ($app) {
     $routes = [];
     foreach ($app->getRouteCollector()->getRoutes() as $route) {
