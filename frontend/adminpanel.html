@@ -33,8 +33,7 @@
     button.deny-btn:hover { background: #991b1b; }
     button.muted { background: #e5e7eb; color: #6b7280; border-color: #d1d5db; cursor: not-allowed; }
 
-    /* Admin-page-only tweaks */
-    /* Make the profile avatar ring solid black (match other pages) */
+    /* Admin-page-only tweak: black avatar ring like other pages */
     #profileBtn {
       border-width: 2px !important;
       border-color: #000 !important;
@@ -42,7 +41,7 @@
       border-radius: 9999px !important;
     }
 
-    /* Small document thumbs */
+    /* Document thumbs */
     .doc-wrap { display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; }
     .doc-thumb {
       width: 56px; height: 56px; object-fit: cover; border:1px solid #d1d5db; border-radius:.5rem; cursor:pointer;
@@ -84,7 +83,7 @@
             <th>Category</th>
             <th>Address</th>
             <th>Pricing</th>
-            <th>Documents</th> <!-- ✅ header cell only -->
+            <th>Documents</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -204,21 +203,9 @@
     // ---------- Helpers for document URLs / thumbnails ----------
     function resolveDoc(u) {
       if (!u) return '';
-      if (/^https?:\/\//i.test(u)) return u;
-      // if backend returns '/uploads/..' or 'uploads/..'
-      return `${API}${u.startsWith('/') ? '' : '/'}${u}`;
-    }
-    function docCell(a) {
-      const permits = resolveDoc(a.permits_url || a.permits || a.permit);
-      const govid   = resolveDoc(a.gov_id_url || a.gov_id || a.govid);
-      const port    = resolveDoc(a.portfolio_url || a.portfolio);
-
-      const items = [];
-      if (permits) items.push(renderDoc(permits, 'Permits'));
-      if (govid)   items.push(renderDoc(govid,   'Gov ID'));
-      if (port)    items.push(renderDoc(port,    'Portfolio'));
-
-      return items.length ? `<div class="doc-wrap">${items.join('')}</div>` : '<span class="text-gray-500">—</span>';
+      if (/^https?:\/\//i.test(u)) return u;             // full URL already
+      if (u.startsWith('/')) return `${API}${u}`;         // /uploads/...
+      return `${API}/${u}`;                               // uploads/...
     }
     function renderDoc(url, label) {
       const low = url.toLowerCase();
@@ -230,8 +217,20 @@
       if (isPdf) {
         return `<a href="${url}" target="_blank" class="doc-chip" title="${label}" data-doc="${url}" data-label="${label}" data-type="pdf">PDF</a>`;
       }
-      // Fallback: link
       return `<a href="${url}" target="_blank" class="doc-chip" title="${label}" data-doc="${url}" data-label="${label}">File</a>`;
+    }
+    function docCell(a) {
+      // Your SQL table has: permits, gov_id, portfolio (TEXT with path/URL)
+      const permits = resolveDoc(a.permits);
+      const govid   = resolveDoc(a.gov_id);
+      const port    = resolveDoc(a.portfolio);
+
+      const items = [];
+      if (permits) items.push(renderDoc(permits, 'Permits'));
+      if (govid)   items.push(renderDoc(govid,   'Gov ID'));
+      if (port)    items.push(renderDoc(port,    'Portfolio'));
+
+      return items.length ? `<div class="doc-wrap">${items.join('')}</div>` : '<span class="text-gray-500">—</span>';
     }
 
     /* -------- Vendor Applications -------- */
@@ -248,7 +247,7 @@
         }
         body.innerHTML = apps.map(a => `
           <tr>
-            <td>${(a.first_name || '') + ' ' + (a.last_name || '')}</td>
+            <td>${[(a.first_name||''), (a.last_name||'')].filter(Boolean).join(' ')}</td>
             <td>${a.business_name || '-'}</td>
             <td>${a.category || '-'}</td>
             <td>${a.address || '-'}</td>
@@ -316,7 +315,7 @@
     async function loadUsers() {
       const body = document.getElementById('userTableBody');
       try {
-        const res = await fetch(`${API}/admin/users}`, { headers });
+        const res = await fetch(`${API}/admin/users`, { headers }); /* ✅ fixed stray brace */
         const json = await res.json();
         if (!json.success) throw new Error(json.error || 'Failed');
         const users = json.users || [];
@@ -326,7 +325,7 @@
         }
         body.innerHTML = users.map(u => `
           <tr>
-            <td>${(u.first_name || '') + ' ' + (u.last_name || '')}</td>
+            <td>${[(u.first_name||''), (u.last_name||'')].filter(Boolean).join(' ')}</td>
             <td>${u.email || ''}</td>
             <td>${u.username || ''}</td>
             <td>${roleLabel(u.role)}</td>
@@ -352,7 +351,7 @@
         }
         body.innerHTML = list.map(f => `
           <tr>
-            <td>${(f.first_name || '') + ' ' + (f.last_name || '')}</td>
+            <td>${[(f.first_name||''), (f.last_name||'')].filter(Boolean).join(' ')}</td>
             <td>${f.message || ''}</td>
             <td>${f.created_at ? new Date(f.created_at).toLocaleString() : ''}</td>
           </tr>
