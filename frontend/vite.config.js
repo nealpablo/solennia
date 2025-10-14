@@ -1,8 +1,11 @@
-// frontend/vite.config.js
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
 
-const BACKEND = process.env.VITE_BACKEND_URL || 'http://127.0.0.1:3000'; // 👈 adjust if your backend isn’t on 3000
+// ✅ Use Railway in production, localhost in dev
+const BACKEND =
+  process.env.NODE_ENV === 'production'
+    ? 'https://solennia.up.railway.app'
+    : (process.env.VITE_BACKEND_URL || 'http://127.0.0.1:3000');
 
 export default defineConfig({
   server: {
@@ -13,8 +16,6 @@ export default defineConfig({
         target: BACKEND,
         changeOrigin: true,
         secure: false,
-        // If your backend does NOT include "/api" in its routes, uncomment the rewrite:
-        // rewrite: (path) => path.replace(/^\/api/, ''),
         configure: (proxy) => {
           proxy.on('error', (err, _req, _res) => {
             console.error('[vite-proxy] error:', err?.message || err);
