@@ -1,0 +1,155 @@
+<!-- /partials/modals.html -->
+
+<!-- Backdrop for auth modals -->
+<div id="authBackdrop" class="fixed inset-0 bg-black/40 hidden z-[90]"></div>
+
+<!-- Login Modal -->
+<div id="loginModal" class="fixed inset-0 hidden z-[100] grid place-items-center p-4">
+  <div class="w-full max-w-md rounded-2xl bg-[#f6f0e8] shadow-xl border border-gray-300">
+    <div class="px-6 py-4 border-b border-gray-300 bg-[#e8ddae] rounded-t-2xl">
+      <h3 class="text-lg font-semibold tracking-wide">Login</h3>
+    </div>
+    <form id="loginForm" class="px-6 py-5 space-y-4">
+      <div>
+        <label class="block text-sm">Username</label>
+        <input name="username" type="text" required class="mt-1 w-full rounded-lg border-gray-300 bg-white focus:ring-2 focus:ring-[#7a5d47] focus:border-[#7a5d47]" />
+      </div>
+      <div>
+        <label class="block text-sm">Password</label>
+        <input name="password" type="password" required class="mt-1 w-full rounded-lg border-gray-300 bg-white focus:ring-2 focus:ring-[#7a5d47] focus:border-[#7a5d47]" />
+      </div>
+      <p id="loginError" class="hidden text-sm text-red-600"></p>
+      <div class="flex items-center justify-end gap-3 pt-2">
+        <button type="button" data-close class="px-4 py-2 rounded-md border hover:bg-gray-100">Cancel</button>
+        <button class="px-5 py-2 rounded-md bg-[#7a5d47] text-white font-semibold hover:opacity-90">Login</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Register Modal -->
+<div id="registerModal" class="fixed inset-0 hidden z-[100] grid place-items-center p-4">
+  <div class="w-full max-w-md rounded-2xl bg-[#f6f0e8] shadow-xl border border-gray-300">
+    <div class="px-6 py-4 border-b border-gray-300 bg-[#e8ddae] rounded-t-2xl">
+      <h3 class="text-lg font-semibold tracking-wide">Register</h3>
+    </div>
+    <form id="registerForm" class="px-6 py-5 space-y-4">
+      <div><label class="block text-sm">First Name</label><input name="first_name" required class="mt-1 w-full rounded-lg border-gray-300 bg-white focus:ring-2 focus:ring-[#7a5d47] focus:border-[#7a5d47]" /></div>
+      <div><label class="block text-sm">Last Name</label><input name="last_name" required class="mt-1 w-full rounded-lg border-gray-300 bg-white focus:ring-2 focus:ring-[#7a5d47] focus:border-[#7a5d47]" /></div>
+      <div><label class="block text-sm">Username</label><input name="username" required class="mt-1 w-full rounded-lg border-gray-300 bg-white focus:ring-2 focus:ring-[#7a5d47] focus:border-[#7a5d47]" /></div>
+      <div><label class="block text-sm">Email</label><input name="email" type="email" required class="mt-1 w-full rounded-lg border-gray-300 bg-white focus:ring-2 focus:ring-[#7a5d47] focus:border-[#7a5d47]" /></div>
+      <div><label class="block text-sm">Password</label><input name="password" type="password" minlength="6" required class="mt-1 w-full rounded-lg border-gray-300 bg-white focus:ring-2 focus:ring-[#7a5d47] focus:border-[#7a5d47]" /></div>
+      <p id="registerError" class="hidden text-sm text-red-600"></p>
+      <div class="flex items-center justify-end gap-3 pt-2">
+        <button type="button" data-close class="px-4 py-2 rounded-md border hover:bg-gray-100">Cancel</button>
+        <button class="px-5 py-2 rounded-md bg-[#7a5d47] text-white font-semibold hover:opacity-90">Register</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Feedback Modal -->
+<div id="feedbackModal" class="hidden fixed inset-0 z-[260] bg-black/40 flex items-center justify-center p-4">
+  <div class="bg-[#f6f0e8] w-full max-w-md rounded-2xl shadow-xl border border-gray-300 overflow-hidden">
+    <div class="flex justify-between items-center px-6 py-4 border-b border-gray-300 bg-[#e8ddae]">
+      <h3 class="text-lg font-semibold tracking-wide">Your Feedback</h3>
+      <button id="closeFeedback" class="text-2xl font-light hover:text-gray-600" aria-label="Close">&times;</button>
+    </div>
+    <form id="feedbackForm" class="px-6 py-5 space-y-4">
+      <div>
+        <label class="block text-sm font-medium mb-1">How was your experience?</label>
+        <textarea name="message" rows="4" placeholder="Type your feedback here..." required
+                  class="w-full rounded-lg border border-gray-300 bg-white focus:ring-2 focus:ring-[#7a5d47] focus:border-[#7a5d47] p-2 text-sm"></textarea>
+      </div>
+      <div class="flex justify-end">
+        <button type="submit" class="px-6 py-2 rounded-md bg-[#7a5d47] text-white font-semibold hover:opacity-90">Send Feedback</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Privacy Modal -->
+<div id="privacyModal" class="hidden fixed inset-0 z-[270] bg-black/40 flex items-center justify-center p-4">
+  <div class="bg-[#f6f0e8] w-full max-w-2xl rounded-2xl shadow-xl border border-gray-300 overflow-hidden">
+    <div class="flex justify-between items-center px-6 py-4 border-b border-gray-300 bg-[#e8ddae]">
+      <h3 class="text-lg font-semibold tracking-wide">Privacy Policy</h3>
+      <button id="closePrivacy" class="text-2xl font-light hover:text-gray-600" aria-label="Close">&times;</button>
+    </div>
+    <div class="p-6 space-y-4 text-sm leading-relaxed text-gray-800 max-h-[70vh] overflow-y-auto">
+      <p><strong>1. Introduction</strong><br />Solennia values your privacy. This Privacy Policy outlines how we collect, use, and protect your information.</p>
+      <p><strong>2. Information We Collect</strong><br />We may collect personal information such as your name, email, and contact details when you register or interact with our platform.</p>
+      <p><strong>3. How We Use Your Information</strong><br />Information collected is used to improve user experience, process vendor applications, and enhance our services.</p>
+      <p><strong>4. Data Protection</strong><br />We implement appropriate technical and organizational measures to protect your data against unauthorized access or disclosure.</p>
+      <p><strong>5. Cookies</strong><br />Our website may use cookies to personalize your experience and analyze site usage. You can disable cookies in your browser settings.</p>
+      <p><strong>6. Sharing of Data</strong><br />We do not sell your personal data. Limited data may be shared with trusted partners strictly for operational purposes.</p>
+      <p><strong>7. Your Rights</strong><br />You may request access, correction, or deletion of your personal data by contacting us at solenniainquires@gmail.com.</p>
+      <p><strong>8. Policy Updates</strong><br />We may update this Privacy Policy periodically. Continued use of Solennia means you accept the latest version.</p>
+      <p><strong>9. Contact</strong><br />For questions or concerns regarding your privacy, please contact solenniainquires@gmail.com.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Terms Modal -->
+<div id="termsModal" class="hidden fixed inset-0 z-[275] bg-black/40 flex items-center justify-center p-4">
+  <div class="bg-[#f6f0e8] w-full max-w-4xl rounded-2xl shadow-xl border border-gray-300 overflow-hidden">
+    <div class="flex justify-between items-center px-6 py-4 border-b border-gray-300 bg-[#e8ddae]">
+      <h3 class="text-xl font-semibold tracking-wide">Terms and Conditions</h3>
+      <button id="closeTerms" class="text-2xl font-light hover:text-gray-600" aria-label="Close">&times;</button>
+    </div>
+    <div class="p-6 space-y-5 text-sm leading-relaxed text-gray-800 max-h-[70vh] overflow-y-auto">
+      <p>Welcome to Solennia. By accessing or using our website, mobile application, or any services provided through our platform, you agree to be bound by these Terms and Conditions...</p>
+      <!-- (kept brief; same text as your pages) -->
+    </div>
+  </div>
+</div>
+
+<!-- Vendor Onboarding (3 steps) -->
+<div id="vendorTerms" class="fixed inset-0 hidden z-[200] grid place-items-center bg-black/40 p-4">
+  <div class="bg-[#f6f0e8] w-full max-w-3xl rounded-2xl shadow-xl overflow-y-auto max-h-[80vh]">
+    <div class="flex justify-between items-center p-6 border-b border-gray-300">
+      <h2 class="text-xl font-semibold">Terms & Conditions</h2>
+      <button data-closevendor class="text-2xl font-light" aria-label="Close">&times;</button>
+    </div>
+    <div class="p-6 space-y-4 text-sm leading-relaxed text-gray-800">
+      <p>By applying to become a vendor on Solennia, you agree to the following terms and conditions...</p>
+      <p>As a vendor, you are responsible for providing accurate and up-to-date information...</p>
+      <p>Solennia acts only as a facilitator between clients and vendors...</p>
+    </div>
+    <div class="p-6 border-t border-gray-300 flex justify-end">
+      <button id="agreeTerms" class="px-6 py-2 rounded-md bg-[#e8ddae] hover:bg-[#dbcf9f] font-medium">Agree and Continue</button>
+    </div>
+  </div>
+</div>
+
+<div id="vendorBackground" class="fixed inset-0 hidden z-[200] grid place-items-center bg-black/40 p-4">
+  <div class="bg-[#f6f0e8] w-full max-w-2xl rounded-2xl shadow-xl overflow-y-auto max-h-[80vh]">
+    <div class="flex justify-between items-center p-6 border-b border-gray-300">
+      <h2 class="text-lg font-semibold">Become a Vendor!</h2>
+      <button data-closevendor class="text-2xl font-light" aria-label="Close">&times;</button>
+    </div>
+    <form id="vendorForm1" class="p-6 space-y-5">
+      <div><label class="block text-sm font-semibold uppercase">Business Name <span class="text-red-600">*</span></label><input name="business_name" required class="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2" /></div>
+      <div><label class="block text-sm font-semibold uppercase">Category</label>
+        <select name="category" class="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2">
+          <option value="">Select a category</option><option value="Venue">Venue</option><option value="Catering">Catering</option><option value="Photography & Videography">Photography & Videography</option><option value="Decoration">Decoration</option><option value="Entertainment">Entertainment</option><option value="Others">Others</option>
+        </select>
+      </div>
+      <div><label class="block text-sm font-semibold uppercase">Business Address / Service Areas</label><textarea name="address" class="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"></textarea></div>
+      <div class="flex justify-end"><button type="button" id="toMedia" class="w-10 h-10 bg-[#7a5d47] rounded-full text-white flex items-center justify-center">➜</button></div>
+    </form>
+  </div>
+</div>
+
+<div id="vendorMedia" class="fixed inset-0 hidden z-[200] grid place-items-center bg-black/40 p-4">
+  <div class="bg-[#f6f0e8] w-full max-w-2xl rounded-2xl shadow-xl overflow-y-auto max-h-[80vh]">
+    <div class="flex justify-between items-center p-6 border-b border-gray-300">
+      <h2 class="text-lg font-semibold">Media & Content</h2>
+      <button data-closevendor class="text-2xl font-light" aria-label="Close">&times;</button>
+    </div>
+    <form id="vendorForm2" class="p-6 space-y-5">
+      <div><label class="block text-sm font-semibold uppercase">Description of Services</label><textarea name="description" class="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"></textarea></div>
+      <div><label class="block text-sm font-semibold uppercase">Package List/Sample Pricing</label><textarea name="pricing" class="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"></textarea></div>
+      <div class="flex justify-end pt-4"><button id="submitVendor" class="px-5 py-2 bg-[#e8ddae] hover:bg-[#dbcf9f] text-sm font-medium">Make Listing</button></div>
+    </form>
+  </div>
+</div>
