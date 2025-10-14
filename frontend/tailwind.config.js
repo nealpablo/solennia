@@ -2,11 +2,13 @@
 export default {
   content: [
     "./index.html",
-    "./landing.html",              // include landing so Tailwind scans it
-    "./src/**/*.{js,ts,jsx,tsx}"
+    "./aboutus.html",
+    "./landing.html",
+    "./profile.html",
+    "./adminpanel.html",
+    "./src/**/*.{js,ts,jsx,tsx,html}",
+    "./src/partials/**/*.html",
   ],
-  theme: {
-    extend: {},
-  },
+  theme: { extend: {} },
   plugins: [],
 };
