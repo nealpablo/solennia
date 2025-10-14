@@ -2,16 +2,24 @@
 use Illuminate\Database\Capsule\Manager as Capsule;
 use Dotenv\Dotenv;
 
-require_once __DIR__ . '/../vendor/autoload.php';
-
 $ROOT = realpath(__DIR__ . '/..');
 
-// robust env accessor
-function envx(string $key, $default = null) {
-    if (array_key_exists($key, $_ENV))    return $_ENV[$key];
-    if (array_key_exists($key, $_SERVER)) return $_SERVER[$key];
-    $v = getenv($key);
-    return $v !== false ? $v : $default;
+function envx($k,$d=null){ $v=getenv($k); if($v!==false)return $v; return $_ENV[$k]??$_SERVER[$k]??$d; }
+
+$databaseUrl = envx('DATABASE_URL');
+if ($databaseUrl) {
+    $p = parse_url($databaseUrl);
+    $host = $p['host'] ?? '127.0.0.1';
+    $port = (int)($p['port'] ?? 3306);
+    $user = $p['user'] ?? 'root';
+    $pass = $p['pass'] ?? '';
+    $db   = ltrim($p['path'] ?? '/railway','/');
+} else {
+    $host = envx('DB_HOST');
+    $port = (int)envx('DB_PORT');
+    $user = envx('DB_USERNAME');
+    $pass = envx('DB_PASSWORD','');
+    $db   = envx('DB_DATABASE');
 }
 
 // load .env locally only
