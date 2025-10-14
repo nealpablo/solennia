@@ -4,7 +4,7 @@ use Dotenv\Dotenv;
 
 // --- Find project root based on the web server's docroot ---
 $DOCROOT = rtrim($_SERVER['DOCUMENT_ROOT'] ?? __DIR__, '/'); // fallback for CLI
-$PROJECT_ROOT = \dirname($DOCROOT);
+$PROJECT_ROOT = dirname(__DIR__);
 
 // Autoload (always resolve from project root)
 require $PROJECT_ROOT . '/vendor/autoload.php';
