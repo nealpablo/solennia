@@ -466,7 +466,7 @@ feedbackForm?.addEventListener('submit', async (e) => {
   const formData = Object.fromEntries(new FormData(feedbackForm).entries());
 
   try {
-    const res = await fetch('/api/feedback', {
+    const res = await fetch(`${API}/feedback`, {
       method: 'POST',
       headers: authHeaders(),        // ✅ send JWT
       body: JSON.stringify(formData),
@@ -578,13 +578,17 @@ choiceExploreHome?.addEventListener('click', () => {
 applyProfileNameFromCache();
 refreshProfileFromServerIfNeeded();
 
-if (json.user.role === 2) {
-  const menuProfile = document.getElementById('menuProfile');
-  if (menuProfile) {
-    const adminLink = document.createElement('a');
-    adminLink.href = '/adminpanel.html';
-    adminLink.textContent = 'Admin Panel';
-    adminLink.className = 'block px-4 py-2 text-sm hover:bg-gray-100';
-    menuProfile.insertAdjacentElement('afterend', adminLink);
+(() => {
+  const role = parseInt(localStorage.getItem('solennia_role') || '0', 10);
+  if (role === 2) {
+    const menuProfile = document.getElementById('menuProfile');
+    if (menuProfile && !document.getElementById('menuAdminDynamic')) {
+      const adminLink = document.createElement('a');
+      adminLink.id = 'menuAdminDynamic';
+      adminLink.href = '/adminpanel.html';
+      adminLink.textContent = 'Admin Panel';
+      adminLink.className = 'block px-4 py-2 text-sm hover:bg-gray-100';
+      menuProfile.insertAdjacentElement('afterend', adminLink);
+    }
   }
-}
+})();
