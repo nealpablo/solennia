@@ -341,22 +341,53 @@ function wireUniversalUI() {
     vendorBackground?.classList.add('hidden');
     vendorMedia?.classList.remove('hidden');
   });
-  $('#submitVendor')?.addEventListener('click', async (e)=>{
+$('#submitVendor')?.addEventListener('click', async (e)=>{
     e.preventDefault();
     if (!token()) { openModal(loginModal); return; }
-    const step1 = $('#vendorForm1') ? Object.fromEntries(new FormData($('#vendorForm1')).entries()) : {};
-    const step2 = $('#vendorForm2') ? Object.fromEntries(new FormData($('#vendorForm2')).entries()) : {};
-    const payload = { ...step1, ...step2 };
+
+    const step1Form = $('#vendorForm1');
+    const step2Form = $('#vendorForm2');
+
+    // Build multipart payload
+    const fd = new FormData();
+
+    // text fields from step 1
+    if (step1Form) {
+      const s1 = new FormData(step1Form);
+      for (const [k,v] of s1.entries()) fd.append(k, v);
+    }
+    // text fields from step 2
+    if (step2Form) {
+      const s2 = new FormData(step2Form);
+      for (const [k,v] of s2.entries()) {
+        if (k === 'permits' || k === 'gov_id' || k === 'portfolio') continue; // handle below
+        fd.append(k, v);
+      }
+    }
+
+    // files
+    const fPermits   = $('#vendorPermits')?.files?.[0];
+    const fGovId     = $('#vendorGovId')?.files?.[0];
+    const fPortfolio = $('#vendorPortfolio')?.files?.[0];
+    if (fPermits)   fd.append('permits', fPermits);
+    if (fGovId)     fd.append('gov_id', fGovId);
+    if (fPortfolio) fd.append('portfolio', fPortfolio);
+
     try {
       const res = await fetch(`${API}/vendor/apply`, {
-        method:'POST',
-        headers: { 'Content-Type':'application/json', ...(token()?{Authorization:`Bearer ${token()}`}:{}) },
-        body: JSON.stringify(payload),
+        method: 'POST',
+        headers: {
+          // DO NOT set Content-Type for FormData; browser sets boundary
+          ...(token() ? { Authorization: `Bearer ${token()}` } : {}),
+        },
+        body: fd,
       });
       const json = await res.json().catch(()=>({}));
-      if (!res.ok || !json?.success) throw new Error(json?.error || json?.message || 'Failed');
+      if (!res.ok || json?.success === false) {
+        throw new Error(json?.error || json?.message || 'Failed to submit application');
+      }
       alert('Vendor application submitted!');
-      vendorMedia?.classList.add('hidden');
+      $('#vendorMedia')?.classList.add('hidden');
     } catch (err) {
       alert(err.message || 'Something went wrong. Please try again.');
     }
