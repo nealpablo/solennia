@@ -2,9 +2,9 @@
 // Inject header/footer/modals and wire universal UI.
 
 const PATHS = {
-  header: '/src/partials/header.html',
-  footer: '/src/partials/footer.html',
-  modals: '/src/partials/modals.html',
+  header: '/partials/header.html',
+  footer: '/partials/footer.html',
+  modals: '/partials/modals.html',
 };
 
 function normalize(url) {
