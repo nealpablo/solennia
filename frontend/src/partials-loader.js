@@ -21,7 +21,9 @@ function normalize(url) {
 const API =
   (import.meta?.env?.VITE_API_BASE) ||
   (window.__API_BASE__ || null) ||
-  (location.hostname.includes('vercel.app') ? 'https://solennia.up.railway.app' : '/api');
+  ((location.hostname.includes('vercel.app') || location.hostname.includes('railway.app'))
+    ? 'https://solennia.up.railway.app/api'
+    : '/api');
 
 // fetchHTML returns inlined partials for our 3 files; falls back to fetch otherwise
 async function fetchHTML(url) {
@@ -205,21 +207,44 @@ function wireUniversalUI() {
   closePrivacy?.addEventListener('click', ()=> close(privacyModal));
   closeTerms?.addEventListener('click',   ()=> close(termsModal));
   privacyModal?.addEventListener('click', (e)=>{ if(e.target===privacyModal) close(privacyModal); });
-  termsModal?.addEventListener('click',   (e)=>{ if(e.target===termsModal) close(termsModal); });
+  termsModal?.addEventListener('click',   (e)=>{ if(e.target===termsModal)  close(termsModal); });
 
-  // Feedback requires login
+  // ✅ Feedback modal open (requires login)
   const feedbackModal = $('#feedbackModal');
   const closeFeedback = $('#closeFeedback');
-  feedbackLink?.addEventListener('click', (e)=>{
+  feedbackLink?.addEventListener('click', (e) => {
     e.preventDefault();
-    if(!token()){
+    if (!token()) {
       alert('You need to log in before giving feedback.');
+      openModal(loginModal);
       return;
     }
     open(feedbackModal);
   });
-  closeFeedback?.addEventListener('click', ()=> close(feedbackModal));
-  feedbackModal?.addEventListener('click', (e)=>{ if(e.target===feedbackModal) close(feedbackModal); });
+  closeFeedback?.addEventListener('click', () => close(feedbackModal));
+  feedbackModal?.addEventListener('click', (e) => { if (e.target === feedbackModal) close(feedbackModal); });
+
+  // ✅ Feedback submit (JWT + correct API base)
+  const feedbackForm = $('#feedbackForm');
+  feedbackForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!token()) { alert('You need to log in first.'); return; }
+    const payload = Object.fromEntries(new FormData(feedbackForm).entries());
+    try {
+      const res = await fetch(`${API}/feedback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || json?.success === false) throw new Error(json?.error || json?.message || 'Failed to send feedback');
+      alert('Thank you for your feedback!');
+      feedbackForm.reset();
+      close(feedbackModal);
+    } catch (err) {
+      alert(err.message || 'Error sending feedback. Please try again.');
+    }
+  });
 
   // -------- AUTH: Login & Register (calls backend, saves token & role) --------
   function setAuthUI() {
@@ -341,7 +366,19 @@ function wireUniversalUI() {
     vendorBackground?.classList.add('hidden');
     vendorMedia?.classList.remove('hidden');
   });
-$('#submitVendor')?.addEventListener('click', async (e)=>{
+
+  // --- Category "Others" support ---
+  const catSelect = $('#vendorCategory');
+  const catOther  = $('#vendorCategoryOther');
+  catSelect?.addEventListener('change', () => {
+    if (!catOther) return;
+    const isOther = catSelect.value === 'Others';
+    catOther.classList.toggle('hidden', !isOther);
+    if (isOther) catOther.focus();
+  });
+
+  // Submit vendor (multipart + files + "Others" mapping)
+  $('#submitVendor')?.addEventListener('click', async (e)=>{
     e.preventDefault();
     if (!token()) { openModal(loginModal); return; }
 
@@ -356,11 +393,20 @@ $('#submitVendor')?.addEventListener('click', async (e)=>{
       const s1 = new FormData(step1Form);
       for (const [k,v] of s1.entries()) fd.append(k, v);
     }
-    // text fields from step 2
+    // If "Others" is selected, override category
+    if (catSelect) {
+      if (catSelect.value === 'Others' && catOther && catOther.value.trim()) {
+        fd.set('category', catOther.value.trim());
+      } else if (catSelect.value) {
+        fd.set('category', catSelect.value);
+      }
+    }
+
+    // text fields from step 2 (skip file keys here; handle below)
     if (step2Form) {
       const s2 = new FormData(step2Form);
       for (const [k,v] of s2.entries()) {
-        if (k === 'permits' || k === 'gov_id' || k === 'portfolio') continue; // handle below
+        if (k === 'permits' || k === 'gov_id' || k === 'portfolio') continue;
         fd.append(k, v);
       }
     }
@@ -376,10 +422,7 @@ $('#submitVendor')?.addEventListener('click', async (e)=>{
     try {
       const res = await fetch(`${API}/vendor/apply`, {
         method: 'POST',
-        headers: {
-          // DO NOT set Content-Type for FormData; browser sets boundary
-          ...(token() ? { Authorization: `Bearer ${token()}` } : {}),
-        },
+        headers: { ...(token() ? { Authorization: `Bearer ${token()}` } : {}) }, // no Content-Type for FormData
         body: fd,
       });
       const json = await res.json().catch(()=>({}));
