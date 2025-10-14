@@ -67,11 +67,12 @@ $loadRoutes = function (string $relPath) use ($app, $PROJECT_ROOT) {
     if (is_callable($ret)) { $ret($app); }
 };
 
-$loadRoutes('/src/routes/authRoutes.php');
-$loadRoutes('/src/routes/userRoutes.php');
-$loadRoutes('/src/routes/vendorRoutes.php');
-$loadRoutes('/src/routes/feedbackRoutes.php');
-$loadRoutes('/src/routes/adminRoutes.php');
+$loadRoutes(__DIR__ . '/../src/Routes/authRoutes.php');
+$loadRoutes(__DIR__ . '/../src/Routes/userRoutes.php');
+$loadRoutes(__DIR__ . '/../src/Routes/vendorRoutes.php');
+$loadRoutes(__DIR__ . '/../src/Routes/feedbackRoutes.php');
+$loadRoutes(__DIR__ . '/../src/Routes/adminRoutes.php');
+
 
 /*
 |--------------------------------------------------------------------------
