@@ -346,61 +346,135 @@ function wireUniversalUI() {
   setAuthUI(); // reflect current state on load
 
   // -------- Vendor flow (profile + anywhere else) --------
-  const vendorTerms = $('#vendorTerms');
-  const vendorBackground = $('#vendorBackground');
-  const vendorMedia = $('#vendorMedia');
-  function openVendorFlow() {
-  if (!token()) { openModal(loginModal); return; }
+const vendorTerms = $('#vendorTerms');
+const vendorBackground = $('#vendorBackground');
+const vendorMedia = $('#vendorMedia');
+const joinVendorBtn = $('#joinVendorBtn');
+const vendorCategory = $('#vendorCategory');
+const vendorCategoryOther = $('#vendorCategoryOther');
 
-  // Server-side guard (if your backend exposes it)
-  fetch(`${API}/vendor/status`, { headers: { Authorization: `Bearer ${token()}` } })
-    .then(r => r.json()).then(j => {
-      const already = j?.has_pending || j?.has_application || j?.approved;
-      if (already || localStorage.getItem(LS_VENDOR_SUBMITTED) === '1') {
-        alert('You already submitted a vendor application.');
-        return;
-      }
-      vendorTerms?.classList.remove('hidden');
-    })
-    .catch(() => {
-      // Fallback to local guard
-      if (localStorage.getItem(LS_VENDOR_SUBMITTED) === '1') {
-        alert('You already submitted a vendor application.');
-        return;
-      }
-      vendorTerms?.classList.remove('hidden');
-    });
+function tokenStr() { return localStorage.getItem('solennia_token'); }
+function authHeaders() {
+  const t = tokenStr();
+  return t ? { Authorization: `Bearer ${t}` } : {};
 }
 
-document.getElementById('submitVendor')?.addEventListener('click', async (e)=>{
-  e.preventDefault();
-  if (!token()) { openModal(loginModal); return; }
-  if (localStorage.getItem(LS_VENDOR_SUBMITTED) === '1') {
+// Toggle "Other" category field
+vendorCategory?.addEventListener('change', () => {
+  const show = vendorCategory.value === 'Others';
+  if (show) vendorCategoryOther?.classList.remove('hidden');
+  else vendorCategoryOther?.classList.add('hidden');
+});
+
+async function hasExistingVendorApp() {
+  // Server check (preferred)
+  try {
+    const res = await fetch(`${API}/vendor/mine`, { headers: { ...authHeaders() } });
+    if (res.ok) {
+      const json = await res.json().catch(()=>null);
+      // treat any existing record with Pending/Approved as "already applied"
+      if (json && (json.status || json.application?.status)) {
+        const st = (json.status || json.application?.status || '').toLowerCase();
+        if (['pending','approved'].includes(st)) return true;
+      }
+      // some backends return list:
+      if (Array.isArray(json) && json.length) return true;
+    }
+  } catch {}
+  // Fallback to local flag
+  return localStorage.getItem('solennia_vendor_applied') === '1';
+}
+
+async function openVendorFlow() {
+  if (!tokenStr()) { openModal(loginModal); return; }
+  if (await hasExistingVendorApp()) {
     alert('You already submitted a vendor application.');
     return;
   }
+  vendorTerms?.classList.remove('hidden');
+}
 
-  // ... your existing FormData building code stays the same ...
+// Wire triggers
+$('#menuVendor')?.addEventListener('click', (e)=>{ e.preventDefault(); openVendorFlow(); });
+joinVendorBtn?.addEventListener('click', (e)=>{ e.preventDefault(); openVendorFlow(); });
+
+// Close buttons (all steps)
+$$('[data-closevendor]').forEach(btn => btn.addEventListener('click', ()=>{
+  vendorTerms?.classList.add('hidden');
+  vendorBackground?.classList.add('hidden');
+  vendorMedia?.classList.add('hidden');
+}));
+
+// Steps
+$('#agreeTerms')?.addEventListener('click', ()=>{
+  vendorTerms?.classList.add('hidden');
+  vendorBackground?.classList.remove('hidden');
+});
+$('#toMedia')?.addEventListener('click', ()=>{
+  vendorBackground?.classList.add('hidden');
+  vendorMedia?.classList.remove('hidden');
+});
+
+// Submit (multipart with files + category_other if Others)
+$('#submitVendor')?.addEventListener('click', async (e)=>{
+  e.preventDefault();
+  if (!tokenStr()) { openModal(loginModal); return; }
+  if (await hasExistingVendorApp()) { alert('You already submitted a vendor application.'); return; }
+
+  const step1Form = $('#vendorForm1');
+  const step2Form = $('#vendorForm2');
+
+  const fd = new FormData();
+
+  if (step1Form) {
+    const s1 = new FormData(step1Form);
+    for (const [k,v] of s1.entries()) fd.append(k, v);
+    // If "Others", send category_other and also set category to provided value for backend convenience
+    const cat = s1.get('category');
+    const other = (vendorCategoryOther && !vendorCategoryOther.classList.contains('hidden'))
+      ? vendorCategoryOther.value.trim()
+      : '';
+    if (cat === 'Others' && other) {
+      fd.set('category', other); // backend can still read category
+      fd.set('category_other', other);
+    }
+  }
+  if (step2Form) {
+    const s2 = new FormData(step2Form);
+    for (const [k,v] of s2.entries()) {
+      if (k === 'permits' || k === 'gov_id' || k === 'portfolio') continue; // files handled below
+      fd.append(k, v);
+    }
+  }
+
+  const fPermits   = $('#vendorPermits')?.files?.[0];
+  const fGovId     = $('#vendorGovId')?.files?.[0];
+  const fPortfolio = $('#vendorPortfolio')?.files?.[0];
+  if (fPermits)   fd.append('permits', fPermits);
+  if (fGovId)     fd.append('gov_id', fGovId);
+  if (fPortfolio) fd.append('portfolio', fPortfolio);
 
   try {
     const res = await fetch(`${API}/vendor/apply`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token()}` }, // keep ONLY auth header for FormData
+      headers: { ...authHeaders() }, // do NOT set Content-Type; browser sets boundary
       body: fd,
     });
     const json = await res.json().catch(()=>({}));
-    if (!res.ok || json?.success === false) throw new Error(json?.error || json?.message || 'Failed to submit application');
-
-    localStorage.setItem(LS_VENDOR_SUBMITTED, '1'); // ✅ block future submissions on client
+    if (!res.ok || json?.success === false) {
+      throw new Error(json?.error || json?.message || 'Failed to submit application');
+    }
+    // Mark as applied to prevent re-applying
+    localStorage.setItem('solennia_vendor_applied', '1');
     alert('Vendor application submitted!');
-    document.getElementById('vendorMedia')?.classList.add('hidden');
+    vendorMedia?.classList.add('hidden');
   } catch (err) {
     alert(err.message || 'Something went wrong. Please try again.');
   }
 });
 
-  // Hash route support for #vendor
-  if (location.hash === '#vendor') openVendorFlow();
+// Hash route support
+if (location.hash === '#vendor') openVendorFlow();
 }
 
 async function boot() {

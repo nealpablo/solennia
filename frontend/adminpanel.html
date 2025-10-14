@@ -146,7 +146,7 @@
   <script type="module" src="/src/partials-loader.js"></script>
 
   <script>
-    // After header is injected, change the brand to a plain label (not bold/clickable).
+    // Make brand plain text (not clickable) on this page only.
     function adminBrandPatch() {
       const nav = document.querySelector('header nav');
       if (!nav) return;
@@ -161,7 +161,7 @@
       document.addEventListener('DOMContentLoaded', ()=> setTimeout(adminBrandPatch, 0));
     } else { setTimeout(adminBrandPatch, 0); }
 
-    // ========= API + AUTH (safe for non-module inline scripts) =========
+    // ========= API + AUTH (no import.meta here) =========
     const API =
       (window.__API_BASE__ || null) ||
       ((location.hostname.includes('vercel.app') || location.hostname.includes('railway.app'))
@@ -200,12 +200,30 @@
     lb?.addEventListener('click', (e)=>{ if (e.target === lb) closeLightbox(); });
     document.addEventListener('keydown', (e)=>{ if (e.key === 'Escape') closeLightbox(); });
 
-    // ---------- Helpers for document URLs / thumbnails ----------
+    // ---------- Robust document parsing/render ----------
     function resolveDoc(u) {
       if (!u) return '';
-      if (/^https?:\/\//i.test(u)) return u;             // full URL already
-      if (u.startsWith('/')) return `${API}${u}`;         // /uploads/...
-      return `${API}/${u}`;                               // uploads/...
+      const s = String(u).trim().replace(/^"+|"+$/g,'').replace(/^'+|'+$/g,'');
+      if (!s) return '';
+      if (/^https?:\/\//i.test(s)) return s;
+      if (s.startsWith('/')) return `${API}${s}`;
+      return `${API}/${s}`;
+    }
+    function toList(value) {
+      if (!value && value !== 0) return [];
+      // already array?
+      if (Array.isArray(value)) return value;
+      const s = String(value).trim();
+      if (!s) return [];
+      // JSON array string
+      if (s.startsWith('[') && s.endsWith(']')) {
+        try {
+          const arr = JSON.parse(s);
+          return Array.isArray(arr) ? arr : [];
+        } catch { /* ignore */ }
+      }
+      // CSV (comma/semicolon) or single path
+      return s.split(/[,;]+/).map(v => v.trim()).filter(Boolean);
     }
     function renderDoc(url, label) {
       const low = url.toLowerCase();
@@ -220,17 +238,18 @@
       return `<a href="${url}" target="_blank" class="doc-chip" title="${label}" data-doc="${url}" data-label="${label}">File</a>`;
     }
     function docCell(a) {
-      // Your SQL table has: permits, gov_id, portfolio (TEXT with path/URL)
-      const permits = resolveDoc(a.permits);
-      const govid   = resolveDoc(a.gov_id);
-      const port    = resolveDoc(a.portfolio);
+      // Your SQL: permits, gov_id, portfolio — may be single path, CSV, or JSON array string
+      const permitsL = toList(a.permits);
+      const govidL   = toList(a.gov_id);
+      const portL    = toList(a.portfolio);
+      const urls = [
+        ...permitsL.map(v => ({ url: resolveDoc(v), label: 'Permits' })),
+        ...govidL.map(v   => ({ url: resolveDoc(v), label: 'Gov ID' })),
+        ...portL.map(v    => ({ url: resolveDoc(v), label: 'Portfolio' })),
+      ].filter(x => !!x.url);
 
-      const items = [];
-      if (permits) items.push(renderDoc(permits, 'Permits'));
-      if (govid)   items.push(renderDoc(govid,   'Gov ID'));
-      if (port)    items.push(renderDoc(port,    'Portfolio'));
-
-      return items.length ? `<div class="doc-wrap">${items.join('')}</div>` : '<span class="text-gray-500">—</span>';
+      if (!urls.length) return '<span class="text-gray-500">—</span>';
+      return `<div class="doc-wrap">${urls.map(x => renderDoc(x.url, x.label)).join('')}</div>`;
     }
 
     /* -------- Vendor Applications -------- */
@@ -262,7 +281,7 @@
           </tr>
         `).join('');
 
-        // wire thumbnails after render
+        // Wire thumbnails after render
         document.querySelectorAll('.doc-thumb').forEach(el => {
           el.addEventListener('click', () => openLightbox(el.getAttribute('data-doc'), el.getAttribute('data-label')));
         });
@@ -286,36 +305,36 @@
     /* -------- Users (Promote/Demote) -------- */
     async function changeRole(user_id, role) {
       try {
+        const res = await fetch(`${API}/admin/users`, { method:'HEAD', headers });
+        // just warming connection; optional
+      } catch {}
+      try {
         const res = await fetch(`${API}/admin/users/role`, {
           method: 'POST', headers, body: JSON.stringify({ user_id, role })
         });
         const json = await safeParse(res);
         if (!json.success) throw new Error(json.error || 'Failed');
         loadUsers();
-      } catch (err) {
-        alert('Error: ' + err.message);
-      }
+      } catch (err) { alert('Error: ' + err.message); }
     }
 
     function renderUserActions(u) {
       const promoteBtn = (u.role < 2)
         ? `<button class="approve-btn" onclick="if(confirm('Promote to ${roleLabel(u.role + 1)}?')) changeRole(${u.id}, ${u.role + 1})">Promote</button>`
         : `<span style="color:#6b7280;">Max role</span>`;
-
       const demoteBtn =
         (u.role === 2)
           ? `<button class="muted" disabled title="Admins cannot be demoted">Demote</button>`
           : (u.role === 1)
               ? `<button class="deny-btn" onclick="if(confirm('Demote Supplier to Client?')) changeRole(${u.id}, 0)">Demote</button>`
               : `<button class="muted" disabled title="Client is the lowest role">Demote</button>`;
-
       return `<div style="display:flex;gap:.5rem;flex-wrap:wrap;">${promoteBtn}${demoteBtn}</div>`;
     }
 
     async function loadUsers() {
       const body = document.getElementById('userTableBody');
       try {
-        const res = await fetch(`${API}/admin/users`, { headers }); /* ✅ fixed stray brace */
+        const res = await fetch(`${API}/admin/users`, { headers });
         const json = await res.json();
         if (!json.success) throw new Error(json.error || 'Failed');
         const users = json.users || [];
