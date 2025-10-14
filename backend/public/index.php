@@ -2,90 +2,76 @@
 use Slim\Factory\AppFactory;
 use Dotenv\Dotenv;
 
-require __DIR__ . '/../vendor/autoload.php';
+// --- Find project root based on the web server's docroot ---
+$DOCROOT = rtrim($_SERVER['DOCUMENT_ROOT'] ?? __DIR__, '/'); // fallback for CLI
+$PROJECT_ROOT = \dirname($DOCROOT);
+
+// Autoload (always resolve from project root)
+require $PROJECT_ROOT . '/vendor/autoload.php';
 
 /*
 |--------------------------------------------------------------------------
-| Environment Configuration (safe for Railway)
+| Environment Configuration (safe if .env is missing)
 |--------------------------------------------------------------------------
 */
-$envPath = __DIR__ . '/../';
-
-if (file_exists($envPath . '.env')) {
-    // Local dev: load .env normally
-    $dotenv = Dotenv::createImmutable($envPath);
-    $dotenv->load();
+if (file_exists($PROJECT_ROOT . '/.env')) {
+    Dotenv::createImmutable($PROJECT_ROOT)->load();
 } else {
-    // Production (Railway): load injected env vars without crashing
-    if (class_exists(Dotenv::class)) {
-        $dotenv = Dotenv::createImmutable($envPath);
-        $dotenv->safeLoad();
-    }
+    Dotenv::createImmutable($PROJECT_ROOT)->safeLoad();
 }
 
 /*
 |--------------------------------------------------------------------------
-| Slim Application Instance
+| Slim App
 |--------------------------------------------------------------------------
 */
 $app = AppFactory::create();
-
-/*
-|--------------------------------------------------------------------------
-| Middleware (Body parsing, CORS, OPTIONS)
-|--------------------------------------------------------------------------
-*/
 $app->addBodyParsingMiddleware();
 
-// CORS + headers
-$app->add(function ($request, $handler) {
-    $response = $handler->handle($request);
-
-    // Allow specific origins from env or fallback to *
-    $allowedOrigin = $_ENV['CORS_ALLOWED_ORIGINS'] ?? '*';
-
-    return $response
-        ->withHeader('Access-Control-Allow-Origin', $allowedOrigin)
+// CORS
+$app->add(function ($req, $handler) {
+    $allowed = $_ENV['CORS_ALLOWED_ORIGINS'] ?? '*';
+    $res = $handler->handle($req);
+    return $res
+        ->withHeader('Access-Control-Allow-Origin', $allowed)
         ->withHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
-        ->withHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+        ->withHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
         ->withHeader('Access-Control-Allow-Credentials', 'true');
 });
-
-// Respond to all OPTIONS preflight requests
 $app->options('/{routes:.+}', function ($req, $res) {
-    $res = $res
-        ->withHeader('Access-Control-Allow-Origin', $_ENV['CORS_ALLOWED_ORIGINS'] ?? '*')
+    $allowed = $_ENV['CORS_ALLOWED_ORIGINS'] ?? '*';
+    return $res
+        ->withHeader('Access-Control-Allow-Origin', $allowed)
         ->withHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
-        ->withHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    return $res;
+        ->withHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
 });
 
 /*
 |--------------------------------------------------------------------------
-| Database Bootstrap
+| Bootstrap DB (resolve from project root)
 |--------------------------------------------------------------------------
 */
-require __DIR__ . '/../src/bootstrap.php';
+require $PROJECT_ROOT . '/src/bootstrap.php';
 
 /*
 |--------------------------------------------------------------------------
-| Routes from files
+| Routes (resolve from project root)
 |--------------------------------------------------------------------------
 */
-// ---- Safe route loader ----
-$loadRoutes = function (string $path) use ($app) {
-    $ret = require $path;
-    if (is_callable($ret)) {
-        $ret($app);
+$loadRoutes = function (string $relPath) use ($app, $PROJECT_ROOT) {
+    $file = $PROJECT_ROOT . $relPath;
+    if (!is_file($file)) {
+        throw new RuntimeException("Route file not found: {$file}");
     }
+    $ret = require $file;
+    if (is_callable($ret)) { $ret($app); }
 };
 
-// Include all route files
-$loadRoutes(__DIR__ . '/../src/routes/authRoutes.php');
-$loadRoutes(__DIR__ . '/../src/routes/userRoutes.php');
-$loadRoutes(__DIR__ . '/../src/routes/vendorRoutes.php');
-$loadRoutes(__DIR__ . '/../src/routes/feedbackRoutes.php');
-$loadRoutes(__DIR__ . '/../src/routes/adminRoutes.php');
+$loadRoutes('/src/routes/authRoutes.php');
+$loadRoutes('/src/routes/userRoutes.php');
+$loadRoutes('/src/routes/vendorRoutes.php');
+$loadRoutes('/src/routes/feedbackRoutes.php');
+$loadRoutes('/src/routes/adminRoutes.php');
 
 /*
 |--------------------------------------------------------------------------
@@ -96,22 +82,13 @@ $app->get('/', function ($req, $res) {
     $res->getBody()->write('Solennia backend is running');
     return $res->withHeader('Content-Type', 'text/plain');
 });
-
-$app->get('/routes', function ($request, $response) use ($app) {
+$app->get('/routes', function ($req, $res) use ($app) {
     $routes = [];
     foreach ($app->getRouteCollector()->getRoutes() as $route) {
-        $routes[] = [
-            'pattern' => $route->getPattern(),
-            'methods' => $route->getMethods(),
-        ];
+        $routes[] = ['pattern' => $route->getPattern(), 'methods' => $route->getMethods()];
     }
-    $response->getBody()->write(json_encode($routes, JSON_PRETTY_PRINT));
-    return $response->withHeader('Content-Type', 'application/json');
+    $res->getBody()->write(json_encode($routes, JSON_PRETTY_PRINT));
+    return $res->withHeader('Content-Type', 'application/json');
 });
 
-/*
-|--------------------------------------------------------------------------
-| Run
-|--------------------------------------------------------------------------
-*/
 $app->run();

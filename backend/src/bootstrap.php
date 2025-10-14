@@ -2,34 +2,23 @@
 use Illuminate\Database\Capsule\Manager as Capsule;
 use Dotenv\Dotenv;
 
-require_once __DIR__ . '/../vendor/autoload.php';
+// Compute root the same way as index.php
+$DOCROOT = rtrim($_SERVER['DOCUMENT_ROOT'] ?? __DIR__ . '/../public', '/');
+$PROJECT_ROOT = \dirname($DOCROOT);
 
-/*
-|--------------------------------------------------------------------------
-| Environment Loader  (Safe for Railway or Local)
-|--------------------------------------------------------------------------
-|
-| • In local dev (.env present): load it normally.
-| • In production (Railway): use injected environment variables.
-|
-*/
-$rootPath = dirname(__DIR__);
-
-if (file_exists($rootPath . '/.env')) {
-    // Local dev
-    $dotenv = Dotenv::createImmutable($rootPath);
-    $dotenv->load();
-} else {
-    // Production (Railway)
-    $dotenv = Dotenv::createImmutable($rootPath);
-    $dotenv->safeLoad();
+// Autoload is already done in index.php, but keep safe:
+if (!class_exists(Dotenv::class)) {
+    require $PROJECT_ROOT . '/vendor/autoload.php';
 }
 
-/*
-|--------------------------------------------------------------------------
-| Read DB config — supports both DB_CONNECTION and DB_DRIVER
-|--------------------------------------------------------------------------
-*/
+/* Env: safe load (works with Railway Variables) */
+if (file_exists($PROJECT_ROOT . '/.env')) {
+    Dotenv::createImmutable($PROJECT_ROOT)->load();
+} else {
+    Dotenv::createImmutable($PROJECT_ROOT)->safeLoad();
+}
+
+/* Database */
 $driver = $_ENV['DB_CONNECTION'] ?? $_ENV['DB_DRIVER'] ?? 'mysql';
 $host   = $_ENV['DB_HOST']       ?? '127.0.0.1';
 $port   = (int)($_ENV['DB_PORT'] ?? 3306);
@@ -37,11 +26,6 @@ $db     = $_ENV['DB_DATABASE']   ?? 'solennia';
 $user   = $_ENV['DB_USERNAME']   ?? 'root';
 $pass   = $_ENV['DB_PASSWORD']   ?? '';
 
-/*
-|--------------------------------------------------------------------------
-| Eloquent (Illuminate/Database) bootstrap
-|--------------------------------------------------------------------------
-*/
 $capsule = new Capsule();
 $capsule->addConnection([
     'driver'    => $driver,
@@ -54,13 +38,7 @@ $capsule->addConnection([
     'collation' => 'utf8mb4_unicode_ci',
     'prefix'    => '',
 ]);
-
 $capsule->setAsGlobal();
 $capsule->bootEloquent();
 
-/*
-|--------------------------------------------------------------------------
-| Optional: default timezone
-|--------------------------------------------------------------------------
-*/
 date_default_timezone_set($_ENV['APP_TIMEZONE'] ?? 'UTC');
