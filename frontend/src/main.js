@@ -271,7 +271,7 @@ menuSignIn?.addEventListener('click', () => { toggleMenu(false); openModal(login
 menuSignUp?.addEventListener('click', () => { toggleMenu(false); openModal(registerModal); });
 
 // API base (Vite dev proxy: /api -> backend)
-const API = '/api';
+const API = import.meta.env.VITE_API_BASE;
 
 // helper: POST JSON (no auth header, used for auth endpoints)
 async function postJSON(url, data) {
