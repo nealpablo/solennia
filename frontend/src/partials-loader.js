@@ -1,6 +1,11 @@
 // src/partials-loader.js
 // Inject header/footer/modals and wire universal UI.
 
+// ⬇️ NEW: import partials as raw strings (works in Vite build / Vercel)
+import headerHTML from './partials/header.html?raw';
+import footerHTML from './partials/footer.html?raw';
+import modalsHTML from './partials/modals.html?raw';
+
 const PATHS = {
   header: '/partials/header.html',
   footer: '/partials/footer.html',
@@ -9,10 +14,23 @@ const PATHS = {
 
 function normalize(url) {
   if (!url) return '';
+  // keep your original mapping
   return url.startsWith('/partials/') ? '/src' + url : url;
 }
 
+// ⬇️ REPLACED: fetchHTML returns inlined partials when requested,
+// falls back to network for anything else (keeps your existing calls working).
 async function fetchHTML(url) {
+  const u = String(url || '');
+  if (u.endsWith('/partials/header.html') || u.endsWith('/src/partials/header.html')) {
+    return headerHTML;
+  }
+  if (u.endsWith('/partials/footer.html') || u.endsWith('/src/partials/footer.html')) {
+    return footerHTML;
+  }
+  if (u.endsWith('/partials/modals.html') || u.endsWith('/src/partials/modals.html')) {
+    return modalsHTML;
+  }
   const res = await fetch(url, { cache: 'no-cache' });
   if (!res.ok) throw new Error(`${res.status} ${res.statusText} for ${url}`);
   return res.text();
@@ -59,6 +77,8 @@ function wireUniversalUI() {
   const $  = (s, r=document)=>r.querySelector(s);
   const $$ = (s, r=document)=>Array.from(r.querySelectorAll(s));
   const token = () => localStorage.getItem('solennia_token');
+  const role  = () => parseInt(localStorage.getItem('solennia_role') || '0', 10);
+  const onAdminPage = () => location.pathname.endsWith('/adminpanel.html');
 
   // Footer year
   const fy = $('#footerYear');
@@ -198,6 +218,74 @@ function wireUniversalUI() {
   });
   closeFeedback?.addEventListener('click', ()=> close(feedbackModal));
   feedbackModal?.addEventListener('click', (e)=>{ if(e.target===feedbackModal) close(feedbackModal); });
+
+  // ⬇️ NEW: Add back "Admin Panel" in profile dropdown (site-wide),
+  // but hide it on /adminpanel.html, and only show for role === 2.
+  (function ensureMenuAdmin() {
+    const root = $('#profileMenu .py-1');
+    const after = $('#menuProfile');
+    if (!root || !after) return;
+    let item = $('#menuAdmin');
+    if (!item) {
+      item = document.createElement('a');
+      item.id = 'menuAdmin';
+      item.href = '/adminpanel.html';
+      item.className = 'block px-4 py-2 text-sm hover:bg-gray-100';
+      item.setAttribute('role', 'menuitem');
+      item.textContent = 'Admin Panel';
+      after.insertAdjacentElement('afterend', item);
+    }
+    const shouldShow = role() === 2 && !onAdminPage();
+    item.classList.toggle('hidden', !shouldShow);
+  })();
+
+  // ⬇️ NEW: Vendor flow — make "Join as a Vendor" work everywhere
+  const vendorTerms = $('#vendorTerms');
+  const vendorBackground = $('#vendorBackground');
+  const vendorMedia = $('#vendorMedia');
+  function openVendorFlow() {
+    if (!token()) { openModal(loginModal); return; }
+    vendorTerms?.classList.remove('hidden');
+  }
+  $('#joinVendorBtn')?.addEventListener('click', (e)=>{ e.preventDefault(); openVendorFlow(); });
+  $('#menuVendor')?.addEventListener('click', (e)=>{ e.preventDefault(); openVendorFlow(); });
+
+  $$('[data-closevendor]').forEach(btn => btn.addEventListener('click', ()=>{
+    vendorTerms?.classList.add('hidden');
+    vendorBackground?.classList.add('hidden');
+    vendorMedia?.classList.add('hidden');
+  }));
+  $('#agreeTerms')?.addEventListener('click', ()=>{
+    vendorTerms?.classList.add('hidden');
+    vendorBackground?.classList.remove('hidden');
+  });
+  $('#toMedia')?.addEventListener('click', ()=>{
+    vendorBackground?.classList.add('hidden');
+    vendorMedia?.classList.remove('hidden');
+  });
+  $('#submitVendor')?.addEventListener('click', async (e)=>{
+    e.preventDefault();
+    if (!token()) { openModal(loginModal); return; }
+    const step1 = $('#vendorForm1') ? Object.fromEntries(new FormData($('#vendorForm1')).entries()) : {};
+    const step2 = $('#vendorForm2') ? Object.fromEntries(new FormData($('#vendorForm2')).entries()) : {};
+    const payload = { ...step1, ...step2 };
+    const API = (import.meta?.env?.VITE_API_BASE) || '/api';
+    try {
+      const res = await fetch(`${API}/vendor/apply`, {
+        method:'POST',
+        headers: { 'Content-Type':'application/json', ...(token()?{Authorization:`Bearer ${token()}`}:{}) },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json().catch(()=>({}));
+      if (!res.ok || !json?.success) throw new Error(json?.error || json?.message || 'Failed');
+      alert('Vendor application submitted!');
+      vendorMedia?.classList.add('hidden');
+    } catch (err) {
+      alert(err.message || 'Something went wrong. Please try again.');
+    }
+  });
+
+  // Keep your Enter -> vendors route behavior & other handlers intact.
 }
 
 async function boot() {
