@@ -1,7 +1,7 @@
 // src/partials-loader.js
 // Inject header/footer/modals and wire universal UI.
 
-// ⬇️ NEW: import partials as raw strings (works in Vite build / Vercel)
+// Import partials as raw strings (works on build & Vercel)
 import headerHTML from './partials/header.html?raw';
 import footerHTML from './partials/footer.html?raw';
 import modalsHTML from './partials/modals.html?raw';
@@ -14,23 +14,21 @@ const PATHS = {
 
 function normalize(url) {
   if (!url) return '';
-  // keep your original mapping
   return url.startsWith('/partials/') ? '/src' + url : url;
 }
 
-// ⬇️ REPLACED: fetchHTML returns inlined partials when requested,
-// falls back to network for anything else (keeps your existing calls working).
+// Resolve API base: env > global override > production fallback > dev proxy
+const API =
+  (import.meta?.env?.VITE_API_BASE) ||
+  (window.__API_BASE__ || null) ||
+  (location.hostname.includes('vercel.app') ? 'https://solennia.up.railway.app' : '/api');
+
+// fetchHTML returns inlined partials for our 3 files; falls back to fetch otherwise
 async function fetchHTML(url) {
   const u = String(url || '');
-  if (u.endsWith('/partials/header.html') || u.endsWith('/src/partials/header.html')) {
-    return headerHTML;
-  }
-  if (u.endsWith('/partials/footer.html') || u.endsWith('/src/partials/footer.html')) {
-    return footerHTML;
-  }
-  if (u.endsWith('/partials/modals.html') || u.endsWith('/src/partials/modals.html')) {
-    return modalsHTML;
-  }
+  if (u.endsWith('/partials/header.html') || u.endsWith('/src/partials/header.html')) return headerHTML;
+  if (u.endsWith('/partials/footer.html') || u.endsWith('/src/partials/footer.html')) return footerHTML;
+  if (u.endsWith('/partials/modals.html')  || u.endsWith('/src/partials/modals.html'))  return modalsHTML;
   const res = await fetch(url, { cache: 'no-cache' });
   if (!res.ok) throw new Error(`${res.status} ${res.statusText} for ${url}`);
   return res.text();
@@ -76,8 +74,14 @@ async function ensureModalsOnce() {
 function wireUniversalUI() {
   const $  = (s, r=document)=>r.querySelector(s);
   const $$ = (s, r=document)=>Array.from(r.querySelectorAll(s));
-  const token = () => localStorage.getItem('solennia_token');
-  const role  = () => parseInt(localStorage.getItem('solennia_role') || '0', 10);
+
+  // LS helpers
+  const LS_TOKEN   = 'solennia_token';
+  const LS_ROLE    = 'solennia_role';
+  const LS_PROFILE = 'solennia_profile';
+
+  const token = () => localStorage.getItem(LS_TOKEN);
+  const role  = () => parseInt(localStorage.getItem(LS_ROLE) || '0', 10);
   const onAdminPage = () => location.pathname.endsWith('/adminpanel.html');
 
   // Footer year
@@ -103,13 +107,14 @@ function wireUniversalUI() {
   });
   document.addEventListener('keydown', (e)=>{ if (e.key==='Escape') toggleProfileMenu(false); });
 
-  // Login/Register open modals from dropdown
+  // Auth modals
   const authBackdrop = $('#authBackdrop');
   const loginModal   = $('#loginModal');
   const registerModal= $('#registerModal');
   const openModal = (el) => { authBackdrop?.classList.remove('hidden'); el?.classList.remove('hidden'); };
   const closeAuth = () => { authBackdrop?.classList.add('hidden'); loginModal?.classList.add('hidden'); registerModal?.classList.add('hidden'); };
 
+  // Open login/register from dropdown
   $('#menuSignIn')?.addEventListener('click', (e)=>{ e.preventDefault(); toggleProfileMenu(false); openModal(loginModal); });
   $('#menuSignUp')?.addEventListener('click', (e)=>{ e.preventDefault(); toggleProfileMenu(false); openModal(registerModal); });
   authBackdrop?.addEventListener('click', closeAuth);
@@ -184,7 +189,7 @@ function wireUniversalUI() {
     }
   });
 
-  // ✅ Footer actions restored
+  // Footer actions
   const privacyLink  = $('#footerPrivacyPolicy');
   const termsLink    = $('#footerTermsLink');
   const feedbackLink = $('#footerFeedbackLink');
@@ -192,16 +197,13 @@ function wireUniversalUI() {
   const termsModal   = $('#termsModal');
   const closePrivacy = $('#closePrivacy');
   const closeTerms   = $('#closeTerms');
-
   const open = (el)=> el && el.classList.remove('hidden');
   const close= (el)=> el && el.classList.add('hidden');
 
   privacyLink?.addEventListener('click', (e)=>{ e.preventDefault(); open(privacyModal); });
   termsLink?.addEventListener('click',   (e)=>{ e.preventDefault(); open(termsModal); });
-
   closePrivacy?.addEventListener('click', ()=> close(privacyModal));
   closeTerms?.addEventListener('click',   ()=> close(termsModal));
-
   privacyModal?.addEventListener('click', (e)=>{ if(e.target===privacyModal) close(privacyModal); });
   termsModal?.addEventListener('click',   (e)=>{ if(e.target===termsModal) close(termsModal); });
 
@@ -219,9 +221,84 @@ function wireUniversalUI() {
   closeFeedback?.addEventListener('click', ()=> close(feedbackModal));
   feedbackModal?.addEventListener('click', (e)=>{ if(e.target===feedbackModal) close(feedbackModal); });
 
-  // ⬇️ NEW: Add back "Admin Panel" in profile dropdown (site-wide),
-  // but hide it on /adminpanel.html, and only show for role === 2.
-  (function ensureMenuAdmin() {
+  // -------- AUTH: Login & Register (calls backend, saves token & role) --------
+  function setAuthUI() {
+    const isAuthed = !!token();
+    $('#menuLogout')?.classList.toggle('hidden', !isAuthed);
+    $('#menuSignIn')?.classList.toggle('hidden',  isAuthed);
+    $('#menuSignUp')?.classList.toggle('hidden',  isAuthed);
+    ensureMenuAdmin(); // update admin item visibility after auth change
+  }
+
+  function saveProfileFromUser(user) {
+    if (!user) return;
+    const { first_name = '', last_name = '', username = '', email = '' } = user;
+    localStorage.setItem(LS_PROFILE, JSON.stringify({ first_name, last_name, username, email }));
+    const profileNameEl = document.getElementById('profileName');
+    if (profileNameEl) profileNameEl.textContent = [first_name, last_name].filter(Boolean).join(' ') || 'User';
+  }
+
+  const loginForm = $('#loginForm');
+  loginForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const err = $('#loginError');
+    try {
+      const data = Object.fromEntries(new FormData(loginForm).entries());
+      const res = await fetch(`${API}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json' },
+        body: JSON.stringify(data),
+      });
+      const json = await res.json().catch(()=>({}));
+      if (!res.ok || !json?.token) throw new Error(json?.error || json?.message || 'Login failed');
+      localStorage.setItem(LS_TOKEN, json.token);
+      localStorage.setItem(LS_ROLE,  String(json.role ?? 0));
+      if (json.user) saveProfileFromUser(json.user);
+      err?.classList.add('hidden');
+      closeAuth();
+      setAuthUI();
+      alert('Welcome back!');
+    } catch (ex) {
+      if (err) { err.textContent = ex.message; err.classList.remove('hidden'); } else alert(ex.message);
+    }
+  });
+
+  const registerForm = $('#registerForm');
+  registerForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const err = $('#registerError');
+    try {
+      const data = Object.fromEntries(new FormData(registerForm).entries());
+      const res = await fetch(`${API}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json' },
+        body: JSON.stringify(data),
+      });
+      const json = await res.json().catch(()=>({}));
+      if (!res.ok || !json?.token) throw new Error(json?.error || json?.message || 'Register failed');
+      localStorage.setItem(LS_TOKEN, json.token);
+      localStorage.setItem(LS_ROLE,  String(json.role ?? 0));
+      if (json.user) saveProfileFromUser(json.user);
+      err?.classList.add('hidden');
+      closeAuth();
+      setAuthUI();
+      alert(`Account created! Your username is ${json.username || data.username}.`);
+    } catch (ex) {
+      if (err) { err.textContent = ex.message; err.classList.remove('hidden'); } else alert(ex.message);
+    }
+  });
+
+  // Logout
+  $('#menuLogout')?.addEventListener('click', () => {
+    localStorage.removeItem(LS_TOKEN);
+    localStorage.removeItem(LS_ROLE);
+    localStorage.removeItem(LS_PROFILE);
+    setAuthUI();
+    alert('Signed out.');
+  });
+
+  // -------- Admin Panel menu (site-wide), hidden on admin page & for non-admins --------
+  function ensureMenuAdmin() {
     const root = $('#profileMenu .py-1');
     const after = $('#menuProfile');
     if (!root || !after) return;
@@ -237,9 +314,11 @@ function wireUniversalUI() {
     }
     const shouldShow = role() === 2 && !onAdminPage();
     item.classList.toggle('hidden', !shouldShow);
-  })();
+  }
+  ensureMenuAdmin();
+  setAuthUI(); // reflect current state on load
 
-  // ⬇️ NEW: Vendor flow — make "Join as a Vendor" work everywhere
+  // -------- Vendor flow (profile + anywhere else) --------
   const vendorTerms = $('#vendorTerms');
   const vendorBackground = $('#vendorBackground');
   const vendorMedia = $('#vendorMedia');
@@ -249,7 +328,6 @@ function wireUniversalUI() {
   }
   $('#joinVendorBtn')?.addEventListener('click', (e)=>{ e.preventDefault(); openVendorFlow(); });
   $('#menuVendor')?.addEventListener('click', (e)=>{ e.preventDefault(); openVendorFlow(); });
-
   $$('[data-closevendor]').forEach(btn => btn.addEventListener('click', ()=>{
     vendorTerms?.classList.add('hidden');
     vendorBackground?.classList.add('hidden');
@@ -269,7 +347,6 @@ function wireUniversalUI() {
     const step1 = $('#vendorForm1') ? Object.fromEntries(new FormData($('#vendorForm1')).entries()) : {};
     const step2 = $('#vendorForm2') ? Object.fromEntries(new FormData($('#vendorForm2')).entries()) : {};
     const payload = { ...step1, ...step2 };
-    const API = (import.meta?.env?.VITE_API_BASE) || '/api';
     try {
       const res = await fetch(`${API}/vendor/apply`, {
         method:'POST',
@@ -285,7 +362,8 @@ function wireUniversalUI() {
     }
   });
 
-  // Keep your Enter -> vendors route behavior & other handlers intact.
+  // Hash route support for #vendor
+  if (location.hash === '#vendor') openVendorFlow();
 }
 
 async function boot() {
@@ -294,5 +372,9 @@ async function boot() {
   await ensureModalsOnce();
   wireUniversalUI();
 }
-if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', boot); }
-else { boot(); }
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', boot);
+} else {
+  boot();
+}
