@@ -1,52 +1,129 @@
 <!-- /partials/modals.html -->
 
 <!-- Backdrop for auth modals -->
-<div id="authBackdrop" class="fixed inset-0 bg-black/40 hidden z-[90]"></div>
-
-<!-- Login Modal -->
-<div id="loginModal" class="fixed inset-0 hidden z-[100] grid place-items-center p-4">
-  <div class="w-full max-w-md rounded-2xl bg-[#f6f0e8] shadow-xl border border-gray-300">
-    <div class="px-6 py-4 border-b border-gray-300 bg-[#e8ddae] rounded-t-2xl">
-      <h3 class="text-lg font-semibold tracking-wide">Login</h3>
-    </div>
-    <form id="loginForm" class="px-6 py-5 space-y-4">
+<!-- ✅ AUTH BACKDROP -->
+<div id="authBackdrop" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-[9999]">
+  <!-- LOGIN MODAL -->
+  <div id="loginModal" class="bg-[#f6f0e8] rounded-2xl shadow-xl w-full max-w-md mx-auto hidden p-8 relative">
+    <button data-close class="absolute top-3 right-3 text-gray-600 hover:text-black text-xl">&times;</button>
+    <h2 class="text-2xl font-semibold mb-4 text-center">Login to Solennia</h2>
+    <form id="loginForm" class="space-y-4">
       <div>
-        <label class="block text-sm">Username</label>
-        <input name="username" type="text" required class="mt-1 w-full rounded-lg border-gray-300 bg-white focus:ring-2 focus:ring-[#7a5d47] focus:border-[#7a5d47]" />
+        <label for="loginUsername" class="block text-sm font-medium mb-1">Email or Username</label>
+        <input type="text" id="loginUsername" name="username" required
+          class="w-full border border-gray-400 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#7a5d47]" />
+        <p id="loginEmailError" class="hidden text-sm text-red-600 mt-1">Invalid email — must include ".com"</p>
       </div>
       <div>
-        <label class="block text-sm">Password</label>
-        <input name="password" type="password" required class="mt-1 w-full rounded-lg border-gray-300 bg-white focus:ring-2 focus:ring-[#7a5d47] focus:border-[#7a5d47]" />
+        <label for="loginPassword" class="block text-sm font-medium mb-1">Password</label>
+        <input type="password" id="loginPassword" name="password" required
+          class="w-full border border-gray-400 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#7a5d47]" />
       </div>
       <p id="loginError" class="hidden text-sm text-red-600"></p>
-      <div class="flex items-center justify-end gap-3 pt-2">
-        <button type="button" data-close class="px-4 py-2 rounded-md border hover:bg-gray-100">Cancel</button>
-        <button class="px-5 py-2 rounded-md bg-[#7a5d47] text-white font-semibold hover:opacity-90">Login</button>
+      <button type="submit"
+        class="w-full bg-[#7a5d47] text-white py-2 rounded-lg font-semibold hover:opacity-90 transition">Login</button>
+      <p class="text-sm text-center mt-3">No account yet?
+        <a href="#" id="switchToRegister" class="text-[#7a5d47] hover:underline">Register</a>
+      </p>
+    </form>
+  </div>
+
+  <!-- REGISTER MODAL -->
+  <div id="registerModal" class="bg-[#f6f0e8] rounded-2xl shadow-xl w-full max-w-md mx-auto hidden p-8 relative">
+    <button data-close class="absolute top-3 right-3 text-gray-600 hover:text-black text-xl">&times;</button>
+    <h2 class="text-2xl font-semibold mb-4 text-center">Create Your Account</h2>
+    <form id="registerForm" class="space-y-4">
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label for="registerFirstName" class="block text-sm font-medium mb-1">First Name</label>
+          <input type="text" id="registerFirstName" name="first_name" required
+            class="w-full border border-gray-400 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#7a5d47]" />
+        </div>
+        <div>
+          <label for="registerLastName" class="block text-sm font-medium mb-1">Last Name</label>
+          <input type="text" id="registerLastName" name="last_name" required
+            class="w-full border border-gray-400 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#7a5d47]" />
+        </div>
       </div>
+      <div>
+        <label for="registerEmail" class="block text-sm font-medium mb-1">Email</label>
+        <input type="email" id="registerEmail" name="email" required
+          pattern="^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.com$"
+          title="Email must end with .com"
+          class="w-full border border-gray-400 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#7a5d47]" />
+      </div>
+      <div>
+        <label for="registerUsername" class="block text-sm font-medium mb-1">Username</label>
+        <input type="text" id="registerUsername" name="username" required
+          class="w-full border border-gray-400 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#7a5d47]" />
+      </div>
+      <div>
+        <label for="registerPassword" class="block text-sm font-medium mb-1">Password</label>
+        <input type="password" id="registerPassword" name="password" required minlength="6"
+          class="w-full border border-gray-400 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#7a5d47]" />
+      </div>
+      <div>
+        <label for="registerConfirmPassword" class="block text-sm font-medium mb-1">Confirm Password</label>
+        <input type="password" id="registerConfirmPassword" name="confirm_password" required minlength="6"
+          class="w-full border border-gray-400 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#7a5d47]" />
+        <p id="registerPasswordError" class="hidden text-sm text-red-600 mt-1">Passwords do not match</p>
+      </div>
+      <p id="registerError" class="hidden text-sm text-red-600"></p>
+      <button type="submit"
+        class="w-full bg-[#7a5d47] text-white py-2 rounded-lg font-semibold hover:opacity-90 transition">Register</button>
+      <p class="text-sm text-center mt-3">Already have an account?
+        <a href="#" id="switchToLogin" class="text-[#7a5d47] hover:underline">Login</a>
+      </p>
     </form>
   </div>
 </div>
 
-<!-- Register Modal -->
-<div id="registerModal" class="fixed inset-0 hidden z-[100] grid place-items-center p-4">
-  <div class="w-full max-w-md rounded-2xl bg-[#f6f0e8] shadow-xl border border-gray-300">
-    <div class="px-6 py-4 border-b border-gray-300 bg-[#e8ddae] rounded-t-2xl">
-      <h3 class="text-lg font-semibold tracking-wide">Register</h3>
-    </div>
-    <form id="registerForm" class="px-6 py-5 space-y-4">
-      <div><label class="block text-sm">First Name</label><input name="first_name" required class="mt-1 w-full rounded-lg border-gray-300 bg-white focus:ring-2 focus:ring-[#7a5d47] focus:border-[#7a5d47]" /></div>
-      <div><label class="block text-sm">Last Name</label><input name="last_name" required class="mt-1 w-full rounded-lg border-gray-300 bg-white focus:ring-2 focus:ring-[#7a5d47] focus:border-[#7a5d47]" /></div>
-      <div><label class="block text-sm">Username</label><input name="username" required class="mt-1 w-full rounded-lg border-gray-300 bg-white focus:ring-2 focus:ring-[#7a5d47] focus:border-[#7a5d47]" /></div>
-      <div><label class="block text-sm">Email</label><input name="email" type="email" required class="mt-1 w-full rounded-lg border-gray-300 bg-white focus:ring-2 focus:ring-[#7a5d47] focus:border-[#7a5d47]" /></div>
-      <div><label class="block text-sm">Password</label><input name="password" type="password" minlength="6" required class="mt-1 w-full rounded-lg border-gray-300 bg-white focus:ring-2 focus:ring-[#7a5d47] focus:border-[#7a5d47]" /></div>
-      <p id="registerError" class="hidden text-sm text-red-600"></p>
-      <div class="flex items-center justify-end gap-3 pt-2">
-        <button type="button" data-close class="px-4 py-2 rounded-md border hover:bg-gray-100">Cancel</button>
-        <button class="px-5 py-2 rounded-md bg-[#7a5d47] text-white font-semibold hover:opacity-90">Register</button>
-      </div>
-    </form>
-  </div>
-</div>
+<script>
+  // Switch between login & register modals
+  document.getElementById('switchToRegister')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    document.getElementById('loginModal').classList.add('hidden');
+    document.getElementById('registerModal').classList.remove('hidden');
+  });
+  document.getElementById('switchToLogin')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    document.getElementById('registerModal').classList.add('hidden');
+    document.getElementById('loginModal').classList.remove('hidden');
+  });
+
+  // ✅ Enforce .com email in LOGIN form
+  const loginForm = document.getElementById('loginForm');
+  const loginField = document.getElementById('loginUsername');
+  const loginEmailError = document.getElementById('loginEmailError');
+
+  loginForm?.addEventListener('submit', (e) => {
+    const val = loginField.value.trim();
+    const looksLikeEmail = val.includes('@');
+    if (looksLikeEmail && !val.endsWith('.com')) {
+      e.preventDefault();
+      loginEmailError.classList.remove('hidden');
+      loginField.focus();
+    } else {
+      loginEmailError.classList.add('hidden');
+    }
+  });
+
+  // ✅ Confirm password match in REGISTER form
+  const registerForm = document.getElementById('registerForm');
+  const pass = document.getElementById('registerPassword');
+  const confirm = document.getElementById('registerConfirmPassword');
+  const passError = document.getElementById('registerPasswordError');
+
+  registerForm?.addEventListener('submit', (e) => {
+    if (pass.value !== confirm.value) {
+      e.preventDefault();
+      passError.classList.remove('hidden');
+      confirm.focus();
+    } else {
+      passError.classList.add('hidden');
+    }
+  });
+</script>
 
 <!-- Feedback Modal -->
 <div id="feedbackModal" class="hidden fixed inset-0 z-[260] bg-black/40 flex items-center justify-center p-4">
