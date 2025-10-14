@@ -2,14 +2,17 @@
 
 <!-- ✅ AUTH BACKDROP (kept) -->
 <div id="authBackdrop" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-[9999]">
-
   <!-- LOGIN MODAL -->
-  <div id="loginModal" class="bg-[#f6f0e8] rounded-2xl shadow-xl w-full max-w-md mx-auto hidden p-8 relative">
+  <div
+    id="loginModal"
+    class="bg-[#f6f0e8] rounded-2xl shadow-xl w-full max-w-md mx-auto hidden p-8 relative"
+    onclick="event.stopPropagation()"
+  >
     <button data-close class="absolute top-3 right-3 text-gray-600 hover:text-black text-xl">&times;</button>
     <h2 class="text-2xl font-semibold mb-4 text-center">Login to Solennia</h2>
 
     <!-- Inline validation so it works even when injected -->
-    <form id="loginForm" class="space-y-4">
+    <form id="loginForm" class="space-y-4" novalidate>
       <div>
         <label for="loginUsername" class="block text-sm font-medium mb-1">Email or Username</label>
         <input
@@ -62,11 +65,15 @@
   </div>
 
   <!-- REGISTER MODAL -->
-  <div id="registerModal" class="bg-[#f6f0e8] rounded-2xl shadow-xl w-full max-w-md mx-auto hidden p-8 relative">
+  <div
+    id="registerModal"
+    class="bg-[#f6f0e8] rounded-2xl shadow-xl w-full max-w-md mx-auto hidden p-8 relative"
+    onclick="event.stopPropagation()"
+  >
     <button data-close class="absolute top-3 right-3 text-gray-600 hover:text-black text-xl">&times;</button>
     <h2 class="text-2xl font-semibold mb-4 text-center">Create Your Account</h2>
 
-    <form id="registerForm" class="space-y-4">
+    <form id="registerForm" class="space-y-4" novalidate>
       <div class="grid grid-cols-2 gap-4">
         <div>
           <label for="registerFirstName" class="block text-sm font-medium mb-1">First Name</label>
@@ -143,11 +150,9 @@
   </div>
 </div>
 
-<!-- (No inline <script> — inline handlers above run after injection) -->
-
 <!-- Feedback Modal (kept) -->
 <div id="feedbackModal" class="hidden fixed inset-0 z-[260] bg-black/40 flex items-center justify-center p-4">
-  <div class="bg-[#f6f0e8] w-full max-w-md rounded-2xl shadow-xl border border-gray-300 overflow-hidden">
+  <div class="bg-[#f6f0e8] w-full max-w-md rounded-2xl shadow-xl border border-gray-300 overflow-hidden" onclick="event.stopPropagation()">
     <div class="flex justify-between items-center px-6 py-4 border-b border-gray-300 bg-[#e8ddae]">
       <h3 class="text-lg font-semibold tracking-wide">Your Feedback</h3>
       <button id="closeFeedback" class="text-2xl font-light hover:text-gray-600" aria-label="Close">&times;</button>
@@ -167,7 +172,7 @@
 
 <!-- Privacy Modal (kept) -->
 <div id="privacyModal" class="hidden fixed inset-0 z-[270] bg-black/40 flex items-center justify-center p-4">
-  <div class="bg-[#f6f0e8] w-full max-w-2xl rounded-2xl shadow-xl border border-gray-300 overflow-hidden">
+  <div class="bg-[#f6f0e8] w-full max-w-2xl rounded-2xl shadow-xl border border-gray-300 overflow-hidden" onclick="event.stopPropagation()">
     <div class="flex justify-between items-center px-6 py-4 border-b border-gray-300 bg-[#e8ddae]">
       <h3 class="text-lg font-semibold tracking-wide">Privacy Policy</h3>
       <button id="closePrivacy" class="text-2xl font-light hover:text-gray-600" aria-label="Close">&times;</button>
@@ -188,7 +193,7 @@
 
 <!-- Terms Modal (kept) -->
 <div id="termsModal" class="hidden fixed inset-0 z-[275] bg-black/40 flex items-center justify-center p-4">
-  <div class="bg-[#f6f0e8] w-full max-w-4xl rounded-2xl shadow-xl border border-gray-300 overflow-hidden">
+  <div class="bg-[#f6f0e8] w-full max-w-4xl rounded-2xl shadow-xl border border-gray-300 overflow-hidden" onclick="event.stopPropagation()">
     <div class="flex justify-between items-center px-6 py-4 border-b border-gray-300 bg-[#e8ddae]">
       <h3 class="text-xl font-semibold tracking-wide">Terms and Conditions</h3>
       <button id="closeTerms" class="text-2xl font-light hover:text-gray-600" aria-label="Close">&times;</button>
@@ -200,9 +205,9 @@
   </div>
 </div>
 
-<!-- Vendor Onboarding (kept, now with .com email & Others toggle) -->
+<!-- Vendor Onboarding (kept, with .com email & Others toggle) -->
 <div id="vendorTerms" class="fixed inset-0 hidden z-[200] grid place-items-center bg-black/40 p-4">
-  <div class="bg-[#f6f0e8] w-full max-w-3xl rounded-2xl shadow-xl overflow-y-auto max-h-[80vh]">
+  <div class="bg-[#f6f0e8] w-full max-w-3xl rounded-2xl shadow-xl overflow-y-auto max-h-[80vh]" onclick="event.stopPropagation()">
     <div class="flex justify-between items-center p-6 border-b border-gray-300">
       <h2 class="text-xl font-semibold">Terms & Conditions</h2>
       <button data-closevendor class="text-2xl font-light" aria-label="Close">&times;</button>
@@ -219,7 +224,7 @@
 </div>
 
 <div id="vendorBackground" class="fixed inset-0 hidden z-[200] grid place-items-center bg-black/40 p-4">
-  <div class="bg-[#f6f0e8] w-full max-w-2xl rounded-2xl shadow-xl overflow-y-auto max-h-[80vh]">
+  <div class="bg-[#f6f0e8] w-full max-w-2xl rounded-2xl shadow-xl overflow-y-auto max-h-[80vh]" onclick="event.stopPropagation()">
     <div class="flex justify-between items-center p-6 border-b border-gray-300">
       <h2 class="text-lg font-semibold">Become a Vendor!</h2>
       <button data-closevendor class="text-2xl font-light" aria-label="Close">&times;</button>
@@ -288,7 +293,7 @@
 </div>
 
 <div id="vendorMedia" class="fixed inset-0 hidden z-[200] grid place-items-center bg-black/40 p-4">
-  <div class="bg-[#f6f0e8] w-full max-w-2xl rounded-2xl shadow-xl overflow-y-auto max-h-[80vh]">
+  <div class="bg-[#f6f0e8] w-full max-w-2xl rounded-2xl shadow-xl overflow-y-auto max-h-[80vh]" onclick="event.stopPropagation()">
     <div class="flex justify-between items-center p-6 border-b border-gray-300">
       <h2 class="text-lg font-semibold">Media & Content</h2>
       <button data-closevendor class="text-2xl font-light" aria-label="Close">&times;</button>
