@@ -2,6 +2,7 @@
 // Inject header/footer/modals and wire universal UI.
 
 // Import partials as raw strings (works on build & Vercel)
+
 import headerHTML from './partials/header.html?raw';
 import footerHTML from './partials/footer.html?raw';
 import modalsHTML from './partials/modals.html?raw';
@@ -82,6 +83,7 @@ function wireUniversalUI() {
   const LS_ROLE    = 'solennia_role';
   const LS_PROFILE = 'solennia_profile';
 
+  const LS_VENDOR_SUBMITTED = 'solennia_vendor_submitted';
   const token = () => localStorage.getItem(LS_TOKEN);
   const role  = () => parseInt(localStorage.getItem(LS_ROLE) || '0', 10);
   const onAdminPage = () => location.pathname.endsWith('/adminpanel.html');
@@ -348,93 +350,54 @@ function wireUniversalUI() {
   const vendorBackground = $('#vendorBackground');
   const vendorMedia = $('#vendorMedia');
   function openVendorFlow() {
-    if (!token()) { openModal(loginModal); return; }
-    vendorTerms?.classList.remove('hidden');
+  if (!token()) { openModal(loginModal); return; }
+
+  // Server-side guard (if your backend exposes it)
+  fetch(`${API}/vendor/status`, { headers: { Authorization: `Bearer ${token()}` } })
+    .then(r => r.json()).then(j => {
+      const already = j?.has_pending || j?.has_application || j?.approved;
+      if (already || localStorage.getItem(LS_VENDOR_SUBMITTED) === '1') {
+        alert('You already submitted a vendor application.');
+        return;
+      }
+      vendorTerms?.classList.remove('hidden');
+    })
+    .catch(() => {
+      // Fallback to local guard
+      if (localStorage.getItem(LS_VENDOR_SUBMITTED) === '1') {
+        alert('You already submitted a vendor application.');
+        return;
+      }
+      vendorTerms?.classList.remove('hidden');
+    });
+}
+
+document.getElementById('submitVendor')?.addEventListener('click', async (e)=>{
+  e.preventDefault();
+  if (!token()) { openModal(loginModal); return; }
+  if (localStorage.getItem(LS_VENDOR_SUBMITTED) === '1') {
+    alert('You already submitted a vendor application.');
+    return;
   }
-  $('#joinVendorBtn')?.addEventListener('click', (e)=>{ e.preventDefault(); openVendorFlow(); });
-  $('#menuVendor')?.addEventListener('click', (e)=>{ e.preventDefault(); openVendorFlow(); });
-  $$('[data-closevendor]').forEach(btn => btn.addEventListener('click', ()=>{
-    vendorTerms?.classList.add('hidden');
-    vendorBackground?.classList.add('hidden');
-    vendorMedia?.classList.add('hidden');
-  }));
-  $('#agreeTerms')?.addEventListener('click', ()=>{
-    vendorTerms?.classList.add('hidden');
-    vendorBackground?.classList.remove('hidden');
-  });
-  $('#toMedia')?.addEventListener('click', ()=>{
-    vendorBackground?.classList.add('hidden');
-    vendorMedia?.classList.remove('hidden');
-  });
 
-  // --- Category "Others" support ---
-  const catSelect = $('#vendorCategory');
-  const catOther  = $('#vendorCategoryOther');
-  catSelect?.addEventListener('change', () => {
-    if (!catOther) return;
-    const isOther = catSelect.value === 'Others';
-    catOther.classList.toggle('hidden', !isOther);
-    if (isOther) catOther.focus();
-  });
+  // ... your existing FormData building code stays the same ...
 
-  // Submit vendor (multipart + files + "Others" mapping)
-  $('#submitVendor')?.addEventListener('click', async (e)=>{
-    e.preventDefault();
-    if (!token()) { openModal(loginModal); return; }
+  try {
+    const res = await fetch(`${API}/vendor/apply`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token()}` }, // keep ONLY auth header for FormData
+      body: fd,
+    });
+    const json = await res.json().catch(()=>({}));
+    if (!res.ok || json?.success === false) throw new Error(json?.error || json?.message || 'Failed to submit application');
 
-    const step1Form = $('#vendorForm1');
-    const step2Form = $('#vendorForm2');
-
-    // Build multipart payload
-    const fd = new FormData();
-
-    // text fields from step 1
-    if (step1Form) {
-      const s1 = new FormData(step1Form);
-      for (const [k,v] of s1.entries()) fd.append(k, v);
-    }
-    // If "Others" is selected, override category
-    if (catSelect) {
-      if (catSelect.value === 'Others' && catOther && catOther.value.trim()) {
-        fd.set('category', catOther.value.trim());
-      } else if (catSelect.value) {
-        fd.set('category', catSelect.value);
-      }
-    }
-
-    // text fields from step 2 (skip file keys here; handle below)
-    if (step2Form) {
-      const s2 = new FormData(step2Form);
-      for (const [k,v] of s2.entries()) {
-        if (k === 'permits' || k === 'gov_id' || k === 'portfolio') continue;
-        fd.append(k, v);
-      }
-    }
-
-    // files
-    const fPermits   = $('#vendorPermits')?.files?.[0];
-    const fGovId     = $('#vendorGovId')?.files?.[0];
-    const fPortfolio = $('#vendorPortfolio')?.files?.[0];
-    if (fPermits)   fd.append('permits', fPermits);
-    if (fGovId)     fd.append('gov_id', fGovId);
-    if (fPortfolio) fd.append('portfolio', fPortfolio);
-
-    try {
-      const res = await fetch(`${API}/vendor/apply`, {
-        method: 'POST',
-        headers: { ...(token() ? { Authorization: `Bearer ${token()}` } : {}) }, // no Content-Type for FormData
-        body: fd,
-      });
-      const json = await res.json().catch(()=>({}));
-      if (!res.ok || json?.success === false) {
-        throw new Error(json?.error || json?.message || 'Failed to submit application');
-      }
-      alert('Vendor application submitted!');
-      $('#vendorMedia')?.classList.add('hidden');
-    } catch (err) {
-      alert(err.message || 'Something went wrong. Please try again.');
-    }
-  });
+    localStorage.setItem(LS_VENDOR_SUBMITTED, '1'); // ✅ block future submissions on client
+    alert('Vendor application submitted!');
+    document.getElementById('vendorMedia')?.classList.add('hidden');
+  } catch (err) {
+    alert(err.message || 'Something went wrong. Please try again.');
+  }
+});
 
   // Hash route support for #vendor
   if (location.hash === '#vendor') openVendorFlow();

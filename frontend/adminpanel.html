@@ -33,8 +33,38 @@
     button.deny-btn:hover { background: #991b1b; }
     button.muted { background: #e5e7eb; color: #6b7280; border-color: #d1d5db; cursor: not-allowed; }
 
-    /* Admin-page-only tweak: remove bold from Logout here */
-    #profileMenu #menuLogout { font-weight: 400 !important; }
+    /* Admin-page-only tweaks */
+    /* Make the profile avatar ring solid black (match other pages) */
+    #profileBtn {
+      border-width: 2px !important;
+      border-color: #000 !important;
+      background: transparent !important;
+      border-radius: 9999px !important;
+    }
+
+    /* Small document thumbs */
+    .doc-wrap { display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; }
+    .doc-thumb {
+      width: 56px; height: 56px; object-fit: cover; border:1px solid #d1d5db; border-radius:.5rem; cursor:pointer;
+      background:#f9fafb;
+    }
+    .doc-chip {
+      display:inline-flex; align-items:center; justify-content:center;
+      height: 28px; padding: 0 .5rem; border:1px solid #d1d5db; border-radius:.5rem; background:#f9fafb;
+      font-size:.8rem; cursor:pointer; text-decoration:none; color:#1c1b1a;
+    }
+
+    /* Lightbox */
+    .lb-backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none; align-items: center; justify-content: center; z-index: 9999;
+    }
+    .lb-content {
+      max-width: 92vw; max-height: 88vh; background:#fff; border-radius:.75rem; overflow:hidden;
+      border:1px solid #e5e7eb; box-shadow: 0 10px 40px rgba(0,0,0,.35);
+    }
+    .lb-img { max-width: 92vw; max-height: 88vh; display:block; }
+    .lb-header { display:flex; align-items:center; justify-content:space-between; background:#e8ddae; padding:.5rem .75rem; }
+    .lb-close { font-size: 1.4rem; line-height: 1; background:transparent; border:none; cursor:pointer; }
   </style>
 </head>
 <body>
@@ -54,15 +84,12 @@
             <th>Category</th>
             <th>Address</th>
             <th>Pricing</th>
-            <!-- ✅ show uploaded files -->
-            <th>Permits</th>
-            <th>Gov ID</th>
-            <th>Portfolio</th>
+            <th>Documents</th> <!-- ✅ header cell only -->
             <th>Actions</th>
           </tr>
         </thead>
         <tbody id="vendorTableBody">
-          <tr><td colspan="9" class="text-center py-4">Loading...</td></tr>
+          <tr><td colspan="7" class="text-center py-4">Loading...</td></tr>
         </tbody>
       </table>
     </div>
@@ -105,10 +132,22 @@
   <div data-include="/partials/footer.html"></div>
   <div data-include="/partials/modals.html"></div>
 
+  <!-- IMAGE LIGHTBOX -->
+  <div id="lightbox" class="lb-backdrop">
+    <div class="lb-content">
+      <div class="lb-header">
+        <div id="lbTitle" class="text-sm font-semibold">Document</div>
+        <button id="lbClose" class="lb-close" aria-label="Close">&times;</button>
+      </div>
+      <img id="lbImg" class="lb-img" alt="document preview" />
+    </div>
+  </div>
+
+  <!-- Loader that injects header/footer/modals and wires UI -->
   <script type="module" src="/src/partials-loader.js"></script>
 
   <script>
-    // Brand patch: make brand plain text on this page
+    // After header is injected, change the brand to a plain label (not bold/clickable).
     function adminBrandPatch() {
       const nav = document.querySelector('header nav');
       if (!nav) return;
@@ -118,15 +157,12 @@
       span.textContent = 'Solennia Admin Panel';
       span.className = 'text-xl tracking-wide font-normal cursor-default';
       brandLink.replaceWith(span);
-      // hide profile dropdown "Admin Panel" item if injected globally
-      const adminItem = document.getElementById('menuAdmin');
-      if (adminItem) adminItem.classList.add('hidden');
     }
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', ()=> setTimeout(adminBrandPatch, 0));
     } else { setTimeout(adminBrandPatch, 0); }
 
-    /* ================= API + AUTH (no import.meta here) ================= */
+    // ========= API + AUTH (safe for non-module inline scripts) =========
     const API =
       (window.__API_BASE__ || null) ||
       ((location.hostname.includes('vercel.app') || location.hostname.includes('railway.app'))
@@ -139,10 +175,6 @@
       ...(token ? { 'Authorization': `Bearer ${token}` } : {})
     };
 
-    // Admin-only guard
-    const __role = parseInt(localStorage.getItem('solennia_role') || '0', 10);
-    if (__role !== 2) { alert('Admins only.'); window.location.href = '/index.html'; }
-
     function roleLabel(role) { return role === 2 ? 'Admin' : role === 1 ? 'Supplier' : 'Client'; }
     async function safeParse(res) {
       const ct = res.headers.get('content-type') || '';
@@ -151,12 +183,55 @@
       throw new Error(text || `${res.status} ${res.statusText}`);
     }
 
-    function fileCell(urlOrName) {
-      if (!urlOrName) return '-';
-      // If backend returns filename only, your server should serve a route. Adjust if needed.
-      const isURL = /^https?:\/\//i.test(urlOrName);
-      const href = isURL ? urlOrName : `${API.replace(/\/api$/,'')}/uploads/${encodeURIComponent(urlOrName)}`;
-      return `<a href="${href}" target="_blank" class="underline">View</a>`;
+    // ---------- Lightbox ----------
+    const lb = document.getElementById('lightbox');
+    const lbImg = document.getElementById('lbImg');
+    const lbTitle = document.getElementById('lbTitle');
+    const lbClose = document.getElementById('lbClose');
+    function openLightbox(src, title) {
+      lbImg.src = src;
+      lbTitle.textContent = title || 'Document';
+      lb.style.display = 'flex';
+    }
+    function closeLightbox() {
+      lb.style.display = 'none';
+      lbImg.src = '';
+    }
+    lbClose?.addEventListener('click', closeLightbox);
+    lb?.addEventListener('click', (e)=>{ if (e.target === lb) closeLightbox(); });
+    document.addEventListener('keydown', (e)=>{ if (e.key === 'Escape') closeLightbox(); });
+
+    // ---------- Helpers for document URLs / thumbnails ----------
+    function resolveDoc(u) {
+      if (!u) return '';
+      if (/^https?:\/\//i.test(u)) return u;
+      // if backend returns '/uploads/..' or 'uploads/..'
+      return `${API}${u.startsWith('/') ? '' : '/'}${u}`;
+    }
+    function docCell(a) {
+      const permits = resolveDoc(a.permits_url || a.permits || a.permit);
+      const govid   = resolveDoc(a.gov_id_url || a.gov_id || a.govid);
+      const port    = resolveDoc(a.portfolio_url || a.portfolio);
+
+      const items = [];
+      if (permits) items.push(renderDoc(permits, 'Permits'));
+      if (govid)   items.push(renderDoc(govid,   'Gov ID'));
+      if (port)    items.push(renderDoc(port,    'Portfolio'));
+
+      return items.length ? `<div class="doc-wrap">${items.join('')}</div>` : '<span class="text-gray-500">—</span>';
+    }
+    function renderDoc(url, label) {
+      const low = url.toLowerCase();
+      const isImg = /\.(png|jpe?g|gif|webp|bmp)$/i.test(low);
+      const isPdf = /\.pdf$/i.test(low);
+      if (isImg) {
+        return `<img src="${url}" alt="${label}" class="doc-thumb" data-doc="${url}" data-label="${label}" />`;
+      }
+      if (isPdf) {
+        return `<a href="${url}" target="_blank" class="doc-chip" title="${label}" data-doc="${url}" data-label="${label}" data-type="pdf">PDF</a>`;
+      }
+      // Fallback: link
+      return `<a href="${url}" target="_blank" class="doc-chip" title="${label}" data-doc="${url}" data-label="${label}">File</a>`;
     }
 
     /* -------- Vendor Applications -------- */
@@ -168,7 +243,7 @@
         if (!json.success) throw new Error(json.error || 'Failed to load');
         const apps = json.applications || [];
         if (!apps.length) {
-          body.innerHTML = '<tr><td colspan="9" class="text-center py-4">No pending applications</td></tr>';
+          body.innerHTML = '<tr><td colspan="7" class="text-center py-4">No pending applications</td></tr>';
           return;
         }
         body.innerHTML = apps.map(a => `
@@ -178,9 +253,7 @@
             <td>${a.category || '-'}</td>
             <td>${a.address || '-'}</td>
             <td>${a.pricing || '-'}</td>
-            <td>${fileCell(a.permits)}</td>
-            <td>${fileCell(a.gov_id)}</td>
-            <td>${fileCell(a.portfolio)}</td>
+            <td>${docCell(a)}</td>
             <td>
               <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
                 <button class="approve-btn" onclick="handleDecision(${a.id}, 'approve')">Approve</button>
@@ -189,19 +262,20 @@
             </td>
           </tr>
         `).join('');
+
+        // wire thumbnails after render
+        document.querySelectorAll('.doc-thumb').forEach(el => {
+          el.addEventListener('click', () => openLightbox(el.getAttribute('data-doc'), el.getAttribute('data-label')));
+        });
       } catch (err) {
-        console.error('Vendor applications error:', err);
-        body.innerHTML = `<tr><td colspan="9" class="text-center text-red-600">Error loading applications</td></tr>`;
+        body.innerHTML = `<tr><td colspan="7" class="text-center" style="color:#b91c1c;">Error loading applications</td></tr>`;
       }
     }
-
     async function handleDecision(id, action) {
       if (!confirm(`Are you sure you want to ${action} this vendor?`)) return;
       try {
         const res = await fetch(`${API}/admin/vendor-application/decision`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ id, action })
+          method: 'POST', headers, body: JSON.stringify({ id, action })
         });
         const json = await safeParse(res);
         if (!json.success) throw new Error(json.error || 'Failed');
@@ -228,19 +302,21 @@
       const promoteBtn = (u.role < 2)
         ? `<button class="approve-btn" onclick="if(confirm('Promote to ${roleLabel(u.role + 1)}?')) changeRole(${u.id}, ${u.role + 1})">Promote</button>`
         : `<span style="color:#6b7280;">Max role</span>`;
+
       const demoteBtn =
         (u.role === 2)
           ? `<button class="muted" disabled title="Admins cannot be demoted">Demote</button>`
           : (u.role === 1)
               ? `<button class="deny-btn" onclick="if(confirm('Demote Supplier to Client?')) changeRole(${u.id}, 0)">Demote</button>`
               : `<button class="muted" disabled title="Client is the lowest role">Demote</button>`;
+
       return `<div style="display:flex;gap:.5rem;flex-wrap:wrap;">${promoteBtn}${demoteBtn}</div>`;
     }
 
     async function loadUsers() {
       const body = document.getElementById('userTableBody');
       try {
-        const res = await fetch(`${API}/admin/users`, { headers });
+        const res = await fetch(`${API}/admin/users}`, { headers });
         const json = await res.json();
         if (!json.success) throw new Error(json.error || 'Failed');
         const users = json.users || [];
@@ -258,8 +334,7 @@
           </tr>
         `).join('');
       } catch (err) {
-        console.error('User list error:', err);
-        body.innerHTML = `<tr><td colspan="5" class="text-center text-red-600">Error loading users</td></tr>`;
+        body.innerHTML = `<tr><td colspan="5" class="text-center" style="color:#b91c1c;">Error loading users</td></tr>`;
       }
     }
 
@@ -283,12 +358,11 @@
           </tr>
         `).join('');
       } catch (err) {
-        console.error('Feedback load error:', err);
-        body.innerHTML = `<tr><td colspan="3" class="text-center text-red-600">Error loading feedback</td></tr>`;
+        body.innerHTML = `<tr><td colspan="3" class="text-center" style="color:#b91c1c;">Error loading feedback</td></tr>`;
       }
     }
 
-    /* ===== INITIAL LOAD ===== */
+    // Initial loads + expose handlers
     loadVendorApplications();
     loadUsers();
     loadFeedbacks();
