@@ -65,38 +65,32 @@ if (!$public) {
 }
 
 // Helper that attempts a connection and returns Capsule on success
-function tryConnect(array $cfg): ?Capsule {
-    if (empty($cfg['host']) || empty($cfg['port']) || empty($cfg['db']) || !isset($cfg['user'])) {
-        return null;
-    }
-    try {
-        $capsule = new Capsule();
-        $capsule->addConnection([
-            'driver'    => 'mysql',
-            'host'      => $cfg['host'],
-            'port'      => (int)$cfg['port'],
-            'database'  => $cfg['db'],
-            'username'  => $cfg['user'],
-            'password'  => $cfg['pass'] ?? '',
-            'charset'   => 'utf8mb4',
-            'collation' => 'utf8mb4_unicode_ci',
-            'prefix'    => '',
-        ]);
-        // Touch the connection to verify it works now (throws if not)
-        $capsule->getConnection()->getPdo();
-        return $capsule;
-    } catch (\Throwable $e) {
-        error_log('DB_CONNECT_FAIL ['.($cfg['host'] ?? 'null').':'.($cfg['port'] ?? 'null').']: '.$e->getMessage());
-        return null;
-    }
-}
+$driver = $_ENV['DB_CONNECTION'] ?? 'mysql';
+$host   = $_ENV['DB_HOST']       ?? '127.0.0.1';
+$port   = (int)($_ENV['DB_PORT'] ?? 3306);
+$db     = $_ENV['DB_DATABASE']   ?? 'railway';
+$user   = $_ENV['DB_USERNAME']   ?? 'root';
+$pass   = $_ENV['DB_PASSWORD']   ?? '';
 
-// Try internal first, then public
-$capsule = tryConnect($internal) ?? tryConnect($public);
+$capsule = new \Illuminate\Database\Capsule\Manager();
+$capsule->addConnection([
+    'driver'    => $driver,
+    'host'      => $host,
+    'port'      => $port,
+    'database'  => $db,
+    'username'  => $user,
+    'password'  => $pass,
+    'charset'   => 'utf8mb4',
+    'collation' => 'utf8mb4_unicode_ci',
+    'prefix'    => '',
+]);
 
-if (!$capsule) {
-    // As a last resort, throw—your /api/dbtest will report this clearly
-    throw new \RuntimeException('Database connection failed (internal and public both failed).');
+// Touch the connection so we fail fast with a clear message
+try {
+    $capsule->getConnection()->getPdo();
+} catch (\Throwable $e) {
+    error_log("DB_CONNECT_FAIL to {$host}:{$port} as {$user}/{$db} -> " . $e->getMessage());
+    throw $e;
 }
 
 $capsule->setAsGlobal();
