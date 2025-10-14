@@ -1,29 +1,62 @@
 <!-- /partials/modals.html -->
 
-<!-- Backdrop for auth modals -->
-<!-- ✅ AUTH BACKDROP -->
+<!-- ✅ AUTH BACKDROP (kept) -->
 <div id="authBackdrop" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-[9999]">
+
   <!-- LOGIN MODAL -->
   <div id="loginModal" class="bg-[#f6f0e8] rounded-2xl shadow-xl w-full max-w-md mx-auto hidden p-8 relative">
     <button data-close class="absolute top-3 right-3 text-gray-600 hover:text-black text-xl">&times;</button>
     <h2 class="text-2xl font-semibold mb-4 text-center">Login to Solennia</h2>
+
+    <!-- Inline validation so it works even when injected -->
     <form id="loginForm" class="space-y-4">
       <div>
         <label for="loginUsername" class="block text-sm font-medium mb-1">Email or Username</label>
-        <input type="text" id="loginUsername" name="username" required
-          class="w-full border border-gray-400 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#7a5d47]" />
-        <p id="loginEmailError" class="hidden text-sm text-red-600 mt-1">Invalid email — must include ".com"</p>
+        <input
+          type="text"
+          id="loginUsername"
+          name="username"
+          required
+          class="w-full border border-gray-400 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#7a5d47]"
+          oninput="
+            (function(el){
+              const v = el.value.trim();
+              const looksEmail = v.includes('@');
+              if (looksEmail && !v.toLowerCase().endsWith('.com')) {
+                el.setCustomValidity('Invalid email — must end with .com (or use your username)');
+              } else {
+                el.setCustomValidity('');
+              }
+            })(this)
+          "
+          oninvalid="
+            (function(el){
+              const v = el.value.trim();
+              if (!v) { el.setCustomValidity('Please enter your email or username'); return; }
+              const looksEmail = v.includes('@');
+              if (looksEmail && !v.toLowerCase().endsWith('.com')) {
+                el.setCustomValidity('Invalid email — must end with .com (or use your username)');
+              } else {
+                el.setCustomValidity('');
+              }
+            })(this)
+          "
+        />
       </div>
+
       <div>
         <label for="loginPassword" class="block text-sm font-medium mb-1">Password</label>
         <input type="password" id="loginPassword" name="password" required
           class="w-full border border-gray-400 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#7a5d47]" />
       </div>
+
       <p id="loginError" class="hidden text-sm text-red-600"></p>
+
       <button type="submit"
         class="w-full bg-[#7a5d47] text-white py-2 rounded-lg font-semibold hover:opacity-90 transition">Login</button>
-      <p class="text-sm text-center mt-3">No account yet?
-        <a href="#" id="switchToRegister" class="text-[#7a5d47] hover:underline">Register</a>
+
+      <p class="text-sm text-center mt-3">
+        No account yet? <a href="#" id="switchToRegister" class="text-[#7a5d47] hover:underline">Register</a>
       </p>
     </form>
   </div>
@@ -32,6 +65,7 @@
   <div id="registerModal" class="bg-[#f6f0e8] rounded-2xl shadow-xl w-full max-w-md mx-auto hidden p-8 relative">
     <button data-close class="absolute top-3 right-3 text-gray-600 hover:text-black text-xl">&times;</button>
     <h2 class="text-2xl font-semibold mb-4 text-center">Create Your Account</h2>
+
     <form id="registerForm" class="space-y-4">
       <div class="grid grid-cols-2 gap-4">
         <div>
@@ -45,87 +79,73 @@
             class="w-full border border-gray-400 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#7a5d47]" />
         </div>
       </div>
+
       <div>
         <label for="registerEmail" class="block text-sm font-medium mb-1">Email</label>
-        <input type="email" id="registerEmail" name="email" required
+        <input
+          type="email"
+          id="registerEmail"
+          name="email"
+          required
           pattern="^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.com$"
           title="Email must end with .com"
-          class="w-full border border-gray-400 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#7a5d47]" />
+          class="w-full border border-gray-400 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#7a5d47]"
+        />
       </div>
+
       <div>
         <label for="registerUsername" class="block text-sm font-medium mb-1">Username</label>
         <input type="text" id="registerUsername" name="username" required
           class="w-full border border-gray-400 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#7a5d47]" />
       </div>
+
       <div>
         <label for="registerPassword" class="block text-sm font-medium mb-1">Password</label>
         <input type="password" id="registerPassword" name="password" required minlength="6"
-          class="w-full border border-gray-400 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#7a5d47]" />
+          class="w-full border border-gray-400 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#7a5d47]"
+          oninput="document.getElementById('registerConfirmPassword')?.dispatchEvent(new Event('input'))"
+        />
       </div>
+
       <div>
         <label for="registerConfirmPassword" class="block text-sm font-medium mb-1">Confirm Password</label>
-        <input type="password" id="registerConfirmPassword" name="confirm_password" required minlength="6"
-          class="w-full border border-gray-400 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#7a5d47]" />
+        <input
+          type="password"
+          id="registerConfirmPassword"
+          name="confirm_password"
+          required
+          minlength="6"
+          class="w-full border border-gray-400 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#7a5d47]"
+          oninput="
+            (function(el){
+              const p = document.getElementById('registerPassword');
+              if (p && el.value !== p.value) {
+                el.setCustomValidity('Passwords do not match');
+              } else {
+                el.setCustomValidity('');
+              }
+            })(this)
+          "
+          oninvalid="this.setCustomValidity('Passwords do not match')"
+        />
         <p id="registerPasswordError" class="hidden text-sm text-red-600 mt-1">Passwords do not match</p>
       </div>
+
       <p id="registerError" class="hidden text-sm text-red-600"></p>
+
       <button type="submit"
         class="w-full bg-[#7a5d47] text-white py-2 rounded-lg font-semibold hover:opacity-90 transition">Register</button>
-      <p class="text-sm text-center mt-3">Already have an account?
-        <a href="#" id="switchToLogin" class="text-[#7a5d47] hover:underline">Login</a>
+
+      <p class="text-sm text-center mt-3">
+        Already have an account? <a href="#" id="switchToLogin" class="text-[#7a5d47] hover:underline">Login</a>
       </p>
     </form>
   </div>
 </div>
 
-<script>
-  // Switch between login & register modals
-  document.getElementById('switchToRegister')?.addEventListener('click', (e) => {
-    e.preventDefault();
-    document.getElementById('loginModal').classList.add('hidden');
-    document.getElementById('registerModal').classList.remove('hidden');
-  });
-  document.getElementById('switchToLogin')?.addEventListener('click', (e) => {
-    e.preventDefault();
-    document.getElementById('registerModal').classList.add('hidden');
-    document.getElementById('loginModal').classList.remove('hidden');
-  });
+<!-- (No inline <script> — inline handlers above run after injection) -->
 
-  // ✅ Enforce .com email in LOGIN form
-  const loginForm = document.getElementById('loginForm');
-  const loginField = document.getElementById('loginUsername');
-  const loginEmailError = document.getElementById('loginEmailError');
-
-  loginForm?.addEventListener('submit', (e) => {
-    const val = loginField.value.trim();
-    const looksLikeEmail = val.includes('@');
-    if (looksLikeEmail && !val.endsWith('.com')) {
-      e.preventDefault();
-      loginEmailError.classList.remove('hidden');
-      loginField.focus();
-    } else {
-      loginEmailError.classList.add('hidden');
-    }
-  });
-
-  // ✅ Confirm password match in REGISTER form
-  const registerForm = document.getElementById('registerForm');
-  const pass = document.getElementById('registerPassword');
-  const confirm = document.getElementById('registerConfirmPassword');
-  const passError = document.getElementById('registerPasswordError');
-
-  registerForm?.addEventListener('submit', (e) => {
-    if (pass.value !== confirm.value) {
-      e.preventDefault();
-      passError.classList.remove('hidden');
-      confirm.focus();
-    } else {
-      passError.classList.add('hidden');
-    }
-  });
-</script>
-
-<!-- Feedback Modal -->
+<!-- Feedback Modal (kept) -->
 <div id="feedbackModal" class="hidden fixed inset-0 z-[260] bg-black/40 flex items-center justify-center p-4">
   <div class="bg-[#f6f0e8] w-full max-w-md rounded-2xl shadow-xl border border-gray-300 overflow-hidden">
     <div class="flex justify-between items-center px-6 py-4 border-b border-gray-300 bg-[#e8ddae]">
@@ -145,7 +165,7 @@
   </div>
 </div>
 
-<!-- Privacy Modal -->
+<!-- Privacy Modal (kept) -->
 <div id="privacyModal" class="hidden fixed inset-0 z-[270] bg-black/40 flex items-center justify-center p-4">
   <div class="bg-[#f6f0e8] w-full max-w-2xl rounded-2xl shadow-xl border border-gray-300 overflow-hidden">
     <div class="flex justify-between items-center px-6 py-4 border-b border-gray-300 bg-[#e8ddae]">
@@ -166,7 +186,7 @@
   </div>
 </div>
 
-<!-- Terms Modal -->
+<!-- Terms Modal (kept) -->
 <div id="termsModal" class="hidden fixed inset-0 z-[275] bg-black/40 flex items-center justify-center p-4">
   <div class="bg-[#f6f0e8] w-full max-w-4xl rounded-2xl shadow-xl border border-gray-300 overflow-hidden">
     <div class="flex justify-between items-center px-6 py-4 border-b border-gray-300 bg-[#e8ddae]">
@@ -180,7 +200,7 @@
   </div>
 </div>
 
-<!-- Vendor Onboarding (3 steps) -->
+<!-- Vendor Onboarding (kept, now with .com email & Others toggle) -->
 <div id="vendorTerms" class="fixed inset-0 hidden z-[200] grid place-items-center bg-black/40 p-4">
   <div class="bg-[#f6f0e8] w-full max-w-3xl rounded-2xl shadow-xl overflow-y-auto max-h-[80vh]">
     <div class="flex justify-between items-center p-6 border-b border-gray-300">
@@ -204,15 +224,40 @@
       <h2 class="text-lg font-semibold">Become a Vendor!</h2>
       <button data-closevendor class="text-2xl font-light" aria-label="Close">&times;</button>
     </div>
+
     <form id="vendorForm1" class="p-6 space-y-5">
       <div>
         <label class="block text-sm font-semibold uppercase">Business Name <span class="text-red-600">*</span></label>
         <input name="business_name" required class="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2" />
       </div>
 
+      <!-- NEW: Contact Email (.com only) -->
+      <div>
+        <label class="block text-sm font-semibold uppercase">Contact Email <span class="text-red-600">*</span></label>
+        <input
+          type="email"
+          name="contact_email"
+          required
+          pattern="^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.com$"
+          title="Email must end with .com"
+          class="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
+        />
+      </div>
+
       <div>
         <label class="block text-sm font-semibold uppercase">Category</label>
-        <select name="category" id="vendorCategory" class="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2">
+        <select
+          name="category"
+          id="vendorCategory"
+          class="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
+          onchange="
+            (function(sel){
+              const o = document.getElementById('vendorCategoryOther');
+              const show = sel.value==='Others';
+              if (o){ o.classList.toggle('hidden', !show); o.required = show; if(show) o.focus(); }
+            })(this)
+          "
+        >
           <option value="">Select a category</option>
           <option value="Venue">Venue</option>
           <option value="Catering">Catering</option>
@@ -248,6 +293,7 @@
       <h2 class="text-lg font-semibold">Media & Content</h2>
       <button data-closevendor class="text-2xl font-light" aria-label="Close">&times;</button>
     </div>
+
     <form id="vendorForm2" class="p-6 space-y-5" enctype="multipart/form-data">
       <div>
         <label class="block text-sm font-semibold uppercase">Description of Services</label>
@@ -259,21 +305,24 @@
         <textarea name="pricing" class="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"></textarea>
       </div>
 
-      <!-- NEW: Files -->
+      <!-- Files (PNG/JPG/PDF) -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
           <label class="block text-xs font-semibold uppercase mb-1">Permits (PNG/JPG/PDF)</label>
-          <input id="vendorPermits" name="permits" type="file" accept=".png,.jpg,.jpeg,.pdf,image/png,image/jpeg,application/pdf"
+          <input id="vendorPermits" name="permits" type="file"
+                 accept=".png,.jpg,.jpeg,.pdf,image/png,image/jpeg,application/pdf"
                  class="w-full rounded-md bg-gray-100 border border-gray-300 p-2" />
         </div>
         <div>
           <label class="block text-xs font-semibold uppercase mb-1">Gov ID (PNG/JPG/PDF)</label>
-          <input id="vendorGovId" name="gov_id" type="file" accept=".png,.jpg,.jpeg,.pdf,image/png,image/jpeg,application/pdf"
+          <input id="vendorGovId" name="gov_id" type="file"
+                 accept=".png,.jpg,.jpeg,.pdf,image/png,image/jpeg,application/pdf"
                  class="w-full rounded-md bg-gray-100 border border-gray-300 p-2" />
         </div>
         <div>
           <label class="block text-xs font-semibold uppercase mb-1">Portfolio (PNG/JPG/PDF)</label>
-          <input id="vendorPortfolio" name="portfolio" type="file" accept=".png,.jpg,.jpeg,.pdf,image/png,image/jpeg,application/pdf"
+          <input id="vendorPortfolio" name="portfolio" type="file"
+                 accept=".png,.jpg,.jpeg,.pdf,image/png,image/jpeg,application/pdf"
                  class="w-full rounded-md bg-gray-100 border border-gray-300 p-2" />
         </div>
       </div>
