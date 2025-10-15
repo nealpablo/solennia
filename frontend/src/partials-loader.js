@@ -2,7 +2,6 @@
 // Inject header/footer/modals and wire universal UI.
 
 // Import partials as raw strings (works on build & Vercel)
-
 import headerHTML from './partials/header.html?raw';
 import footerHTML from './partials/footer.html?raw';
 import modalsHTML from './partials/modals.html?raw';
@@ -74,6 +73,25 @@ async function ensureModalsOnce() {
   } catch (e) { console.error('modals inject failed', e); }
 }
 
+// 🔔 Tiny toast helper (replaces alert())
+function showToast(message = '', type = 'info', ms = 2400) {
+  const cont = document.getElementById('toastContainer');
+  const toast = document.getElementById('toast');
+  if (!cont || !toast) return;
+  toast.textContent = message;
+
+  // style by type using utility classes
+  toast.className = 'pointer-events-auto max-w-md w-[92%] md:w-auto rounded-xl shadow-xl border px-4 py-3 text-sm ' +
+    (type === 'success' ? 'bg-green-50 border-green-300 text-green-800' :
+     type === 'error'   ? 'bg-red-50 border-red-300 text-red-800' :
+     type === 'warning' ? 'bg-yellow-50 border-yellow-300 text-yellow-800' :
+                          'bg-white border-gray-300 text-gray-900');
+
+  cont.classList.remove('hidden');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => cont.classList.add('hidden'), ms);
+}
+
 function wireUniversalUI() {
   const $  = (s, r=document)=>r.querySelector(s);
   const $$ = (s, r=document)=>Array.from(r.querySelectorAll(s));
@@ -83,7 +101,6 @@ function wireUniversalUI() {
   const LS_ROLE    = 'solennia_role';
   const LS_PROFILE = 'solennia_profile';
 
-  const LS_VENDOR_SUBMITTED = 'solennia_vendor_submitted';
   const token = () => localStorage.getItem(LS_TOKEN);
   const role  = () => parseInt(localStorage.getItem(LS_ROLE) || '0', 10);
   const onAdminPage = () => location.pathname.endsWith('/adminpanel.html');
@@ -116,7 +133,28 @@ function wireUniversalUI() {
   const loginModal   = $('#loginModal');
   const registerModal= $('#registerModal');
   const openModal = (el) => { authBackdrop?.classList.remove('hidden'); el?.classList.remove('hidden'); };
-  const closeAuth = () => { authBackdrop?.classList.add('hidden'); loginModal?.classList.add('hidden'); registerModal?.classList.add('hidden'); };
+  const closeAuth = () => {
+    authBackdrop?.classList.add('hidden');
+    loginModal?.classList.add('hidden');
+    registerModal?.classList.add('hidden');
+    // clear inline errors
+    $('#loginError')?.classList.add('hidden');
+    $('#registerError')?.classList.add('hidden');
+  };
+
+  // Switch links inside modals
+  $('#switchToRegister')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    loginModal?.classList.add('hidden');
+    registerModal?.classList.remove('hidden');
+    $('#registerFirstName')?.focus();
+  });
+  $('#switchToLogin')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    registerModal?.classList.add('hidden');
+    loginModal?.classList.remove('hidden');
+    $('#loginUsername')?.focus();
+  });
 
   // Open login/register from dropdown
   $('#menuSignIn')?.addEventListener('click', (e)=>{ e.preventDefault(); toggleProfileMenu(false); openModal(loginModal); });
@@ -211,13 +249,15 @@ function wireUniversalUI() {
   privacyModal?.addEventListener('click', (e)=>{ if(e.target===privacyModal) close(privacyModal); });
   termsModal?.addEventListener('click',   (e)=>{ if(e.target===termsModal)  close(termsModal); });
 
-  // ✅ Feedback modal open (requires login)
+  // ✅ Feedback modal open (requires login) — no window.alert
   const feedbackModal = $('#feedbackModal');
   const closeFeedback = $('#closeFeedback');
   feedbackLink?.addEventListener('click', (e) => {
     e.preventDefault();
     if (!token()) {
-      alert('You need to log in before giving feedback.');
+      // Say it inside the login box:
+      const le = $('#loginError');
+      if (le) { le.textContent = 'Please log in to give feedback.'; le.classList.remove('hidden'); }
       openModal(loginModal);
       return;
     }
@@ -226,11 +266,16 @@ function wireUniversalUI() {
   closeFeedback?.addEventListener('click', () => close(feedbackModal));
   feedbackModal?.addEventListener('click', (e) => { if (e.target === feedbackModal) close(feedbackModal); });
 
-  // ✅ Feedback submit (JWT + correct API base)
+  // ✅ Feedback submit (JWT + correct API base) — toast messages
   const feedbackForm = $('#feedbackForm');
   feedbackForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (!token()) { alert('You need to log in first.'); return; }
+    if (!token()) {
+      const le = $('#loginError');
+      if (le) { le.textContent = 'Please log in to give feedback.'; le.classList.remove('hidden'); }
+      openModal(loginModal);
+      return;
+    }
     const payload = Object.fromEntries(new FormData(feedbackForm).entries());
     try {
       const res = await fetch(`${API}/feedback`, {
@@ -240,11 +285,11 @@ function wireUniversalUI() {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok || json?.success === false) throw new Error(json?.error || json?.message || 'Failed to send feedback');
-      alert('Thank you for your feedback!');
+      showToast('Thank you for your feedback!', 'success');
       feedbackForm.reset();
       close(feedbackModal);
     } catch (err) {
-      alert(err.message || 'Error sending feedback. Please try again.');
+      showToast(err.message || 'Error sending feedback. Please try again.', 'error');
     }
   });
 
@@ -284,34 +329,44 @@ function wireUniversalUI() {
       err?.classList.add('hidden');
       closeAuth();
       setAuthUI();
-      alert('Welcome back!');
+      showToast('Welcome back!', 'success');
     } catch (ex) {
-      if (err) { err.textContent = ex.message; err.classList.remove('hidden'); } else alert(ex.message);
+      if (err) { err.textContent = ex.message; err.classList.remove('hidden'); } else { showToast(String(ex?.message || ex), 'error'); }
     }
   });
 
   const registerForm = $('#registerForm');
   registerForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const err = $('#registerError');
+
+    // Enforce confirm password before calling API
+    const p1 = $('#registerPassword')?.value || '';
+    const p2 = $('#registerConfirmPassword')?.value || '';
+    const regErr = $('#registerError');
+    if (p1 !== p2) {
+      $('#registerPasswordError')?.classList.remove('hidden');
+      regErr.textContent = 'Passwords do not match.'; regErr.classList.remove('hidden');
+      return;
+    }
+
     try {
-      const data = Object.fromEntries(new FormData(registerForm).entries());
+      const dataObj = Object.fromEntries(new FormData(registerForm).entries());
       const res = await fetch(`${API}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type':'application/json' },
-        body: JSON.stringify(data),
+        body: JSON.stringify(dataObj),
       });
       const json = await res.json().catch(()=>({}));
       if (!res.ok || !json?.token) throw new Error(json?.error || json?.message || 'Register failed');
       localStorage.setItem(LS_TOKEN, json.token);
       localStorage.setItem(LS_ROLE,  String(json.role ?? 0));
       if (json.user) saveProfileFromUser(json.user);
-      err?.classList.add('hidden');
+      regErr?.classList.add('hidden');
       closeAuth();
       setAuthUI();
-      alert(`Account created! Your username is ${json.username || data.username}.`);
+      showToast(`Account created! Your username is ${json.username || dataObj.username}.`, 'success');
     } catch (ex) {
-      if (err) { err.textContent = ex.message; err.classList.remove('hidden'); } else alert(ex.message);
+      if (regErr) { regErr.textContent = ex.message; regErr.classList.remove('hidden'); } else { showToast(String(ex?.message || ex), 'error'); }
     }
   });
 
@@ -321,7 +376,7 @@ function wireUniversalUI() {
     localStorage.removeItem(LS_ROLE);
     localStorage.removeItem(LS_PROFILE);
     setAuthUI();
-    alert('Signed out.');
+    showToast('Signed out.', 'info');
   });
 
   // -------- Admin Panel menu (site-wide), hidden on admin page & for non-admins --------
@@ -345,136 +400,126 @@ function wireUniversalUI() {
   ensureMenuAdmin();
   setAuthUI(); // reflect current state on load
 
-  // -------- Vendor flow (profile + anywhere else) --------
-const vendorTerms = $('#vendorTerms');
-const vendorBackground = $('#vendorBackground');
-const vendorMedia = $('#vendorMedia');
-const joinVendorBtn = $('#joinVendorBtn');
-const vendorCategory = $('#vendorCategory');
-const vendorCategoryOther = $('#vendorCategoryOther');
+  // -------- Vendor flow --------
+  const vendorTerms = $('#vendorTerms');
+  const vendorBackground = $('#vendorBackground');
+  const vendorMedia = $('#vendorMedia');
+  const joinVendorBtn = $('#joinVendorBtn');
+  const vendorCategory = $('#vendorCategory');
+  const vendorCategoryOther = $('#vendorCategoryOther');
 
-function tokenStr() { return localStorage.getItem('solennia_token'); }
-function authHeaders() {
-  const t = tokenStr();
-  return t ? { Authorization: `Bearer ${t}` } : {};
-}
+  function tokenStr() { return localStorage.getItem('solennia_token'); }
+  function authHeaders() {
+    const t = tokenStr();
+    return t ? { Authorization: `Bearer ${t}` } : {};
+  }
 
-// Toggle "Other" category field
-vendorCategory?.addEventListener('change', () => {
-  const show = vendorCategory.value === 'Others';
-  if (show) vendorCategoryOther?.classList.remove('hidden');
-  else vendorCategoryOther?.classList.add('hidden');
-});
+  // Toggle "Other" category field
+  vendorCategory?.addEventListener('change', () => {
+    const show = vendorCategory.value === 'Others';
+    if (show) vendorCategoryOther?.classList.remove('hidden');
+    else vendorCategoryOther?.classList.add('hidden');
+  });
 
-async function hasExistingVendorApp() {
-  // Server check (preferred)
-  try {
-    const res = await fetch(`${API}/vendor/mine`, { headers: { ...authHeaders() } });
-    if (res.ok) {
-      const json = await res.json().catch(()=>null);
-      // treat any existing record with Pending/Approved as "already applied"
-      if (json && (json.status || json.application?.status)) {
-        const st = (json.status || json.application?.status || '').toLowerCase();
-        if (['pending','approved'].includes(st)) return true;
+  async function hasExistingVendorApp() {
+    try {
+      const res = await fetch(`${API}/vendor/mine`, { headers: { ...authHeaders() } });
+      if (res.ok) {
+        const json = await res.json().catch(()=>null);
+        if (json && (json.status || json.application?.status)) {
+          const st = (json.status || json.application?.status || '').toLowerCase();
+          if (['pending','approved'].includes(st)) return true;
+        }
+        if (Array.isArray(json) && json.length) return true;
       }
-      // some backends return list:
-      if (Array.isArray(json) && json.length) return true;
-    }
-  } catch {}
-  // Fallback to local flag
-  return localStorage.getItem('solennia_vendor_applied') === '1';
-}
-
-async function openVendorFlow() {
-  if (!tokenStr()) { openModal(loginModal); return; }
-  if (await hasExistingVendorApp()) {
-    alert('You already submitted a vendor application.');
-    return;
-  }
-  vendorTerms?.classList.remove('hidden');
-}
-
-// Wire triggers
-$('#menuVendor')?.addEventListener('click', (e)=>{ e.preventDefault(); openVendorFlow(); });
-joinVendorBtn?.addEventListener('click', (e)=>{ e.preventDefault(); openVendorFlow(); });
-
-// Close buttons (all steps)
-$$('[data-closevendor]').forEach(btn => btn.addEventListener('click', ()=>{
-  vendorTerms?.classList.add('hidden');
-  vendorBackground?.classList.add('hidden');
-  vendorMedia?.classList.add('hidden');
-}));
-
-// Steps
-$('#agreeTerms')?.addEventListener('click', ()=>{
-  vendorTerms?.classList.add('hidden');
-  vendorBackground?.classList.remove('hidden');
-});
-$('#toMedia')?.addEventListener('click', ()=>{
-  vendorBackground?.classList.add('hidden');
-  vendorMedia?.classList.remove('hidden');
-});
-
-// Submit (multipart with files + category_other if Others)
-$('#submitVendor')?.addEventListener('click', async (e)=>{
-  e.preventDefault();
-  if (!tokenStr()) { openModal(loginModal); return; }
-  if (await hasExistingVendorApp()) { alert('You already submitted a vendor application.'); return; }
-
-  const step1Form = $('#vendorForm1');
-  const step2Form = $('#vendorForm2');
-
-  const fd = new FormData();
-
-  if (step1Form) {
-    const s1 = new FormData(step1Form);
-    for (const [k,v] of s1.entries()) fd.append(k, v);
-    // If "Others", send category_other and also set category to provided value for backend convenience
-    const cat = s1.get('category');
-    const other = (vendorCategoryOther && !vendorCategoryOther.classList.contains('hidden'))
-      ? vendorCategoryOther.value.trim()
-      : '';
-    if (cat === 'Others' && other) {
-      fd.set('category', other); // backend can still read category
-      fd.set('category_other', other);
-    }
-  }
-  if (step2Form) {
-    const s2 = new FormData(step2Form);
-    for (const [k,v] of s2.entries()) {
-      if (k === 'permits' || k === 'gov_id' || k === 'portfolio') continue; // files handled below
-      fd.append(k, v);
-    }
+    } catch {}
+    return localStorage.getItem('solennia_vendor_applied') === '1';
   }
 
-  const fPermits   = $('#vendorPermits')?.files?.[0];
-  const fGovId     = $('#vendorGovId')?.files?.[0];
-  const fPortfolio = $('#vendorPortfolio')?.files?.[0];
-  if (fPermits)   fd.append('permits', fPermits);
-  if (fGovId)     fd.append('gov_id', fGovId);
-  if (fPortfolio) fd.append('portfolio', fPortfolio);
-
-  try {
-    const res = await fetch(`${API}/vendor/apply`, {
-      method: 'POST',
-      headers: { ...authHeaders() }, // do NOT set Content-Type; browser sets boundary
-      body: fd,
-    });
-    const json = await res.json().catch(()=>({}));
-    if (!res.ok || json?.success === false) {
-      throw new Error(json?.error || json?.message || 'Failed to submit application');
+  async function openVendorFlow() {
+    if (!tokenStr()) { openModal(loginModal); return; }
+    if (await hasExistingVendorApp()) {
+      showToast('You already submitted a vendor application.', 'info');
+      return;
     }
-    // Mark as applied to prevent re-applying
-    localStorage.setItem('solennia_vendor_applied', '1');
-    alert('Vendor application submitted!');
+    vendorTerms?.classList.remove('hidden');
+  }
+
+  $('#menuVendor')?.addEventListener('click', (e)=>{ e.preventDefault(); openVendorFlow(); });
+  joinVendorBtn?.addEventListener('click', (e)=>{ e.preventDefault(); openVendorFlow(); });
+
+  $$('[data-closevendor]').forEach(btn => btn.addEventListener('click', ()=>{
+    vendorTerms?.classList.add('hidden');
+    vendorBackground?.classList.add('hidden');
     vendorMedia?.classList.add('hidden');
-  } catch (err) {
-    alert(err.message || 'Something went wrong. Please try again.');
-  }
-});
+  }));
 
-// Hash route support
-if (location.hash === '#vendor') openVendorFlow();
+  $('#agreeTerms')?.addEventListener('click', ()=>{
+    vendorTerms?.classList.add('hidden');
+    vendorBackground?.classList.remove('hidden');
+  });
+  $('#toMedia')?.addEventListener('click', ()=>{
+    vendorBackground?.classList.add('hidden');
+    vendorMedia?.classList.remove('hidden');
+  });
+
+  $('#submitVendor')?.addEventListener('click', async (e)=>{
+    e.preventDefault();
+    if (!tokenStr()) { openModal(loginModal); return; }
+    if (await hasExistingVendorApp()) { showToast('You already submitted a vendor application.', 'info'); return; }
+
+    const step1Form = $('#vendorForm1');
+    const step2Form = $('#vendorForm2');
+
+    const fd = new FormData();
+
+    if (step1Form) {
+      const s1 = new FormData(step1Form);
+      for (const [k,v] of s1.entries()) fd.append(k, v);
+      const cat = s1.get('category');
+      const other = (vendorCategoryOther && !vendorCategoryOther.classList.contains('hidden'))
+        ? vendorCategoryOther.value.trim()
+        : '';
+      if (cat === 'Others' && other) {
+        fd.set('category', other);
+        fd.set('category_other', other);
+      }
+    }
+    if (step2Form) {
+      const s2 = new FormData(step2Form);
+      for (const [k,v] of s2.entries()) {
+        if (k === 'permits' || k === 'gov_id' || k === 'portfolio') continue;
+        fd.append(k, v);
+      }
+    }
+
+    const fPermits   = $('#vendorPermits')?.files?.[0];
+    const fGovId     = $('#vendorGovId')?.files?.[0];
+    const fPortfolio = $('#vendorPortfolio')?.files?.[0];
+    if (fPermits)   fd.append('permits', fPermits);
+    if (fGovId)     fd.append('gov_id', fGovId);
+    if (fPortfolio) fd.append('portfolio', fPortfolio);
+
+    try {
+      const res = await fetch(`${API}/vendor/apply`, {
+        method: 'POST',
+        headers: { ...authHeaders() }, // let browser set multipart boundary
+        body: fd,
+      });
+      const json = await res.json().catch(()=>({}));
+      if (!res.ok || json?.success === false) {
+        throw new Error(json?.error || json?.message || 'Failed to submit application');
+      }
+      localStorage.setItem('solennia_vendor_applied', '1');
+      showToast('Vendor application submitted!', 'success');
+      vendorMedia?.classList.add('hidden');
+    } catch (err) {
+      showToast(err.message || 'Something went wrong. Please try again.', 'error');
+    }
+  });
+
+  // Hash route support
+  if (location.hash === '#vendor') openVendorFlow();
 }
 
 async function boot() {

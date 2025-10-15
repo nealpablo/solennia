@@ -1,6 +1,13 @@
 <!-- /partials/modals.html -->
 
-<!-- ✅ AUTH BACKDROP (kept) -->
+<!-- 🟡 Global Toast (in-app notification; no more browser alerts) -->
+<div id="toastContainer" class="fixed top-4 inset-x-0 z-[10000] flex justify-center pointer-events-none hidden">
+  <div id="toast"
+       class="pointer-events-auto max-w-md w-[92%] md:w-auto rounded-xl shadow-xl border px-4 py-3 text-sm bg-white border-gray-300"
+       role="status" aria-live="polite"></div>
+</div>
+
+<!-- ✅ AUTH BACKDROP -->
 <div id="authBackdrop" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-[9999]">
   <!-- LOGIN MODAL -->
   <div
@@ -8,8 +15,11 @@
     class="bg-[#f6f0e8] rounded-2xl shadow-xl w-full max-w-md mx-auto hidden p-8 relative"
     onclick="event.stopPropagation()"
   >
-    <button data-close class="absolute top-3 right-3 text-gray-600 hover:text-black text-xl">&times;</button>
+    <button data-close class="absolute top-3 right-3 text-gray-600 hover:text-black text-xl" aria-label="Close">&times;</button>
     <h2 class="text-2xl font-semibold mb-4 text-center">Login to Solennia</h2>
+
+    <!-- Optional inline info/error area -->
+    <p id="loginError" class="hidden mb-3 text-sm px-3 py-2 rounded-md bg-red-100 text-red-700 border border-red-300"></p>
 
     <!-- Inline validation so it works even when injected -->
     <form id="loginForm" class="space-y-4" novalidate>
@@ -53,13 +63,12 @@
           class="w-full border border-gray-400 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#7a5d47]" />
       </div>
 
-      <p id="loginError" class="hidden text-sm text-red-600"></p>
-
       <button type="submit"
         class="w-full bg-[#7a5d47] text-white py-2 rounded-lg font-semibold hover:opacity-90 transition">Login</button>
 
       <p class="text-sm text-center mt-3">
-        No account yet? <a href="#" id="switchToRegister" class="text-[#7a5d47] hover:underline">Register</a>
+        No account yet?
+        <a href="#" id="switchToRegister" class="text-[#7a5d47] hover:underline">Register</a>
       </p>
     </form>
   </div>
@@ -70,8 +79,11 @@
     class="bg-[#f6f0e8] rounded-2xl shadow-xl w-full max-w-md mx-auto hidden p-8 relative"
     onclick="event.stopPropagation()"
   >
-    <button data-close class="absolute top-3 right-3 text-gray-600 hover:text-black text-xl">&times;</button>
+    <button data-close class="absolute top-3 right-3 text-gray-600 hover:text-black text-xl" aria-label="Close">&times;</button>
     <h2 class="text-2xl font-semibold mb-4 text-center">Create Your Account</h2>
+
+    <!-- Inline error area -->
+    <p id="registerError" class="hidden mb-3 text-sm px-3 py-2 rounded-md bg-red-100 text-red-700 border border-red-300"></p>
 
     <form id="registerForm" class="space-y-4" novalidate>
       <div class="grid grid-cols-2 gap-4">
@@ -128,8 +140,10 @@
               const p = document.getElementById('registerPassword');
               if (p && el.value !== p.value) {
                 el.setCustomValidity('Passwords do not match');
+                document.getElementById('registerPasswordError')?.classList.remove('hidden');
               } else {
                 el.setCustomValidity('');
+                document.getElementById('registerPasswordError')?.classList.add('hidden');
               }
             })(this)
           "
@@ -138,13 +152,12 @@
         <p id="registerPasswordError" class="hidden text-sm text-red-600 mt-1">Passwords do not match</p>
       </div>
 
-      <p id="registerError" class="hidden text-sm text-red-600"></p>
-
       <button type="submit"
         class="w-full bg-[#7a5d47] text-white py-2 rounded-lg font-semibold hover:opacity-90 transition">Register</button>
 
       <p class="text-sm text-center mt-3">
-        Already have an account? <a href="#" id="switchToLogin" class="text-[#7a5d47] hover:underline">Login</a>
+        Already have an account?
+        <a href="#" id="switchToLogin" class="text-[#7a5d47] hover:underline">Login</a>
       </p>
     </form>
   </div>
@@ -200,7 +213,6 @@
     </div>
     <div class="p-6 space-y-5 text-sm leading-relaxed text-gray-800 max-h-[70vh] overflow-y-auto">
       <p>Welcome to Solennia. By accessing or using our website, mobile application, or any services provided through our platform, you agree to be bound by these Terms and Conditions...</p>
-      <!-- (kept brief; same text as your pages) -->
     </div>
   </div>
 </div>
@@ -255,13 +267,6 @@
           name="category"
           id="vendorCategory"
           class="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
-          onchange="
-            (function(sel){
-              const o = document.getElementById('vendorCategoryOther');
-              const show = sel.value==='Others';
-              if (o){ o.classList.toggle('hidden', !show); o.required = show; if(show) o.focus(); }
-            })(this)
-          "
         >
           <option value="">Select a category</option>
           <option value="Venue">Venue</option>
