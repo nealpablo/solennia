@@ -152,7 +152,7 @@ function wireUniversalUI() {
   // Auth modals
   const authBackdrop = $('#authBackdrop');
   const loginModal   = $('#loginModal');
-  const registerModal= $('#registerModal'); // ✅ fixed ) bracket
+  const registerModal= $('#registerModal');
   const openModal = (el) => { authBackdrop?.classList.remove('hidden'); el?.classList.remove('hidden'); };
   const closeAuth = () => {
     authBackdrop?.classList.add('hidden');
@@ -442,17 +442,40 @@ function wireUniversalUI() {
     return t ? { Authorization: `Bearer ${t}` } : {};
   }
 
-  // Toggle "Other" category field
+  // Toggle "Other" category field + REQUIRED when shown
   vendorCategory?.addEventListener('change', () => {
     const show = vendorCategory.value === 'Others';
-    if (show) vendorCategoryOther?.classList.remove('hidden');
-    else vendorCategoryOther?.classList.add('hidden');
+    if (show) {
+      vendorCategoryOther?.classList.remove('hidden');
+      vendorCategoryOther?.setAttribute('required', 'required');  // ✅ required when visible
+    } else {
+      vendorCategoryOther?.classList.add('hidden');
+      vendorCategoryOther?.removeAttribute('required');           // ✅ not required when hidden
+      if (vendorCategoryOther) vendorCategoryOther.value = '';
+    }
   });
 
-  // ❌ Removed front-end guard: hasExistingVendorApp()
+  async function hasExistingVendorApp() {
+    try {
+      const res = await fetch(`${API}/vendor/mine`, { headers: { ...authHeaders() } });
+      if (res.ok) {
+        const json = await res.json().catch(()=>null);
+        if (json && (json.status || json.application?.status)) {
+          const st = (json.status || json.application?.status || '').toLowerCase();
+          if (['pending','approved'].includes(st)) return true;
+        }
+        if (Array.isArray(json) && json.length) return true;
+      }
+    } catch {}
+    return localStorage.getItem('solennia_vendor_applied') === '1';
+  }
 
   async function openVendorFlow() {
     if (!tokenStr()) { openModal(loginModal); return; }
+    if (await hasExistingVendorApp()) {
+      showToast('You already submitted a vendor application.', 'info');
+      return;
+    }
     vendorTerms?.classList.remove('hidden');
   }
 
@@ -469,18 +492,34 @@ function wireUniversalUI() {
     vendorTerms?.classList.add('hidden');
     vendorBackground?.classList.remove('hidden');
   });
+
+  // ✅ Block advancing to step 2 unless step 1 is valid
   $('#toMedia')?.addEventListener('click', ()=>{
+    const step1Form = $('#vendorForm1');
+    if (step1Form && !step1Form.reportValidity()) {
+      showToast('Please complete all required fields first.', 'warning');
+      return;
+    }
     vendorBackground?.classList.add('hidden');
     vendorMedia?.classList.remove('hidden');
   });
 
+  // Submit vendor
   $('#submitVendor')?.addEventListener('click', async (e)=>{
     e.preventDefault();
     if (!tokenStr()) { openModal(loginModal); return; }
-    // (No pending check here)
+    if (await hasExistingVendorApp()) { showToast('You already submitted a vendor application.', 'info'); return; }
 
     const step1Form = $('#vendorForm1');
     const step2Form = $('#vendorForm2');
+
+    // ✅ Enforce required fields on both steps before building FormData
+    if (step1Form && !step1Form.reportValidity()) {
+      showToast('Please complete all required fields in Business Info.', 'warning'); return;
+    }
+    if (step2Form && !step2Form.reportValidity()) {
+      showToast('Please complete all required fields in Media & Content.', 'warning'); return;
+    }
 
     const fd = new FormData();
 
@@ -489,7 +528,7 @@ function wireUniversalUI() {
       for (const [k,v] of s1.entries()) fd.append(k, v);
       const cat = s1.get('category');
       const other = (vendorCategoryOther && !vendorCategoryOther.classList.contains('hidden'))
-        ? vendorCategoryOther.value.trim()
+        ? (vendorCategoryOther.value || '').trim()
         : '';
       if (cat === 'Others' && other) {
         fd.set('category', other);
@@ -499,7 +538,7 @@ function wireUniversalUI() {
     if (step2Form) {
       const s2 = new FormData(step2Form);
       for (const [k,v] of s2.entries()) {
-        if (k === 'permits' || k === 'gov_id' || k === 'portfolio') continue; // files handled below
+        if (k === 'permits' || k === 'gov_id' || k === 'portfolio') continue;
         fd.append(k, v);
       }
     }
@@ -507,6 +546,12 @@ function wireUniversalUI() {
     const fPermits   = $('#vendorPermits')?.files?.[0];
     const fGovId     = $('#vendorGovId')?.files?.[0];
     const fPortfolio = $('#vendorPortfolio')?.files?.[0];
+
+    // (extra guard, though reportValidity already requires them)
+    if (!fPermits || !fGovId || !fPortfolio) {
+      showToast('Please attach all required documents.', 'warning'); return;
+    }
+
     if (fPermits)   fd.append('permits', fPermits);
     if (fGovId)     fd.append('gov_id', fGovId);
     if (fPortfolio) fd.append('portfolio', fPortfolio);
@@ -514,14 +559,14 @@ function wireUniversalUI() {
     try {
       const res = await fetch(`${API}/vendor/apply`, {
         method: 'POST',
-        headers: { ...authHeaders() }, // do NOT set Content-Type; browser sets boundary
+        headers: { ...authHeaders() }, // let browser set multipart boundary
         body: fd,
       });
       const json = await res.json().catch(()=>({}));
       if (!res.ok || json?.success === false) {
         throw new Error(json?.error || json?.message || 'Failed to submit application');
       }
-      // ❌ Removed: localStorage.setItem('solennia_vendor_applied', '1');
+      localStorage.setItem('solennia_vendor_applied', '1');
       showToast('Vendor application submitted!', 'success');
       vendorMedia?.classList.add('hidden');
     } catch (err) {
