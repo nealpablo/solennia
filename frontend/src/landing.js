@@ -1,6 +1,15 @@
 import './partials-loader.js';
 import './style.css';
 
+// If already logged in, don't stay on landing.
+try {
+  const token = localStorage.getItem('solennia_token');
+  if (token) {
+    // Go to root (which serves index.html)
+    window.location.replace('/');
+  }
+} catch (_) {}
+
 // Footer year
 const y = document.getElementById('year');
 if (y) y.textContent = new Date().getFullYear();

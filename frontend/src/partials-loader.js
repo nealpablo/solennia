@@ -18,12 +18,29 @@ function normalize(url) {
 }
 
 // Resolve API base: env > global override > production fallback > dev proxy
+// 🔒 Using the exact production domain you requested.
 const API =
   (import.meta?.env?.VITE_API_BASE) ||
   (window.__API_BASE__ || null) ||
   ((location.hostname.includes('vercel.app') || location.hostname.includes('railway.app'))
     ? 'https://solennia.vercel.app/api'
     : '/api');
+
+// --- NEW: tiny guard so "/" shows landing.html if logged out ---
+(function rootLandingRedirect() {
+  try {
+    const path = location.pathname;
+    const isRoot = path === '/' || path.endsWith('/index.html');
+    const onLanding = path.endsWith('/landing.html');
+    const token = localStorage.getItem('solennia_token');
+
+    // If user opens root and is NOT logged in → go to landing.html
+    if (isRoot && !token && !onLanding) {
+      // Use replace so back button doesn't bounce back to root infinitely
+      location.replace('/landing.html');
+    }
+  } catch (_) {}
+})();
 
 // fetchHTML returns inlined partials for our 3 files; falls back to fetch otherwise
 async function fetchHTML(url) {
