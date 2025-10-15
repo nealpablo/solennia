@@ -105,17 +105,20 @@
       <table>
         <thead>
           <tr>
-            <th>Applicant</th>
+            <!-- UPDATED columns -->
+            <th>Username</th>
+            <th>Email</th>
             <th>Business Name</th>
             <th>Category</th>
             <th>Address</th>
+            <th>Description</th>
             <th>Pricing</th>
             <th>Documents</th>
             <th>Actions</th>
           </tr>
         </thead>
         <tbody id="vendorTableBody">
-          <tr><td colspan="7" class="text-center py-4">Loading...</td></tr>
+          <tr><td colspan="9" class="text-center py-4">Loading...</td></tr>
         </tbody>
       </table>
     </div>
@@ -169,14 +172,15 @@
     </div>
   </div>
 
-  <!-- ✅ Confirm Dialog -->
+  <!-- ✅ Confirm Dialog (Confirm LEFT, Cancel RIGHT) -->
   <div id="confirmBackdrop" class="confirm-backdrop">
     <div class="confirm-card" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
       <h3 id="confirmTitle" class="text-lg font-semibold mb-2">Are you sure?</h3>
       <p id="confirmMsg" class="text-sm text-gray-800">Please confirm this action.</p>
       <div class="confirm-actions">
-        <button id="confirmCancel" class="btn-ghost">Cancel</button>
+        <!-- Reordered: confirm first, cancel second -->
         <button id="confirmOk" class="approve-btn">Confirm</button>
+        <button id="confirmCancel" class="btn-ghost">Cancel</button>
       </div>
     </div>
   </div>
@@ -288,14 +292,16 @@
       try {
         const json = await safeFetch(`${API}/admin/vendor-applications`);
         const apps = json.applications || json.data || [];
-        if (!apps.length) return body.innerHTML = renderErrorRow(7, 'No pending applications');
+        if (!apps.length) return body.innerHTML = renderErrorRow(9, 'No pending applications');
         body.innerHTML = apps.map(a => `
           <tr data-appid="${a.id}">
-            <td>${(a.first_name||'') + ' ' + (a.last_name||'')}</td>
-            <td>${a.business_name||'-'}</td>
-            <td>${a.category||'-'}</td>
-            <td>${a.address||'-'}</td>
-            <td>${a.pricing||'-'}</td>
+            <td>${a.username || a.user?.username || '-'}</td>
+            <td>${a.email || a.user?.email || '-'}</td>
+            <td>${a.business_name || '-'}</td>
+            <td>${a.category || '-'}</td>
+            <td>${a.address || '-'}</td>
+            <td>${a.description || '-'}</td>
+            <td>${a.pricing || '-'}</td>
             <td>
               ${(a.permits ? `<a href="${a.permits}" target="_blank" class="text-sm underline">Permits</a>` : '')}
               ${(a.gov_id ? `<a href="${a.gov_id}" target="_blank" class="text-sm underline ml-2">Gov ID</a>` : '')}
@@ -310,7 +316,7 @@
           </tr>
         `).join('');
       } catch (err) {
-        body.innerHTML = renderErrorRow(7, `Error loading apps — ${err.message}`);
+        body.innerHTML = renderErrorRow(9, `Error loading apps — ${err.message}`);
       }
     }
 

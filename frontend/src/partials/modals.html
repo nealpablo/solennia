@@ -313,7 +313,7 @@
         <input name="business_name" required class="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2" />
       </div>
 
-      <!-- NEW: Contact Email (.com only) -->
+      <!-- Contact Email (.com only) -->
       <div>
         <label class="block text-sm font-semibold uppercase">Contact Email <span class="text-red-600">*</span></label>
         <input
@@ -327,10 +327,11 @@
       </div>
 
       <div>
-        <label class="block text-sm font-semibold uppercase">Category</label>
+        <label class="block text-sm font-semibold uppercase">Category <span class="text-red-600">*</span></label>
         <select
           name="category"
           id="vendorCategory"
+          required
           class="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
         >
           <option value="">Select a category</option>
@@ -341,6 +342,7 @@
           <option value="Entertainment">Entertainment</option>
           <option value="Others">Others</option>
         </select>
+        <!-- NOTE: not required by default to avoid blocking when hidden -->
         <input
           type="text"
           id="vendorCategoryOther"
@@ -351,11 +353,12 @@
       </div>
 
       <div>
-        <label class="block text-sm font-semibold uppercase">Business Address / Service Areas</label>
-        <textarea name="address" class="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"></textarea>
+        <label class="block text-sm font-semibold uppercase">Business Address / Service Areas <span class="text-red-600">*</span></label>
+        <textarea name="address" required class="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"></textarea>
       </div>
 
       <div class="flex justify-end">
+        <!-- You can’t advance unless step 1 is valid -->
         <button type="button" id="toMedia" class="w-10 h-10 bg-[#7a5d47] rounded-full text-white flex items-center justify-center">➜</button>
       </div>
     </form>
@@ -371,32 +374,32 @@
 
     <form id="vendorForm2" class="p-6 space-y-5" enctype="multipart/form-data">
       <div>
-        <label class="block text-sm font-semibold uppercase">Description of Services</label>
-        <textarea name="description" class="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"></textarea>
+        <label class="block text-sm font-semibold uppercase">Description of Services <span class="text-red-600">*</span></label>
+        <textarea name="description" required class="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"></textarea>
       </div>
 
       <div>
-        <label class="block text-sm font-semibold uppercase">Package List/Sample Pricing</label>
-        <textarea name="pricing" class="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"></textarea>
+        <label class="block text-sm font-semibold uppercase">Package List/Sample Pricing <span class="text-red-600">*</span></label>
+        <textarea name="pricing" required class="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"></textarea>
       </div>
 
       <!-- Files (PNG/JPG/PDF) -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
-          <label class="block text-xs font-semibold uppercase mb-1">Permits (PNG/JPG/PDF)</label>
-          <input id="vendorPermits" name="permits" type="file"
+          <label class="block text-xs font-semibold uppercase mb-1">Permits (PNG/JPG/PDF) <span class="text-red-600">*</span></label>
+          <input id="vendorPermits" name="permits" type="file" required
                  accept=".png,.jpg,.jpeg,.pdf,image/png,image/jpeg,application/pdf"
                  class="w-full rounded-md bg-gray-100 border border-gray-300 p-2" />
         </div>
         <div>
-          <label class="block text-xs font-semibold uppercase mb-1">Gov ID (PNG/JPG/PDF)</label>
-          <input id="vendorGovId" name="gov_id" type="file"
+          <label class="block text-xs font-semibold uppercase mb-1">Gov ID (PNG/JPG/PDF) <span class="text-red-600">*</span></label>
+          <input id="vendorGovId" name="gov_id" type="file" required
                  accept=".png,.jpg,.jpeg,.pdf,image/png,image/jpeg,application/pdf"
                  class="w-full rounded-md bg-gray-100 border border-gray-300 p-2" />
         </div>
         <div>
-          <label class="block text-xs font-semibold uppercase mb-1">Portfolio (PNG/JPG/PDF)</label>
-          <input id="vendorPortfolio" name="portfolio" type="file"
+          <label class="block text-xs font-semibold uppercase mb-1">Portfolio (PNG/JPG/PDF) <span class="text-red-600">*</span></label>
+          <input id="vendorPortfolio" name="portfolio" type="file" required
                  accept=".png,.jpg,.jpeg,.pdf,image/png,image/jpeg,application/pdf"
                  class="w-full rounded-md bg-gray-100 border border-gray-300 p-2" />
         </div>
