@@ -184,127 +184,21 @@ function wireUniversalUI() {
   $$('[data-close]').forEach(b => b.addEventListener('click', closeAuth));
 
   // Notifications
-const notifBtn = $('#notifBtn');
-const notifPanel = $('#notifPanel');
-const notifList = $('#notifList');
-const notifEmpty = $('#notifEmpty');
-const notifBadge = $('#notifBadge');
-
-function toggleNotif(show) {
-  if (!notifPanel || !notifBtn) return;
-  const willShow = typeof show === 'boolean' ? show : notifPanel.classList.contains('hidden');
-  notifPanel.classList.toggle('hidden', !willShow);
-  notifBtn.setAttribute('aria-expanded', willShow ? 'true' : 'false');
-  if (willShow) {
-    toggleProfileMenu(false);
-    loadNotifications();       // 🔔 fetch and render each time it opens
+  const notifBtn = $('#notifBtn');
+  const notifPanel = $('#notifPanel');
+  function toggleNotif(show) {
+    if (!notifPanel || !notifBtn) return;
+    const willShow = typeof show === 'boolean' ? show : notifPanel.classList.contains('hidden');
+    notifPanel.classList.toggle('hidden', !willShow);
+    notifBtn.setAttribute('aria-expanded', willShow ? 'true' : 'false');
+    if (willShow) toggleProfileMenu(false);
   }
-}
-notifBtn?.addEventListener('click', (e)=>{ e.stopPropagation(); toggleNotif(); });
-document.addEventListener('click', (e)=>{
-  if (!notifPanel || !notifBtn) return;
-  if (!notifPanel.contains(e.target) && !notifBtn.contains(e.target)) toggleNotif(false);
-});
-document.addEventListener('keydown',(e)=>{ if (e.key==='Escape') toggleNotif(false); });
-
-function formatTime(iso) {
-  try { const d = new Date(iso); return d.toLocaleString(); } catch { return ''; }
-}
-
-async function fetchJSONTry(url, init) {
-  try {
-    const res = await fetch(url, init);
-    const ct = res.headers.get('content-type') || '';
-    const body = ct.includes('application/json') ? await res.json().catch(()=>({})) : await res.text();
-    if (!res.ok) throw new Error((body && body.error) || (body && body.message) || res.statusText);
-    return typeof body === 'string' ? { success:true, data: body } : body;
-  } catch (e) {
-    return null;
-  }
-}
-
-// GET notifications for current user (tries common endpoints)
-async function getNotifications() {
-  const t = token();
-  if (!t) return { items: [], unread: 0 };
-  const headers = { Authorization: `Bearer ${t}` };
-
-  // try newer style
-  let json = await fetchJSONTry(`${API}/notifications`, { headers });
-  if (!json) json = await fetchJSONTry(`${API}/notifications/me`, { headers });
-  if (!json) json = await fetchJSONTry(`/api/notifications`, { headers });
-  if (!json) json = await fetchJSONTry(`/api/notifications/me`, { headers });
-
-  const items = (json?.notifications || json?.data || json?.items || []);
-  // normalize shape
-  const normalized = items.map(n => ({
-    id: n.id ?? n.notification_id ?? n._id ?? Math.random().toString(36).slice(2),
-    title: n.title || 'Notification',
-    message: n.message || n.body || '',
-    created_at: n.created_at || n.createdAt || n.time || Date.now(),
-    link: n.link || n.url || '',
-    read: n.read ?? n.is_read ?? false,
-    type: n.type || ''
-  }));
-  const unread = normalized.filter(n => !n.read).length;
-  return { items: normalized, unread };
-}
-
-// Mark read (best-effort, supports multiple backends)
-async function markAllRead(ids) {
-  const t = token();
-  if (!t || !ids?.length) return;
-  const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${t}` };
-  await fetchJSONTry(`${API}/notifications/mark-all-read`, { method:'POST', headers });
-  await fetchJSONTry(`${API}/notifications/read`, { method:'POST', headers, body: JSON.stringify({ ids }) });
-  await fetchJSONTry(`/api/notifications/mark-all-read`, { method:'POST', headers });
-  await fetchJSONTry(`/api/notifications/read`, { method:'POST', headers, body: JSON.stringify({ ids }) });
-}
-
-// Render notifications cleanly (no blank rows)
-async function loadNotifications() {
-  if (!notifList || !notifEmpty || !notifBadge) return;
-  const { items, unread } = await getNotifications();
-
-  // badge
-  if (unread > 0) {
-    notifBadge.textContent = unread > 9 ? '9+' : String(unread);
-    notifBadge.classList.remove('hidden');
-  } else {
-    notifBadge.classList.add('hidden');
-    notifBadge.textContent = '';
-  }
-
-  // list vs empty
-  notifList.innerHTML = '';
-  if (!items.length) {
-    notifEmpty.classList.remove('hidden');
-  } else {
-    notifEmpty.classList.add('hidden');
-    items.forEach(n => {
-      const li = document.createElement('li');
-      li.className = 'py-3 px-2 hover:bg-gray-50';
-      li.innerHTML = `
-        <div class="flex items-start gap-3">
-          <div class="mt-0.5 w-2 h-2 rounded-full ${n.read ? 'bg-transparent border border-gray-300' : 'bg-red-500'}"></div>
-          <div class="flex-1">
-            <div class="font-semibold">${n.title || 'Notification'}</div>
-            ${n.message ? `<div class="text-gray-700 text-sm mt-0.5">${n.message}</div>` : ''}
-            <div class="text-xs text-gray-500 mt-1">${formatTime(n.created_at)}</div>
-            ${n.link ? `<a href="${n.link}" class="text-xs text-[#7a5d47] hover:underline mt-1 inline-block">Open</a>` : ''}
-          </div>
-        </div>`;
-      notifList.appendChild(li);
-    });
-
-    // mark-as-read on open
-    const ids = items.filter(n => !n.read).map(n => n.id);
-    markAllRead(ids).catch(()=>{});
-  }
-}
-
-// refresh on auth changes
-document.addEventListener('DOMContentLoaded', () => { if (token()) loadNotifications(); });
+  notifBtn?.addEventListener('click', (e)=>{ e.stopPropagation(); toggleNotif(); });
+  document.addEventListener('click', (e)=>{
+    if (!notifPanel || !notifBtn) return;
+    if (!notifPanel.contains(e.target) && !notifBtn.contains(e.target)) toggleNotif(false);
+  });
+  document.addEventListener('keydown',(e)=>{ if (e.key==='Escape') toggleNotif(false); });
 
   // Search
   const searchBtn   = $('#searchBtn');

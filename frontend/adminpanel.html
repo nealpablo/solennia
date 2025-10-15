@@ -43,7 +43,7 @@
       border-radius: 9999px !important;
     }
 
-    /* Toast (same as in partials-loader) */
+    /* Toast — auto fade */
     #toastContainer {
       position: fixed;
       top: 1.5rem; left: 0; right: 0;
@@ -59,18 +59,7 @@
       font-size: 0.9rem;
       color: #222;
       pointer-events: auto;
-    }
-
-    /* Document thumbs */
-    .doc-wrap { display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; }
-    .doc-thumb {
-      width: 56px; height: 56px; object-fit: cover; border:1px solid #d1d5db; border-radius:.5rem; cursor:pointer;
-      background:#f9fafb;
-    }
-    .doc-chip {
-      display:inline-flex; align-items:center; justify-content:center;
-      height: 28px; padding: 0 .5rem; border:1px solid #d1d5db; border-radius:.5rem; background:#f9fafb;
-      font-size:.8rem; cursor:pointer; text-decoration:none; color:#1c1b1a;
+      opacity: 0; /* start hidden until shown */
     }
 
     /* Lightbox */
@@ -85,12 +74,25 @@
     .lb-header { display:flex; align-items:center; justify-content:space-between; background:#e8ddae; padding:.5rem .75rem; }
     .lb-close { font-size: 1.4rem; line-height: 1; background:transparent; border:none; cursor:pointer; }
 
-    /* 🔧 Admin-page-only fix: hide stray checkbox toggles coming from header */
-    header input[type="checkbox"] { display: none !important; }
+    /* ✅ Admin-page-only fix for blank bullet in header notifications */
+    #notifPanel ul, #notifList { list-style: none !important; margin: 0 !important; padding: 0 !important; }
+
+    /* ✅ Confirmation modal */
+    .confirm-backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,.45);
+      display: none; align-items: center; justify-content: center; z-index: 10050;
+    }
+    .confirm-card {
+      background: #f6f0e8; border: 1px solid #d1d5db; border-radius: 0.9rem;
+      padding: 1rem 1.25rem; width: 100%; max-width: 22rem; box-shadow: 0 10px 30px rgba(0,0,0,.25);
+    }
+    .confirm-actions { display: flex; gap: .5rem; justify-content: flex-end; margin-top: .75rem; }
+    .btn-ghost { background:#e0d6c6; color:#3b2f25; border-radius:8px; padding:.5rem .9rem; border:1px solid #c9bda9; }
   </style>
 </head>
 <body>
 
+  <!-- Toast -->
   <div id="toastContainer" class="hidden"><div id="toast"></div></div>
 
   <!-- Shared header/footer/modals -->
@@ -156,6 +158,7 @@
   <div data-include="/partials/footer.html"></div>
   <div data-include="/partials/modals.html"></div>
 
+  <!-- IMAGE LIGHTBOX -->
   <div id="lightbox" class="lb-backdrop">
     <div class="lb-content">
       <div class="lb-header">
@@ -163,6 +166,18 @@
         <button id="lbClose" class="lb-close" aria-label="Close">&times;</button>
       </div>
       <img id="lbImg" class="lb-img" alt="document preview" />
+    </div>
+  </div>
+
+  <!-- ✅ Confirm Dialog -->
+  <div id="confirmBackdrop" class="confirm-backdrop">
+    <div class="confirm-card" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+      <h3 id="confirmTitle" class="text-lg font-semibold mb-2">Are you sure?</h3>
+      <p id="confirmMsg" class="text-sm text-gray-800">Please confirm this action.</p>
+      <div class="confirm-actions">
+        <button id="confirmCancel" class="btn-ghost">Cancel</button>
+        <button id="confirmOk" class="approve-btn">Confirm</button>
+      </div>
     </div>
   </div>
 
@@ -174,26 +189,27 @@
     const role = parseInt(localStorage.getItem('solennia_role') || '0', 10);
 
     function showToast(msg, type='error') {
-  const c = document.getElementById('toastContainer');
-  const t = document.getElementById('toast');
-  if (!c || !t) return;
+      const c = document.getElementById('toastContainer');
+      const t = document.getElementById('toast');
+      if (!c || !t) return;
+      t.textContent = msg;
+      t.style.borderColor = type==='error' ? '#b91c1c' : '#16a34a';
+      t.style.background = type==='error' ? '#fee2e2' : '#dcfce7';
+      c.classList.remove('hidden');
 
-  t.textContent = msg;
-  t.style.borderColor = type==='error' ? '#b91c1c' : '#16a34a';
-  t.style.background = type==='error' ? '#fee2e2' : '#dcfce7';
-  c.classList.remove('hidden');
+      // fade in, then fade out
+      clearTimeout(showToast._in);
+      clearTimeout(showToast._out);
+      t.style.transition = 'opacity .25s';
+      t.style.opacity = '1';
+      showToast._out = setTimeout(()=>{ t.style.opacity='0'; }, 2200);
+      showToast._in  = setTimeout(()=>{ c.classList.add('hidden'); }, 2500);
+    }
 
-  // fade out smoothly and then hide
-  clearTimeout(showToast._t1);
-  clearTimeout(showToast._t2);
-  t.style.opacity = '1';
-  showToast._t1 = setTimeout(()=>{ t.style.transition='opacity .35s'; t.style.opacity='0'; }, 2000);
-  showToast._t2 = setTimeout(()=>{
-    c.classList.add('hidden');
-    t.style.transition='';
-    t.style.opacity='1';
-  }, 2400);
-}
+    if (!token || role !== 2) {
+      showToast('Access denied — admin only.');
+      setTimeout(()=> window.location.href = '/index.html', 1200);
+    }
 
     // === Replace SOLENNIA link text ===
     function adminBrandPatch() {
@@ -226,39 +242,64 @@
     async function safeFetch(input, init = {}) {
       const req = { ...init, headers: { ...(init.headers || {}), ...authHeaders() } };
       const res = await fetch(input, req);
-      const ct = res.headers.get('content-type') || '';
-      const body = ct.includes('application/json') ? await res.json().catch(()=>({})) : await res.text();
-      if (!res.ok) throw new Error((body && body.message) || (body && body.error) || `${res.status}`);
-      return typeof body === 'string' ? { success:true, data: body } : body;
+      const isJson = (res.headers.get('content-type') || '').includes('application/json');
+      const body = isJson ? await res.json().catch(()=>({})) : await res.text();
+      if (!res.ok) {
+        let msg = typeof body === 'string' ? body : (body.message || body.error || `${res.status}`);
+        throw new Error(msg);
+      }
+      return typeof body === 'string' ? { success:true, data:body } : body;
     }
 
     function roleLabel(role) { return role === 2 ? 'Admin' : role === 1 ? 'Supplier' : 'Client'; }
 
-    // cache app -> user mapping for notifications
-    window.APP_INDEX = new Map();
+    // ---------------- Confirm Dialog ----------------
+    function openConfirm(message, confirmLabel='Confirm', confirmClass='approve-btn') {
+      return new Promise(resolve=>{
+        const bd = document.getElementById('confirmBackdrop');
+        const msg = document.getElementById('confirmMsg');
+        const ok  = document.getElementById('confirmOk');
+        const cancel = document.getElementById('confirmCancel');
+        msg.textContent = message || 'Are you sure?';
+        ok.textContent = confirmLabel;
+        ok.className = confirmClass;
 
+        function cleanup(val){
+          bd.style.display = 'none';
+          ok.removeEventListener('click', okH);
+          cancel.removeEventListener('click', cancelH);
+          bd.removeEventListener('click', backH);
+          resolve(val);
+        }
+        function okH(){ cleanup(true); }
+        function cancelH(){ cleanup(false); }
+        function backH(e){ if(e.target===bd) cleanup(false); }
+
+        bd.style.display = 'flex';
+        ok.addEventListener('click', okH);
+        cancel.addEventListener('click', cancelH);
+        bd.addEventListener('click', backH);
+      });
+    }
+
+    // ---------------- Vendor Applications ----------------
     async function loadVendorApplications() {
       const body = document.getElementById('vendorTableBody');
       try {
         const json = await safeFetch(`${API}/admin/vendor-applications`);
         const apps = json.applications || json.data || [];
-        window.APP_INDEX.clear();
         if (!apps.length) return body.innerHTML = renderErrorRow(7, 'No pending applications');
-        body.innerHTML = apps.map(a => {
-          const uid = a.user_id || a.userId || a.applicant_id;
-          const fullname = `${a.first_name||''} ${a.last_name||''}`.trim();
-          if (a.id != null && uid != null) window.APP_INDEX.set(Number(a.id), { user_id: uid, name: fullname });
-          return `
-          <tr>
-            <td>${fullname || '-'}</td>
+        body.innerHTML = apps.map(a => `
+          <tr data-appid="${a.id}">
+            <td>${(a.first_name||'') + ' ' + (a.last_name||'')}</td>
             <td>${a.business_name||'-'}</td>
             <td>${a.category||'-'}</td>
             <td>${a.address||'-'}</td>
             <td>${a.pricing||'-'}</td>
             <td>
-              ${(a.permits_url||a.permits ? `<a href="${a.permits_url||a.permits}" target="_blank" class="text-sm underline">Permits</a>` : '')}
-              ${(a.gov_id_url||a.gov_id ? `<a href="${a.gov_id_url||a.gov_id}" target="_blank" class="text-sm underline ml-2">Gov ID</a>` : '')}
-              ${(a.portfolio_url||a.portfolio ? `<a href="${a.portfolio_url||a.portfolio}" target="_blank" class="text-sm underline ml-2">Portfolio</a>` : '')}
+              ${(a.permits ? `<a href="${a.permits}" target="_blank" class="text-sm underline">Permits</a>` : '')}
+              ${(a.gov_id ? `<a href="${a.gov_id}" target="_blank" class="text-sm underline ml-2">Gov ID</a>` : '')}
+              ${(a.portfolio ? `<a href="${a.portfolio}" target="_blank" class="text-sm underline ml-2">Portfolio</a>` : '')}
             </td>
             <td>
               <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
@@ -267,90 +308,84 @@
               </div>
             </td>
           </tr>
-        `;
-        }).join('');
+        `).join('');
       } catch (err) {
         body.innerHTML = renderErrorRow(7, `Error loading apps — ${err.message}`);
       }
     }
 
     async function notifyApplicant(appId) {
-  // If you can attach user_id on each application, read it here.
-  // Fallback: refetch the list and find the application by id.
-  let userId = null;
-  try {
-    const data = await safeFetch(`${API}/admin/vendor-applications`);
-    const apps = data.applications || data.data || [];
-    const matched = apps.find(a => String(a.id) === String(appId));
-    userId = matched?.user_id || matched?.userId || matched?.account_id;
-  } catch {}
-
-  if (!userId) return; // nothing we can do
-
-  const headers = {
-    'Content-Type':'application/json',
-    ...(localStorage.getItem('solennia_token') ? { Authorization:`Bearer ${localStorage.getItem('solennia_token')}` } : {})
-  };
-
-  const payloads = [
-    { user_id: userId, title: 'Vendor Application Approved',
-      message: 'Congrats! Your vendor application has been approved. You can now list your services.',
-      link: '/profile.html', type: 'vendor_application_approved' },
-    { recipient_id: userId, title: 'Vendor Application Approved',
-      message: 'Congrats! Your vendor application has been approved. You can now list your services.',
-      link: '/profile.html', type: 'vendor_application_approved' }
-  ];
-
-  const endpoints = [
-    `${API}/notifications`,
-    `${API}/admin/notify`,
-    `/api/notifications`,
-    `/api/admin/notify`
-  ];
-
-  for (const ep of endpoints) {
-    for (const body of payloads) {
+      // Best-effort: find the user_id of this application
+      let userId = null;
       try {
-        const res = await fetch(ep, { method:'POST', headers, body: JSON.stringify(body) });
-        if (res.ok) return;
+        const data = await safeFetch(`${API}/admin/vendor-applications`);
+        const apps = data.applications || data.data || [];
+        const m = apps.find(x => String(x.id) === String(appId));
+        userId = m?.user_id || m?.userId || m?.account_id || null;
       } catch {}
-    }
-  }
-}
 
+      if (!userId) return;
+
+      const headers = { 'Content-Type':'application/json', ...(token ? { Authorization:`Bearer ${token}` } : {}) };
+      const payloads = [
+        { user_id: userId, title: 'Vendor Application Approved',
+          message: 'Congrats! Your vendor application has been approved. You can now list your services.',
+          link: '/profile.html', type: 'vendor_application_approved' },
+        { recipient_id: userId, title: 'Vendor Application Approved',
+          message: 'Congrats! Your vendor application has been approved. You can now list your services.',
+          link: '/profile.html', type: 'vendor_application_approved' }
+      ];
+      const endpoints = [
+        `${API}/notifications`,
+        `${API}/admin/notify`,
+        `/api/notifications`,
+        `/api/admin/notify`
+      ];
+      for (const ep of endpoints) {
+        for (const body of payloads) {
+          try {
+            const res = await fetch(ep, { method:'POST', headers, body: JSON.stringify(body) });
+            if (res.ok) return;
+          } catch {}
+        }
+      }
+    }
 
     async function handleDecision(id, action) {
-  if (!confirm(`Are you sure to ${action}?`)) return;
-  // optimistic: remove row immediately
-  const btn = document.querySelector(`button[onclick="handleDecision(${id}, '${action}')"]`);
-  const row = btn?.closest('tr');
+      const isApprove = action === 'approve';
+      const msg = isApprove ? 'Approve this vendor application?' : 'Deny this vendor application?';
+      const okClass = isApprove ? 'approve-btn' : 'deny-btn';
+      const ok = await openConfirm(msg, isApprove ? 'Approve' : 'Deny', okClass);
+      if (!ok) return;
 
-  try {
-    const json = await safeFetch(`${API}/admin/vendor-application/decision`, {
-      method: 'POST', body: JSON.stringify({ id, action })
-    });
-    showToast(json.message || 'Updated', 'success');
-
-    if (row) row.remove();         // ensure it disappears right away
-    loadVendorApplications();      // then refresh from server
-
-    if (action === 'approve') {
-      // notify the applicant so it shows in the header bell
-      notifyApplicant(id).catch(()=>{});
-    }
-  } catch (err) {
-    showToast(err.message, 'error');
-    // put row back if we optimistically removed it and call failed
-    if (row && !document.body.contains(row)) {
-      document.getElementById('vendorTableBody')?.appendChild(row);
-    }
-  }
-}
-
-    async function changeRole(user_id, role) {
+      // optimistic removal
+      const row = document.querySelector(`tr[data-appid="${id}"]`);
       try {
-        const json = await safeFetch(`${API}/admin/users/role`, {
-          method: 'POST', body: JSON.stringify({ user_id, role })
+        const json = await safeFetch(`${API}/admin/vendor-application/decision`, {
+          method: 'POST', body: JSON.stringify({ id, action })
+        });
+        showToast(json.message || 'Updated', 'success');
+        if (row) row.remove();
+        if (isApprove) notifyApplicant(id).catch(()=>{});
+        loadVendorApplications();
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+    window.handleDecision = handleDecision;
+
+    // ---------------- Users ----------------
+    async function changeRole(user_id, newRole) {
+      const goingUp = newRole > 1; // 0=Client,1=Supplier,2=Admin
+      const msg = goingUp ? `Promote this user to ${newRole===2?'Admin':'Supplier'}?`
+                          : `Demote this user to ${newRole===1?'Supplier':'Client'}?`;
+      const okClass = goingUp ? 'approve-btn' : 'deny-btn';
+      const ok = await openConfirm(msg, goingUp ? 'Promote' : 'Demote', okClass);
+      if (!ok) return;
+
+      try {
+        await safeFetch(`${API}/admin/users/role`, {
+          method: 'POST', body: JSON.stringify({ user_id, role: newRole })
         });
         showToast('Role updated', 'success');
         loadUsers();
@@ -363,9 +398,7 @@
         ? `<button class="approve-btn" onclick="changeRole(${u.id},${u.role+1})">Promote</button>` : '<span style="color:#6b7280;">Max role</span>';
       const demote = u.role===2
         ? `<button class="muted" disabled title="Admins cannot be demoted">Demote</button>`
-        : u.role===1
-          ? `<button class="deny-btn" onclick="if(confirm('Demote Supplier to Client?')) changeRole(${u.id},0)">Demote</button>`
-          : `<button class="muted" disabled title="Client is the lowest role">Demote</button>`;
+        : `<button class="deny-btn" onclick="changeRole(${u.id},${Math.max(0,u.role-1)})">Demote</button>`;
       return `<div style="display:flex;gap:.5rem;flex-wrap:wrap;">${promote}${demote}</div>`;
     }
 
@@ -386,6 +419,7 @@
       } catch (err) { body.innerHTML = renderErrorRow(5, err.message); }
     }
 
+    // ---------------- Feedback ----------------
     async function loadFeedbacks() {
       const body = document.getElementById('feedbackTableBody');
       try {
@@ -401,6 +435,7 @@
       } catch (err) { body.innerHTML = renderErrorRow(3, err.message); }
     }
 
+    // Kickoff
     loadVendorApplications();
     loadUsers();
     loadFeedbacks();
