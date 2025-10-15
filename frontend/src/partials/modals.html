@@ -12,7 +12,7 @@
   <!-- LOGIN MODAL -->
   <div
     id="loginModal"
-    class="bg-[#f6f0e8] rounded-2xl shadow-xl w-full max-w-md mx-auto hidden p-8 relative"
+    class="bg-[#f6f0e8] rounded-2xl shadow-xl w/full max-w-md mx-auto hidden p-8 relative"
     onclick="event.stopPropagation()"
   >
     <button data-close class="absolute top-3 right-3 text-gray-600 hover:text-black text-xl" aria-label="Close">&times;</button>
@@ -76,7 +76,7 @@
   <!-- REGISTER MODAL -->
   <div
     id="registerModal"
-    class="bg-[#f6f0e8] rounded-2xl shadow-xl w-full max-w-md mx-auto hidden p-8 relative"
+    class="bg-[#f6f0e8] rounded-2xl shadow-xl w/full max-w-md mx-auto hidden p-8 relative"
     onclick="event.stopPropagation()"
   >
     <button data-close class="absolute top-3 right-3 text-gray-600 hover:text-black text-xl" aria-label="Close">&times;</button>
@@ -183,7 +183,7 @@
   </div>
 </div>
 
-<!-- Privacy Modal (kept) -->
+<!-- Privacy Modal (UPDATED) -->
 <div id="privacyModal" class="hidden fixed inset-0 z-[270] bg-black/40 flex items-center justify-center p-4">
   <div class="bg-[#f6f0e8] w-full max-w-2xl rounded-2xl shadow-xl border border-gray-300 overflow-hidden" onclick="event.stopPropagation()">
     <div class="flex justify-between items-center px-6 py-4 border-b border-gray-300 bg-[#e8ddae]">
@@ -191,20 +191,44 @@
       <button id="closePrivacy" class="text-2xl font-light hover:text-gray-600" aria-label="Close">&times;</button>
     </div>
     <div class="p-6 space-y-4 text-sm leading-relaxed text-gray-800 max-h-[70vh] overflow-y-auto">
-      <p><strong>1. Introduction</strong><br />Solennia values your privacy. This Privacy Policy outlines how we collect, use, and protect your information.</p>
-      <p><strong>2. Information We Collect</strong><br />We may collect personal information such as your name, email, and contact details when you register or interact with our platform.</p>
-      <p><strong>3. How We Use Your Information</strong><br />Information collected is used to improve user experience, process vendor applications, and enhance our services.</p>
-      <p><strong>4. Data Protection</strong><br />We implement appropriate technical and organizational measures to protect your data against unauthorized access or disclosure.</p>
-      <p><strong>5. Cookies</strong><br />Our website may use cookies to personalize your experience and analyze site usage. You can disable cookies in your browser settings.</p>
-      <p><strong>6. Sharing of Data</strong><br />We do not sell your personal data. Limited data may be shared with trusted partners strictly for operational purposes.</p>
-      <p><strong>7. Your Rights</strong><br />You may request access, correction, or deletion of your personal data by contacting us at solenniainquires@gmail.com.</p>
-      <p><strong>8. Policy Updates</strong><br />We may update this Privacy Policy periodically. Continued use of Solennia means you accept the latest version.</p>
-      <p><strong>9. Contact</strong><br />For questions or concerns regarding your privacy, please contact solenniainquires@gmail.com.</p>
+      <p><strong>Introduction</strong><br>
+        At Solennia, we are committed to protecting your privacy and ensuring that your personal information is handled responsibly. This Privacy Policy outlines how we collect, use, store, and share information when you use our mobile application or website. By using Solennia, you agree to the terms described in this policy.
+      </p>
+      <p><strong>Information We Collect</strong><br>
+        We may collect personal data including your name, email address, contact number, and information related to your wedding plans. For vendors, we may collect business details such as company name, service descriptions, photos, and relevant documentation. Additionally, we gather non-personal information such as usage statistics, device information, and location data to help enhance our services and provide a more personalized user experience.
+      </p>
+      <p><strong>How We Use Your Information</strong><br>
+        The information we collect is used solely to operate and improve our platform. This includes matching couples with suitable vendors, facilitating communication, managing bookings, sending relevant updates or promotional messages (which you may opt out of), and ensuring platform security.
+      </p>
+      <p><strong>Sharing of Information</strong><br>
+        Your data is never sold to third parties. However, in certain cases, we may share your information with trusted service providers who assist us in delivering our services, or with legal authorities if required by law.
+      </p>
+      <p><strong>Data Protection</strong><br>
+        We prioritize your privacy and employ appropriate security measures such as encryption and secure servers to protect your data. Nonetheless, users are encouraged to keep their login credentials secure, as no system can be completely immune to risk.
+      </p>
+      <p><strong>Your Rights</strong><br>
+        You have the right to access, update, or delete your personal data at any time. If you wish to deactivate your account or request the removal of your information, you may contact us directly.
+      </p>
+      <p><strong>Cookies & Tracking</strong><br>
+        We use cookies and tracking technologies to analyze usage patterns and improve site functionality; you can adjust your browser settings to manage cookie preferences.
+      </p>
+      <p><strong>Third-Party Links</strong><br>
+        Solennia may contain links to third-party websites, including vendor pages and external services. Please note that we are not responsible for the privacy practices of these third parties, and we encourage users to review their respective policies.
+      </p>
+      <p><strong>Children’s Privacy</strong><br>
+        Our platform is not intended for children under the age of 13, and we do not knowingly collect personal information from minors. If we become aware of such data, it will be promptly deleted.
+      </p>
+      <p><strong>Policy Updates</strong><br>
+        This policy may be updated periodically to reflect changes in our services or legal obligations. We will notify users of significant updates through email or in-app notifications.
+      </p>
+      <p><strong>Contact</strong><br>
+        If you have any questions or concerns regarding this Privacy Policy, you may contact us at <a href="mailto:solenniainquires@gmail.com" class="underline">solenniainquires@gmail.com</a>. We are committed to maintaining your trust and safeguarding your privacy at every stage of your wedding planning journey.
+      </p>
     </div>
   </div>
 </div>
 
-<!-- Terms Modal (kept) -->
+<!-- Terms Modal (UPDATED) -->
 <div id="termsModal" class="hidden fixed inset-0 z-[275] bg-black/40 flex items-center justify-center p-4">
   <div class="bg-[#f6f0e8] w-full max-w-4xl rounded-2xl shadow-xl border border-gray-300 overflow-hidden" onclick="event.stopPropagation()">
     <div class="flex justify-between items-center px-6 py-4 border-b border-gray-300 bg-[#e8ddae]">
@@ -212,12 +236,35 @@
       <button id="closeTerms" class="text-2xl font-light hover:text-gray-600" aria-label="Close">&times;</button>
     </div>
     <div class="p-6 space-y-5 text-sm leading-relaxed text-gray-800 max-h-[70vh] overflow-y-auto">
-      <p>Welcome to Solennia. By accessing or using our website, mobile application, or any services provided through our platform, you agree to be bound by these Terms and Conditions...</p>
+      <p><strong>Acceptance of Terms</strong><br>
+        Welcome to Solennia. By accessing or using our website, mobile application, or any services provided through our platform, you agree to be bound by the following Terms and Conditions. Please read them carefully. If you do not agree with these terms, you must refrain from using our platform.
+      </p>
+      <p><strong>About Solennia</strong><br>
+        Solennia is a digital platform designed to connect couples planning their weddings with professional vendors offering relevant services. These services may include, but are not limited to, venue rentals, catering, photography, floral design, gown rentals, and entertainment. Our goal is to simplify and personalize the wedding planning experience through smart tools, including our AI-based wedding assistant.
+      </p>
+      <p><strong>User Accounts & Vendor Content</strong><br>
+        All users—whether couples or vendors—must provide accurate and truthful information during registration. Vendors are responsible for ensuring that the content they submit, including photos, descriptions, and business information, is lawful, not misleading, and does not infringe on any third-party rights. Solennia reserves the right to verify, approve, or reject listings that do not meet quality standards or violate our policies.
+      </p>
+      <p><strong>Role as Intermediary</strong><br>
+        Users understand that Solennia acts only as an intermediary between clients and vendors. While we facilitate the discovery and connection process, Solennia is not responsible for any agreements, disputes, payments, or service outcomes between the two parties. All bookings, negotiations, and final arrangements are handled directly by the user and vendor. Solennia is not liable for any damages, losses, or service failures resulting from interactions on the platform.
+      </p>
+      <p><strong>Vendor Responsibilities</strong><br>
+        Vendors who apply to be listed on Solennia agree to be professional, responsive, and transparent in their communications and services. They must not engage in fraudulent, abusive, or unethical behavior. Solennia may suspend or terminate accounts that violate our community standards or receive repeated complaints.
+      </p>
+      <p><strong>Privacy</strong><br>
+        Solennia respects user privacy and data security. All information collected is handled in accordance with our Privacy Policy. By using the platform, you consent to the collection and use of your information as outlined in that policy.
+      </p>
+      <p><strong>Changes to Terms</strong><br>
+        We reserve the right to update or modify these Terms and Conditions at any time without prior notice. Changes will be effective upon posting on the website or app. Continued use of Solennia after such changes indicates your acceptance of the updated terms.
+      </p>
+      <p><strong>Contact</strong><br>
+        If you have any questions regarding these terms, you may contact us at <a href="mailto:solenniainquires@gmail.com" class="underline">solenniainquires@gmail.com</a>. Thank you for being a part of the Solennia community. We’re here to support your journey toward a seamless and memorable wedding experience.
+      </p>
     </div>
   </div>
 </div>
 
-<!-- Vendor Onboarding (kept, with .com email & Others toggle) -->
+<!-- Vendor Onboarding (Vendor Terms UPDATED) -->
 <div id="vendorTerms" class="fixed inset-0 hidden z-[200] grid place-items-center bg-black/40 p-4">
   <div class="bg-[#f6f0e8] w-full max-w-3xl rounded-2xl shadow-xl overflow-y-auto max-h-[80vh]" onclick="event.stopPropagation()">
     <div class="flex justify-between items-center p-6 border-b border-gray-300">
@@ -225,9 +272,27 @@
       <button data-closevendor class="text-2xl font-light" aria-label="Close">&times;</button>
     </div>
     <div class="p-6 space-y-4 text-sm leading-relaxed text-gray-800">
-      <p>By applying to become a vendor on Solennia, you agree to the following terms and conditions...</p>
-      <p>As a vendor, you are responsible for providing accurate and up-to-date information...</p>
-      <p>Solennia acts only as a facilitator between clients and vendors...</p>
+      <p>
+        By applying to become a vendor on Solennia, you agree to the following terms and conditions. Solennia is a wedding planning platform that helps couples connect with trusted service providers like you. Participation on the platform is entirely voluntary, and by submitting your application, you acknowledge that your inclusion is subject to review and approval by the Solennia team. Approval is not guaranteed, and Solennia reserves the right to accept or decline any vendor based on quality, authenticity, and service alignment.
+      </p>
+      <p>
+        As a vendor, you are responsible for providing accurate and up-to-date information about your business, including your services, pricing, photos, and availability. You agree to respond to client inquiries in a timely manner and to provide professional and reliable service to all clients connected through the platform. You confirm that all content you upload (such as images, logos, and testimonials) is either owned by you or you have full rights to use it. By listing with Solennia, you grant the platform permission to display your business profile and media across the platform, in marketing materials, or on social channels, to promote your services.
+      </p>
+      <p>
+        Currently, listing your services on Solennia is free of charge. If any fees, subscriptions, or commission-based models are introduced in the future, you will be notified in advance and given the option to continue or withdraw from the platform. You are free to request updates to your profile or ask for removal at any time.
+      </p>
+      <p>
+        Solennia acts only as a facilitator between clients and vendors. We do not control or guarantee the outcome of any agreements, bookings, or payments between you and your clients. Therefore, you are solely responsible for your transactions, communication, and the quality of services delivered. Solennia will not be held liable for any disputes, damages, or losses arising from these interactions.
+      </p>
+      <p>
+        Solennia reserves the right to remove any vendor from the platform at any time if false or misleading information is found, if there are repeated client complaints, or if there is a breach of professionalism or trust. Inactivity or unresponsiveness may also lead to removal.
+      </p>
+      <p>
+        We are committed to respecting your privacy. Any data you share will be handled according to our Privacy Policy and will not be sold or distributed without your consent.
+      </p>
+      <p>
+        By applying to Solennia as a vendor, you confirm that you have read, understood, and agree to these terms and conditions. For questions or support, you may contact us at <a href="mailto:vendors@solennia.com" class="underline">vendors@solennia.com</a>.
+      </p>
     </div>
     <div class="p-6 border-t border-gray-300 flex justify-end">
       <button id="agreeTerms" class="px-6 py-2 rounded-md bg-[#e8ddae] hover:bg-[#dbcf9f] font-medium">Agree and Continue</button>

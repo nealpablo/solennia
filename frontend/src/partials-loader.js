@@ -152,7 +152,7 @@ function wireUniversalUI() {
   // Auth modals
   const authBackdrop = $('#authBackdrop');
   const loginModal   = $('#loginModal');
-  const registerModal= $('#registerModal');
+  const registerModal= $('#registerModal'); // ✅ fixed ) bracket
   const openModal = (el) => { authBackdrop?.classList.remove('hidden'); el?.classList.remove('hidden'); };
   const closeAuth = () => {
     authBackdrop?.classList.add('hidden');
@@ -449,27 +449,10 @@ function wireUniversalUI() {
     else vendorCategoryOther?.classList.add('hidden');
   });
 
-  async function hasExistingVendorApp() {
-    try {
-      const res = await fetch(`${API}/vendor/mine`, { headers: { ...authHeaders() } });
-      if (res.ok) {
-        const json = await res.json().catch(()=>null);
-        if (json && (json.status || json.application?.status)) {
-          const st = (json.status || json.application?.status || '').toLowerCase();
-          if (['pending','approved'].includes(st)) return true;
-        }
-        if (Array.isArray(json) && json.length) return true;
-      }
-    } catch {}
-    return localStorage.getItem('solennia_vendor_applied') === '1';
-  }
+  // ❌ Removed front-end guard: hasExistingVendorApp()
 
   async function openVendorFlow() {
     if (!tokenStr()) { openModal(loginModal); return; }
-    if (await hasExistingVendorApp()) {
-      showToast('You already submitted a vendor application.', 'info');
-      return;
-    }
     vendorTerms?.classList.remove('hidden');
   }
 
@@ -494,7 +477,7 @@ function wireUniversalUI() {
   $('#submitVendor')?.addEventListener('click', async (e)=>{
     e.preventDefault();
     if (!tokenStr()) { openModal(loginModal); return; }
-    if (await hasExistingVendorApp()) { showToast('You already submitted a vendor application.', 'info'); return; }
+    // (No pending check here)
 
     const step1Form = $('#vendorForm1');
     const step2Form = $('#vendorForm2');
@@ -516,7 +499,7 @@ function wireUniversalUI() {
     if (step2Form) {
       const s2 = new FormData(step2Form);
       for (const [k,v] of s2.entries()) {
-        if (k === 'permits' || k === 'gov_id' || k === 'portfolio') continue;
+        if (k === 'permits' || k === 'gov_id' || k === 'portfolio') continue; // files handled below
         fd.append(k, v);
       }
     }
@@ -531,14 +514,14 @@ function wireUniversalUI() {
     try {
       const res = await fetch(`${API}/vendor/apply`, {
         method: 'POST',
-        headers: { ...authHeaders() }, // let browser set multipart boundary
+        headers: { ...authHeaders() }, // do NOT set Content-Type; browser sets boundary
         body: fd,
       });
       const json = await res.json().catch(()=>({}));
       if (!res.ok || json?.success === false) {
         throw new Error(json?.error || json?.message || 'Failed to submit application');
       }
-      localStorage.setItem('solennia_vendor_applied', '1');
+      // ❌ Removed: localStorage.setItem('solennia_vendor_applied', '1');
       showToast('Vendor application submitted!', 'success');
       vendorMedia?.classList.add('hidden');
     } catch (err) {
