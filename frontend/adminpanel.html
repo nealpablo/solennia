@@ -84,6 +84,9 @@
     .lb-img { max-width: 92vw; max-height: 88vh; display:block; }
     .lb-header { display:flex; align-items:center; justify-content:space-between; background:#e8ddae; padding:.5rem .75rem; }
     .lb-close { font-size: 1.4rem; line-height: 1; background:transparent; border:none; cursor:pointer; }
+
+    /* 🔧 Admin-page-only fix: hide stray checkbox toggles coming from header */
+    header input[type="checkbox"] { display: none !important; }
   </style>
 </head>
 <body>
@@ -216,30 +219,39 @@
     async function safeFetch(input, init = {}) {
       const req = { ...init, headers: { ...(init.headers || {}), ...authHeaders() } };
       const res = await fetch(input, req);
-      const body = await res.json().catch(()=>({}));
-      if (!res.ok) throw new Error(body.message || body.error || `${res.status}`);
-      return body;
+      const ct = res.headers.get('content-type') || '';
+      const body = ct.includes('application/json') ? await res.json().catch(()=>({})) : await res.text();
+      if (!res.ok) throw new Error((body && body.message) || (body && body.error) || `${res.status}`);
+      return typeof body === 'string' ? { success:true, data: body } : body;
     }
 
     function roleLabel(role) { return role === 2 ? 'Admin' : role === 1 ? 'Supplier' : 'Client'; }
+
+    // cache app -> user mapping for notifications
+    window.APP_INDEX = new Map();
 
     async function loadVendorApplications() {
       const body = document.getElementById('vendorTableBody');
       try {
         const json = await safeFetch(`${API}/admin/vendor-applications`);
         const apps = json.applications || json.data || [];
+        window.APP_INDEX.clear();
         if (!apps.length) return body.innerHTML = renderErrorRow(7, 'No pending applications');
-        body.innerHTML = apps.map(a => `
+        body.innerHTML = apps.map(a => {
+          const uid = a.user_id || a.userId || a.applicant_id;
+          const fullname = `${a.first_name||''} ${a.last_name||''}`.trim();
+          if (a.id != null && uid != null) window.APP_INDEX.set(Number(a.id), { user_id: uid, name: fullname });
+          return `
           <tr>
-            <td>${(a.first_name||'') + ' ' + (a.last_name||'')}</td>
+            <td>${fullname || '-'}</td>
             <td>${a.business_name||'-'}</td>
             <td>${a.category||'-'}</td>
             <td>${a.address||'-'}</td>
             <td>${a.pricing||'-'}</td>
             <td>
-              ${(a.permits ? `<a href="${a.permits}" target="_blank" class="text-sm underline">Permits</a>` : '')}
-              ${(a.gov_id ? `<a href="${a.gov_id}" target="_blank" class="text-sm underline ml-2">Gov ID</a>` : '')}
-              ${(a.portfolio ? `<a href="${a.portfolio}" target="_blank" class="text-sm underline ml-2">Portfolio</a>` : '')}
+              ${(a.permits_url||a.permits ? `<a href="${a.permits_url||a.permits}" target="_blank" class="text-sm underline">Permits</a>` : '')}
+              ${(a.gov_id_url||a.gov_id ? `<a href="${a.gov_id_url||a.gov_id}" target="_blank" class="text-sm underline ml-2">Gov ID</a>` : '')}
+              ${(a.portfolio_url||a.portfolio ? `<a href="${a.portfolio_url||a.portfolio}" target="_blank" class="text-sm underline ml-2">Portfolio</a>` : '')}
             </td>
             <td>
               <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
@@ -248,9 +260,28 @@
               </div>
             </td>
           </tr>
-        `).join('');
+        `;
+        }).join('');
       } catch (err) {
         body.innerHTML = renderErrorRow(7, `Error loading apps — ${err.message}`);
+      }
+    }
+
+    async function notifyApplicant(appId) {
+      const meta = window.APP_INDEX && window.APP_INDEX.get(Number(appId));
+      if (!meta || !meta.user_id) return;
+      const payload = {
+        user_id: meta.user_id,
+        title: 'Vendor Application Approved',
+        message: 'Congrats! Your vendor application has been approved. You can now list your services.',
+        link: '/profile.html',
+        type: 'vendor_application_approved'
+      };
+      // Try common endpoints; ignore failures
+      try {
+        await safeFetch(`${API}/notifications`, { method:'POST', body: JSON.stringify(payload) });
+      } catch (_) {
+        try { await safeFetch(`${API}/admin/notify`, { method:'POST', body: JSON.stringify(payload) }); } catch (__) {}
       }
     }
 
@@ -261,6 +292,7 @@
           method: 'POST', body: JSON.stringify({ id, action })
         });
         showToast(json.message || 'Updated', 'success');
+        if (action === 'approve') { notifyApplicant(id); }
         loadVendorApplications();
       } catch (err) { showToast(err.message, 'error'); }
     }
@@ -279,10 +311,12 @@
 
     function renderUserActions(u) {
       const promote = u.role < 2
-        ? `<button class="approve-btn" onclick="changeRole(${u.id},${u.role+1})">Promote</button>` : '';
+        ? `<button class="approve-btn" onclick="changeRole(${u.id},${u.role+1})">Promote</button>` : '<span style="color:#6b7280;">Max role</span>';
       const demote = u.role===2
-        ? `<button class="muted" disabled>Demote</button>` :
-          `<button class="deny-btn" onclick="changeRole(${u.id},${Math.max(0,u.role-1)})">Demote</button>`;
+        ? `<button class="muted" disabled title="Admins cannot be demoted">Demote</button>`
+        : u.role===1
+          ? `<button class="deny-btn" onclick="if(confirm('Demote Supplier to Client?')) changeRole(${u.id},0)">Demote</button>`
+          : `<button class="muted" disabled title="Client is the lowest role">Demote</button>`;
       return `<div style="display:flex;gap:.5rem;flex-wrap:wrap;">${promote}${demote}</div>`;
     }
 
