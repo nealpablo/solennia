@@ -18,7 +18,7 @@ function normalize(url) {
 }
 
 // Resolve API base: env > global override > production fallback > dev proxy
-// 🔒 Using the exact production domain you requested.
+// 🔒 Uses your exact prod domain.
 const API =
   (import.meta?.env?.VITE_API_BASE) ||
   (window.__API_BASE__ || null) ||
@@ -26,17 +26,21 @@ const API =
     ? 'https://solennia.vercel.app/api'
     : '/api');
 
-// --- NEW: tiny guard so "/" shows landing.html if logged out ---
+// --- Root → Landing redirect for logged-out users -----------------------------
+// Now respects a "guest" bypass flag and login hash so you can enter as guest or open login.
 (function rootLandingRedirect() {
   try {
     const path = location.pathname;
-    const isRoot = path === '/' || path.endsWith('/index.html');
+    const hash = location.hash || '';
+    const isRootish = path === '/' || path.endsWith('/index.html');
     const onLanding = path.endsWith('/landing.html');
-    const token = localStorage.getItem('solennia_token');
+    const hasToken = !!localStorage.getItem('solennia_token');
+    const guestBypass = localStorage.getItem('solennia_guest') === '1';
+    const isLoginIntent = hash.includes('#login') || hash.includes('#choice');
 
     // If user opens root and is NOT logged in → go to landing.html
-    if (isRoot && !token && !onLanding) {
-      // Use replace so back button doesn't bounce back to root infinitely
+    // EXCEPT when: they chose guest, or they're trying to open login.
+    if (isRootish && !hasToken && !guestBypass && !isLoginIntent && !onLanding) {
       location.replace('/landing.html');
     }
   } catch (_) {}
@@ -272,7 +276,6 @@ function wireUniversalUI() {
   feedbackLink?.addEventListener('click', (e) => {
     e.preventDefault();
     if (!token()) {
-      // Say it inside the login box:
       const le = $('#loginError');
       if (le) { le.textContent = 'Please log in to give feedback.'; le.classList.remove('hidden'); }
       openModal(loginModal);
@@ -343,6 +346,9 @@ function wireUniversalUI() {
       localStorage.setItem(LS_TOKEN, json.token);
       localStorage.setItem(LS_ROLE,  String(json.role ?? 0));
       if (json.user) saveProfileFromUser(json.user);
+      // Clear guest bypass once logged in
+      localStorage.removeItem('solennia_guest');
+
       err?.classList.add('hidden');
       closeAuth();
       setAuthUI();
@@ -356,7 +362,6 @@ function wireUniversalUI() {
   registerForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    // Enforce confirm password before calling API
     const p1 = $('#registerPassword')?.value || '';
     const p2 = $('#registerConfirmPassword')?.value || '';
     const regErr = $('#registerError');
@@ -378,6 +383,10 @@ function wireUniversalUI() {
       localStorage.setItem(LS_TOKEN, json.token);
       localStorage.setItem(LS_ROLE,  String(json.role ?? 0));
       if (json.user) saveProfileFromUser(json.user);
+
+      // Clear guest bypass once logged in
+      localStorage.removeItem('solennia_guest');
+
       regErr?.classList.add('hidden');
       closeAuth();
       setAuthUI();
@@ -392,6 +401,8 @@ function wireUniversalUI() {
     localStorage.removeItem(LS_TOKEN);
     localStorage.removeItem(LS_ROLE);
     localStorage.removeItem(LS_PROFILE);
+    // Keep guest mode OFF on explicit logout
+    localStorage.removeItem('solennia_guest');
     setAuthUI();
     showToast('Signed out.', 'info');
   });
