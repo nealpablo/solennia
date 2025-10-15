@@ -4,7 +4,7 @@ import { resolve } from 'path';
 // ✅ Use Railway in production, localhost in dev
 const BACKEND =
   process.env.NODE_ENV === 'production'
-    ? 'https://solennia-henna.vercel.app'
+    ? 'https://solennia.vercel.app'
     : (process.env.VITE_BACKEND_URL || 'http://127.0.0.1:3000');
 
 export default defineConfig({

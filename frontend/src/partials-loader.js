@@ -23,7 +23,7 @@ const API =
   (import.meta?.env?.VITE_API_BASE) ||
   (window.__API_BASE__ || null) ||
   ((location.hostname.includes('vercel.app') || location.hostname.includes('railway.app'))
-    ? 'https://solennia-henna.vercel.app/api'
+    ? 'https://solennia.vercel.app/api'
     : '/api');
 
 // fetchHTML returns inlined partials for our 3 files; falls back to fetch otherwise
