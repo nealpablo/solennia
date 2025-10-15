@@ -174,19 +174,26 @@
     const role = parseInt(localStorage.getItem('solennia_role') || '0', 10);
 
     function showToast(msg, type='error') {
-      const c = document.getElementById('toastContainer');
-      const t = document.getElementById('toast');
-      t.textContent = msg;
-      t.style.borderColor = type==='error' ? '#b91c1c' : '#16a34a';
-      t.style.background = type==='error' ? '#fee2e2' : '#dcfce7';
-      c.classList.remove('hidden');
-      setTimeout(()=>c.classList.add('hidden'), 2500);
-    }
+  const c = document.getElementById('toastContainer');
+  const t = document.getElementById('toast');
+  if (!c || !t) return;
 
-    if (!token || role !== 2) {
-      showToast('Access denied — admin only.');
-      setTimeout(()=> window.location.href = '/index.html', 1500);
-    }
+  t.textContent = msg;
+  t.style.borderColor = type==='error' ? '#b91c1c' : '#16a34a';
+  t.style.background = type==='error' ? '#fee2e2' : '#dcfce7';
+  c.classList.remove('hidden');
+
+  // fade out smoothly and then hide
+  clearTimeout(showToast._t1);
+  clearTimeout(showToast._t2);
+  t.style.opacity = '1';
+  showToast._t1 = setTimeout(()=>{ t.style.transition='opacity .35s'; t.style.opacity='0'; }, 2000);
+  showToast._t2 = setTimeout(()=>{
+    c.classList.add('hidden');
+    t.style.transition='';
+    t.style.opacity='1';
+  }, 2400);
+}
 
     // === Replace SOLENNIA link text ===
     function adminBrandPatch() {
@@ -268,35 +275,77 @@
     }
 
     async function notifyApplicant(appId) {
-      const meta = window.APP_INDEX && window.APP_INDEX.get(Number(appId));
-      if (!meta || !meta.user_id) return;
-      const payload = {
-        user_id: meta.user_id,
-        title: 'Vendor Application Approved',
-        message: 'Congrats! Your vendor application has been approved. You can now list your services.',
-        link: '/profile.html',
-        type: 'vendor_application_approved'
-      };
-      // Try common endpoints; ignore failures
+  // If you can attach user_id on each application, read it here.
+  // Fallback: refetch the list and find the application by id.
+  let userId = null;
+  try {
+    const data = await safeFetch(`${API}/admin/vendor-applications`);
+    const apps = data.applications || data.data || [];
+    const matched = apps.find(a => String(a.id) === String(appId));
+    userId = matched?.user_id || matched?.userId || matched?.account_id;
+  } catch {}
+
+  if (!userId) return; // nothing we can do
+
+  const headers = {
+    'Content-Type':'application/json',
+    ...(localStorage.getItem('solennia_token') ? { Authorization:`Bearer ${localStorage.getItem('solennia_token')}` } : {})
+  };
+
+  const payloads = [
+    { user_id: userId, title: 'Vendor Application Approved',
+      message: 'Congrats! Your vendor application has been approved. You can now list your services.',
+      link: '/profile.html', type: 'vendor_application_approved' },
+    { recipient_id: userId, title: 'Vendor Application Approved',
+      message: 'Congrats! Your vendor application has been approved. You can now list your services.',
+      link: '/profile.html', type: 'vendor_application_approved' }
+  ];
+
+  const endpoints = [
+    `${API}/notifications`,
+    `${API}/admin/notify`,
+    `/api/notifications`,
+    `/api/admin/notify`
+  ];
+
+  for (const ep of endpoints) {
+    for (const body of payloads) {
       try {
-        await safeFetch(`${API}/notifications`, { method:'POST', body: JSON.stringify(payload) });
-      } catch (_) {
-        try { await safeFetch(`${API}/admin/notify`, { method:'POST', body: JSON.stringify(payload) }); } catch (__) {}
-      }
+        const res = await fetch(ep, { method:'POST', headers, body: JSON.stringify(body) });
+        if (res.ok) return;
+      } catch {}
     }
+  }
+}
+
 
     async function handleDecision(id, action) {
-      if (!confirm(`Are you sure to ${action}?`)) return;
-      try {
-        const json = await safeFetch(`${API}/admin/vendor-application/decision`, {
-          method: 'POST', body: JSON.stringify({ id, action })
-        });
-        showToast(json.message || 'Updated', 'success');
-        if (action === 'approve') { notifyApplicant(id); }
-        loadVendorApplications();
-      } catch (err) { showToast(err.message, 'error'); }
+  if (!confirm(`Are you sure to ${action}?`)) return;
+  // optimistic: remove row immediately
+  const btn = document.querySelector(`button[onclick="handleDecision(${id}, '${action}')"]`);
+  const row = btn?.closest('tr');
+
+  try {
+    const json = await safeFetch(`${API}/admin/vendor-application/decision`, {
+      method: 'POST', body: JSON.stringify({ id, action })
+    });
+    showToast(json.message || 'Updated', 'success');
+
+    if (row) row.remove();         // ensure it disappears right away
+    loadVendorApplications();      // then refresh from server
+
+    if (action === 'approve') {
+      // notify the applicant so it shows in the header bell
+      notifyApplicant(id).catch(()=>{});
     }
-    window.handleDecision = handleDecision;
+  } catch (err) {
+    showToast(err.message, 'error');
+    // put row back if we optimistically removed it and call failed
+    if (row && !document.body.contains(row)) {
+      document.getElementById('vendorTableBody')?.appendChild(row);
+    }
+  }
+}
 
     async function changeRole(user_id, role) {
       try {
