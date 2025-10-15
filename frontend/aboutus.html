@@ -11,6 +11,34 @@
     #carousel { scrollbar-width: none; } 
     #carousel::-webkit-scrollbar { display: none; }
     #profileBtn { border-width: 2px !important; border-color: #000 !important; background: transparent !important; border-radius: 9999px !important; }
+
+    /* 🔎 Lightbox additions (non-destructive) */
+    .zoomable { cursor: zoom-in; }
+    .lb-backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,.65);
+      display: none; align-items: center; justify-content: center; z-index: 9999;
+      padding: 1.25rem;
+    }
+    .lb-backdrop.open { display: flex; }
+    .lb-frame {
+      position: relative; background: #fff; border-radius: 0.75rem; overflow: hidden;
+      border: 1px solid rgba(255,255,255,.25); max-width: 92vw; max-height: 88vh;
+      box-shadow: 0 20px 60px rgba(0,0,0,.45);
+    }
+    .lb-img {
+      display: block; max-width: 92vw; max-height: 84vh; object-fit: contain;
+      background: #111;
+    }
+    .lb-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      background: rgba(255,255,255,0.95); padding: .5rem .75rem; gap: .5rem;
+    }
+    .lb-title { font-size: .85rem; font-weight: 600; color: #1c1b1a; }
+    .lb-close {
+      font-size: 1.25rem; line-height: 1; background: transparent; border: none; cursor: pointer;
+      padding: .25rem .5rem; border-radius: .5rem;
+    }
+    .lb-close:hover { background: rgba(0,0,0,.06); }
   </style>
 </head>
 <body class="min-h-screen flex flex-col font-[Cinzel] text-[#1c1b1a] bg-[#f6f0e8]">
@@ -47,11 +75,11 @@
 
       <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
         <figure class="relative overflow-hidden rounded-xl border border-gray-300 bg-[#efe9dd]">
-          <img src="/images/about1.jpg" alt="Solennia event showcase 1" class="w-full h-64 md:h-80 object-cover" loading="lazy"/>
+          <img id="aboutImg1" src="/images/about1.jpg" alt="Solennia event showcase 1" class="w-full h-64 md:h-80 object-cover zoomable" loading="lazy"/>
           <figcaption class="p-3 text-xs text-gray-700">Built by four students… ByteMe — creators of Solennia.</figcaption>
         </figure>
         <figure class="relative overflow-hidden rounded-xl border border-gray-300 bg-[#efe9dd]">
-          <img src="/images/about2.jpg" alt="Solennia event showcase 2" class="w-full h-64 md:h-80 object-cover" loading="lazy"/>
+          <img id="aboutImg2" src="/images/about2.jpg" alt="Solennia event showcase 2" class="w-full h-64 md:h-80 object-cover zoomable" loading="lazy"/>
           <figcaption class="p-3 text-xs text-gray-700">ByteMe in motion</figcaption>
         </figure>
       </div>
@@ -62,7 +90,64 @@
   <div data-include="/partials/footer.html"></div>
   <div data-include="/partials/modals.html"></div>
 
+  <!-- 🖼️ Lightbox (added) -->
+  <div id="imgLightbox" class="lb-backdrop" aria-hidden="true">
+    <div class="lb-frame" role="dialog" aria-modal="true" aria-labelledby="lbTitle">
+      <div class="lb-bar">
+        <div id="lbTitle" class="lb-title">Preview</div>
+        <button id="lbClose" class="lb-close" aria-label="Close">&times;</button>
+      </div>
+      <img id="lbImg" class="lb-img" alt="">
+    </div>
+  </div>
+
   <!-- Loader: injects header/footer/modals and wires all menus -->
   <script type="module" src="/src/partials-loader.js"></script>
+
+  <!-- 🔧 Tiny lightbox controller (added) -->
+  <script>
+    (function(){
+      const lb   = document.getElementById('imgLightbox');
+      const img  = document.getElementById('lbImg');
+      const ttl  = document.getElementById('lbTitle');
+      const btnX = document.getElementById('lbClose');
+
+      function openLightbox(src, alt) {
+        if (!src) return;
+        img.src = src;
+        img.alt = alt || 'Preview';
+        ttl.textContent = alt || 'Preview';
+        lb.classList.add('open');
+        lb.setAttribute('aria-hidden', 'false');
+        document.body.style.overflow = 'hidden';
+      }
+      function closeLightbox() {
+        lb.classList.remove('open');
+        lb.setAttribute('aria-hidden', 'true');
+        document.body.style.overflow = '';
+        // small delay before clearing to avoid flash
+        setTimeout(()=>{ img.src=''; img.alt=''; }, 150);
+      }
+
+      // Wire both images
+      function makeZoomable(id) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('click', () => openLightbox(el.src, el.alt));
+        // Keyboard access: focusable + Enter
+        el.setAttribute('tabindex', '0');
+        el.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openLightbox(el.src, el.alt); }
+        });
+      }
+      makeZoomable('aboutImg1');
+      makeZoomable('aboutImg2');
+
+      // Close interactions
+      btnX.addEventListener('click', closeLightbox);
+      lb.addEventListener('click', (e) => { if (e.target === lb) closeLightbox(); });
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && lb.classList.contains('open')) closeLightbox(); });
+    })();
+  </script>
 </body>
 </html>
