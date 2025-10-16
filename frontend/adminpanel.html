@@ -369,38 +369,42 @@
 
     // Users
     async function changeRole(user_id, currentRole, newRole) {
-  const goingUp = newRole > currentRole; // ✅ correct: promote if new > current
-  const msg = goingUp
-    ? `Promote this user to ${newRole===2?'Admin':'Supplier'}?`
-    : `Demote this user to ${newRole===1?'Supplier':'Client'}?`;
-  const okClass = goingUp ? 'approve-btn' : 'deny-btn';
-  const ok = await openConfirm(msg, goingUp ? 'Promote' : 'Demote', okClass);
-  if (!ok) return;
+      const goingUp = newRole > currentRole;
+      const msg = goingUp
+        ? `Promote this user to ${newRole===2?'Admin':'Supplier'}?`
+        : `Demote this user to ${newRole===1?'Supplier':'Client'}?`;
+      const okClass = goingUp ? 'approve-btn' : 'deny-btn';
+      const ok = await openConfirm(msg, goingUp ? 'Promote' : 'Demote', okClass);
+      if (!ok) return;
 
-  try {
-    await safeFetch(`${API}/admin/users/role`, {
-      method: 'POST',
-      body: JSON.stringify({ user_id, role: newRole })
-    });
-    showToast('Role updated', 'success');
-    loadUsers();
-  } catch (err) {
-    showToast(err.message, 'error');
-  }
-}
-window.changeRole = changeRole;
+      try {
+        await safeFetch(`${API}/admin/users/role`, {
+          method: 'POST',
+          body: JSON.stringify({ user_id, role: newRole })
+        });
+        showToast('Role updated', 'success');
+        loadUsers();
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+    window.changeRole = changeRole;
 
     function renderUserActions(u) {
-  const promoteBtn = (u.role < 2)
-    ? `<button class="approve-btn" onclick="changeRole(${u.id}, ${u.role}, ${u.role + 1})">Promote</button>`
-    : '<span style="color:#6b7280;">Max role</span>';
+      const promoteBtn = (u.role < 2)
+        ? `<button class="approve-btn" onclick="changeRole(${u.id}, ${u.role}, ${u.role + 1})">Promote</button>`
+        : '<span style="color:#6b7280;">Max role</span>';
 
-  const demoteBtn = (u.role === 2)
-    ? `<button class="muted" disabled title="Admins cannot be demoted">Demote</button>`
-    : `<button class="deny-btn" onclick="changeRole(${u.id}, ${u.role}, ${Math.max(0, u.role - 1)})">Demote</button>`;
+      // ⛔ Admins cannot demote Admins; also cannot demote Clients (role 0)
+      const demoteBtn =
+        (u.role === 2)
+          ? `<button class="muted" disabled title="Admins cannot be demoted">Demote</button>`
+          : (u.role === 0)
+            ? `<button class="muted" disabled title="Clients cannot be demoted">Demote</button>`
+            : `<button class="deny-btn" onclick="changeRole(${u.id}, ${u.role}, ${Math.max(0, u.role - 1)})">Demote</button>`;
 
-  return `<div style="display:flex;gap:.5rem;flex-wrap:wrap;">${promoteBtn}${demoteBtn}</div>`;
-}
+      return `<div style="display:flex;gap:.5rem;flex-wrap:wrap;">${promoteBtn}${demoteBtn}</div>`;
+    }
 
     async function loadUsers() {
       const body = document.getElementById('userTableBody');

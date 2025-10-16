@@ -18,7 +18,6 @@ function normalize(url) {
 }
 
 // Resolve API base: env > global override > production fallback > dev proxy
-// 🔒 Uses your exact prod domain.
 const API =
   (import.meta?.env?.VITE_API_BASE) ||
   (window.__API_BASE__ || null) ||
@@ -27,7 +26,6 @@ const API =
     : '/api');
 
 // --- Root → Landing redirect for logged-out users -----------------------------
-// Now respects a "guest" bypass flag and login hash so you can enter as guest or open login.
 (function rootLandingRedirect() {
   try {
     const path = location.pathname;
@@ -38,8 +36,6 @@ const API =
     const guestBypass = localStorage.getItem('solennia_guest') === '1';
     const isLoginIntent = hash.includes('#login') || hash.includes('#choice');
 
-    // If user opens root and is NOT logged in → go to landing.html
-    // EXCEPT when: they chose guest, or they're trying to open login.
     if (isRootish && !hasToken && !guestBypass && !isLoginIntent && !onLanding) {
       location.replace('/landing.html');
     }
@@ -101,7 +97,6 @@ function showToast(message = '', type = 'info', ms = 2400) {
   if (!cont || !toast) return;
   toast.textContent = message;
 
-  // style by type using utility classes
   toast.className = 'pointer-events-auto max-w-md w-[92%] md:w-auto rounded-xl shadow-xl border px-4 py-3 text-sm ' +
     (type === 'success' ? 'bg-green-50 border-green-300 text-green-800' :
      type === 'error'   ? 'bg-red-50 border-red-300 text-red-800' :
@@ -158,7 +153,6 @@ function wireUniversalUI() {
     authBackdrop?.classList.add('hidden');
     loginModal?.classList.add('hidden');
     registerModal?.classList.add('hidden');
-    // clear inline errors
     $('#loginError')?.classList.add('hidden');
     $('#registerError')?.classList.add('hidden');
   };
@@ -181,7 +175,7 @@ function wireUniversalUI() {
   $('#menuSignIn')?.addEventListener('click', (e)=>{ e.preventDefault(); toggleProfileMenu(false); openModal(loginModal); });
   $('#menuSignUp')?.addEventListener('click', (e)=>{ e.preventDefault(); toggleProfileMenu(false); openModal(registerModal); });
   authBackdrop?.addEventListener('click', closeAuth);
-  $$('[data-close]').forEach(b => b.addEventListener('click', closeAuth));
+  $$('[data-close]')?.forEach(b => b.addEventListener('click', closeAuth));
 
   // Notifications
   const notifBtn = $('#notifBtn');
@@ -286,40 +280,13 @@ function wireUniversalUI() {
   closeFeedback?.addEventListener('click', () => close(feedbackModal));
   feedbackModal?.addEventListener('click', (e) => { if (e.target === feedbackModal) close(feedbackModal); });
 
-  // ✅ Feedback submit (JWT + correct API base) — toast messages
-  const feedbackForm = $('#feedbackForm');
-  feedbackForm?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    if (!token()) {
-      const le = $('#loginError');
-      if (le) { le.textContent = 'Please log in to give feedback.'; le.classList.remove('hidden'); }
-      openModal(loginModal);
-      return;
-    }
-    const payload = Object.fromEntries(new FormData(feedbackForm).entries());
-    try {
-      const res = await fetch(`${API}/feedback`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
-        body: JSON.stringify(payload),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok || json?.success === false) throw new Error(json?.error || json?.message || 'Failed to send feedback');
-      showToast('Thank you for your feedback!', 'success');
-      feedbackForm.reset();
-      close(feedbackModal);
-    } catch (err) {
-      showToast(err.message || 'Error sending feedback. Please try again.', 'error');
-    }
-  });
-
   // -------- AUTH: Login & Register (calls backend, saves token & role) --------
   function setAuthUI() {
     const isAuthed = !!token();
     $('#menuLogout')?.classList.toggle('hidden', !isAuthed);
     $('#menuSignIn')?.classList.toggle('hidden',  isAuthed);
     $('#menuSignUp')?.classList.toggle('hidden',  isAuthed);
-    ensureMenuAdmin(); // update admin item visibility after auth change
+    ensureMenuAdmin();
   }
 
   function saveProfileFromUser(user) {
@@ -346,7 +313,6 @@ function wireUniversalUI() {
       localStorage.setItem(LS_TOKEN, json.token);
       localStorage.setItem(LS_ROLE,  String(json.role ?? 0));
       if (json.user) saveProfileFromUser(json.user);
-      // Clear guest bypass once logged in
       localStorage.removeItem('solennia_guest');
 
       err?.classList.add('hidden');
@@ -384,7 +350,6 @@ function wireUniversalUI() {
       localStorage.setItem(LS_ROLE,  String(json.role ?? 0));
       if (json.user) saveProfileFromUser(json.user);
 
-      // Clear guest bypass once logged in
       localStorage.removeItem('solennia_guest');
 
       regErr?.classList.add('hidden');
@@ -401,7 +366,6 @@ function wireUniversalUI() {
     localStorage.removeItem(LS_TOKEN);
     localStorage.removeItem(LS_ROLE);
     localStorage.removeItem(LS_PROFILE);
-    // Keep guest mode OFF on explicit logout
     localStorage.removeItem('solennia_guest');
     setAuthUI();
     showToast('Signed out.', 'info');
@@ -428,7 +392,7 @@ function wireUniversalUI() {
   ensureMenuAdmin();
   setAuthUI(); // reflect current state on load
 
-  // -------- Vendor flow --------
+  // -------- Vendor flow (ALLOW multiple applications; removed duplicate-check gate) --------
   const vendorTerms = $('#vendorTerms');
   const vendorBackground = $('#vendorBackground');
   const vendorMedia = $('#vendorMedia');
@@ -447,35 +411,17 @@ function wireUniversalUI() {
     const show = vendorCategory.value === 'Others';
     if (show) {
       vendorCategoryOther?.classList.remove('hidden');
-      vendorCategoryOther?.setAttribute('required', 'required');  // ✅ required when visible
+      vendorCategoryOther?.setAttribute('required', 'required');
     } else {
       vendorCategoryOther?.classList.add('hidden');
-      vendorCategoryOther?.removeAttribute('required');           // ✅ not required when hidden
+      vendorCategoryOther?.removeAttribute('required');
       if (vendorCategoryOther) vendorCategoryOther.value = '';
     }
   });
 
-  async function hasExistingVendorApp() {
-    try {
-      const res = await fetch(`${API}/vendor/mine`, { headers: { ...authHeaders() } });
-      if (res.ok) {
-        const json = await res.json().catch(()=>null);
-        if (json && (json.status || json.application?.status)) {
-          const st = (json.status || json.application?.status || '').toLowerCase();
-          if (['pending','approved'].includes(st)) return true;
-        }
-        if (Array.isArray(json) && json.length) return true;
-      }
-    } catch {}
-    return localStorage.getItem('solennia_vendor_applied') === '1';
-  }
-
+  // Open flow: only require login (no duplicate-application blocking)
   async function openVendorFlow() {
     if (!tokenStr()) { openModal(loginModal); return; }
-    if (await hasExistingVendorApp()) {
-      showToast('You already submitted a vendor application.', 'info');
-      return;
-    }
     vendorTerms?.classList.remove('hidden');
   }
 
@@ -493,7 +439,6 @@ function wireUniversalUI() {
     vendorBackground?.classList.remove('hidden');
   });
 
-  // ✅ Block advancing to step 2 unless step 1 is valid
   $('#toMedia')?.addEventListener('click', ()=>{
     const step1Form = $('#vendorForm1');
     if (step1Form && !step1Form.reportValidity()) {
@@ -504,16 +449,14 @@ function wireUniversalUI() {
     vendorMedia?.classList.remove('hidden');
   });
 
-  // Submit vendor
+  // Submit vendor (no duplicate check; always allow submit)
   $('#submitVendor')?.addEventListener('click', async (e)=>{
     e.preventDefault();
     if (!tokenStr()) { openModal(loginModal); return; }
-    if (await hasExistingVendorApp()) { showToast('You already submitted a vendor application.', 'info'); return; }
 
     const step1Form = $('#vendorForm1');
     const step2Form = $('#vendorForm2');
 
-    // ✅ Enforce required fields on both steps before building FormData
     if (step1Form && !step1Form.reportValidity()) {
       showToast('Please complete all required fields in Business Info.', 'warning'); return;
     }
@@ -547,7 +490,6 @@ function wireUniversalUI() {
     const fGovId     = $('#vendorGovId')?.files?.[0];
     const fPortfolio = $('#vendorPortfolio')?.files?.[0];
 
-    // (extra guard, though reportValidity already requires them)
     if (!fPermits || !fGovId || !fPortfolio) {
       showToast('Please attach all required documents.', 'warning'); return;
     }
@@ -559,13 +501,14 @@ function wireUniversalUI() {
     try {
       const res = await fetch(`${API}/vendor/apply`, {
         method: 'POST',
-        headers: { ...authHeaders() }, // let browser set multipart boundary
+        headers: { ...authHeaders() }, // browser sets multipart boundary
         body: fd,
       });
       const json = await res.json().catch(()=>({}));
       if (!res.ok || json?.success === false) {
         throw new Error(json?.error || json?.message || 'Failed to submit application');
       }
+      // Optional: track that a submission was made (doesn't block future submissions)
       localStorage.setItem('solennia_vendor_applied', '1');
       showToast('Vendor application submitted!', 'success');
       vendorMedia?.classList.add('hidden');

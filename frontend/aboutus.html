@@ -2,17 +2,16 @@
 <html lang="en" class="scroll-smooth">
 <head>
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <!-- Ensure Tailwind styles are present -->
   <link rel="stylesheet" href="/src/style.css" />
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Solennia — About Us</title>
   <style>
-    #carousel { scrollbar-width: none; } 
+    #carousel { scrollbar-width: none; }
     #carousel::-webkit-scrollbar { display: none; }
     #profileBtn { border-width: 2px !important; border-color: #000 !important; background: transparent !important; border-radius: 9999px !important; }
 
-    /* 🔎 Lightbox additions (non-destructive) */
+    /* Lightbox */
     .zoomable { cursor: zoom-in; }
     .lb-backdrop {
       position: fixed; inset: 0; background: rgba(0,0,0,.65);
@@ -25,19 +24,13 @@
       border: 1px solid rgba(255,255,255,.25); max-width: 92vw; max-height: 88vh;
       box-shadow: 0 20px 60px rgba(0,0,0,.45);
     }
-    .lb-img {
-      display: block; max-width: 92vw; max-height: 84vh; object-fit: contain;
-      background: #111;
-    }
+    .lb-img { display: block; max-width: 92vw; max-height: 84vh; object-fit: contain; background: #111; }
     .lb-bar {
       display: flex; align-items: center; justify-content: space-between;
       background: rgba(255,255,255,0.95); padding: .5rem .75rem; gap: .5rem;
     }
     .lb-title { font-size: .85rem; font-weight: 600; color: #1c1b1a; }
-    .lb-close {
-      font-size: 1.25rem; line-height: 1; background: transparent; border: none; cursor: pointer;
-      padding: .25rem .5rem; border-radius: .5rem;
-    }
+    .lb-close { font-size: 1.25rem; line-height: 1; background: transparent; border: none; cursor: pointer; padding: .25rem .5rem; border-radius: .5rem; }
     .lb-close:hover { background: rgba(0,0,0,.06); }
   </style>
 </head>
@@ -50,37 +43,47 @@
       <h1 class="text-2xl md:text-3xl font-semibold tracking-wide">ABOUT SOLENNIA</h1>
 
       <div class="mt-6 p-5 rounded-xl border border-gray-300 bg-[#efe9dd]">
-        <h2 class="text-sm font-semibold uppercase">Driven by Passion, Fueled by Performance</h2>
-        <p class="mt-2 text-sm md:text-base">Your wedding, your way. Solennia brings all the planning tools and vendors together so you don't have to.</p>
+        <h2 class="text-sm font-semibold uppercase">About Solennia</h2>
+        <p class="mt-2 text-sm md:text-base">
+          <strong>Solennia</strong> is a modern event planning platform designed to connect clients, planners, and event service providers
+          in one seamless digital space. Built with the Filipino market in mind, Solennia bridges the gap between event organizers
+          and suppliers through accessible tools for booking, communication, and collaboration.
+        </p>
       </div>
 
       <div class="mt-6 p-5 rounded-xl border border-gray-300 bg-[#efe9dd]">
         <h3 class="text-sm font-semibold uppercase">Who We Are</h3>
         <div class="mt-3 space-y-4 text-sm md:text-base leading-relaxed">
-          <p>We’re a team of wedding enthusiasts, tech innovators, and seasoned event planners who came together with one mission.</p>
-          <p>To make wedding planning effortless, elegant, and entirely yours.</p>
-          <p>We built Solennia to be your all-in-one digital wedding planning partner…</p>
+          <p>
+            We are a passionate team of innovators, developers, and event enthusiasts who believe that planning an event should be exciting—not stressful.
+          </p>
+          <p>
+            Our goal is to empower both clients and vendors by creating a centralized, transparent, and user-friendly platform that simplifies every step of the planning process.
+          </p>
         </div>
       </div>
 
       <div class="mt-6 p-5 rounded-xl border border-gray-300 bg-[#efe9dd]">
         <h3 class="text-sm font-semibold uppercase">What We Offer</h3>
-        <ul class="mt-3 space-y-3 text-sm md:text-base">
-          <li><span class="font-medium">Curated Vendor Marketplace</span><br />Explore handpicked florists, photographers, musicians, and caterers—all vetted and reviewed.</li>
-          <li><span class="font-medium">Smart Planning Tools</span><br />Checklists, budget trackers, guest lists, and more—accessible in one dashboard.</li>
-          <li><span class="font-medium">Style & Theme Inspiration</span><br />Browse ideas and galleries to define your dream aesthetic.</li>
-          <li><span class="font-medium">Real Support</span><br />Whether you’re a DIY bride or working with a planner, our team is here to guide you every step.</li>
-        </ul>
+        <div class="mt-3 space-y-3 text-sm md:text-base leading-relaxed">
+          <p>
+            Solennia offers an all-in-one experience for discovering, booking, and managing event services. Users can explore verified vendors,
+            communicate through real-time chat, manage event checklists, and track progress—all in one place.
+          </p>
+          <p>
+            For vendors, we provide a space to showcase portfolios, connect with potential clients, and grow their business through meaningful digital exposure.
+          </p>
+        </div>
       </div>
 
       <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
         <figure class="relative overflow-hidden rounded-xl border border-gray-300 bg-[#efe9dd]">
-          <img id="aboutImg1" src="/images/about1.jpg" alt="Built by four students ByteMe - creators of Solennia." class="w-full h-64 md:h-80 object-cover zoomable" loading="lazy"/>
-          <figcaption class="p-3 text-xs text-gray-700">Built by four students ByteMe - creators of Solennia.</figcaption>
+          <img id="aboutImg1" src="/images/about1.jpg" alt="Solennia platform in action" class="w-full h-64 md:h-80 object-cover zoomable" loading="lazy"/>
+          <figcaption class="p-3 text-xs text-gray-700">Solennia connects clients and trusted vendors.</figcaption>
         </figure>
         <figure class="relative overflow-hidden rounded-xl border border-gray-300 bg-[#efe9dd]">
-          <img id="aboutImg2" src="/images/about2.jpg" alt="ByteMe in motion" class="w-full h-64 md:h-80 object-cover zoomable" loading="lazy"/>
-          <figcaption class="p-3 text-xs text-gray-700">ByteMe in motion</figcaption>
+          <img id="aboutImg2" src="/images/about2.jpg" alt="Vendors showcasing their work" class="w-full h-64 md:h-80 object-cover zoomable" loading="lazy"/>
+          <figcaption class="p-3 text-xs text-gray-700">Vendors showcase portfolios and grow their business.</figcaption>
         </figure>
       </div>
     </section>
@@ -90,7 +93,7 @@
   <div data-include="/partials/footer.html"></div>
   <div data-include="/partials/modals.html"></div>
 
-  <!-- 🖼️ Lightbox (added) -->
+  <!-- Lightbox -->
   <div id="imgLightbox" class="lb-backdrop" aria-hidden="true">
     <div class="lb-frame" role="dialog" aria-modal="true" aria-labelledby="lbTitle">
       <div class="lb-bar">
@@ -101,10 +104,10 @@
     </div>
   </div>
 
-  <!-- Loader: injects header/footer/modals and wires all menus -->
+  <!-- Loader -->
   <script type="module" src="/src/partials-loader.js"></script>
 
-  <!-- 🔧 Tiny lightbox controller (added) -->
+  <!-- Lightbox controller -->
   <script>
     (function(){
       const lb   = document.getElementById('imgLightbox');
@@ -125,16 +128,13 @@
         lb.classList.remove('open');
         lb.setAttribute('aria-hidden', 'true');
         document.body.style.overflow = '';
-        // small delay before clearing to avoid flash
         setTimeout(()=>{ img.src=''; img.alt=''; }, 150);
       }
 
-      // Wire both images
       function makeZoomable(id) {
         const el = document.getElementById(id);
         if (!el) return;
         el.addEventListener('click', () => openLightbox(el.src, el.alt));
-        // Keyboard access: focusable + Enter
         el.setAttribute('tabindex', '0');
         el.addEventListener('keydown', (e) => {
           if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openLightbox(el.src, el.alt); }
@@ -143,7 +143,6 @@
       makeZoomable('aboutImg1');
       makeZoomable('aboutImg2');
 
-      // Close interactions
       btnX.addEventListener('click', closeLightbox);
       lb.addEventListener('click', (e) => { if (e.target === lb) closeLightbox(); });
       document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && lb.classList.contains('open')) closeLightbox(); });
