@@ -1,14 +1,18 @@
 <?php
+
 use Slim\App;
 use Src\Controllers\AuthController;
+use Src\Middleware\AuthMiddleware;
 
 return function (App $app) {
-    // Register: expects first_name, last_name, email, password
+
+    // ✅ REGISTER: Firebase creates → MySQL mirrors
     $app->post('/api/auth/register', [AuthController::class, 'register']);
 
-    // Login: expects username, password
+    // ✅ LOGIN: Only after Firebase email verification
     $app->post('/api/auth/login', [AuthController::class, 'login']);
 
-    // ✅ NEW: get current user (uses Authorization: Bearer <token>)
-    $app->get('/api/auth/me', [AuthController::class, 'me']);
+    // ✅ GET CURRENT USER (✅ NOW PROTECTED BY JWT)
+    $app->get('/api/auth/me', [AuthController::class, 'me'])
+        ->add(new AuthMiddleware());
 };
