@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Solennia — Vendor Dashboard</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/src/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family:'Cinzel', serif; background:#f6f0e8; color:#1c1b1a; min-height:100vh; display:flex; flex-direction:column; }
+    main { flex:1; max-width:1100px; margin:1.5rem auto; padding:1rem; width:100%; }
+    .card { background:#ece8e1; border-radius:12px; padding:1rem; box-shadow:0 6px 18px rgba(0,0,0,0.05); }
+    .profile-hero { display:flex; gap:1rem; align-items:center; }
+    .avatar { width:96px; height:96px; border-radius:9999px; overflow:hidden; border:2px solid #1c1b1a; background:#fff; object-fit:cover; }
+    .btn-ghost { background:#e0d6c6; color:#3b2f25; border-radius:8px; padding:.5rem .9rem; border:1px solid #c9bda9; cursor:pointer; }
+    .btn-brown { background:#7a5d47; color:#fff; border-radius:8px; padding:.55rem 1rem; border:none; cursor:pointer; }
+    .small { font-size:0.85rem; color:#344; }
+    .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
+    .modal-backdrop { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.45); z-index:9999; }
+    .modal { background:#f6f0e8; border-radius:0.75rem; padding:1rem; width:100%; max-width:720px; box-shadow:0 10px 40px rgba(0,0,0,0.3); }
+    .hidden { display:none !important; }
+    label.field { display:block; font-size:0.85rem; margin-bottom:0.25rem; font-weight:600; }
+  </style>
+</head>
+<body>
+
+  <div data-include="/partials/header.html"></div>
+
+  <main>
+    <section class="card profile-hero" id="profileSection">
+      <img id="vendorLogo" class="avatar" alt="Vendor logo" src="/images/default-avatar.png" />
+
+      <div style="flex:1;">
+        <h2 id="vendorBusiness" class="text-xl font-semibold">Vendor Name</h2>
+        <p id="vendorAddress" class="small">Address</p>
+        <p id="vendorBio" class="small mt-2">Bio</p>
+
+        <div class="mt-4 grid grid-cols-2 gap-2">
+          <div><b>Services:</b> <span id="vendorServices" class="small"></span></div>
+          <div><b>Areas:</b> <span id="vendorAreas" class="small"></span></div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:.5rem;">
+        <button id="openEditBtn" class="btn-ghost">Edit Profile</button>
+        <button id="openUploadHero" class="btn-ghost">Upload Banner</button>
+        <button id="openUploadLogo" class="btn-ghost">Upload Logo</button>
+      </div>
+    </section>
+
+    <section class="card mt-6">
+      <h3 class="font-semibold mb-3">Dashboard</h3>
+      <div class="grid-2">
+        <div>
+          <h4 class="text-sm font-semibold">Bookings Summary</h4>
+          <div id="bookingSummary" class="small mt-2"></div>
+        </div>
+        <div>
+          <h4 class="text-sm font-semibold">Visitor Insights</h4>
+          <canvas id="insightsChart" style="max-width:100%;"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <section class="card mt-6">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <h3 class="font-semibold">Listings & Gallery</h3>
+
+        <label class="btn-ghost" style="cursor:pointer;">
+          Upload Gallery <input id="galleryInput" type="file" accept="image/*" multiple class="hidden" />
+        </label>
+      </div>
+
+      <div id="galleryGrid" class="mt-3" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;"></div>
+    </section>
+  </main>
+
+  <div data-include="/partials/footer.html"></div>
+
+  <!-- MODALS -->
+  <div id="editModal" class="modal-backdrop">
+    <div class="modal">
+      <h3>Edit Vendor Profile</h3>
+      <form id="editForm">
+
+        <label class="field">Business Name</label>
+        <input id="inputBusiness" name="business_name" class="w-full" required />
+
+        <label class="field mt-3">Bio</label>
+        <textarea id="inputBio" name="bio" class="w-full" rows="3"></textarea>
+
+        <label class="field mt-3">Services (comma separated)</label>
+        <input id="inputServices" name="services" class="w-full"/>
+
+        <label class="field mt-3">Service Areas (comma separated)</label>
+        <input id="inputAreas" name="service_areas" class="w-full"/>
+
+        <div style="display:flex;justify-content:flex-end;gap:.5rem;margin-top:1rem;">
+          <button type="button" id="closeEdit" class="btn-ghost">Cancel</button>
+          <button type="submit" class="btn-brown">Save</button>
+        </div>
+
+      </form>
+    </div>
+  </div>
+
+  <div id="uploadHeroModal" class="modal-backdrop">
+    <div class="modal">
+      <h3>Upload Hero Image</h3>
+      <form id="heroForm">
+        <label class="field">Choose hero image</label>
+        <input type="file" name="hero" id="heroInput" accept="image/*" required />
+        <div style="display:flex;justify-content:flex-end;gap:.5rem;margin-top:1rem;">
+          <button type="button" id="closeHero" class="btn-ghost">Cancel</button>
+          <button type="submit" class="btn-brown">Upload</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="uploadLogoModal" class="modal-backdrop">
+    <div class="modal">
+      <h3>Upload Vendor Logo</h3>
+      <form id="logoForm">
+        <label class="field">Choose logo image</label>
+        <input type="file" name="logo" id="logoInput" accept="image/*" required />
+        <div style="display:flex;justify-content:flex-end;gap:.5rem;margin-top:1rem;">
+          <button type="button" id="closeLogo" class="btn-ghost">Cancel</button>
+          <button type="submit" class="btn-brown">Upload</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+<script type="module" src="/src/app.js"></script>
+
+
+  <script>
+  (function(){
+    const API = '/api';
+    const token = localStorage.getItem('solennia_token');
+
+    const vendorLogo = document.getElementById('vendorLogo');
+    const vendorBusiness = document.getElementById('vendorBusiness');
+    const vendorAddress = document.getElementById('vendorAddress');
+    const vendorBio = document.getElementById('vendorBio');
+    const vendorServices = document.getElementById('vendorServices');
+    const vendorAreas = document.getElementById('vendorAreas');
+    const bookingSummary = document.getElementById('bookingSummary');
+    const galleryGrid = document.getElementById('galleryGrid');
+
+    const editModal = document.getElementById('editModal');
+    const openEditBtn = document.getElementById('openEditBtn');
+    const closeEdit = document.getElementById('closeEdit');
+    const editForm = document.getElementById('editForm');
+    const inputBusiness = document.getElementById('inputBusiness');
+    const inputBio = document.getElementById('inputBio');
+    const inputServices = document.getElementById('inputServices');
+    const inputAreas = document.getElementById('inputAreas');
+
+    const uploadHeroModal = document.getElementById('uploadHeroModal');
+    const openUploadHero = document.getElementById('openUploadHero');
+    const closeHero = document.getElementById('closeHero');
+    const heroForm = document.getElementById('heroForm');
+    const heroInput = document.getElementById('heroInput');
+
+    const uploadLogoModal = document.getElementById('uploadLogoModal');
+    const openUploadLogo = document.getElementById('openUploadLogo');
+    const closeLogo = document.getElementById('closeLogo');
+    const logoForm = document.getElementById('logoForm');
+    const logoInput = document.getElementById('logoInput');
+
+    const galleryInput = document.getElementById('galleryInput');
+
+    function showModal(m){ m.style.display = 'flex'; }
+    function hideModal(m){ m.style.display = 'none'; }
+
+    function toast(msg){
+      alert(msg);
+    }
+
+    async function safeFetch(url, opts={}){
+      const headers = opts.headers || {};
+      headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(url, { ...opts, headers });
+      const data = await res.json().catch(()=>({}));
+      if(!res.ok) throw new Error(data.error || data.message || 'Error');
+      return data;
+    }
+
+    async function loadDashboard(){
+      try {
+        const body = await safeFetch(`${API}/vendor/dashboard`);
+        const vendor = body.vendor;
+
+        vendorBusiness.textContent = vendor.business_name || 'Vendor';
+        vendorAddress.textContent = vendor.address || '';
+        vendorBio.textContent = vendor.bio || '';
+
+        vendorServices.textContent = Array.isArray(vendor.services)
+          ? vendor.services.join(', ')
+          : (vendor.services || '');
+
+        vendorAreas.textContent = Array.isArray(vendor.service_areas)
+          ? vendor.service_areas.join(', ')
+          : (vendor.service_areas || '');
+
+        if (vendor.avatar) vendorLogo.src = vendor.avatar;
+
+        const gallery = vendor.gallery || [];
+        renderGallery(gallery);
+
+        const bookings = body.bookings || [{title:'No bookings', count:0}];
+        bookingSummary.innerHTML = bookings.map(b => `<div>${b.title}: <b>${b.count}</b></div>`).join('');
+
+        const insights = body.insights || { labels:[], datasets:[] };
+        try {
+          new Chart(document.getElementById('insightsChart'), {
+            type: 'line',
+            data: insights
+          });
+        } catch(e){}
+      }
+      catch(err){
+        toast(err.message);
+        if(err.message.includes("Unauthorized")){
+          window.location.href = "/profile.html";
+        }
+      }
+    }
+
+    function renderGallery(list){
+      galleryGrid.innerHTML = '';
+      list.forEach(url => {
+        const img = document.createElement('img');
+        img.src = url;
+        img.style.width = '100%';
+        img.style.height = '120px';
+        img.style.objectFit = 'cover';
+        img.style.borderRadius = '8px';
+        galleryGrid.appendChild(img);
+      });
+    }
+
+    // Edit profile modal
+    openEditBtn.onclick = () => {
+      inputBusiness.value = vendorBusiness.textContent;
+      inputBio.value = vendorBio.textContent;
+      inputServices.value = vendorServices.textContent;
+      inputAreas.value = vendorAreas.textContent;
+      showModal(editModal);
+    };
+    closeEdit.onclick = () => hideModal(editModal);
+
+    editForm.onsubmit = async (e) => {
+      e.preventDefault();
+      try {
+        const payload = {
+          business_name: inputBusiness.value,
+          bio: inputBio.value,
+          services: inputServices.value,
+          service_areas: inputAreas.value
+        };
+        await safeFetch(`${API}/vendor/update`, {
+          method:"POST",
+          headers:{ "Content-Type":"application/json" },
+          body: JSON.stringify(payload)
+        });
+        hideModal(editModal);
+        loadDashboard();
+        toast("Profile updated!");
+      }
+      catch(err){
+        toast(err.message);
+      }
+    };
+
+    // Hero upload
+    openUploadHero.onclick = () => showModal(uploadHeroModal);
+    closeHero.onclick = () => hideModal(uploadHeroModal);
+
+    heroForm.onsubmit = async (e) => {
+      e.preventDefault();
+      const fd = new FormData();
+      fd.append('hero', heroInput.files[0]);
+      try {
+        await safeFetch(`${API}/vendor/upload-hero`, { method:'POST', body: fd });
+        hideModal(uploadHeroModal);
+        toast("Hero image uploaded!");
+      } catch(err){
+        toast(err.message);
+      }
+    };
+
+    // Logo upload
+    openUploadLogo.onclick = () => showModal(uploadLogoModal);
+    closeLogo.onclick = () => hideModal(uploadLogoModal);
+
+    logoForm.onsubmit = async (e) => {
+      e.preventDefault();
+      const fd = new FormData();
+      fd.append('logo', logoInput.files[0]);
+      try {
+        const body = await safeFetch(`${API}/vendor/upload-logo`, { method:'POST', body: fd });
+        hideModal(uploadLogoModal);
+        vendorLogo.src = body.url;
+        toast("Logo uploaded!");
+      } catch(err){
+        toast(err.message);
+      }
+    };
+
+    // Gallery upload
+    galleryInput.onchange = async (e) => {
+      const fd = new FormData();
+      [...e.target.files].forEach(f => fd.append("images[]", f));
+      try {
+        const body = await safeFetch(`${API}/vendor/upload-gallery`, { method:'POST', body: fd });
+        renderGallery(body.gallery);
+        toast("Gallery updated!");
+      } catch(err){
+        toast(err.message);
+      }
+    };
+
+    loadDashboard();
+  })();
+  </script>
+
+</body>
+</html>

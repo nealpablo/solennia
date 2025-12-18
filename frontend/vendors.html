@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <title>Solennia — Vendors</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#e8ddae" />
+  <link rel="stylesheet" href="/src/style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background: #f6f0e8;
+      color: #1c1b1a;
+      font-family: "Cinzel", serif;
+    }
+    main { flex: 1 0 auto; }
+
+    .vendor-row {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 1.75rem;
+      padding: 1.75rem 0;
+      border-top: 1px solid #c9bda4;
+    }
+    .vendor-row:last-of-type {
+      border-bottom: 1px solid #c9bda4;
+    }
+
+    .vendor-avatar {
+      width: 6.5rem;
+      height: 6.5rem;
+      border-radius: 9999px;
+      overflow: hidden;
+      border: 2px solid #1c1b1a;
+      background: #fdfaf4;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .vendor-avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .vendor-name {
+      font-size: 1.25rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+
+    .vendor-meta {
+      font-size: 0.8rem;
+      margin-top: 0.35rem;
+    }
+
+    .vendor-desc {
+      font-size: 0.82rem;
+      margin-top: 0.6rem;
+      max-width: 40rem;
+      line-height: 1.5;
+    }
+
+    .vendor-actions {
+      margin-top: 0.9rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .vendor-view-btn,
+    .vendor-chat-btn {
+      border-radius: 9999px;
+      border: 1px solid #1c1b1a;
+      padding: 0.25rem 1.5rem;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      background: #f5efe5;
+      cursor: pointer;
+    }
+
+    .vendor-chat-btn[disabled] {
+      background: #e7e3da;
+      color: #8b8b8b;
+      cursor: not-allowed;
+      border-color: #d0c6b0;
+    }
+
+    .vendor-heart {
+      border-radius: 9999px;
+      width: 2rem;
+      height: 2rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid #1c1b1a;
+      font-size: 0.95rem;
+      cursor: pointer;
+    }
+
+    @media (max-width:640px) {
+      .vendor-row {
+        grid-template-columns: 1fr;
+        text-align: left;
+      }
+      .vendor-avatar {
+        margin: 0 auto .5rem auto;
+      }
+      .vendor-actions {
+        justify-content: flex-start;
+      }
+    }
+  </style>
+</head>
+
+<body class="text-[#1c1b1a] bg-[#f6f0e8]">
+
+  <div data-include="/partials/header.html"></div>
+
+  <main>
+    <section class="max-w-5xl mx-auto px-4 md:px-0 pt-10 pb-20">
+
+      <h1 class="text-3xl md:text-4xl tracking-[0.25em] text-center md:text-left mb-8">
+        MEET OUR VENDORS
+      </h1>
+
+      <!-- FILTER BUTTONS -->
+      <div class="flex flex-wrap gap-3 text-[0.75rem] tracking-[0.2em] uppercase mb-6">
+        <button data-filter="all" class="px-4 py-2 border border-[#c9bda4] rounded-full bg-[#f6f0e8]">All</button>
+        <button data-filter="Venue" class="px-4 py-2 border border-[#c9bda4] rounded-full bg-[#f6f0e8]">Venue</button>
+        <button data-filter="Catering" class="px-4 py-2 border border-[#c9bda4] rounded-full bg-[#f6f0e8]">Catering</button>
+        <button data-filter="Photography &amp; Videography" class="px-4 py-2 border border-[#c9bda4] rounded-full bg-[#f6f0e8]">Photo &amp; Video</button>
+        <button data-filter="Decoration" class="px-4 py-2 border border-[#c9bda4] rounded-full bg-[#f6f0e8]">Decoration</button>
+        <button data-filter="Entertainment" class="px-4 py-2 border border-[#c9bda4] rounded-full bg-[#f6f0e8]">Entertainment</button>
+      </div>
+
+      <div id="vendorList" aria-live="polite"></div>
+
+      <p id="vendorStatus" class="mt-10 text-center text-xs tracking-[0.18em] uppercase text-gray-500">
+        Loading vendors…
+      </p>
+
+    </section>
+  </main>
+
+  <div data-include="/partials/footer.html"></div>
+  <div data-include="/partials/modals.html"></div>
+
+<script type="module" src="/src/app.js"></script>
+
+
+  <script>
+    const API = '/api';
+    const vendorList = document.getElementById('vendorList');
+    const statusEl = document.getElementById('vendorStatus');
+    let allVendors = [];
+
+    function safeText(v, fallback = '') {
+      return v == null ? fallback : String(v);
+    }
+
+    function getDescription(v) {
+      return (
+        v.description ||
+        v.bio ||
+        'This vendor has not added a full description yet.'
+      );
+    }
+
+    function renderVendors(filter = 'all') {
+      vendorList.innerHTML = '';
+      const list = filter === 'all'
+        ? allVendors
+        : allVendors.filter(v => (v.category || '').toLowerCase() === filter.toLowerCase());
+
+      if (!list.length) {
+        statusEl.textContent = filter === 'all'
+          ? 'No approved vendors yet.'
+          : 'No vendors found in this category.';
+        statusEl.classList.remove('hidden');
+        return;
+      }
+
+      statusEl.classList.add('hidden');
+
+      list.forEach(v => {
+        const row = document.createElement('article');
+        row.className = 'vendor-row';
+
+        const avatarWrap = document.createElement('div');
+        avatarWrap.className = 'vendor-avatar';
+
+        const logoUrl =
+          v.vendor_logo ||
+          v.hero_image_url ||
+          v.user_avatar ||
+          null;
+
+        if (logoUrl) {
+          const img = document.createElement('img');
+          img.src = logoUrl;
+          img.alt = safeText(v.business_name, 'Vendor');
+          avatarWrap.appendChild(img);
+        } else {
+          avatarWrap.innerHTML = `
+            <span class="text-xs tracking-[0.2em] uppercase text-gray-500 px-2 text-center">
+              ${(v.business_name || 'Vendor').slice(0, 10)}
+            </span>`;
+        }
+
+        const right = document.createElement('div');
+
+        const title = document.createElement('h2');
+        title.className = 'vendor-name';
+        title.textContent = safeText(v.business_name, 'Vendor');
+
+        const meta = document.createElement('p');
+        meta.className = 'vendor-meta';
+        const cat = safeText(v.category, 'Vendor');
+        const loc = safeText(v.address, 'Philippines');
+        meta.textContent = `${cat} • ${loc}`;
+
+        const desc = document.createElement('p');
+        desc.className = 'vendor-desc';
+        desc.textContent = getDescription(v);
+
+        const actions = document.createElement('div');
+        actions.className = 'vendor-actions';
+        
+        // VIEW PROFILE
+        const viewBtn = document.createElement('button');
+        viewBtn.className = 'vendor-view-btn';
+        viewBtn.textContent = 'VIEW PROFILE';
+        viewBtn.addEventListener('click', () => {
+          // Use MySQL vendor id (esp.UserID) for vendor-profile page
+          window.location.href = '/vendor-profile.html?id=' + encodeURIComponent(v.user_id || v.id);
+        });
+
+        // CHAT VENDOR
+        const chatBtn = document.createElement('button');
+        chatBtn.className = 'vendor-chat-btn';
+        chatBtn.textContent = 'CHAT VENDOR';
+
+        // prefer firebase_uid if provided by backend; otherwise fallback to user_id
+        const otherUid = v.firebase_uid || v.user_id || v.id || null;
+
+        if (!otherUid) {
+          chatBtn.disabled = true;
+          chatBtn.title = 'Vendor not contactable yet';
+        } else {
+          chatBtn.addEventListener('click', () => {
+            // navigate to chat page. The chat client prefers Firebase UID if available.
+            window.location.href = '/chat.html?to=' + encodeURIComponent(otherUid);
+          });
+        }
+
+        const heart = document.createElement('button');
+        heart.className = 'vendor-heart';
+        heart.textContent = '♡';
+
+        actions.appendChild(viewBtn);
+        actions.appendChild(chatBtn);
+        actions.appendChild(heart);
+
+        right.appendChild(title);
+        right.appendChild(meta);
+        right.appendChild(desc);
+        right.appendChild(actions);
+
+        row.appendChild(avatarWrap);
+        row.appendChild(right);
+
+        vendorList.appendChild(row);
+      });
+    }
+
+    async function loadVendors() {
+      try {
+        statusEl.textContent = 'Loading vendors…';
+
+        const res = await fetch(`${API}/vendors/public`);
+        const json = await res.json();
+
+        if (!res.ok) throw new Error(json.error || 'Failed loading vendors');
+
+        allVendors = Array.isArray(json.vendors) ? json.vendors : [];
+
+        // normalize: backend may not send firebase_uid; we leave it as-is
+        renderVendors('all');
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = 'Unable to load vendors.';
+        statusEl.classList.remove('hidden');
+      }
+    }
+
+    document.querySelectorAll('[data-filter]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        renderVendors(btn.getAttribute('data-filter'));
+      });
+    });
+
+    loadVendors();
+  </script>
+
+</body>
+</html>

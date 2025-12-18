@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Solennia — Vendor Profile</title>
+
+  <link rel="stylesheet" href="/src/style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      font-family: "Cinzel", serif;
+      background:#f6f0e8;
+      color:#1c1b1a;
+      min-height:100vh;
+      display:flex;
+      flex-direction:column;
+    }
+
+    main { flex:1; }
+
+    /* HERO */
+    .hero-container {
+      width:100%;
+      height:260px;
+      background:#d8c7a4;
+      position:relative;
+      overflow:hidden;
+      border-bottom:2px solid #c9bda4;
+    }
+    .hero-container img {
+      width:100%;
+      height:100%;
+      object-fit:cover;
+    }
+
+    /* PROFILE CARD */
+    .profile-card {
+      max-width:950px;
+      margin: -60px auto 0;
+      background:#efe9dd;
+      padding:1.5rem;
+      border-radius:1rem;
+      box-shadow:0 4px 20px rgba(0,0,0,0.08);
+      border:1px solid #c9bda4;
+      position:relative;
+    }
+
+    .vendor-logo {
+      width:130px;
+      height:130px;
+      border-radius:9999px;
+      overflow:hidden;
+      border:3px solid #1c1b1a;
+      background:white;
+      position:absolute;
+      top:-65px;
+      left:1.5rem;
+    }
+    .vendor-logo img {
+      width:100%; height:100%; object-fit:cover;
+    }
+
+    .vendor-header {
+      padding-left:160px;
+      padding-top:0.5rem;
+    }
+    .vendor-name {
+      font-size:1.8rem;
+      text-transform:uppercase;
+      letter-spacing:0.15em;
+    }
+    .vendor-meta {
+      margin-top:0.2rem;
+      font-size:0.9rem;
+    }
+
+    .vendor-bio {
+      margin-top:1.2rem;
+      font-size:1rem;
+      line-height:1.6;
+      max-width:680px;
+    }
+
+    .section-title {
+      margin-top:2rem;
+      font-size:1rem;
+      font-weight:600;
+      text-transform:uppercase;
+      letter-spacing:0.15em;
+    }
+
+    /* GALLERY */
+    .gallery-grid {
+      margin-top:1rem;
+      display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+      gap:12px;
+    }
+    .gallery-grid img {
+      width:100%;
+      height:150px;
+      object-fit:cover;
+      border-radius:10px;
+      cursor:zoom-in;
+      border:1px solid #d9d0c3;
+    }
+
+    /* CHAT BUTTON */
+    .chat-btn {
+      margin-top:1.5rem;
+      padding:0.5rem 1.8rem;
+      border-radius:9999px;
+      background:#7a5d47;
+      color:white;
+      border:none;
+      cursor:pointer;
+      font-size:0.85rem;
+      letter-spacing:0.15em;
+      text-transform:uppercase;
+      transition:0.2s;
+    }
+    .chat-btn[disabled] {
+      background:#e7e3da;
+      color:#8b8b8b;
+      cursor:not-allowed;
+      border-color:#d0c6b0;
+    }
+    .chat-btn:hover { background:#6a4f3a; }
+
+    /* LIGHTBOX */
+    .lb-backdrop {
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,.65);
+      display:none;
+      align-items:center;
+      justify-content:center;
+      z-index:9999;
+      padding:1.25rem;
+    }
+    .lb-backdrop.open { display:flex; }
+
+    .lb-frame {
+      background:white;
+      border-radius:10px;
+      max-width:90vw;
+      max-height:90vh;
+      overflow:hidden;
+      box-shadow:0 10px 40px rgba(0,0,0,.4);
+    }
+    .lb-frame img {
+      width:100%;
+      height:100%;
+      object-fit:contain;
+      background:black;
+    }
+    .lb-close {
+      position:absolute;
+      top:20px;
+      right:20px;
+      font-size:2rem;
+      color:white;
+      cursor:pointer;
+      user-select:none;
+    }
+  </style>
+</head>
+<body>
+
+  <div data-include="/partials/header.html"></div>
+
+  <!-- HERO -->
+  <div id="hero" class="hero-container">
+    <img id="heroImg" src="/images/default-hero.jpg" alt="">
+  </div>
+
+  <!-- PROFILE CARD -->
+  <main>
+    <section class="profile-card">
+
+      <!-- Logo -->
+      <div class="vendor-logo">
+        <img id="vendorLogo" src="/images/default-avatar.png" alt="">
+      </div>
+
+      <div class="vendor-header">
+        <h1 id="vendorName" class="vendor-name">Vendor Name</h1>
+        <p id="vendorMeta" class="vendor-meta">Category • Location</p>
+      </div>
+
+      <p id="vendorBio" class="vendor-bio"></p>
+
+      <!-- SERVICES -->
+      <h3 class="section-title">Services Offered</h3>
+      <p id="vendorServices"></p>
+
+      <!-- AREAS -->
+      <h3 class="section-title">Service Areas</h3>
+      <p id="vendorAreas"></p>
+
+      <!-- GALLERY -->
+      <h3 class="section-title">Gallery</h3>
+      <div id="galleryGrid" class="gallery-grid"></div>
+
+      <!-- CHAT BUTTON -->
+      <button id="chatBtn" class="chat-btn" disabled>Chat Vendor</button>
+      
+    </section>
+  </main>
+
+  <div data-include="/partials/footer.html"></div>
+  <div data-include="/partials/modals.html"></div>
+
+  <!-- LIGHTBOX -->
+  <div id="lightbox" class="lb-backdrop">
+    <div class="lb-frame">
+      <img id="lbImg" src="">
+    </div>
+    <div id="lbClose" class="lb-close">&times;</div>
+  </div>
+
+ <script type="module" src="/src/app.js"></script>
+ 
+
+  <script>
+    const API = '/api';
+    const params = new URLSearchParams(location.search);
+    const vendorId = params.get('id');
+
+    if (!vendorId) {
+      alert("Vendor not found");
+      window.location.href = "/vendors.html";
+    }
+
+    const heroImg = document.getElementById("heroImg");
+    const vendorLogo = document.getElementById("vendorLogo");
+    const vendorName = document.getElementById("vendorName");
+    const vendorMeta = document.getElementById("vendorMeta");
+    const vendorBio = document.getElementById("vendorBio");
+    const vendorServices = document.getElementById("vendorServices");
+    const vendorAreas = document.getElementById("vendorAreas");
+    const galleryGrid = document.getElementById("galleryGrid");
+    const chatBtn = document.getElementById("chatBtn");
+
+    // LIGHTBOX
+    const lightbox = document.getElementById("lightbox");
+    const lbImg = document.getElementById("lbImg");
+    const lbClose = document.getElementById("lbClose");
+
+    lbClose.onclick = () => lightbox.classList.remove("open");
+    lightbox.addEventListener("click", (e) => { if (e.target === lightbox) lightbox.classList.remove("open"); });
+
+    function openLightbox(src) {
+      lbImg.src = src;
+      lightbox.classList.add("open");
+    }
+
+    async function loadVendor() {
+      try {
+        const res = await fetch(`${API}/vendor/public/${vendorId}`);
+        const json = await res.json();
+
+        if (!res.ok || !json.vendor) throw new Error("Vendor not found");
+
+        const v = json.vendor;
+
+        vendorName.textContent = v.business_name || "Vendor";
+        vendorMeta.textContent = `${v.category || ''} • ${v.address || ''}`;
+
+        vendorBio.textContent =
+          v.bio ||
+          v.description ||
+          "This vendor has not provided a full description yet.";
+
+        vendorServices.textContent = Array.isArray(v.services)
+          ? v.services.join(", ")
+          : (v.services || "Not specified");
+
+        vendorAreas.textContent = Array.isArray(v.service_areas)
+          ? v.service_areas.join(", ")
+          : (v.service_areas || "Not specified");
+
+        if (v.hero_image_url) heroImg.src = v.hero_image_url;
+        if (v.vendor_logo) vendorLogo.src = v.vendor_logo;
+
+        const gallery = v.gallery || [];
+        galleryGrid.innerHTML = "";
+
+        gallery.forEach(imgSrc => {
+          const img = document.createElement("img");
+          img.src = imgSrc;
+          img.addEventListener("click", () => openLightbox(imgSrc));
+          galleryGrid.appendChild(img);
+        });
+
+        // CHAT: Prefer firebase_uid (recommended). Fallback to user_id if necessary.
+        const firebaseUid = v.firebase_uid || null;
+        const fallbackId = v.user_id || null;
+
+        if (firebaseUid) {
+          chatBtn.disabled = false;
+          chatBtn.title = "Open chat with vendor";
+          chatBtn.onclick = () => {
+            window.location.href = `/chat.html?to=${encodeURIComponent(firebaseUid)}`;
+          };
+        } else if (fallbackId) {
+          // We can attempt to open a thread using the fallback id — but chat will ask for firebase UID.
+          chatBtn.disabled = false;
+          chatBtn.title = "Open chat (vendor may need Firebase link)";
+          chatBtn.onclick = async () => {
+            // attempt to fetch vendor public info to see if firebase_uid exists (fallback)
+            // if none, still navigate but chat will show instructions
+            window.location.href = `/chat.html?to=${encodeURIComponent(fallbackId)}`;
+          };
+        } else {
+          chatBtn.disabled = true;
+          chatBtn.title = "Vendor has not linked a chat account";
+        }
+
+      } catch (err) {
+        alert("Unable to load vendor.");
+        window.location.href = "/vendors.html";
+      }
+    }
+
+    loadVendor();
+  </script>
+
+</body>
+</html>
