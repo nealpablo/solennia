@@ -1,3 +1,4 @@
+// src/landing.js
 import './style.css';
 
 // If already logged in, don't stay on landing.
@@ -42,8 +43,11 @@ if (btn) {
 const guestContinue = document.getElementById('guestContinue');
 guestContinue?.addEventListener('click', () => {
   try {
-    // Set bypass so root redirect allows guests in
+    // mark as guest and clear any auth
     localStorage.setItem('solennia_guest', '1');
+    localStorage.removeItem('solennia_token');
+    localStorage.removeItem('solennia_role');
+    localStorage.removeItem('solennia_profile');
   } catch (_) {}
   // Go to root (index)
   window.location.href = '/';
