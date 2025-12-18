@@ -20,7 +20,7 @@ if ($APP_ENV !== 'production' && is_file($ROOT.'/.env')) {
     Dotenv::createImmutable($ROOT)->safeLoad();
 }
 
-/** ---- Build DB config (DATABASE_URL preferred) ---- */
+/** ---- Build DB config ---- */
 $host = $user = $pass = $db = $port = null;
 
 if ($url = envx('DATABASE_URL')) {
@@ -53,10 +53,9 @@ if ($host && $port && $db && $user) {
         'collation' => 'utf8mb4_unicode_ci',
         'prefix'    => '',
     ]);
-    // do NOT touch the connection here — let routes try it
     $GLOBALS['DB_CONFIG_OK'] = true;
 } else {
-    error_log('DB_CONFIG_INCOMPLETE: host/port/db/user missing');
+    error_log('DB_CONFIG_INCOMPLETE');
     $GLOBALS['DB_CONFIG_OK'] = false;
 }
 
@@ -64,3 +63,7 @@ $capsule->setAsGlobal();
 $capsule->bootEloquent();
 
 date_default_timezone_set(envx('APP_TIMEZONE', 'UTC'));
+
+/** ✅ FIREBASE CONFIG */
+define('FIREBASE_API_KEY', envx('FIREBASE_API_KEY'));
+define('FIREBASE_PROJECT_ID', envx('FIREBASE_PROJECT_ID'));
