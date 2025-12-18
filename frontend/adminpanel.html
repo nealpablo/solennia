@@ -25,6 +25,7 @@
     table { width: 100%; border-collapse: collapse; }
     th, td { padding: 0.75rem; text-align: left; border-bottom: 1px solid #e5e5e5; vertical-align: middle; }
     th { background: #e8ddae; color: #1c1b1a; }
+
     button {
       border: 2px solid transparent; padding: 0.4rem 0.8rem; border-radius: 0.5rem; cursor: pointer;
       font-weight: 600; transition: all 0.2s ease;
@@ -43,7 +44,7 @@
       border-radius: 9999px !important;
     }
 
-    /* Toast — auto fade */
+    /* Toast */
     #toastContainer {
       position: fixed;
       top: 1.5rem; left: 0; right: 0;
@@ -62,20 +63,19 @@
       opacity: 0;
     }
 
-    /* Lightbox */
+    /* Lightbox (supports PDF + image) */
     .lb-backdrop {
-      position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none; align-items: center; justify-content: center; z-index: 9999;
+      position: fixed; inset: 0; background: rgba(0,0,0,.6);
+      display: none; align-items: center; justify-content: center; z-index: 9999;
     }
     .lb-content {
       max-width: 92vw; max-height: 88vh; background:#fff; border-radius:.75rem; overflow:hidden;
       border:1px solid #e5e7eb; box-shadow: 0 10px 40px rgba(0,0,0,.35);
+      display: flex; flex-direction: column;
     }
-    .lb-img { max-width: 92vw; max-height: 88vh; display:block; }
     .lb-header { display:flex; align-items:center; justify-content:space-between; background:#e8ddae; padding:.5rem .75rem; }
-    .lb-close { font-size: 1.4rem; line-height: 1; background:transparent; border:none; cursor:pointer; }
-
-    /* Admin-page-only fix for blank bullet in header notifications */
-    #notifPanel ul, #notifList { list-style: none !important; margin: 0 !important; padding: 0 !important; }
+    .lb-close { font-size: 1.4rem; background:transparent; border:none; cursor:pointer; }
+    #lbImg, #lbPDF { width:100%; height:80vh; display:none; }
 
     /* Confirm modal */
     .confirm-backdrop {
@@ -90,22 +90,21 @@
     .btn-ghost { background:#e0d6c6; color:#3b2f25; border-radius:8px; padding:.5rem .9rem; border:1px solid #c9bda9; }
   </style>
 </head>
+
 <body>
 
   <div id="toastContainer" class="hidden"><div id="toast"></div></div>
-
-  <!-- Shared header/footer/modals -->
   <div data-include="/partials/header.html"></div>
 
   <!-- Main -->
   <main class="max-w-7xl mx-auto w-full">
     <h2 class="text-2xl font-semibold mb-6 mt-2">Vendor Applications</h2>
+
     <div id="vendorApplications" class="table-container">
       <table>
         <thead>
           <tr>
-            <!-- UPDATED columns -->
-            <th>Username</th>
+            <th>Full Name</th>
             <th>Email</th>
             <th>Business Name</th>
             <th>Category</th>
@@ -116,6 +115,7 @@
             <th>Actions</th>
           </tr>
         </thead>
+
         <tbody id="vendorTableBody">
           <tr><td colspan="9" class="text-center py-4">Loading...</td></tr>
         </tbody>
@@ -144,11 +144,7 @@
     <div id="feedbackSection" class="table-container">
       <table>
         <thead>
-          <tr>
-            <th>User</th>
-            <th>Message</th>
-            <th>Date</th>
-          </tr>
+          <tr><th>User</th><th>Message</th><th>Date</th></tr>
         </thead>
         <tbody id="feedbackTableBody">
           <tr><td colspan="3" class="text-center py-4">Loading...</td></tr>
@@ -160,19 +156,22 @@
   <div data-include="/partials/footer.html"></div>
   <div data-include="/partials/modals.html"></div>
 
+  <!-- DOCUMENT PREVIEW MODAL -->
   <div id="lightbox" class="lb-backdrop">
     <div class="lb-content">
       <div class="lb-header">
         <div id="lbTitle" class="text-sm font-semibold">Document</div>
-        <button id="lbClose" class="lb-close" aria-label="Close">&times;</button>
+        <button id="lbClose" class="lb-close">&times;</button>
       </div>
-      <img id="lbImg" class="lb-img" alt="document preview" />
+
+      <img id="lbImg" src="" alt="Document Preview" />
+      <iframe id="lbPDF"></iframe>
     </div>
   </div>
 
-  <!-- Confirm Dialog (Confirm LEFT, Cancel RIGHT) -->
+  <!-- Confirm Dialog -->
   <div id="confirmBackdrop" class="confirm-backdrop">
-    <div class="confirm-card" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+    <div class="confirm-card">
       <h3 id="confirmTitle" class="text-lg font-semibold mb-2">Are you sure?</h3>
       <p id="confirmMsg" class="text-sm text-gray-800">Please confirm this action.</p>
       <div class="confirm-actions">
@@ -182,267 +181,276 @@
     </div>
   </div>
 
-  <script type="module" src="/src/partials-loader.js"></script>
+<!-- Scripts -->
+<script type="module" src="/src/app.js"></script>
 
-  <script>
-    // Access Control
-    const token = localStorage.getItem('solennia_token');
-    const role = parseInt(localStorage.getItem('solennia_role') || '0', 10);
 
-    function showToast(msg, type='error') {
-      const c = document.getElementById('toastContainer');
-      const t = document.getElementById('toast');
-      if (!c || !t) return;
-      t.textContent = msg;
-      t.style.borderColor = type==='error' ? '#b91c1c' : '#16a34a';
-      t.style.background = type==='error' ? '#fee2e2' : '#dcfce7';
-      c.classList.remove('hidden');
-      clearTimeout(showToast._in);
-      clearTimeout(showToast._out);
-      t.style.transition = 'opacity .25s';
-      t.style.opacity = '1';
-      showToast._out = setTimeout(()=>{ t.style.opacity='0'; }, 2200);
-      showToast._in  = setTimeout(()=>{ c.classList.add('hidden'); }, 2500);
+<script>
+/* ==========================================================
+   ACCESS CONTROL
+   ========================================================== */
+const token = localStorage.getItem('solennia_token');
+const role  = parseInt(localStorage.getItem('solennia_role') || '0', 10);
+
+function showToast(msg, type='error') {
+  const c = document.getElementById('toastContainer');
+  const t = document.getElementById('toast');
+  if (!c || !t) return;
+  t.textContent = msg;
+  t.style.borderColor = type==='error' ? '#b91c1c' : '#16a34a';
+  t.style.background  = type==='error' ? '#fee2e2' : '#dcfce7';
+  c.classList.remove('hidden');
+  clearTimeout(showToast._out);
+  t.style.opacity = '1';
+  showToast._out = setTimeout(() => { t.style.opacity = '0'; c.classList.add('hidden'); }, 2300);
+}
+
+if (!token || role !== 2) {
+  showToast("Access denied — admin only.");
+  setTimeout(() => window.location.href = "/index.html", 1200);
+}
+
+const API =
+  (window.__API_BASE__ || null) ||
+  ((location.hostname.includes("vercel.app") || location.hostname.includes("railway.app"))
+    ? "https://solennia.up.railway.app/api"
+    : "/api");
+
+function authHeaders() {
+  const t = localStorage.getItem("solennia_token");
+  return { "Content-Type": "application/json", ...(t ? { Authorization: `Bearer ${t}` } : {}) };
+}
+
+function renderErrorRow(colspan, msg) {
+  return `<tr><td colspan="${colspan}" class="text-center py-4" style="color:#b91c1c;">${msg}</td></tr>`;
+}
+
+async function safeFetch(input, init = {}) {
+  const req = { ...init, headers: { ...(init.headers || {}), ...authHeaders() } };
+  const res = await fetch(input, req);
+  const isJson = (res.headers.get("content-type") || "").includes("application/json");
+  const body = isJson ? await res.json().catch(() => ({})) : await res.text();
+  if (!res.ok) throw new Error(body.message || body.error || `${res.status}`);
+  return body;
+}
+
+function roleLabel(r) { return r === 2 ? "Admin" : r === 1 ? "Supplier" : "Client"; }
+
+/* ==========================================================
+   DOCUMENT PREVIEW (IMAGE + PDF SUPPORT)
+   ========================================================== */
+window.previewDocument = function(url, title="Document") {
+  const box  = document.getElementById("lightbox");
+  const img  = document.getElementById("lbImg");
+  const pdf  = document.getElementById("lbPDF");
+  const head = document.getElementById("lbTitle");
+
+  head.textContent = title;
+
+  img.style.display = "none";
+  pdf.style.display = "none";
+
+  if (url.endsWith(".pdf")) {
+    pdf.src = url;
+    pdf.style.display = "block";
+  } else {
+    img.src = url;
+    img.style.display = "block";
+  }
+
+  box.style.display = "flex";
+};
+
+document.getElementById("lbClose").onclick = () => {
+  document.getElementById("lightbox").style.display = "none";
+  document.getElementById("lbPDF").src = "";
+};
+
+/* ==========================================================
+   CONFIRM MODAL
+   ========================================================== */
+function openConfirm(message, confirmLabel="Confirm", confirmClass="approve-btn") {
+  return new Promise(resolve => {
+    const bd = document.getElementById("confirmBackdrop");
+    document.getElementById("confirmMsg").textContent = message;
+    const ok = document.getElementById("confirmOk");
+    const cancel = document.getElementById("confirmCancel");
+    ok.textContent = confirmLabel;
+    ok.className = confirmClass;
+
+    function cleanup(val) {
+      bd.style.display = "none";
+      ok.removeEventListener("click", yes);
+      cancel.removeEventListener("click", no);
+      resolve(val);
     }
+    function yes() { cleanup(true); }
+    function no() { cleanup(false); }
 
-    if (!token || role !== 2) {
-      showToast('Access denied — admin only.');
-      setTimeout(()=> window.location.href = '/index.html', 1200);
-    }
+    bd.style.display = "flex";
+    ok.addEventListener("click", yes);
+    cancel.addEventListener("click", no);
+  });
+}
 
-    // Replace SOLENNIA link text
-    function adminBrandPatch() {
-      const nav = document.querySelector('header nav');
-      if (!nav) return;
-      const brandLink = nav.querySelector('a[href="/index.html"]');
-      if (!brandLink) return;
-      const span = document.createElement('span');
-      span.textContent = 'Solennia Admin Panel';
-      span.className = 'text-xl tracking-wide font-normal cursor-default';
-      brandLink.replaceWith(span);
-    }
-    document.addEventListener('DOMContentLoaded', ()=> setTimeout(adminBrandPatch, 300));
+/* ==========================================================
+   LOAD VENDOR APPLICATIONS
+   ========================================================== */
+async function loadVendorApplications() {
+  const body = document.getElementById("vendorTableBody");
+  const json = await fetch(`${API}/admin/vendor-applications`, { headers: authHeaders() }).then(r=>r.json());
 
-    const API =
-      (window.__API_BASE__ || null) ||
-      ((location.hostname.includes('vercel.app') || location.hostname.includes('railway.app'))
-        ? 'https://solennia.up.railway.app/api'
-        : '/api');
+  body.innerHTML = json.applications.map(a=>{
+    const fullName = [a.first_name,a.last_name].filter(Boolean).join(" ") || a.username || "-";
+    const businessEmail = a.contact_email || a.email || "-";
 
-    function authHeaders() {
-      const t = localStorage.getItem('solennia_token');
-      return { 'Content-Type': 'application/json', ...(t ? { Authorization: `Bearer ${t}` } : {}) };
-    }
+    return `
+    <tr>
+      <td>${fullName}</td>
+      <td>${businessEmail}</td>
+      <td>${a.business_name}</td>
+      <td>${a.category}</td>
+      <td>${a.address}</td>
+      <td>${a.description}</td>
+      <td>${a.pricing}</td>
+      <td>
+        <a onclick="previewDocument('${a.permits}','Permit')" class="underline">Permit</a>
+        <a onclick="previewDocument('${a.gov_id}','ID')" class="underline ml-2">ID</a>
+        <a onclick="previewDocument('${a.portfolio}','Portfolio')" class="underline ml-2">Portfolio</a>
+      </td>
+      <td>
+        <button class="approve-btn" onclick="handleDecision(${a.id},'approve')">Approve</button>
+        <button class="deny-btn" onclick="handleDecision(${a.id},'deny')">Deny</button>
+      </td>
+    </tr>`;
+  }).join("");
+}
 
-    function renderErrorRow(colspan, msg) {
-      return `<tr><td colspan="${colspan}" class="text-center py-4" style="color:#b91c1c;">${msg}</td></tr>`;
-    }
+/* ==========================================================
+   HANDLE APPROVE / DENY
+   ========================================================== */
+async function handleDecision(id, action) {
+  const isApprove = action === "approve";
+  const ok = await openConfirm(
+    isApprove ? "Approve this vendor application?" : "Deny this application?",
+    isApprove ? "Approve" : "Deny",
+    isApprove ? "approve-btn" : "deny-btn"
+  );
+  if (!ok) return;
 
-    async function safeFetch(input, init = {}) {
-      const req = { ...init, headers: { ...(init.headers || {}), ...authHeaders() } };
-      const res = await fetch(input, req);
-      const isJson = (res.headers.get('content-type') || '').includes('application/json');
-      const body = isJson ? await res.json().catch(()=>({})) : await res.text();
-      if (!res.ok) {
-        let msg = typeof body === 'string' ? body : (body.message || body.error || `${res.status}`);
-        throw new Error(msg);
-      }
-      return typeof body === 'string' ? { success:true, data:body } : body;
-    }
+  try {
+    const json = await safeFetch(`${API}/admin/vendor-application/decision`, {
+      method: "POST",
+      body: JSON.stringify({ id, action })
+    });
 
-    function roleLabel(role) { return role === 2 ? 'Admin' : role === 1 ? 'Supplier' : 'Client'; }
-
-    // Confirm Dialog
-    function openConfirm(message, confirmLabel='Confirm', confirmClass='approve-btn') {
-      return new Promise(resolve=>{
-        const bd = document.getElementById('confirmBackdrop');
-        const msg = document.getElementById('confirmMsg');
-        const ok  = document.getElementById('confirmOk');
-        const cancel = document.getElementById('confirmCancel');
-        msg.textContent = message || 'Are you sure?';
-        ok.textContent = confirmLabel;
-        ok.className = confirmClass;
-
-        function cleanup(val){
-          bd.style.display = 'none';
-          ok.removeEventListener('click', okH);
-          cancel.removeEventListener('click', cancelH);
-          bd.removeEventListener('click', backH);
-          resolve(val);
-        }
-        function okH(){ cleanup(true); }
-        function cancelH(){ cleanup(false); }
-        function backH(e){ if(e.target===bd) cleanup(false); }
-
-        bd.style.display = 'flex';
-        ok.addEventListener('click', okH);
-        cancel.addEventListener('click', cancelH);
-        bd.addEventListener('click', backH);
-      });
-    }
-
-    // Vendor Applications
-    async function loadVendorApplications() {
-      const body = document.getElementById('vendorTableBody');
-      try {
-        const json = await safeFetch(`${API}/admin/vendor-applications`);
-        const apps = json.applications || json.data || [];
-        if (!apps.length) return body.innerHTML = renderErrorRow(9, 'No pending applications');
-        body.innerHTML = apps.map(a => `
-          <tr data-appid="${a.id}">
-            <td>${a.username || a.user?.username || '-'}</td>
-            <td>${a.email || a.user?.email || '-'}</td>
-            <td>${a.business_name || '-'}</td>
-            <td>${a.category || '-'}</td>
-            <td>${a.address || '-'}</td>
-            <td>${a.description || '-'}</td>
-            <td>${a.pricing || '-'}</td>
-            <td>
-              ${(a.permits ? `<a href="${a.permits}" target="_blank" class="text-sm underline">Permits</a>` : '')}
-              ${(a.gov_id ? `<a href="${a.gov_id}" target="_blank" class="text-sm underline ml-2">Gov ID</a>` : '')}
-              ${(a.portfolio ? `<a href="${a.portfolio}" target="_blank" class="text-sm underline ml-2">Portfolio</a>` : '')}
-            </td>
-            <td>
-              <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
-                <button class="approve-btn" onclick="handleDecision(${a.id}, 'approve')">Approve</button>
-                <button class="deny-btn" onclick="handleDecision(${a.id}, 'deny')">Deny</button>
-              </div>
-            </td>
-          </tr>
-        `).join('');
-      } catch (err) {
-        body.innerHTML = renderErrorRow(9, `Error loading apps — ${err.message}`);
-      }
-    }
-
-    async function notifyApplicant(appId) {
-      let userId = null;
-      try {
-        const data = await safeFetch(`${API}/admin/vendor-applications`);
-        const apps = data.applications || data.data || [];
-        const m = apps.find(x => String(x.id) === String(appId));
-        userId = m?.user_id || m?.userId || m?.account_id || null;
-      } catch {}
-      if (!userId) return;
-
-      const headers = { 'Content-Type':'application/json', ...(token ? { Authorization:`Bearer ${token}` } : {}) };
-      const payloads = [
-        { user_id: userId, title: 'Vendor Application Approved',
-          message: 'Congrats! Your vendor application has been approved. You can now list your services.',
-          link: '/profile.html', type: 'vendor_application_approved' },
-        { recipient_id: userId, title: 'Vendor Application Approved',
-          message: 'Congrats! Your vendor application has been approved. You can now list your services.',
-          link: '/profile.html', type: 'vendor_application_approved' }
-      ];
-      const endpoints = [`${API}/notifications`, `${API}/admin/notify`, `/api/notifications`, `/api/admin/notify`];
-      for (const ep of endpoints) {
-        for (const body of payloads) {
-          try {
-            const res = await fetch(ep, { method:'POST', headers, body: JSON.stringify(body) });
-            if (res.ok) return;
-          } catch {}
-        }
-      }
-    }
-
-    async function handleDecision(id, action) {
-      const isApprove = action === 'approve';
-      const msg = isApprove ? 'Approve this vendor application?' : 'Deny this vendor application?';
-      const okClass = isApprove ? 'approve-btn' : 'deny-btn';
-      const ok = await openConfirm(msg, isApprove ? 'Approve' : 'Deny', okClass);
-      if (!ok) return;
-
-      const row = document.querySelector(`tr[data-appid="${id}"]`);
-      try {
-        const json = await safeFetch(`${API}/admin/vendor-application/decision`, {
-          method: 'POST', body: JSON.stringify({ id, action })
-        });
-        showToast(json.message || 'Updated', 'success');
-        if (row) row.remove();
-        if (isApprove) notifyApplicant(id).catch(()=>{});
-        loadVendorApplications();
-      } catch (err) {
-        showToast(err.message, 'error');
-      }
-    }
-    window.handleDecision = handleDecision;
-
-    // Users
-    async function changeRole(user_id, currentRole, newRole) {
-      const goingUp = newRole > currentRole;
-      const msg = goingUp
-        ? `Promote this user to ${newRole===2?'Admin':'Supplier'}?`
-        : `Demote this user to ${newRole===1?'Supplier':'Client'}?`;
-      const okClass = goingUp ? 'approve-btn' : 'deny-btn';
-      const ok = await openConfirm(msg, goingUp ? 'Promote' : 'Demote', okClass);
-      if (!ok) return;
-
-      try {
-        await safeFetch(`${API}/admin/users/role`, {
-          method: 'POST',
-          body: JSON.stringify({ user_id, role: newRole })
-        });
-        showToast('Role updated', 'success');
-        loadUsers();
-      } catch (err) {
-        showToast(err.message, 'error');
-      }
-    }
-    window.changeRole = changeRole;
-
-    function renderUserActions(u) {
-      const promoteBtn = (u.role < 2)
-        ? `<button class="approve-btn" onclick="changeRole(${u.id}, ${u.role}, ${u.role + 1})">Promote</button>`
-        : '<span style="color:#6b7280;">Max role</span>';
-
-      // ⛔ Admins cannot demote Admins; also cannot demote Clients (role 0)
-      const demoteBtn =
-        (u.role === 2)
-          ? `<button class="muted" disabled title="Admins cannot be demoted">Demote</button>`
-          : (u.role === 0)
-            ? `<button class="muted" disabled title="Clients cannot be demoted">Demote</button>`
-            : `<button class="deny-btn" onclick="changeRole(${u.id}, ${u.role}, ${Math.max(0, u.role - 1)})">Demote</button>`;
-
-      return `<div style="display:flex;gap:.5rem;flex-wrap:wrap;">${promoteBtn}${demoteBtn}</div>`;
-    }
-
-    async function loadUsers() {
-      const body = document.getElementById('userTableBody');
-      try {
-        const json = await safeFetch(`${API}/admin/users`);
-        const users = json.users || json.data || [];
-        if (!users.length) return body.innerHTML = renderErrorRow(5, 'No users');
-        body.innerHTML = users.map(u => `
-          <tr>
-            <td>${(u.first_name||'') + ' ' + (u.last_name||'')}</td>
-            <td>${u.email||''}</td>
-            <td>${u.username||''}</td>
-            <td>${roleLabel(u.role)}</td>
-            <td>${renderUserActions(u)}</td>
-          </tr>`).join('');
-      } catch (err) { body.innerHTML = renderErrorRow(5, err.message); }
-    }
-
-    // Feedback
-    async function loadFeedbacks() {
-      const body = document.getElementById('feedbackTableBody');
-      try {
-        const json = await safeFetch(`${API}/admin/feedbacks`);
-        const list = json.feedbacks || json.data || [];
-        if (!list.length) return body.innerHTML = renderErrorRow(3, 'No feedback');
-        body.innerHTML = list.map(f => `
-          <tr>
-            <td>${(f.first_name||'') + ' ' + (f.last_name||'')}</td>
-            <td>${f.message||''}</td>
-            <td>${f.created_at ? new Date(f.created_at).toLocaleString() : ''}</td>
-          </tr>`).join('');
-      } catch (err) { body.innerHTML = renderErrorRow(3, err.message); }
-    }
-
-    // Kickoff
+    showToast(json.message, "success");
     loadVendorApplications();
+  } catch (err) {
+    showToast(err.message, "error");
+  }
+}
+window.handleDecision = handleDecision;
+
+/* ==========================================================
+   USERS
+   ========================================================== */
+function renderUserActions(u) {
+  const promote =
+    u.role < 2
+      ? `<button class="approve-btn" onclick="changeRole(${u.id}, ${u.role}, ${u.role + 1})">Promote</button>`
+      : `<span style="color:#777;">Max role</span>`;
+
+  const demote =
+    u.role === 2
+      ? `<button class="muted" disabled>Demote</button>`
+      : u.role === 0
+      ? `<button class="muted" disabled>Demote</button>`
+      : `<button class="deny-btn" onclick="changeRole(${u.id}, ${u.role}, ${u.role - 1})">Demote</button>`;
+
+  return `<div style="display:flex;gap:.5rem;">${promote}${demote}</div>`;
+}
+
+async function changeRole(id, current, next) {
+  const ok = await openConfirm(
+    next > current ? "Promote user?" : "Demote user?",
+    next > current ? "Promote" : "Demote",
+    next > current ? "approve-btn" : "deny-btn"
+  );
+  if (!ok) return;
+
+  try {
+    await safeFetch(`${API}/admin/users/role`, {
+      method: "POST",
+      body: JSON.stringify({ user_id: id, role: next })
+    });
+    showToast("Role updated", "success");
     loadUsers();
-    loadFeedbacks();
-  </script>
+  } catch (err) {
+    showToast(err.message, "error");
+  }
+}
+window.changeRole = changeRole;
+
+async function loadUsers() {
+  const body = document.getElementById("userTableBody");
+  try {
+    const json = await safeFetch(`${API}/admin/users`);
+    const users = json.users || [];
+    body.innerHTML = users.map(u => `
+      <tr>
+        <td>${u.first_name} ${u.last_name}</td>
+        <td>${u.email}</td>
+        <td>${u.username}</td>
+        <td>${roleLabel(u.role)}</td>
+        <td>${renderUserActions(u)}</td>
+      </tr>
+    `).join("");
+  } catch (err) {
+    body.innerHTML = renderErrorRow(5, err.message);
+  }
+}
+
+/* ==========================================================
+   FEEDBACK
+   ========================================================== */
+async function loadFeedbacks() {
+  const body = document.getElementById("feedbackTableBody");
+
+  try {
+    const json = await safeFetch(`${API}/admin/feedbacks`);
+    const list = json.feedbacks || [];
+
+    body.innerHTML = list.map(f => {
+      const name =
+        [f.first_name, f.last_name].filter(Boolean).join(" ")
+        || f.username
+        || "Unknown User";
+
+      return `
+        <tr>
+          <td>${name}</td>
+          <td>${f.message}</td>
+          <td>${new Date(f.created_at).toLocaleString()}</td>
+        </tr>
+      `;
+    }).join("");
+
+  } catch (err) {
+    body.innerHTML = renderErrorRow(3, err.message);
+  }
+}
+
+
+
+
+/* ==========================================================
+   INIT
+   ========================================================== */
+loadVendorApplications();
+loadUsers();
+loadFeedbacks();
+
+</script>
 </body>
 </html>
