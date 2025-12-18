@@ -7,40 +7,46 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Solennia — My Profile</title>
   <meta name="theme-color" content="#e8ddae" />
+
   <style>
-    .ring-outer { box-shadow: 0 0 0 3px #e8ddae inset, 0 0 0 4px #353946 inset; }
-    html { min-height: 100%; }
-    body { min-height: 100vh; display: flex; flex-direction: column; overflow-y: auto; overflow-x: hidden; }
-    main { flex: 1 0 auto; }
     .panel { background:#ece8e1; border:1px solid #d9d6cf; border-radius:12px; }
-    .kcard { background:#efebe4; border:1px solid #ddd6c8; border-radius:14px; }
     .btn-brown { background:#7a5d47; color:#fff; border-radius:8px; padding:.55rem 1rem; }
     .btn-brown:hover { opacity:.9; }
     .btn-ghost { background:#e0d6c6; color:#3b2f25; border-radius:8px; padding:.55rem 1rem; }
-    .shadow-soft { box-shadow: 0 4px 14px rgba(0,0,0,.06); }
-    .badge-sep::after { content:" / "; margin: 0 .65rem; color:#6b6b6b; }
-    .icon-btn { width:34px; height:34px; display:flex; align-items:center; justify-content:center; border-radius:9999px; border:1px solid #bfbfbf; background:#fff; }
-    .avatar { width:7.5rem; height:7.5rem; border-radius:9999px; border:2px solid #1c1b1a; display:flex; align-items:center; justify-content:center; background:#fff; overflow:hidden; }
-    .fav-img{ width:100%; height:170px; object-fit:cover; display:block; }
-    @media (min-width:768px){ .fav-img{ height:220px; } }
-    #profileBtn { border-width:2px !important; border-color:#000 !important; background:transparent !important; border-radius:9999px !important; }
+
+    /* Avatar Modal */
+    #avatarModalBg {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.4);
+      display: none; justify-content: center; align-items: center;
+      z-index: 9999;
+    }
+    #avatarModal {
+      background:#f6f0e8;
+      padding: 1.5rem;
+      border-radius: 16px;
+      width: 90%; max-width: 420px;
+      border: 1px solid #c9bda4;
+      box-shadow: 0 4px 14px rgba(0,0,0,.1);
+    }
   </style>
 </head>
+
 <body class="font-[Cinzel] text-[#1c1b1a] bg-[#f6f0e8]">
   <div data-include="/partials/header.html"></div>
 
-  <input id="avatarFile" type="file" accept="image/*" class="hidden" />
-
-  <!-- ✅ Added bottom padding so content doesn’t stick to footer -->
   <main class="pb-24">
     <div class="max-w-6xl mx-auto px-4">
       <h2 class="mt-6 text-xl md:text-2xl font-semibold tracking-wide">PROFILE</h2>
 
+      <!-- PROFILE AVATAR -->
       <div class="flex flex-col items-center text-center space-y-4">
-        <div id="avatarContainer" style="cursor:pointer; position:relative; width:112px; height:112px; border:2px solid #000; border-radius:9999px; overflow:hidden; display:flex; align-items:center; justify-content:center; background:transparent;">
-          <img id="profileAvatar" alt="Avatar" style="width:100%; height:100%; object-fit:cover; display:none;" />
-          <svg id="profileAvatarFallback" viewBox="0 0 24 24" aria-hidden="true" style="width:48px; height:48px; color:#1c1b1a; fill:currentColor;">
-            <path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-5 0-9 2.5-9 5.5V21h18v-1.5C21 16.5 17 14 12 14Z" />
+
+        <div id="avatarContainer"
+             style="cursor:pointer; width:112px; height:112px; border:2px solid #000; border-radius:9999px; overflow:hidden; display:flex; align-items:center; justify-content:center; background:#fff;">
+          <img id="profileAvatar" style="width:100%; height:100%; object-fit:cover; display:none;" />
+          <svg id="profileAvatarFallback" viewBox="0 0 24 24" style="width:48px; height:48px; color:#1c1b1a;">
+            <path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-5 0-9 2.5-9 5.5V21h18v-1.5C21 16.5 17 14 12 14Z"/>
           </svg>
         </div>
 
@@ -49,34 +55,38 @@
           <span id="profileName" class="ml-1">Guest</span>
         </div>
 
-        <a href="#" class="btn-ghost inline-block">View Dashboard</a>
+        <a id="profileDashboardBtn" href="#" class="btn-ghost inline-block">View Dashboard</a>
       </div>
 
+      <!-- Role-based dashboard button -->
+      <script>
+        (function() {
+          const btn  = document.getElementById('profileDashboardBtn');
+          const role = parseInt(localStorage.getItem('solennia_role') || '0');
+
+          if (role === 2) {
+            btn.textContent = 'Admin Panel';
+            btn.href = '/adminpanel.html';
+          } else if (role === 1) {
+            btn.textContent = 'Manage Dashboard';
+            btn.href = '/vendordashboard.html';
+          } else {
+            btn.textContent = 'View Dashboard';
+            btn.href = '#';
+          }
+        })();
+      </script>
+
+      <!-- FAVORITES -->
       <h2 class="mt-10 text-xl md:text-2xl font-semibold tracking-wide">FAVORITES</h2>
 
-      <section class="mt-3 panel shadow-soft p-4 md:p-6">
+      <section class="mt-3 panel p-4 md:p-6">
         <article class="rounded-xl border border-[#ded7c9] overflow-hidden bg-[#f5f0ea] mb-4">
-          <img src="/images/gallery1.jpg" alt="Lagen Island Chapel, El Nido" class="fav-img">
-          <div class="p-3">
-            <h4 class="text-[13px] font-semibold leading-tight uppercase">Lagen Island Chapel, El Nido</h4>
-            <p class="text-[11px] text-gray-700 mt-1">90 kilometers away</p>
-            <div class="mt-2 flex items-center gap-3">
-              <svg class="w-5 h-5 fav-heart cursor-pointer transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-label="Like"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 1 0-7.8 7.8l1 1L12 22l7.8-8.6 1-1a5.5 5.5 0 0 0 0-7.8z" /></svg>
-              <svg class="w-5 h-5 fav-star cursor-pointer transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-label="Favorite"><path d="m12 17.27 6.18 3.73-1.64-7.03L21 9.24l-7.19-.61L12 2 10.19 8.63 3 9.24l4.46 4.73L5.82 21z" /></svg>
-            </div>
-          </div>
+          <img src="/images/gallery1.jpg" class="fav-img">
         </article>
 
         <article class="rounded-xl border border-[#ded7c9] overflow-hidden bg-[#f5f0ea]">
-          <img src="/images/gallery2.jpg" alt="Shangri-La Mactan, Cebu" class="fav-img">
-          <div class="p-3">
-            <h4 class="text-[13px] font-semibold leading-tight uppercase">Shangri-La Mactan, Cebu</h4>
-            <p class="text-[11px] text-gray-700 mt-1">90 kilometers away</p>
-            <div class="mt-2 flex items-center gap-3">
-              <svg class="w-5 h-5 fav-heart cursor-pointer transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-label="Like"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 1 0-7.8 7.8l1 1L12 22l7.8-8.6 1-1a5.5 5.5 0 0 0 0-7.8z" /></svg>
-              <svg class="w-5 h-5 fav-star cursor-pointer transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-label="Favorite"><path d="m12 17.27 6.18 3.73-1.64-7.03L21 9.24l-7.19-.61L12 2 10.19 8.63 3 9.24l4.46 4.73L5.82 21z" /></svg>
-            </div>
-          </div>
+          <img src="/images/gallery2.jpg" class="fav-img">
         </article>
 
         <div class="mt-6 flex justify-center">
@@ -84,112 +94,255 @@
         </div>
       </section>
 
-      <!-- ✅ Added spacing before footer -->
+      <!-- JOIN AS A VENDOR -->
       <section class="mt-10 text-center mb-16">
-        <h3 class="text-xl font-semibold tracking-wide">POST YOUR SERVICES</h3>
-        <div class="mt-4">
-          <button id="joinVendorBtn" class="btn-brown">Join as a Vendor</button>
-        </div>
+        <button id="joinVendorBtn" class="btn-brown">Join as a Vendor</button>
       </section>
+
     </div>
   </main>
 
   <div data-include="/partials/footer.html"></div>
   <div data-include="/partials/modals.html"></div>
 
-  <script type="module" src="/src/partials-loader.js"></script>
+  <!-- AVATAR MODAL -->
+  <div id="avatarModalBg">
+    <div id="avatarModal">
+      <h2 class="text-lg font-semibold mb-3">Update Profile Picture</h2>
 
-  <!-- Cached name fetch (kept) -->
+      <form id="avatarForm">
+        <input type="file" name="avatar" accept="image/*" required
+               class="border border-gray-400 rounded-lg p-2 w-full bg-white">
+
+        <button type="submit" class="btn-brown w-full mt-4">Upload</button>
+      </form>
+
+      <button id="closeAvatarModal"
+              class="btn-ghost w-full mt-3">Cancel</button>
+    </div>
+  </div>
+
+  <script type="module" src="/src/app.js"></script>
+
+
+  <!-- FULL PROFILE + VENDOR LOGIC -->
   <script>
-    (function () {
-      const nameEl = document.getElementById('profileName');
-      if (!nameEl) return;
-      function setName(first, last) { const full = [first, last].filter(Boolean).join(' '); nameEl.textContent = full || 'User'; }
-      try {
-        const cached = localStorage.getItem('solennia_profile');
-        if (cached) { const u = JSON.parse(cached); if (u && (u.first_name || u.last_name)) { setName(u.first_name || '', u.last_name || ''); return; } }
-      } catch {}
-      const token = localStorage.getItem('solennia_token'); if (!token) return;
-      const endpoints = ['/api/auth/me', '/api/me', '/api/profile', '/api/users/me'];
-      (async () => {
-        for (const url of endpoints) {
-          try {
-            const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
-            if (!res.ok) continue;
-            const data = await res.json().catch(() => null);
-            if (!data) continue;
-            const first = data.first_name || data.firstName || data.given_name || '';
-            const last  = data.last_name  || data.lastName  || data.family_name || '';
-            if (first || last) { localStorage.setItem('solennia_profile', JSON.stringify({ first_name:first, last_name:last })); setName(first, last); break; }
-          } catch {}
-        }
-      })();
-    })();
-  </script>
+  document.addEventListener("DOMContentLoaded", async () => {
 
-  <!-- Avatar upload & persistence (kept) -->
-  <script>
-    (function () {
-      const LS_KEY = 'solennia_avatar_dataurl';
-      const TOKEN_KEY = 'solennia_token';
-      const avatarContainer = document.getElementById('avatarContainer');
-      let fileInput = document.getElementById('avatarFile');
-      if (!fileInput) { fileInput = document.createElement('input'); fileInput.type='file'; fileInput.accept='image/*'; fileInput.id='avatarFile'; fileInput.style.display='none'; document.body.appendChild(fileInput); }
-      const profileImg = document.getElementById('profileAvatar');
-      const fallback = document.getElementById('profileAvatarFallback');
-      const navImg = document.getElementById('navAvatar');
-      const navFallback = document.getElementById('navAvatarFallback');
-      const logoutBtn = document.getElementById('menuLogout');
+    const token = localStorage.getItem("solennia_token");
+    const joinVendorBtn = document.getElementById("joinVendorBtn");
 
-      const isLoggedIn = () => !!localStorage.getItem(TOKEN_KEY);
-      function applyAvatar(dataUrl) {
-        if (dataUrl) {
-          profileImg.src = dataUrl; profileImg.style.display = 'block'; fallback.style.display = 'none';
-          if (navImg) { navImg.src = dataUrl; navImg.classList.remove('hidden'); navFallback.classList.add('hidden'); }
-        } else {
-          profileImg.style.display = 'none'; fallback.style.display = 'block';
-          if (navImg) { navImg.classList.add('hidden'); navFallback.classList.remove('hidden'); }
+    /* ---------------------------------------------------------
+       LOAD PROFILE INFO
+    ---------------------------------------------------------- */
+    if (token) {
+      const me = await fetch("/api/auth/me", {
+        headers: { Authorization: `Bearer ${token}` }
+      }).then(r => r.json()).catch(() => null);
+
+      if (me?.user) {
+        const name = `${me.user.first_name || ""} ${me.user.last_name || ""}`.trim();
+        document.getElementById("profileName").textContent = name;
+
+        if (me.user.avatar) {
+          profileAvatar.src = me.user.avatar;
+          profileAvatar.style.display = "block";
+          profileAvatarFallback.style.display = "none";
         }
+
+        // store role
+        localStorage.setItem("solennia_role", me.user.role ?? 0);
       }
-      if (isLoggedIn()) { const saved = localStorage.getItem(LS_KEY); if (saved) applyAvatar(saved); } else { applyAvatar(null); }
-      avatarContainer?.addEventListener('click', () => fileInput?.click());
-      fileInput?.addEventListener('change', async () => {
-        const file = fileInput.files?.[0]; if (!file) return;
-        if (!file.type.startsWith('image/')) { alert('Please upload a valid image file.'); return; }
-        if (file.size > 500 * 1024) { alert('Please upload an image smaller than 500KB.'); return; }
-        const img = new Image(); const objectURL = URL.createObjectURL(file); img.src = objectURL;
-        img.onload = () => {
-          const { width, height } = img; URL.revokeObjectURL(objectURL);
-          if (Math.abs(width - height) > 5) { alert('Please upload a square image.'); return; }
-          if (width < 300 || height < 300) { alert('Please upload at least 300x300.'); return; }
-          const reader = new FileReader();
-          reader.onload = () => {
-            const dataUrl = reader.result; applyAvatar(dataUrl);
-            if (isLoggedIn()) localStorage.setItem(LS_KEY, dataUrl); else alert("You're not logged in — this avatar will reset after refresh.");
-          };
-          reader.readAsDataURL(file);
-        };
+    }
+
+    const role = parseInt(localStorage.getItem("solennia_role") || "0");
+
+    /* ---------------------------------------------------------
+       FIX 1 — HIDE BUTTON FOR VENDOR & ADMIN
+    ---------------------------------------------------------- */
+    if (role === 1 || role === 2) {
+      joinVendorBtn.style.display = "none";
+    }
+
+    /* ---------------------------------------------------------
+       FIX 2 — CHECK APPLICATION STATUS FOR NORMAL USER (role 0)
+    ---------------------------------------------------------- */
+    if (token && role === 0) {
+      try {
+        const res = await fetch("/api/vendor/status", {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        if (res.ok) {
+          const json = await res.json();
+          if (json.status === "pending") {
+            joinVendorBtn.textContent = "Vendor Application Pending";
+            joinVendorBtn.disabled = true;
+            joinVendorBtn.classList.add("opacity-50");
+          }
+        }
+      } catch (err) {
+        console.warn("Status check failed", err);
+      }
+    }
+
+    /* ---------------------------------------------------------
+       FIX 3 — JOIN BUTTON ACTION
+    ---------------------------------------------------------- */
+    joinVendorBtn.addEventListener("click", () => {
+      if (!token) return alert("Please login first.");
+
+      if (role !== 0) {
+        return alert("You cannot apply as vendor.");
+      }
+
+      // open vendor modal from partials
+      const modal = document.getElementById("vendorTerms");
+      if (modal) modal.classList.remove("hidden");
+    });
+
+    /* ---------------------------------------------------------
+       AVATAR MODAL
+    ---------------------------------------------------------- */
+    const avatarModalBg   = document.getElementById("avatarModalBg");
+    const avatarForm      = document.getElementById("avatarForm");
+    const avatarContainer = document.getElementById("avatarContainer");
+    const closeAvatarModal= document.getElementById("closeAvatarModal");
+
+    avatarContainer.onclick = () => {
+      if (!token) return alert("Please log in first.");
+      avatarModalBg.style.display = "flex";
+    };
+
+    closeAvatarModal.onclick = () => avatarModalBg.style.display = "none";
+
+    avatarForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const fd = new FormData(avatarForm);
+
+      const res = await fetch("/api/user/update", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd
       });
-      logoutBtn?.addEventListener('click', () => { localStorage.removeItem(LS_KEY); applyAvatar(null); });
-    })();
+
+      const json = await res.json().catch(()=>({}));
+
+      if (!res.ok) return alert(json.error || "Avatar update failed.");
+
+      // refresh profile
+      const me = await fetch("/api/auth/me", {
+        headers: { Authorization: `Bearer ${token}` }
+      }).then(r=>r.json()).catch(()=>null);
+
+      if (me?.user?.avatar) {
+        profileAvatar.src = me.user.avatar;
+        profileAvatar.style.display = "block";
+        profileAvatarFallback.style.display = "none";
+        localStorage.setItem("solennia_profile", JSON.stringify(me.user));
+      }
+
+      avatarForm.reset();
+      avatarModalBg.style.display = "none";
+    });
+
+  });
   </script>
 
-  <!-- Heart & star toggles (kept) -->
   <script>
-    document.querySelectorAll('.fav-heart').forEach((svg) => {
-      svg.addEventListener('click', () => {
-        const active = svg.getAttribute('data-active') === '1';
-        if (active) { svg.setAttribute('data-active','0'); svg.setAttribute('fill','none'); svg.setAttribute('stroke','currentColor'); svg.classList.remove('text-red-600'); }
-        else { svg.setAttribute('data-active','1'); svg.setAttribute('fill','currentColor'); svg.setAttribute('stroke','none'); svg.classList.add('text-red-600'); }
-      });
+document.addEventListener("DOMContentLoaded", () => {
+
+  const token = localStorage.getItem("solennia_token");
+
+  // MODALS
+  const vendorTerms       = document.getElementById("vendorTerms");
+  const vendorBackground  = document.getElementById("vendorBackground");
+  const vendorMedia       = document.getElementById("vendorMedia");
+
+  const agreeTermsBtn     = document.getElementById("agreeTerms");
+  const toMediaBtn        = document.getElementById("toMedia");
+  const submitVendorBtn   = document.getElementById("submitVendor");
+
+  const vendorForm1       = document.getElementById("vendorForm1");
+  const vendorForm2       = document.getElementById("vendorForm2");
+
+  // X buttons
+  document.querySelectorAll("[data-closevendor]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      vendorTerms.classList.add("hidden");
+      vendorBackground.classList.add("hidden");
+      vendorMedia.classList.add("hidden");
     });
-    document.querySelectorAll('.fav-star').forEach((svg) => {
-      svg.addEventListener('click', () => {
-        const active = svg.getAttribute('data-active') === '1';
-        if (active) { svg.setAttribute('data-active','0'); svg.setAttribute('fill','none'); svg.setAttribute('stroke','currentColor'); svg.classList.remove('text-yellow-400'); }
-        else { svg.setAttribute('data-active','1'); svg.setAttribute('fill','currentColor'); svg.setAttribute('stroke','none'); svg.classList.add('text-yellow-400'); }
+  });
+
+  // Join as vendor button
+  document.getElementById("joinVendorBtn").addEventListener("click", () => {
+    if (!token) { alert("Please log in first."); return; }
+    vendorTerms.classList.remove("hidden");
+  });
+
+  // Step 1 → Step 2
+  agreeTermsBtn.addEventListener("click", () => {
+    vendorTerms.classList.add("hidden");
+    vendorBackground.classList.remove("hidden");
+  });
+
+  // Step 2 → Step 3
+  toMediaBtn.addEventListener("click", () => {
+    if (!vendorForm1.checkValidity()) {
+      vendorForm1.reportValidity();
+      return;
+    }
+    vendorBackground.classList.add("hidden");
+    vendorMedia.classList.remove("hidden");
+  });
+
+  // Final submit
+  submitVendorBtn.addEventListener("click", async (e) => {
+    e.preventDefault();
+
+    if (!vendorForm2.checkValidity()) {
+      vendorForm2.reportValidity();
+      return;
+    }
+
+    const fd = new FormData();
+
+    // FORM1
+    fd.append("business_name", vendorForm1.business_name.value);
+    fd.append("category", vendorForm1.category.value);
+    fd.append("address", vendorForm1.address.value);
+
+    // FORM2
+    fd.append("description", vendorForm2.description.value);
+    fd.append("pricing", vendorForm2.pricing.value);
+
+    fd.append("permits", vendorForm2.permits.files[0]);
+    fd.append("gov_id", vendorForm2.gov_id.files[0]);
+    fd.append("portfolio", vendorForm2.portfolio.files[0]);
+
+    try {
+      const res = await fetch("/api/vendor/apply", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd
       });
-    });
-  </script>
+      const json = await res.json();
+
+      if (!res.ok) throw new Error(json.error || "Application failed");
+
+      alert("Vendor application submitted!");
+      vendorMedia.classList.add("hidden");
+
+    } catch (err) {
+      console.error(err);
+      alert(err.message);
+    }
+  });
+
+});
+</script>
+
+
 </body>
 </html>
