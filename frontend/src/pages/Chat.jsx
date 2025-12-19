@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import Header from "../partials/header";
-import Footer from "../partials/footer";
-import Modals from "../partials/modals";
+import Header from "../partials/Header";
+import Footer from "../partials/Footer";
+import Modals from "../partials/Modals";
 import {
   initChat,
   currentUserUid,
