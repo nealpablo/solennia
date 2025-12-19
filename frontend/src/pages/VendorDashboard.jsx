@@ -1,8 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import Chart from "chart.js/auto";
-import Header from "../partials/Header";
-import Footer from "../partials/Footer";
-import "../style.css";
 
 const API = "/api";
 
@@ -21,7 +18,7 @@ export default function VendorDashboard() {
     business_name: "",
     bio: "",
     services: "",
-    service_areas: ""
+    service_areas: "",
   });
 
   const chartRef = useRef(null);
@@ -33,8 +30,8 @@ export default function VendorDashboard() {
       ...opts,
       headers: {
         Authorization: `Bearer ${token}`,
-        ...(opts.headers || {})
-      }
+        ...(opts.headers || {}),
+      },
     });
     const json = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(json.error || json.message || "Error");
@@ -47,14 +44,13 @@ export default function VendorDashboard() {
       const body = await safeFetch(`${API}/vendor/dashboard`);
       setVendor(body.vendor);
       setBookings(body.bookings || []);
-      setGallery(body.vendor.gallery || []);
+      setGallery(body.vendor?.gallery || []);
 
-      // Chart
       if (body.insights && chartRef.current) {
         chartInstance.current?.destroy();
         chartInstance.current = new Chart(chartRef.current, {
           type: "line",
-          data: body.insights
+          data: body.insights,
         });
       }
     } catch (err) {
@@ -75,8 +71,12 @@ export default function VendorDashboard() {
     setForm({
       business_name: vendor.business_name || "",
       bio: vendor.bio || "",
-      services: Array.isArray(vendor.services) ? vendor.services.join(", ") : vendor.services || "",
-      service_areas: Array.isArray(vendor.service_areas) ? vendor.service_areas.join(", ") : vendor.service_areas || ""
+      services: Array.isArray(vendor.services)
+        ? vendor.services.join(", ")
+        : vendor.services || "",
+      service_areas: Array.isArray(vendor.service_areas)
+        ? vendor.service_areas.join(", ")
+        : vendor.service_areas || "",
     });
     setShowEdit(true);
   }
@@ -86,7 +86,7 @@ export default function VendorDashboard() {
     await safeFetch(`${API}/vendor/update`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form)
+      body: JSON.stringify(form),
     });
     setShowEdit(false);
     loadDashboard();
@@ -103,10 +103,10 @@ export default function VendorDashboard() {
 
   async function uploadGallery(files) {
     const fd = new FormData();
-    [...files].forEach(f => fd.append("images[]", f));
+    [...files].forEach((f) => fd.append("images[]", f));
     const res = await safeFetch(`${API}/vendor/upload-gallery`, {
       method: "POST",
-      body: fd
+      body: fd,
     });
     setGallery(res.gallery || []);
   }
@@ -115,14 +115,13 @@ export default function VendorDashboard() {
 
   return (
     <>
-      <Header />
-
       <main className="max-w-[1100px] mx-auto p-4">
         {/* PROFILE */}
         <section className="card flex gap-4 items-center">
           <img
             src={vendor.avatar || "/images/default-avatar.png"}
             className="w-24 h-24 rounded-full border-2 border-black object-cover bg-white"
+            alt="Vendor"
           />
 
           <div className="flex-1">
@@ -131,15 +130,31 @@ export default function VendorDashboard() {
             <p className="small mt-2">{vendor.bio}</p>
 
             <div className="grid grid-cols-2 gap-2 mt-2">
-              <div><b>Services:</b> {Array.isArray(vendor.services) ? vendor.services.join(", ") : vendor.services}</div>
-              <div><b>Areas:</b> {Array.isArray(vendor.service_areas) ? vendor.service_areas.join(", ") : vendor.service_areas}</div>
+              <div>
+                <b>Services:</b>{" "}
+                {Array.isArray(vendor.services)
+                  ? vendor.services.join(", ")
+                  : vendor.services}
+              </div>
+              <div>
+                <b>Areas:</b>{" "}
+                {Array.isArray(vendor.service_areas)
+                  ? vendor.service_areas.join(", ")
+                  : vendor.service_areas}
+              </div>
             </div>
           </div>
 
           <div className="flex flex-col gap-2">
-            <button className="btn-ghost" onClick={openEdit}>Edit Profile</button>
-            <button className="btn-ghost" onClick={() => setShowHero(true)}>Upload Banner</button>
-            <button className="btn-ghost" onClick={() => setShowLogo(true)}>Upload Logo</button>
+            <button className="btn-ghost" onClick={openEdit}>
+              Edit Profile
+            </button>
+            <button className="btn-ghost" onClick={() => setShowHero(true)}>
+              Upload Banner
+            </button>
+            <button className="btn-ghost" onClick={() => setShowLogo(true)}>
+              Upload Logo
+            </button>
           </div>
         </section>
 
@@ -150,17 +165,20 @@ export default function VendorDashboard() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <h4 className="text-sm font-semibold">Bookings Summary</h4>
-              {bookings.length === 0
-                ? <div className="small">No bookings</div>
-                : bookings.map((b, i) => (
-                    <div key={i} className="small">{b.title}: <b>{b.count}</b></div>
-                  ))
-              }
+              {bookings.length === 0 ? (
+                <div className="small">No bookings</div>
+              ) : (
+                bookings.map((b, i) => (
+                  <div key={i} className="small">
+                    {b.title}: <b>{b.count}</b>
+                  </div>
+                ))
+              )}
             </div>
 
             <div>
               <h4 className="text-sm font-semibold">Visitor Insights</h4>
-              <canvas ref={chartRef}></canvas>
+              <canvas ref={chartRef} />
             </div>
           </div>
         </section>
@@ -177,7 +195,7 @@ export default function VendorDashboard() {
                 multiple
                 accept="image/*"
                 hidden
-                onChange={e => uploadGallery(e.target.files)}
+                onChange={(e) => uploadGallery(e.target.files)}
               />
             </label>
           </div>
@@ -188,45 +206,79 @@ export default function VendorDashboard() {
                 key={i}
                 src={url}
                 className="w-full h-[120px] object-cover rounded-lg"
+                alt=""
               />
             ))}
           </div>
         </section>
       </main>
 
-      <Footer />
-
       {/* EDIT MODAL */}
       {showEdit && (
         <Modal title="Edit Vendor Profile" onClose={() => setShowEdit(false)}>
           <form onSubmit={submitEdit}>
             <Field label="Business Name">
-              <input value={form.business_name} onChange={e => setForm({ ...form, business_name: e.target.value })} required />
+              <input
+                value={form.business_name}
+                onChange={(e) =>
+                  setForm({ ...form, business_name: e.target.value })
+                }
+                required
+              />
             </Field>
 
             <Field label="Bio">
-              <textarea value={form.bio} onChange={e => setForm({ ...form, bio: e.target.value })} />
+              <textarea
+                value={form.bio}
+                onChange={(e) => setForm({ ...form, bio: e.target.value })}
+              />
             </Field>
 
             <Field label="Services">
-              <input value={form.services} onChange={e => setForm({ ...form, services: e.target.value })} />
+              <input
+                value={form.services}
+                onChange={(e) => setForm({ ...form, services: e.target.value })}
+              />
             </Field>
 
             <Field label="Service Areas">
-              <input value={form.service_areas} onChange={e => setForm({ ...form, service_areas: e.target.value })} />
+              <input
+                value={form.service_areas}
+                onChange={(e) =>
+                  setForm({ ...form, service_areas: e.target.value })
+                }
+              />
             </Field>
 
             <div className="flex justify-end gap-2 mt-4">
-              <button type="button" className="btn-ghost" onClick={() => setShowEdit(false)}>Cancel</button>
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={() => setShowEdit(false)}
+              >
+                Cancel
+              </button>
               <button className="btn-brown">Save</button>
             </div>
           </form>
         </Modal>
       )}
 
-      {/* HERO / LOGO MODALS */}
-      {showHero && <UploadModal title="Upload Hero" onClose={() => setShowHero(false)} onUpload={f => uploadFile(`${API}/vendor/upload-hero`, "hero", f)} />}
-      {showLogo && <UploadModal title="Upload Logo" onClose={() => setShowLogo(false)} onUpload={f => uploadFile(`${API}/vendor/upload-logo`, "logo", f)} />}
+      {showHero && (
+        <UploadModal
+          title="Upload Hero"
+          onClose={() => setShowHero(false)}
+          onUpload={(f) => uploadFile(`${API}/vendor/upload-hero`, "hero", f)}
+        />
+      )}
+
+      {showLogo && (
+        <UploadModal
+          title="Upload Logo"
+          onClose={() => setShowLogo(false)}
+          onUpload={(f) => uploadFile(`${API}/vendor/upload-logo`, "logo", f)}
+        />
+      )}
     </>
   );
 }
@@ -239,7 +291,9 @@ function Modal({ title, children, onClose }) {
       <div className="bg-[#f6f0e8] p-4 rounded-xl w-full max-w-[720px]">
         <h3 className="font-semibold mb-3">{title}</h3>
         {children}
-        <button className="btn-ghost mt-3" onClick={onClose}>Close</button>
+        <button className="btn-ghost mt-3" onClick={onClose}>
+          Close
+        </button>
       </div>
     </div>
   );
@@ -248,7 +302,11 @@ function Modal({ title, children, onClose }) {
 function UploadModal({ title, onUpload, onClose }) {
   return (
     <Modal title={title} onClose={onClose}>
-      <input type="file" accept="image/*" onChange={e => onUpload(e.target.files[0])} />
+      <input
+        type="file"
+        accept="image/*"
+        onChange={(e) => onUpload(e.target.files[0])}
+      />
     </Modal>
   );
 }
