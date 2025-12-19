@@ -1,7 +1,4 @@
 import { useEffect } from "react";
-import Header from "./partials/Header";
-import Footer from "./partials/Footer";
-import Modals from "./partials/Modals";
 
 export default function AboutUs() {
   useEffect(() => {
@@ -63,17 +60,11 @@ export default function AboutUs() {
   }, []);
 
   return (
-    <div className="min-h-screen flex flex-col font-[Cinzel] text-[#1c1b1a] bg-[#f6f0e8] scroll-smooth">
+    <div className="min-h-screen font-[Cinzel] text-[#1c1b1a] bg-[#f6f0e8] scroll-smooth">
       {/* Page styles */}
       <style>{`
         #carousel { scrollbar-width: none; }
         #carousel::-webkit-scrollbar { display: none; }
-        #profileBtn {
-          border-width: 2px !important;
-          border-color: #000 !important;
-          background: transparent !important;
-          border-radius: 9999px !important;
-        }
 
         .zoomable { cursor: zoom-in; }
         .lb-backdrop {
@@ -124,9 +115,7 @@ export default function AboutUs() {
         }
       `}</style>
 
-      <Header />
-
-      <main className="flex-1">
+      <main>
         <section className="max-w-6xl mx-auto px-4 py-12">
           <h1 className="text-2xl md:text-3xl font-semibold tracking-wide">
             ABOUT SOLENNIA
@@ -137,40 +126,17 @@ export default function AboutUs() {
             <p className="mt-2 text-sm md:text-base">
               Solennia is a modern event planning platform designed to connect
               clients, planners, and event service providers in one seamless
-              digital space. Built with the Filipino market in mind, Solennia
-              bridges the gap between event organizers and suppliers through
-              accessible tools for booking, communication, and collaboration.
+              digital space.
             </p>
           </div>
 
           <div className="mt-6 p-5 rounded-xl border border-gray-300 bg-[#efe9dd]">
             <h3 className="text-sm font-semibold uppercase">Who We Are</h3>
-            <div className="mt-3 space-y-4 text-sm md:text-base leading-relaxed">
-              <p>
-                We are a passionate team of innovators, developers, and event
-                enthusiasts who believe that planning an event should be
-                exciting—not stressful.
-              </p>
-              <p>
-                Our goal is to empower both clients and vendors by creating a
-                centralized, transparent, and user-friendly platform that
-                simplifies every step of the planning process.
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-6 p-5 rounded-xl border border-gray-300 bg-[#efe9dd]">
-            <h3 className="text-sm font-semibold uppercase">What We Offer</h3>
-            <div className="mt-3 space-y-3 text-sm md:text-base leading-relaxed">
-              <p>
-                Solennia offers an all-in-one experience for discovering,
-                booking, and managing event services.
-              </p>
-              <p>
-                For vendors, we provide a space to showcase portfolios and grow
-                their business through meaningful digital exposure.
-              </p>
-            </div>
+            <p className="mt-3 text-sm md:text-base">
+              We are a passionate team of innovators, developers, and event
+              enthusiasts who believe that planning an event should be
+              exciting—not stressful.
+            </p>
           </div>
 
           <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -180,11 +146,7 @@ export default function AboutUs() {
                 src="/images/about1.jpg"
                 alt="Solennia platform in action"
                 className="w-full h-64 md:h-80 object-cover zoomable"
-                loading="lazy"
               />
-              <figcaption className="p-3 text-xs text-gray-700">
-                Solennia connects clients and trusted vendors.
-              </figcaption>
             </figure>
 
             <figure className="rounded-xl border border-gray-300 bg-[#efe9dd] overflow-hidden">
@@ -193,29 +155,18 @@ export default function AboutUs() {
                 src="/images/about2.jpg"
                 alt="Vendors showcasing their work"
                 className="w-full h-64 md:h-80 object-cover zoomable"
-                loading="lazy"
               />
-              <figcaption className="p-3 text-xs text-gray-700">
-                Vendors showcase portfolios and grow their business.
-              </figcaption>
             </figure>
           </div>
         </section>
       </main>
 
-      <Footer />
-      <Modals />
-
-      {/* Lightbox */}
+      {/* Lightbox (page-specific, stays here) */}
       <div id="imgLightbox" className="lb-backdrop" aria-hidden="true">
         <div className="lb-frame" role="dialog" aria-modal="true">
           <div className="lb-bar">
-            <div id="lbTitle" className="lb-title">
-              Preview
-            </div>
-            <button id="lbClose" className="lb-close" aria-label="Close">
-              &times;
-            </button>
+            <div id="lbTitle" className="lb-title">Preview</div>
+            <button id="lbClose" className="lb-close">&times;</button>
           </div>
           <img id="lbImg" className="lb-img" alt="" />
         </div>
