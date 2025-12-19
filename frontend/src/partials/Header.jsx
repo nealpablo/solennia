@@ -1,5 +1,6 @@
 // src/partials/Header.jsx
 import { Link } from "react-router-dom";
+import React from "react";
 
 export default function Header() {
   return (

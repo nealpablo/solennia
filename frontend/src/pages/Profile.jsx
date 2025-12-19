@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import React from "react";
 import Header from "../partials/Header";
 import Footer from "../partials/Footer";
 import Modals from "../partials/Modals";

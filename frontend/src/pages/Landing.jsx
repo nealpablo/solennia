@@ -1,5 +1,6 @@
 // src/landing.jsx
 import { useEffect } from "react";
+import React from "react";
 import "../style.css";
 
 export default function Landing() {

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import React from "react";
 import Chart from "chart.js/auto";
 
 const API = "/api";
