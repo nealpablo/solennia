@@ -1,12 +1,11 @@
-import { Link, useNavigate } from "react-router-dom";
+// src/partials/Footer.jsx
+import { Link } from "react-router-dom";
 
 export default function Footer() {
-  const navigate = useNavigate();
 
   function handleFeedback(e) {
     e.preventDefault();
-    // If you later convert feedback modal to React state,
-    // this can be replaced with context / modal store
+    // Legacy modal support preserved
     const el = document.getElementById("feedbackModal");
     if (el) el.classList.remove("hidden");
   }
@@ -35,23 +34,14 @@ export default function Footer() {
         {/* NAVIGATION */}
         <ul className="space-y-2">
           <li>
-            <Link to="/" className="hover:underline">
-              HOME
-            </Link>
+            <Link to="/" className="hover:underline">HOME</Link>
           </li>
-
           <li>
-            <Link to="/about" className="hover:underline">
-              ABOUT US
-            </Link>
+            <Link to="/about" className="hover:underline">ABOUT US</Link>
           </li>
-
           <li>
-            <Link to="/vendors" className="hover:underline">
-              EXPLORE VENDORS
-            </Link>
+            <Link to="/vendors" className="hover:underline">EXPLORE VENDORS</Link>
           </li>
-
           <li>
             <Link to="/ai-planner" className="hover:underline">
               WEDDING PLANNER AI
@@ -66,19 +56,16 @@ export default function Footer() {
               PRIVACY POLICY
             </Link>
           </li>
-
           <li>
             <Link to="/terms" className="hover:underline">
               TERMS & CONDITIONS
             </Link>
           </li>
-
           <li>
             <Link to="/vendor-agreement" className="hover:underline">
               VENDOR AGREEMENT
             </Link>
           </li>
-
           <li>
             <button
               onClick={handleFeedback}

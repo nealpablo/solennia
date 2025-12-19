@@ -1,39 +1,35 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+// src/App.jsx
+import { Routes, Route } from "react-router-dom";
 
-import Header from "./partials/Header";
-import Footer from "./partials/Footer";
+import Landing from "./pages/landing.jsx";
+import Vendors from "./pages/Vendors.jsx";
+import Profile from "./pages/Profile.jsx";
+import Chat from "./pages/Chat.jsx";
+import AdminPanel from "./pages/adminpanel.jsx";
+import VendorDashboard from "./pages/VendorDashboard.jsx";
+import VendorProfile from "./pages/VendorProfile.jsx";
+import AboutUs from "./pages/aboutus.jsx";
 
-import Landing from "./pages/landing";
-import About from "./pages/aboutus";
-import Vendors from "./pages/Vendors";
-import VendorProfile from "./pages/VendorProfile";
-import Profile from "./pages/Profile";
-import Chat from "./pages/Chat";
-import VendorDashboard from "./pages/VendorDashboard";
-import AdminPanel from "./pages/adminpanel";
+import Header from "./partials/Header.jsx";
+import Footer from "./partials/Footer.jsx";
 
 export default function App() {
   return (
-    <div className="min-h-screen flex flex-col bg-[#f6f0e8]">
+    <>
       <Header />
 
-      <main className="flex-1">
-        <Routes>
-          <Route path="/" element={<Landing />} />
-          <Route path="/about" element={<About />} />
-          <Route path="/vendors" element={<Vendors />} />
-          <Route path="/vendors/:id" element={<VendorProfile />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/chat" element={<Chat />} />
-          <Route path="/vendor/dashboard" element={<VendorDashboard />} />
-          <Route path="/admin" element={<AdminPanel />} />
-
-          {/* fallback */}
-          <Route path="*" element={<Navigate to="/" />} />
-        </Routes>
-      </main>
+      <Routes>
+        <Route path="/" element={<Landing />} />
+        <Route path="/vendors" element={<Vendors />} />
+        <Route path="/vendors/:id" element={<VendorProfile />} />
+        <Route path="/profile" element={<Profile />} />
+        <Route path="/chat" element={<Chat />} />
+        <Route path="/admin" element={<AdminPanel />} />
+        <Route path="/dashboard" element={<VendorDashboard />} />
+        <Route path="/about" element={<AboutUs />} />
+      </Routes>
 
       <Footer />
-    </div>
+    </>
   );
 }
