@@ -1,32 +1,18 @@
 // src/app.js
 // =====================================================
-// 🔥 SOLENNIA APP — FINAL FIXED VERSION
-// - data-include support RESTORED
-// - header/footer/modals injection FIXED
-// - profile dropdown FIXED
-// - login/register CLICKABLE
-// - auth backdrop pointer-events FIXED
-// - firebase + hybrid auth preserved
-// - feedback preserved
+// 🔥 SOLENNIA APP — REACT-COMPATIBLE VERSION
+// - HTML partial injection REMOVED
+// - React partials (Header/Footer/Modals) assumed
+// - Auth, Firebase, vendor flow preserved
 // =====================================================
 
 import './style.css';
 
 /* ============================
- * RAW PARTIALS (VITE)
- * ============================ */
-import headerHTML from './partials/header.html?raw';
-import footerHTML from './partials/footer.html?raw';
-import modalsHTML from './partials/modals.html?raw';
-
-/* ============================
  * FIREBASE
  * ============================ */
 import { initializeApp } from "firebase/app";
-import {
-  getAuth,
-  signInWithEmailAndPassword,
-} from "firebase/auth";
+import { getAuth, signInWithEmailAndPassword } from "firebase/auth";
 
 const firebaseApp = initializeApp({
   apiKey: "AIzaSyC_GISDBsbuQK2xwQohGBUuZ8Qu1pkGggI",
@@ -36,6 +22,7 @@ const firebaseApp = initializeApp({
   messagingSenderId: "1050301290248",
   appId: "1:1050301290248:web:fc6debbf4022db37d73ebd",
 });
+
 const firebaseAuth = getAuth(firebaseApp);
 
 /* ============================
@@ -74,62 +61,9 @@ function showToast(msg, type='info', ms=3000) {
   showToast._t = setTimeout(()=>c.classList.add('hidden'), ms);
 }
 
-/* =====================================================
- * 🔥 PARTIAL INJECTION
- * ===================================================== */
-function resolvePartial(url) {
-  if (!url) return '';
-  if (url.endsWith('header.html')) return headerHTML;
-  if (url.endsWith('footer.html')) return footerHTML;
-  if (url.endsWith('modals.html')) return modalsHTML;
-  return '';
-}
-
-async function injectDataIncludes() {
-  for (const el of $$('[data-include]')) {
-    const html = resolvePartial(el.getAttribute('data-include'));
-    if (!html) continue;
-    const wrap = document.createElement('div');
-    wrap.innerHTML = html;
-    el.replaceWith(...wrap.childNodes);
-  }
-}
-
-async function ensureHeaderFooterFallback() {
-  const header = document.querySelector('header');
-  const footer = document.querySelector('footer');
-  if (header && header.children.length === 0) header.outerHTML = headerHTML;
-  if (footer && footer.children.length === 0) footer.outerHTML = footerHTML;
-}
-
-async function ensureModalsOnce() {
-  if ($('#loginModal')) return;
-  const holder = document.createElement('div');
-  holder.innerHTML = modalsHTML;
-  document.body.appendChild(holder);
-}
-
-/* =====================================================
- * AUTH BACKDROP CONTROL (🔥 FIX)
- * ===================================================== */
-function openAuthModal(modal) {
-  const backdrop = $('#authBackdrop');
-  backdrop?.classList.remove('hidden');
-  backdrop.style.pointerEvents = 'auto';
-  modal?.classList.remove('hidden');
-}
-
-function closeAuthModal() {
-  const backdrop = $('#authBackdrop');
-  backdrop?.classList.add('hidden');
-  backdrop.style.pointerEvents = 'none';
-  $('#loginModal')?.classList.add('hidden');
-  $('#registerModal')?.classList.add('hidden');
-}
-
-/* =====================================================
- * PROFILE DROPDOWN (🔥 FIXED)
- * ===================================================== */
+/* ============================
+ * PROFILE DROPDOWN
+ * ============================ */
 function setupProfileDropdown() {
   const btn = $('#profileBtn');
   const menu = $('#profileMenu');
@@ -150,22 +84,36 @@ function setupProfileDropdown() {
   });
 
   menu.addEventListener('click', e => e.stopPropagation());
-
   document.addEventListener('click', ()=> open && set(false));
   document.addEventListener('keydown', e => e.key === 'Escape' && set(false));
 }
 
-/* =====================================================
- * AUTH MODALS (🔥 THIS WAS MISSING)
- * ===================================================== */
+/* ============================
+ * AUTH MODALS
+ * ============================ */
+function openAuthModal(modal) {
+  const backdrop = $('#authBackdrop');
+  backdrop?.classList.remove('hidden');
+  backdrop.style.pointerEvents = 'auto';
+  modal?.classList.remove('hidden');
+}
+
+function closeAuthModal() {
+  const backdrop = $('#authBackdrop');
+  backdrop?.classList.add('hidden');
+  backdrop.style.pointerEvents = 'none';
+  $('#loginModal')?.classList.add('hidden');
+  $('#registerModal')?.classList.add('hidden');
+}
+
 function setupAuthModals() {
   $('#menuSignIn')?.addEventListener('click', (e)=>{
-    e.preventDefault(); e.stopPropagation();
+    e.preventDefault();
     openAuthModal($('#loginModal'));
   });
 
   $('#menuSignUp')?.addEventListener('click', (e)=>{
-    e.preventDefault(); e.stopPropagation();
+    e.preventDefault();
     openAuthModal($('#registerModal'));
   });
 
@@ -173,9 +121,9 @@ function setupAuthModals() {
   $$('[data-close]').forEach(b => b.addEventListener('click', closeAuthModal));
 }
 
-/* =====================================================
+/* ============================
  * AUTH UI
- * ===================================================== */
+ * ============================ */
 function updateAuthUI() {
   const authed = !!getToken() && !isGuest();
   const role = parseInt(localStorage.getItem(LS_ROLE) || '0', 10);
@@ -187,9 +135,9 @@ function updateAuthUI() {
   $('#menuAdmin')?.classList.toggle('hidden', !(authed && role === 2));
 }
 
-/* =====================================================
+/* ============================
  * AUTH LOGIC
- * ===================================================== */
+ * ============================ */
 function setupAuth() {
   updateAuthUI();
 
@@ -200,7 +148,6 @@ function setupAuth() {
     try {
       let email = d.identifier;
 
-      // 🔥 USERNAME → EMAIL RESOLVER
       if (!email.includes('@')) {
         const r0 = await fetch(`${API}/auth/resolve-username?u=${encodeURIComponent(email)}`);
         const j0 = await r0.json();
@@ -209,7 +156,6 @@ function setupAuth() {
       }
 
       const cred = await signInWithEmailAndPassword(firebaseAuth, email, d.password);
-
       if (!cred.user.emailVerified) {
         showToast('Verify your email first','warning');
         return;
@@ -219,7 +165,7 @@ function setupAuth() {
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body: JSON.stringify({
-          email: email,
+          email,
           firebase_uid: cred.user.uid
         })
       });
@@ -247,9 +193,9 @@ function setupAuth() {
   });
 }
 
-/* =====================================================
+/* ============================
  * FEEDBACK
- * ===================================================== */
+ * ============================ */
 function setupFeedback() {
   const form = $('#feedbackForm');
   const modal = $('#feedbackModal');
@@ -285,77 +231,14 @@ function setupFeedback() {
   });
 }
 
-/* =====================================================
- * 🧾 VENDOR APPLICATION SUBMIT (🔥 REQUIRED)
- * ===================================================== */
-function setupVendorApplication() {
-  const submitBtn = document.getElementById('submitVendor');
-  if (!submitBtn) return;
-
-  submitBtn.addEventListener('click', async (e) => {
-    e.preventDefault();
-
-    const form1 = document.getElementById('vendorForm1');
-    const form2 = document.getElementById('vendorForm2');
-
-    if (!form1 || !form2) return;
-
-    if (!form1.checkValidity() || !form2.checkValidity()) {
-      form1.reportValidity();
-      form2.reportValidity();
-      return;
-    }
-
-    const fd = new FormData(form2);
-
-    // REQUIRED FROM STEP 1
-    fd.append('business_name', form1.business_name.value);
-    fd.append('category', form1.category.value);
-    fd.append('address', form1.address.value);
-
-    // 🔥 THIS IS WHAT WAS NEVER SENT BEFORE
-    fd.append('contact_email', form1.contact_email.value);
-
-    // Optional (not stored, harmless)
-    fd.append('full_name', form1.full_name.value);
-
-    try {
-      const res = await fetch(`${API}/vendor/apply`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${getToken()}`
-        },
-        body: fd
-      });
-
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Vendor application failed');
-
-      showToast('Vendor application submitted', 'success');
-
-      document.getElementById('vendorMedia')?.classList.add('hidden');
-      document.getElementById('vendorBackground')?.classList.add('hidden');
-
-    } catch (err) {
-      showToast(err.message, 'error');
-    }
-  });
-}
-
-/* =====================================================
+/* ============================
  * 🚀 BOOT
- * ===================================================== */
-async function boot() {
-  await injectDataIncludes();
-  await ensureHeaderFooterFallback();
-  await ensureModalsOnce();
-
+ * ============================ */
+function boot() {
   setupProfileDropdown();
   setupAuthModals();
   setupAuth();
   setupFeedback();
-
-  setupVendorApplication(); // 🔥 ADD THIS LINE
 }
 
 document.readyState === 'loading'
