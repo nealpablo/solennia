@@ -6,6 +6,7 @@ import Modals from "./partials/Modals";
 
 import Landing from "./pages/Landing";
 import Vendors from "./pages/Vendors";
+import VendorProfile from "./pages/VendorProfile";
 import Profile from "./pages/Profile";
 import Chat from "./pages/Chat";
 import AdminPanel from "./pages/AdminPanel";
@@ -20,6 +21,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/vendors" element={<Vendors />} />
+        <Route path="/vendor" element={<VendorProfile />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/chat" element={<Chat />} />
         <Route path="/admin" element={<AdminPanel />} />
