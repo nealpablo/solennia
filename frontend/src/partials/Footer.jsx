@@ -1,9 +1,21 @@
-// Footer.jsx
+import { Link, useNavigate } from "react-router-dom";
+
 export default function Footer() {
+  const navigate = useNavigate();
+
+  function handleFeedback(e) {
+    e.preventDefault();
+    // If you later convert feedback modal to React state,
+    // this can be replaced with context / modal store
+    const el = document.getElementById("feedbackModal");
+    if (el) el.classList.remove("hidden");
+  }
+
   return (
     <footer className="bg-[#353946] text-[#f6f0e8] py-10">
       <div className="max-w-6xl mx-auto px-6 grid md:grid-cols-3 gap-10 text-sm">
-        {/* Brand */}
+
+        {/* BRAND */}
         <div>
           <img
             src="/images/solennia.png"
@@ -20,53 +32,63 @@ export default function Footer() {
           <p className="mt-2">solenniainquires@gmail.com</p>
         </div>
 
-        {/* Navigation */}
+        {/* NAVIGATION */}
         <ul className="space-y-2">
           <li>
-            <a href="/index.html" className="hover:underline">
+            <Link to="/" className="hover:underline">
               HOME
-            </a>
+            </Link>
           </li>
+
           <li>
-            <a href="/aboutus.html" className="hover:underline">
+            <Link to="/about" className="hover:underline">
               ABOUT US
-            </a>
+            </Link>
           </li>
+
           <li>
-            <a href="/index.html#gallery" className="hover:underline">
+            <Link to="/vendors" className="hover:underline">
               EXPLORE VENDORS
-            </a>
+            </Link>
           </li>
+
           <li>
-            <a href="#" className="hover:underline">
+            <Link to="/ai-planner" className="hover:underline">
               WEDDING PLANNER AI
-            </a>
+            </Link>
           </li>
         </ul>
 
-        {/* Legal */}
+        {/* LEGAL */}
         <ul className="space-y-2">
           <li>
-            <a href="#" id="footerPrivacyPolicy" className="hover:underline">
+            <Link to="/privacy" className="hover:underline">
               PRIVACY POLICY
-            </a>
+            </Link>
           </li>
+
           <li>
-            <a href="#" id="footerTermsLink" className="hover:underline">
+            <Link to="/terms" className="hover:underline">
               TERMS & CONDITIONS
-            </a>
+            </Link>
           </li>
+
           <li>
-            <a href="#" className="hover:underline">
+            <Link to="/vendor-agreement" className="hover:underline">
               VENDOR AGREEMENT
-            </a>
+            </Link>
           </li>
+
           <li>
-            <a href="#" id="footerFeedbackLink" className="hover:underline">
+            <button
+              onClick={handleFeedback}
+              className="hover:underline text-left"
+            >
               GIVE FEEDBACK
-            </a>
+            </button>
           </li>
         </ul>
+
       </div>
     </footer>
   );
