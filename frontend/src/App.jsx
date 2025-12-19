@@ -1,14 +1,14 @@
 // src/App.jsx
 import { Routes, Route } from "react-router-dom";
 
-import Landing from "./pages/landing.jsx";
+import Landing from "./pages/Landing.jsx";
 import Vendors from "./pages/Vendors.jsx";
 import Profile from "./pages/Profile.jsx";
 import Chat from "./pages/Chat.jsx";
-import AdminPanel from "./pages/adminpanel.jsx";
+import AdminPanel from "./pages/AdminPanel.jsx";
 import VendorDashboard from "./pages/VendorDashboard.jsx";
 import VendorProfile from "./pages/VendorProfile.jsx";
-import AboutUs from "./pages/aboutus.jsx";
+import AboutUs from "./pages/AboutUs.jsx";
 
 import Header from "./partials/Header.jsx";
 import Footer from "./partials/Footer.jsx";
