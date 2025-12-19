@@ -1,17 +1,16 @@
-// src/App.jsx
 import { Routes, Route } from "react-router-dom";
 
-import Landing from "./pages/Landing.jsx";
-import Vendors from "./pages/Vendors.jsx";
-import Profile from "./pages/Profile.jsx";
-import Chat from "./pages/Chat.jsx";
-import AdminPanel from "./pages/AdminPanel.jsx";
-import VendorDashboard from "./pages/VendorDashboard.jsx";
-import VendorProfile from "./pages/VendorProfile.jsx";
-import AboutUs from "./pages/AboutUs.jsx";
+import Header from "./partials/Header";
+import Footer from "./partials/Footer";
+import Modals from "./partials/Modals";
 
-import Header from "./partials/Header.jsx";
-import Footer from "./partials/Footer.jsx";
+import Landing from "./pages/Landing";
+import Vendors from "./pages/Vendors";
+import Profile from "./pages/Profile";
+import Chat from "./pages/Chat";
+import AdminPanel from "./pages/AdminPanel";
+import VendorDashboard from "./pages/VendorDashboard";
+import AboutUs from "./pages/AboutUs";
 
 export default function App() {
   return (
@@ -21,15 +20,15 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/vendors" element={<Vendors />} />
-        <Route path="/vendors/:id" element={<VendorProfile />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/chat" element={<Chat />} />
         <Route path="/admin" element={<AdminPanel />} />
-        <Route path="/dashboard" element={<VendorDashboard />} />
+        <Route path="/vendor-dashboard" element={<VendorDashboard />} />
         <Route path="/about" element={<AboutUs />} />
       </Routes>
 
       <Footer />
+      <Modals />
     </>
   );
 }
