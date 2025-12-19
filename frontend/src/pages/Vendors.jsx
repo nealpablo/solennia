@@ -1,9 +1,7 @@
 import { useEffect, useState } from "react";
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import Header from "../partials/Header";
-import Footer from "../partials/Footer";
-import Modals from "../partials/Modals";
+
 import "../style.css";
 
 const API = "/api";
@@ -71,7 +69,7 @@ export default function Vendors() {
   ========================= */
   return (
     <>
-      <Header />
+
 
       <main className="flex-1 bg-[#f6f0e8] text-[#1c1b1a]">
         <section className="max-w-5xl mx-auto px-4 md:px-0 pt-10 pb-20">
@@ -176,8 +174,7 @@ export default function Vendors() {
         </section>
       </main>
 
-      <Footer />
-      <Modals />
+
     </>
   );
 }
