@@ -4,14 +4,27 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Solennia</title>
+    <link rel="icon" type="image/png" href="/images/solennia.png" />
 
+
+    <!-- Fonts -->
     <link
       href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
+
+    <!-- ✅ Global styles (REQUIRED) -->
+    <link rel="stylesheet" href="/src/style.css" />
+
+    <!-- ✅ Firebase compat SDKs (required for existing auth/chat logic) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   </head>
-  <body>
+
+  <body class="min-h-screen font-[Cinzel] text-[#1c1b1a] bg-[#f6f0e8]">
     <div id="root"></div>
+
+    <!-- React entry -->
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

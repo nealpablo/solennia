@@ -1,36 +1,69 @@
-// Modals.jsx
 import React from "react";
+
 export default function Modals() {
+
+  /* =========================
+     HELPERS
+  ========================= */
+
+  const closeAll = () => {
+    document.getElementById("authBackdrop")?.classList.add("hidden");
+    document.getElementById("loginModal")?.classList.add("hidden");
+    document.getElementById("registerModal")?.classList.add("hidden");
+  };
+
+  const openLogin = () => {
+    document.getElementById("authBackdrop")?.classList.remove("hidden");
+    document.getElementById("registerModal")?.classList.add("hidden");
+    document.getElementById("loginModal")?.classList.remove("hidden");
+  };
+
+  const openRegister = () => {
+    document.getElementById("authBackdrop")?.classList.remove("hidden");
+    document.getElementById("loginModal")?.classList.add("hidden");
+    document.getElementById("registerModal")?.classList.remove("hidden");
+  };
+
+  const stopSubmit = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const closePrivacy = (e) => {
+    e?.stopPropagation();
+    document.getElementById("privacyModal")?.classList.add("hidden");
+  };
+
+  const closeFeedback = () => {
+    document.getElementById("feedbackModal")?.classList.add("hidden");
+  };
+
+  const closeTerms = () => {
+    document.getElementById("termsModal")?.classList.add("hidden");
+  };
+
+  /* =========================
+     JSX
+  ========================= */
+
   return (
     <>
-      {/* 🟡 Global Toast */}
-      <div
-        id="toastContainer"
-        className="fixed top-4 inset-x-0 z-[10000] flex justify-center pointer-events-none hidden"
-      >
-        <div
-          id="toast"
-          className="pointer-events-auto max-w-md w-[92%] md:w-auto rounded-xl shadow-xl border px-4 py-3 text-sm bg-white border-gray-300"
-          role="status"
-          aria-live="polite"
-        />
-      </div>
-
-      {/* ✅ AUTH BACKDROP */}
+      {/* ================= AUTH BACKDROP ================= */}
       <div
         id="authBackdrop"
-        className="fixed inset-0 bg-black/50 hidden items-center justify-center z-[9999]"
+        className="fixed inset-0 bg-black/50 hidden flex items-center justify-center z-[9999]"
+        onClick={closeAll}
       >
-        {/* LOGIN MODAL */}
+
+        {/* ================= LOGIN MODAL ================= */}
         <div
           id="loginModal"
           className="bg-[#f6f0e8] rounded-2xl shadow-xl w-full max-w-md mx-auto hidden p-8 relative"
           onClick={(e) => e.stopPropagation()}
         >
           <button
-            data-close
+            onClick={closeAll}
             className="absolute top-3 right-3 text-gray-600 hover:text-black text-xl"
-            aria-label="Close"
           >
             &times;
           </button>
@@ -39,80 +72,50 @@ export default function Modals() {
             Login to Solennia
           </h2>
 
-          <p
-            id="loginError"
-            className="hidden mb-3 text-sm px-3 py-2 rounded-md bg-red-100 text-red-700 border border-red-300"
-          />
+          <form
+            id="loginForm"
+            className="space-y-4"
+            noValidate
+            onSubmit={stopSubmit}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <input
+              placeholder="Email or Username"
+              className="w-full border border-gray-400 rounded-lg px-3 py-2"
+            />
 
-          <form id="loginForm" className="space-y-4" noValidate>
-            <div>
-              <label
-                htmlFor="loginIdentifier"
-                className="block text-sm font-medium mb-1"
-              >
-                Email or Username
-              </label>
-              <input
-                type="text"
-                id="loginIdentifier"
-                name="identifier"
-                required
-                autoComplete="username"
-                className="w-full border border-gray-400 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#7a5d47]"
-              />
-            </div>
+            <input
+              type="password"
+              placeholder="Password"
+              className="w-full border border-gray-400 rounded-lg px-3 py-2"
+            />
 
-            <div>
-              <label
-                htmlFor="loginPassword"
-                className="block text-sm font-medium mb-1"
-              >
-                Password
-              </label>
-              <input
-                type="password"
-                id="loginPassword"
-                name="password"
-                required
-                autoComplete="current-password"
-                className="w-full border border-gray-400 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#7a5d47]"
-              />
-            </div>
-
-            <button
-              type="submit"
-              className="w-full bg-[#7a5d47] text-white py-2 rounded-lg font-semibold hover:opacity-90 transition"
-            >
+            <button className="w-full bg-[#7a5d47] text-white py-2 rounded-lg">
               Login
             </button>
 
-            <p className="text-xs text-center text-gray-600 mt-2">
-              You must verify your email before you can log in.
-            </p>
-
             <p className="text-sm text-center mt-3">
               No account yet?{" "}
-              <a
-                href="#"
-                id="switchToRegister"
-                className="text-[#7a5d47] hover:underline"
+              <button
+                type="button"
+                onClick={openRegister}
+                className="text-[#7a5d47] hover:underline bg-transparent p-0"
               >
                 Register
-              </a>
+              </button>
             </p>
           </form>
         </div>
 
-        {/* REGISTER MODAL */}
+        {/* ================= REGISTER MODAL ================= */}
         <div
           id="registerModal"
           className="bg-[#f6f0e8] rounded-2xl shadow-xl w-full max-w-md mx-auto hidden p-8 relative"
           onClick={(e) => e.stopPropagation()}
         >
           <button
-            data-close
+            onClick={closeAll}
             className="absolute top-3 right-3 text-gray-600 hover:text-black text-xl"
-            aria-label="Close"
           >
             &times;
           </button>
@@ -121,169 +124,123 @@ export default function Modals() {
             Create Your Account
           </h2>
 
-          <p
-            id="registerError"
-            className="hidden mb-3 text-sm px-3 py-2 rounded-md bg-red-100 text-red-700 border border-red-300"
-          />
+          <form
+            id="registerForm"
+            className="space-y-4"
+            noValidate
+            onSubmit={stopSubmit}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <input placeholder="First name" className="w-full border rounded-lg px-3 py-2" />
+            <input placeholder="Last name" className="w-full border rounded-lg px-3 py-2" />
+            <input placeholder="Email" className="w-full border rounded-lg px-3 py-2" />
+            <input placeholder="Username" className="w-full border rounded-lg px-3 py-2" />
+            <input type="password" placeholder="Password" className="w-full border rounded-lg px-3 py-2" />
 
-          <form id="registerForm" className="space-y-4" noValidate>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label
-                  htmlFor="registerFirstName"
-                  className="block text-sm font-medium mb-1"
-                >
-                  First Name
-                </label>
-                <input
-                  id="registerFirstName"
-                  name="first_name"
-                  required
-                  autoComplete="given-name"
-                  className="w-full border border-gray-400 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#7a5d47]"
-                />
-              </div>
-
-              <div>
-                <label
-                  htmlFor="registerLastName"
-                  className="block text-sm font-medium mb-1"
-                >
-                  Last Name
-                </label>
-                <input
-                  id="registerLastName"
-                  name="last_name"
-                  required
-                  autoComplete="family-name"
-                  className="w-full border border-gray-400 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#7a5d47]"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label
-                htmlFor="registerEmail"
-                className="block text-sm font-medium mb-1"
-              >
-                Email
-              </label>
-              <input
-                type="email"
-                id="registerEmail"
-                name="email"
-                required
-                autoComplete="email"
-                className="w-full border border-gray-400 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#7a5d47]"
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="registerUsername"
-                className="block text-sm font-medium mb-1"
-              >
-                Username
-              </label>
-              <input
-                id="registerUsername"
-                name="username"
-                required
-                autoComplete="username"
-                className="w-full border border-gray-400 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#7a5d47]"
-              />
-              <p className="mt-1 text-xs text-gray-500">
-                Your username must be unique. It will be visible to other users.
-              </p>
-            </div>
-
-            <div>
-              <label
-                htmlFor="registerPassword"
-                className="block text-sm font-medium mb-1"
-              >
-                Password
-              </label>
-              <input
-                type="password"
-                id="registerPassword"
-                name="password"
-                required
-                minLength={6}
-                autoComplete="new-password"
-                className="w-full border border-gray-400 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#7a5d47]"
-                onInput={() =>
-                  document
-                    .getElementById("registerConfirmPassword")
-                    ?.dispatchEvent(new Event("input"))
-                }
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="registerConfirmPassword"
-                className="block text-sm font-medium mb-1"
-              >
-                Confirm Password
-              </label>
-              <input
-                type="password"
-                id="registerConfirmPassword"
-                name="confirm_password"
-                required
-                minLength={6}
-                autoComplete="new-password"
-                className="w-full border border-gray-400 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#7a5d47]"
-                onInput={(e) => {
-                  const p = document.getElementById("registerPassword");
-                  const err = document.getElementById(
-                    "registerPasswordError"
-                  );
-                  if (p && e.target.value !== p.value) {
-                    e.target.setCustomValidity("Passwords do not match");
-                    err?.classList.remove("hidden");
-                  } else {
-                    e.target.setCustomValidity("");
-                    err?.classList.add("hidden");
-                  }
-                }}
-              />
-              <p
-                id="registerPasswordError"
-                className="hidden text-sm text-red-600 mt-1"
-              >
-                Passwords do not match
-              </p>
-            </div>
-
-            <button
-              type="submit"
-              className="w-full bg-[#7a5d47] text-white py-2 rounded-lg font-semibold hover:opacity-90 transition"
-            >
+            <button className="w-full bg-[#7a5d47] text-white py-2 rounded-lg">
               Create account
             </button>
 
-            <p className="text-xs text-center text-gray-600 mt-2">
-              We will send a verification email to confirm your account.
-            </p>
-
             <p className="text-sm text-center mt-3">
               Already have an account?{" "}
-              <a
-                href="#"
-                id="switchToLogin"
-                className="text-[#7a5d47] hover:underline"
+              <button
+                type="button"
+                onClick={openLogin}
+                className="text-[#7a5d47] hover:underline bg-transparent p-0"
               >
                 Login
-              </a>
+              </button>
             </p>
           </form>
         </div>
       </div>
 
-      {/* FEEDBACK, PRIVACY, TERMS, VENDOR MODALS */}
-      {/* Converted exactly the same way — structure unchanged */}
+      {/* ================= FEEDBACK MODAL ================= */}
+      <div
+        id="feedbackModal"
+        className="hidden fixed inset-0 z-[260] bg-black/40 flex items-center justify-center p-4"
+        onClick={closeFeedback}
+      >
+        <div
+          className="bg-[#f6f0e8] w-full max-w-md rounded-2xl shadow-xl border border-gray-300"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex justify-between items-center px-6 py-4 border-b bg-[#e8ddae]">
+            <h3 className="text-lg font-semibold">Your Feedback</h3>
+            <button onClick={closeFeedback} className="text-2xl">&times;</button>
+          </div>
+
+          <form className="px-6 py-5 space-y-4">
+            <textarea
+              rows="4"
+              placeholder="Type your feedback here..."
+              className="w-full border rounded-lg p-2"
+            />
+            <div className="flex justify-end">
+              <button className="px-6 py-2 bg-[#7a5d47] text-white rounded-md">
+                Send Feedback
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      {/* ================= PRIVACY MODAL ================= */}
+      <div
+        id="privacyModal"
+        className="hidden fixed inset-0 z-[270] bg-black/40 flex items-center justify-center p-4"
+        onClick={closePrivacy}
+      >
+        <div
+          className="bg-[#f6f0e8] w-full max-w-2xl rounded-2xl shadow-xl border border-gray-300 overflow-hidden"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex justify-between items-center px-6 py-4 border-b bg-[#e8ddae]">
+            <h3 className="text-lg font-semibold tracking-wide">Privacy Policy</h3>
+            <button onClick={closePrivacy} className="text-2xl">&times;</button>
+          </div>
+
+          <div className="p-6 space-y-4 text-sm leading-relaxed max-h-[70vh] overflow-y-auto">
+            <p><strong>Introduction</strong><br />At Solennia, we are committed to protecting your privacy and ensuring that your personal information is handled responsibly.</p>
+            <p><strong>Information We Collect</strong><br />We may collect personal data including your name, email address, contact number, and wedding-related information.</p>
+            <p><strong>How We Use Your Information</strong><br />Information is used solely to operate and improve our platform.</p>
+            <p><strong>Sharing of Information</strong><br />Your data is never sold to third parties.</p>
+            <p><strong>Data Protection</strong><br />We employ encryption and secure servers.</p>
+            <p><strong>Your Rights</strong><br />You may access, update, or delete your data.</p>
+            <p><strong>Cookies & Tracking</strong><br />We use cookies to enhance functionality.</p>
+            <p><strong>Children’s Privacy</strong><br />Not intended for children under 13.</p>
+            <p><strong>Policy Updates</strong><br />Policies may be updated periodically.</p>
+            <p><strong>Contact</strong><br />Email us at <a href="mailto:solenniainquires@gmail.com" className="underline">solenniainquires@gmail.com</a></p>
+          </div>
+        </div>
+      </div>
+
+      {/* ================= TERMS MODAL ================= */}
+      <div
+        id="termsModal"
+        className="hidden fixed inset-0 z-[275] bg-black/40 flex items-center justify-center p-4"
+        onClick={closeTerms}
+      >
+        <div
+          className="bg-[#f6f0e8] w-full max-w-4xl rounded-2xl shadow-xl border border-gray-300"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex justify-between items-center px-6 py-4 border-b bg-[#e8ddae]">
+            <h3 className="text-xl font-semibold tracking-wide">Terms and Conditions</h3>
+            <button onClick={closeTerms} className="text-2xl">&times;</button>
+          </div>
+
+          <div className="p-6 space-y-5 text-sm leading-relaxed max-h-[70vh] overflow-y-auto">
+            <p><strong>Acceptance of Terms</strong><br />By using Solennia, you agree to these terms.</p>
+            <p><strong>About Solennia</strong><br />Solennia connects couples with wedding vendors.</p>
+            <p><strong>User Accounts</strong><br />Users must provide accurate information.</p>
+            <p><strong>Role as Intermediary</strong><br />Solennia is not liable for vendor-client disputes.</p>
+            <p><strong>Vendor Responsibilities</strong><br />Vendors must act professionally.</p>
+            <p><strong>Changes</strong><br />Terms may be updated at any time.</p>
+            <p><strong>Contact</strong><br />Email <a href="mailto:solenniainquires@gmail.com" className="underline">solenniainquires@gmail.com</a></p>
+          </div>
+        </div>
+      </div>
     </>
   );
 }

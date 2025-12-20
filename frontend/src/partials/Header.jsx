@@ -8,14 +8,11 @@ export default function Header() {
       <nav className="max-w-7xl mx-auto px-4 flex items-center justify-between h-14">
 
         {/* LOGO */}
-        <Link
-          to="/"
-          className="flex items-center gap-2 text-xl tracking-wide"
-        >
+        <Link to="/" className="flex items-center gap-2 text-xl tracking-wide">
           <span>SOLENNIA</span>
         </Link>
 
-        {/* MOBILE MENU BUTTON */}
+        {/* MOBILE MENU */}
         <button
           id="mobileToggle"
           className="md:hidden p-2 rounded hover:bg-black/5"
@@ -36,89 +33,110 @@ export default function Header() {
           id="mobileMenu"
           className="md:flex items-center gap-6 text-sm font-medium hidden"
         >
-          <li>
-            <Link to="/" className="hover:underline">VENUE</Link>
-          </li>
-          <li>
-            <Link to="/vendors" className="hover:underline">VENDORS</Link>
-          </li>
-          <li>
-            <Link to="/about" className="hover:underline">ABOUT US</Link>
-          </li>
+          <li><Link to="/" className="hover:underline">VENUE</Link></li>
+          <li><Link to="/vendors" className="hover:underline">VENDORS</Link></li>
+          <li><Link to="/about" className="hover:underline">ABOUT US</Link></li>
         </ul>
 
-        {/* RIGHT SIDE BUTTONS */}
+        {/* RIGHT SIDE */}
         <div className="flex items-center gap-2">
 
-          {/* SEARCH (unchanged) */}
+          {/* SEARCH */}
           <div className="relative">
             <button
               id="searchBtn"
-              className="p-2 rounded hover:bg-black/5"
-              aria-label="Search"
+              className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-black/5"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                viewBox="0 0 24 24"
+              >
                 <circle cx="11" cy="11" r="7" />
                 <path d="M20 20l-3.5-3.5" />
               </svg>
             </button>
+          </div>
+
+          {/* ✅ FIXED CHAT BUTTON */}
+          <Link
+            to="/chat"
+            aria-label="Messages"
+            className="
+              w-10 h-10
+              flex items-center justify-center
+              rounded-full
+              hover:bg-black/5
+              transition
+            "
+          >
+            <svg
+              className="w-5 h-5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.9"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M21 15a4 4 0 0 1-4 4H7l-4 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+            </svg>
+          </Link>
+
+          {/* NOTIFICATIONS */}
+          <div className="relative">
+            <button
+              id="notifBtn"
+              className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-black/5"
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                viewBox="0 0 24 24"
+              >
+                <path d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5" />
+                <path d="M9 17a3 3 0 0 0 6 0" />
+              </svg>
+            </button>
 
             <div
-              id="searchPanel"
+              id="notifPanel"
               className="hidden absolute right-0 mt-2 w-80 bg-white border border-gray-300 rounded-2xl shadow-xl z-50"
             >
-              <div className="p-3">
-                <input
-                  id="searchInput"
-                  type="text"
-                  placeholder="Search Solennia..."
-                  className="w-full rounded-lg border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#7a5d47]"
-                />
-                <ul
-                  id="searchResults"
-                  className="mt-3 max-h-64 overflow-y-auto divide-y text-sm"
-                />
+              <div className="p-4 text-center">
+                <p className="text-base">no notifications yet.</p>
+                <p className="text-sm text-gray-600">We will let you know!</p>
               </div>
             </div>
           </div>
 
-          {/* MESSAGES */}
-          <Link
-            to="/chat"
-            className="p-2 rounded hover:bg-black/5"
-            aria-label="Messages"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M21 15a4 4 0 0 1-4 4H8l-4 3V7a4 4 0 0 1 4-4h9a4 4 0 0 1 4 4z" />
-            </svg>
-          </Link>
-
-          {/* PROFILE DROPDOWN */}
+          {/* PROFILE */}
           <div className="relative">
             <button
               id="profileBtn"
-              className="inline-flex items-center justify-center w-9 h-9 rounded-full border border-gray-400 hover:bg-black/5 overflow-hidden bg-transparent"
-              aria-haspopup="menu"
+              className="
+                w-10 h-10
+                rounded-full
+                border border-gray-700
+                flex items-center justify-center
+                hover:bg-black/5
+                transition
+              "
             >
-              <img
-                id="navAvatar"
-                className="w-full h-full object-cover hidden rounded-full"
-                alt=""
-              />
-              <div
-                id="navAvatarFallback"
-                className="flex items-center justify-center w-full h-full rounded-full bg-transparent"
+              <svg
+                className="w-5 h-5 text-gray-800"
+                viewBox="0 0 24 24"
+                fill="currentColor"
               >
-                <svg
-                  className="w-5 h-5 text-gray-700"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                >
-                  <path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-5 0-9 2.5-9 5.5V21h18v-1.5C21 16.5 17 14 12 14Z" />
-                </svg>
-              </div>
+                <path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-5 0-9 2.5-9 5.5V21h18v-1.5C21 16.5 17 14 12 14Z" />
+              </svg>
             </button>
 
+            {/* PROFILE MENU */}
             <div
               id="profileMenu"
               className="hidden absolute right-0 mt-2 w-56 rounded-xl border border-gray-300 bg-[#f6f0e8] shadow-xl z-50"
@@ -140,15 +158,17 @@ export default function Header() {
                 >
                   Login
                 </button>
+
                 <button
                   id="menuSignUp"
                   className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
                 >
                   Register
                 </button>
+
                 <button
                   id="menuLogout"
-                  className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 hidden"
+                  className="hidden w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
                 >
                   Logout
                 </button>

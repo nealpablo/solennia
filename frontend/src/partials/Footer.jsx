@@ -1,78 +1,127 @@
-// src/partials/Footer.jsx
-import { Link } from "react-router-dom";
 import React from "react";
+import { Link } from "react-router-dom";
 
 export default function Footer() {
 
-  function handleFeedback(e) {
+  /* =========================
+     MODAL HANDLERS
+  ========================= */
+
+  const openModal = (id) => (e) => {
     e.preventDefault();
-    // Legacy modal support preserved
-    const el = document.getElementById("feedbackModal");
+    const el = document.getElementById(id);
     if (el) el.classList.remove("hidden");
-  }
+  };
 
   return (
-    <footer className="bg-[#353946] text-[#f6f0e8] py-10">
-      <div className="max-w-6xl mx-auto px-6 grid md:grid-cols-3 gap-10 text-sm">
+    <footer className="bg-[#353946] text-[#e8ddae] py-6">
+      <div className="max-w-6xl mx-auto px-8 grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
 
-        {/* BRAND */}
-        <div>
+        {/* ================= BRAND (LEFT) ================= */}
+        <div className="space-y-3 text-left">
           <img
             src="/images/solennia.png"
             alt="Solennia logo"
-            className="h-12 w-auto select-none"
+            className="h-20 w-auto select-none"
           />
-          <h3 className="text-lg font-semibold mb-3">Solennia</h3>
-          <p className="text-gray-300">
+
+          <p className="text-[#d8cfae] italic text-xs leading-relaxed max-w-xs">
             “One click closer to the perfect event.”
           </p>
-          <p className="mt-4 text-gray-400">
+
+          <p className="text-[0.7rem] text-[#c9bda4]">
             © 2025 Solennia. All rights reserved.
           </p>
-          <p className="mt-2">solenniainquires@gmail.com</p>
+
+          <p className="text-xs">
+            solenniainquires@gmail.com
+          </p>
         </div>
 
-        {/* NAVIGATION */}
-        <ul className="space-y-2">
+        {/* ================= NAVIGATION (MIDDLE) ================= */}
+        <ul
+          className="
+            space-y-4
+            text-left
+            uppercase
+            tracking-[0.2em]
+            text-sm
+            leading-relaxed
+            pt-2
+            md:justify-self-center
+          "
+        >
           <li>
-            <Link to="/" className="hover:underline">HOME</Link>
+            <Link to="/" className="hover:underline hover:text-[#f2e7c6] transition-colors">
+              Home
+            </Link>
           </li>
+
           <li>
-            <Link to="/about" className="hover:underline">ABOUT US</Link>
+            <Link to="/about" className="hover:underline hover:text-[#f2e7c6] transition-colors">
+              About Us
+            </Link>
           </li>
+
           <li>
-            <Link to="/vendors" className="hover:underline">EXPLORE VENDORS</Link>
+            <Link to="/vendors" className="hover:underline hover:text-[#f2e7c6] transition-colors">
+              Explore Vendors
+            </Link>
           </li>
+
           <li>
-            <Link to="/ai-planner" className="hover:underline">
-              WEDDING PLANNER AI
+            <Link to="/ai-planner" className="hover:underline hover:text-[#f2e7c6] transition-colors">
+              Wedding Planner AI
             </Link>
           </li>
         </ul>
 
-        {/* LEGAL */}
-        <ul className="space-y-2">
-          <li>
-            <Link to="/privacy" className="hover:underline">
-              PRIVACY POLICY
-            </Link>
-          </li>
-          <li>
-            <Link to="/terms" className="hover:underline">
-              TERMS & CONDITIONS
-            </Link>
-          </li>
-          <li>
-            <Link to="/vendor-agreement" className="hover:underline">
-              VENDOR AGREEMENT
-            </Link>
-          </li>
+        {/* ================= LEGAL (RIGHT) ================= */}
+        <ul
+          className="
+            space-y-4
+            text-left
+            uppercase
+            tracking-[0.2em]
+            text-sm
+            leading-relaxed
+            pt-2
+            md:justify-self-end
+          "
+        >
           <li>
             <button
-              onClick={handleFeedback}
-              className="hover:underline text-left"
+              onClick={openModal("privacyModal")}
+              className="hover:underline hover:text-[#f2e7c6] transition-colors text-left"
             >
-              GIVE FEEDBACK
+              Privacy Policy
+            </button>
+          </li>
+
+          <li>
+            <button
+              onClick={openModal("termsModal")}
+              className="hover:underline hover:text-[#f2e7c6] transition-colors text-left"
+            >
+              Terms & Conditions
+            </button>
+          </li>
+
+          <li>
+            <button
+              onClick={openModal("vendorTerms")}
+              className="hover:underline hover:text-[#f2e7c6] transition-colors text-left"
+            >
+              Vendor Agreement
+            </button>
+          </li>
+
+          <li>
+            <button
+              onClick={openModal("feedbackModal")}
+              className="hover:underline hover:text-[#f2e7c6] transition-colors text-left"
+            >
+              Give Feedback
             </button>
           </li>
         </ul>

@@ -1,8 +1,4 @@
-import { useEffect, useState } from "react";
-import React from "react";
-import Header from "../partials/Header";
-import Footer from "../partials/Footer";
-import Modals from "../partials/Modals";
+import React, { useEffect, useState } from "react";
 import "../style.css";
 
 const API = "/api";
@@ -92,72 +88,95 @@ export default function Profile() {
 
   return (
     <>
-      <Header />
-
-      <main className="pb-24">
+      <main className="pb-24 bg-[#f6f0e8] text-[#1c1b1a]">
         <div className="max-w-6xl mx-auto px-4">
-          <h2 className="mt-6 text-xl font-semibold">PROFILE</h2>
 
-          {/* Avatar */}
-          <div className="flex flex-col items-center space-y-4">
+          {/* ================= PROFILE HEADER ================= */}
+          <h2 className="mt-6 text-xl md:text-2xl font-semibold tracking-wide">
+            PROFILE
+          </h2>
+
+          {/* ================= AVATAR SECTION ================= */}
+          <div className="flex flex-col items-center text-center space-y-4 mt-6">
             <div
               onClick={() => token && setShowAvatarModal(true)}
-              style={{
-                width: 112,
-                height: 112,
-                border: "2px solid #000",
-                borderRadius: "9999px",
-                overflow: "hidden",
-                cursor: "pointer",
-                background: "#fff",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center"
-              }}
+              className="w-28 h-28 rounded-full border-2 border-black overflow-hidden bg-white flex items-center justify-center cursor-pointer"
             >
               {profile?.avatar ? (
-                <img src={profile.avatar} className="w-full h-full object-cover" />
+                <img
+                  src={profile.avatar}
+                  className="w-full h-full object-cover"
+                  alt="Profile avatar"
+                />
               ) : (
-                <svg viewBox="0 0 24 24" width="48">
-                  <path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-5 0-9 2.5-9 5.5V21h18v-1.5C21 16.5 17 14 12 14Z"/>
+                <svg viewBox="0 0 24 24" className="w-12 h-12 text-[#1c1b1a]">
+                  <path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-5 0-9 2.5-9 5.5V21h18v-1.5C21 16.5 17 14 12 14Z" />
                 </svg>
               )}
             </div>
 
-            <div>
-              <span className="font-semibold">Name:</span> {name}
+            <div className="text-sm">
+              <span className="font-semibold uppercase tracking-wide">
+                Name :
+              </span>{" "}
+              <span>{name}</span>
             </div>
 
-            <a href={dashboardHref()} className="btn-ghost">
+            <a
+              href={dashboardHref()}
+              className="bg-[#e0d6c6] text-[#3b2f25] px-4 py-2 rounded-lg text-sm hover:opacity-90"
+            >
               {dashboardLabel()}
             </a>
           </div>
 
-          {/* Join Vendor */}
+          {/* ================= FAVORITES ================= */}
+          <h2 className="mt-12 text-xl md:text-2xl font-semibold tracking-wide">
+            FAVORITES
+          </h2>
+
+          <section className="mt-3 bg-[#ece8e1] border border-[#d9d6cf] rounded-xl p-4 md:p-6">
+            <article className="rounded-xl border border-[#ded7c9] overflow-hidden bg-[#f5f0ea] mb-4">
+              <img src="/images/gallery1.jpg" className="w-full object-cover" />
+            </article>
+
+            <article className="rounded-xl border border-[#ded7c9] overflow-hidden bg-[#f5f0ea]">
+              <img src="/images/gallery2.jpg" className="w-full object-cover" />
+            </article>
+
+            <div className="mt-6 flex justify-center">
+              <button className="bg-[#7a5d47] text-white px-6 py-2 rounded-lg hover:opacity-90">
+                Compare Favorites
+              </button>
+            </div>
+          </section>
+
+          {/* ================= JOIN AS VENDOR ================= */}
           {role === 0 && (
-            <div className="mt-10 text-center">
+            <section className="mt-12 text-center mb-16">
               <button
                 onClick={joinVendor}
                 disabled={vendorStatus === "pending"}
-                className={`btn-brown ${vendorStatus === "pending" ? "opacity-50" : ""}`}
+                className={`bg-[#7a5d47] text-white px-6 py-2 rounded-lg hover:opacity-90 ${
+                  vendorStatus === "pending" ? "opacity-50 cursor-not-allowed" : ""
+                }`}
               >
                 {vendorStatus === "pending"
                   ? "Vendor Application Pending"
                   : "Join as a Vendor"}
               </button>
-            </div>
+            </section>
           )}
         </div>
       </main>
 
-      <Footer />
-      <Modals />
-
-      {/* Avatar Modal */}
+      {/* ================= AVATAR MODAL ================= */}
       {showAvatarModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[9999]">
-          <div className="bg-[#f6f0e8] p-6 rounded-xl w-[90%] max-w-[420px]">
-            <h2 className="text-lg font-semibold mb-3">Update Profile Picture</h2>
+          <div className="bg-[#f6f0e8] p-6 rounded-2xl w-[90%] max-w-[420px] border border-[#c9bda4] shadow-lg">
+            <h2 className="text-lg font-semibold mb-3">
+              Update Profile Picture
+            </h2>
 
             <form onSubmit={uploadAvatar}>
               <input
@@ -165,13 +184,15 @@ export default function Profile() {
                 accept="image/*"
                 required
                 onChange={e => setAvatarFile(e.target.files[0])}
-                className="border rounded p-2 w-full"
+                className="border border-gray-400 rounded-lg p-2 w-full bg-white"
               />
-              <button className="btn-brown w-full mt-4">Upload</button>
+              <button className="bg-[#7a5d47] text-white w-full py-2 rounded-lg mt-4">
+                Upload
+              </button>
             </form>
 
             <button
-              className="btn-ghost w-full mt-3"
+              className="bg-[#e0d6c6] text-[#3b2f25] w-full py-2 rounded-lg mt-3"
               onClick={() => setShowAvatarModal(false)}
             >
               Cancel
