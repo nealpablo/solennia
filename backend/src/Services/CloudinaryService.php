@@ -1,7 +1,8 @@
 <?php
-namespace Src;
+namespace Src\Services;
 
-use Cloudinary\Cloudinary;
+use Src\Services\CloudinaryService;
+
 
 class CloudinaryService
 {
