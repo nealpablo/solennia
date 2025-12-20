@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import React from "react";
 import Chart from "chart.js/auto";
+import "../style.css";
 
 const API = "/api";
 
@@ -27,16 +28,19 @@ export default function VendorDashboard() {
 
   /* ================= SAFE FETCH ================= */
   async function safeFetch(url, opts = {}) {
-    const res = await fetch(url, {
-      ...opts,
-      headers: {
-        Authorization: `Bearer ${token}`,
-        ...(opts.headers || {}),
-      },
-    });
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(json.error || json.message || "Error");
-    return json;
+    const headers = opts.headers || {};
+    headers["Authorization"] = `Bearer ${token}`;
+    
+    const res = await fetch(url, { ...opts, headers });
+    const data = await res.json().catch(() => ({}));
+    
+    if (!res.ok) throw new Error(data.error || data.message || "Error");
+    return data;
+  }
+
+  /* ================= TOAST ================= */
+  function toast(msg) {
+    alert(msg);
   }
 
   /* ================= LOAD DASHBOARD ================= */
@@ -44,18 +48,24 @@ export default function VendorDashboard() {
     try {
       const body = await safeFetch(`${API}/vendor/dashboard`);
       setVendor(body.vendor);
-      setBookings(body.bookings || []);
+      setBookings(body.bookings || [{ title: "No bookings", count: 0 }]);
       setGallery(body.vendor?.gallery || []);
 
+      // Chart
       if (body.insights && chartRef.current) {
         chartInstance.current?.destroy();
-        chartInstance.current = new Chart(chartRef.current, {
-          type: "line",
-          data: body.insights,
-        });
+        
+        try {
+          chartInstance.current = new Chart(chartRef.current, {
+            type: "line",
+            data: body.insights || { labels: [], datasets: [] },
+          });
+        } catch (e) {
+          console.error("Chart error:", e);
+        }
       }
     } catch (err) {
-      alert(err.message);
+      toast(err.message);
       if (err.message.toLowerCase().includes("unauthorized")) {
         window.location.href = "/profile";
       }
@@ -84,69 +94,218 @@ export default function VendorDashboard() {
 
   async function submitEdit(e) {
     e.preventDefault();
-    await safeFetch(`${API}/vendor/update`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
-    setShowEdit(false);
-    loadDashboard();
-    alert("Profile updated!");
+    
+    try {
+      await safeFetch(`${API}/vendor/update`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      
+      setShowEdit(false);
+      loadDashboard();
+      toast("Profile updated!");
+    } catch (err) {
+      toast(err.message);
+    }
   }
 
   /* ================= UPLOAD HANDLERS ================= */
-  async function uploadFile(endpoint, fileKey, file) {
+  async function uploadHero(file) {
     const fd = new FormData();
-    fd.append(fileKey, file);
-    await safeFetch(endpoint, { method: "POST", body: fd });
-    loadDashboard();
+    fd.append("hero", file);
+    
+    try {
+      await safeFetch(`${API}/vendor/upload-hero`, { 
+        method: "POST", 
+        body: fd 
+      });
+      
+      setShowHero(false);
+      toast("Hero image uploaded!");
+    } catch (err) {
+      toast(err.message);
+    }
+  }
+
+  async function uploadLogo(file) {
+    const fd = new FormData();
+    fd.append("logo", file);
+    
+    try {
+      const body = await safeFetch(`${API}/vendor/upload-logo`, { 
+        method: "POST", 
+        body: fd 
+      });
+      
+      setShowLogo(false);
+      if (body.url) {
+        setVendor({ ...vendor, avatar: body.url });
+      }
+      toast("Logo uploaded!");
+    } catch (err) {
+      toast(err.message);
+    }
   }
 
   async function uploadGallery(files) {
     const fd = new FormData();
     [...files].forEach((f) => fd.append("images[]", f));
-    const res = await safeFetch(`${API}/vendor/upload-gallery`, {
-      method: "POST",
-      body: fd,
-    });
-    setGallery(res.gallery || []);
+    
+    try {
+      const body = await safeFetch(`${API}/vendor/upload-gallery`, {
+        method: "POST",
+        body: fd,
+      });
+      
+      setGallery(body.gallery || []);
+      toast("Gallery updated!");
+    } catch (err) {
+      toast(err.message);
+    }
   }
 
   if (!vendor) return null;
 
   return (
     <>
-      <main className="max-w-[1100px] mx-auto p-4">
+      <style>{`
+        body {
+          font-family: 'Cinzel', serif;
+          background: #f6f0e8;
+          color: #1c1b1a;
+          min-height: 100vh;
+        }
+
+        main {
+          max-width: 1100px;
+          margin: 1.5rem auto;
+          padding: 1rem;
+          width: 100%;
+        }
+
+        .card {
+          background: #ece8e1;
+          border-radius: 12px;
+          padding: 1rem;
+          box-shadow: 0 6px 18px rgba(0,0,0,0.05);
+        }
+
+        .profile-hero {
+          display: flex;
+          gap: 1rem;
+          align-items: center;
+        }
+
+        .avatar {
+          width: 96px;
+          height: 96px;
+          border-radius: 9999px;
+          overflow: hidden;
+          border: 2px solid #1c1b1a;
+          background: #fff;
+          object-fit: cover;
+        }
+
+        .btn-ghost {
+          background: #e0d6c6;
+          color: #3b2f25;
+          border-radius: 8px;
+          padding: .5rem .9rem;
+          border: 1px solid #c9bda9;
+          cursor: pointer;
+        }
+
+        .btn-brown {
+          background: #7a5d47;
+          color: #fff;
+          border-radius: 8px;
+          padding: .55rem 1rem;
+          border: none;
+          cursor: pointer;
+        }
+
+        .small {
+          font-size: 0.85rem;
+          color: #344;
+        }
+
+        .grid-2 {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 1rem;
+        }
+
+        .modal-backdrop {
+          position: fixed;
+          inset: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: rgba(0,0,0,0.45);
+          z-index: 9999;
+        }
+
+        .modal {
+          background: #f6f0e8;
+          border-radius: 0.75rem;
+          padding: 1rem;
+          width: 100%;
+          max-width: 720px;
+          box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+
+        label.field {
+          display: block;
+          font-size: 0.85rem;
+          margin-bottom: 0.25rem;
+          font-weight: 600;
+        }
+
+        input, textarea {
+          width: 100%;
+          padding: 0.5rem;
+          border: 1px solid #c9bda9;
+          border-radius: 6px;
+          background: #fff;
+        }
+      `}</style>
+
+      <main>
         {/* PROFILE */}
-        <section className="card flex gap-4 items-center">
+        <section className="card profile-hero">
           <img
             src={vendor.avatar || "/images/default-avatar.png"}
-            className="w-24 h-24 rounded-full border-2 border-black object-cover bg-white"
-            alt="Vendor"
+            className="avatar"
+            alt="Vendor logo"
           />
 
-          <div className="flex-1">
-            <h2 className="text-xl font-semibold">{vendor.business_name}</h2>
-            <p className="small">{vendor.address}</p>
-            <p className="small mt-2">{vendor.bio}</p>
+          <div style={{ flex: 1 }}>
+            <h2 className="text-xl font-semibold">{vendor.business_name || "Vendor"}</h2>
+            <p className="small">{vendor.address || ""}</p>
+            <p className="small mt-2">{vendor.bio || ""}</p>
 
-            <div className="grid grid-cols-2 gap-2 mt-2">
+            <div className="mt-4 grid grid-cols-2 gap-2">
               <div>
                 <b>Services:</b>{" "}
-                {Array.isArray(vendor.services)
-                  ? vendor.services.join(", ")
-                  : vendor.services}
+                <span className="small">
+                  {Array.isArray(vendor.services)
+                    ? vendor.services.join(", ")
+                    : vendor.services || ""}
+                </span>
               </div>
               <div>
                 <b>Areas:</b>{" "}
-                {Array.isArray(vendor.service_areas)
-                  ? vendor.service_areas.join(", ")
-                  : vendor.service_areas}
+                <span className="small">
+                  {Array.isArray(vendor.service_areas)
+                    ? vendor.service_areas.join(", ")
+                    : vendor.service_areas || ""}
+                </span>
               </div>
             </div>
           </div>
 
-          <div className="flex flex-col gap-2">
+          <div style={{ display: "flex", flexDirection: "column", gap: ".5rem" }}>
             <button className="btn-ghost" onClick={openEdit}>
               Edit Profile
             </button>
@@ -163,33 +322,31 @@ export default function VendorDashboard() {
         <section className="card mt-6">
           <h3 className="font-semibold mb-3">Dashboard</h3>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid-2">
             <div>
               <h4 className="text-sm font-semibold">Bookings Summary</h4>
-              {bookings.length === 0 ? (
-                <div className="small">No bookings</div>
-              ) : (
-                bookings.map((b, i) => (
-                  <div key={i} className="small">
+              <div className="small mt-2">
+                {bookings.map((b, i) => (
+                  <div key={i}>
                     {b.title}: <b>{b.count}</b>
                   </div>
-                ))
-              )}
+                ))}
+              </div>
             </div>
 
             <div>
               <h4 className="text-sm font-semibold">Visitor Insights</h4>
-              <canvas ref={chartRef} />
+              <canvas ref={chartRef} style={{ maxWidth: "100%" }} />
             </div>
           </div>
         </section>
 
         {/* GALLERY */}
         <section className="card mt-6">
-          <div className="flex justify-between items-center">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <h3 className="font-semibold">Listings & Gallery</h3>
 
-            <label className="btn-ghost cursor-pointer">
+            <label className="btn-ghost" style={{ cursor: "pointer" }}>
               Upload Gallery
               <input
                 type="file"
@@ -201,12 +358,24 @@ export default function VendorDashboard() {
             </label>
           </div>
 
-          <div className="mt-3 grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-3">
+          <div
+            className="mt-3"
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+              gap: "12px",
+            }}
+          >
             {gallery.map((url, i) => (
               <img
                 key={i}
                 src={url}
-                className="w-full h-[120px] object-cover rounded-lg"
+                style={{
+                  width: "100%",
+                  height: "120px",
+                  objectFit: "cover",
+                  borderRadius: "8px",
+                }}
                 alt=""
               />
             ))}
@@ -216,107 +385,108 @@ export default function VendorDashboard() {
 
       {/* EDIT MODAL */}
       {showEdit && (
-        <Modal title="Edit Vendor Profile" onClose={() => setShowEdit(false)}>
-          <form onSubmit={submitEdit}>
-            <Field label="Business Name">
+        <div className="modal-backdrop" onClick={() => setShowEdit(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Edit Vendor Profile</h3>
+            <form onSubmit={submitEdit}>
+              <label className="field">Business Name</label>
               <input
                 value={form.business_name}
-                onChange={(e) =>
-                  setForm({ ...form, business_name: e.target.value })
-                }
+                onChange={(e) => setForm({ ...form, business_name: e.target.value })}
                 required
               />
-            </Field>
 
-            <Field label="Bio">
+              <label className="field mt-3">Bio</label>
               <textarea
                 value={form.bio}
                 onChange={(e) => setForm({ ...form, bio: e.target.value })}
+                rows="3"
               />
-            </Field>
 
-            <Field label="Services">
+              <label className="field mt-3">Services (comma separated)</label>
               <input
                 value={form.services}
                 onChange={(e) => setForm({ ...form, services: e.target.value })}
               />
-            </Field>
 
-            <Field label="Service Areas">
+              <label className="field mt-3">Service Areas (comma separated)</label>
               <input
                 value={form.service_areas}
-                onChange={(e) =>
-                  setForm({ ...form, service_areas: e.target.value })
-                }
+                onChange={(e) => setForm({ ...form, service_areas: e.target.value })}
               />
-            </Field>
 
-            <div className="flex justify-end gap-2 mt-4">
-              <button
-                type="button"
-                className="btn-ghost"
-                onClick={() => setShowEdit(false)}
-              >
-                Cancel
-              </button>
-              <button className="btn-brown">Save</button>
-            </div>
-          </form>
-        </Modal>
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: ".5rem", marginTop: "1rem" }}>
+                <button type="button" className="btn-ghost" onClick={() => setShowEdit(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn-brown">
+                  Save
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
+      {/* HERO UPLOAD MODAL */}
       {showHero && (
-        <UploadModal
-          title="Upload Hero"
-          onClose={() => setShowHero(false)}
-          onUpload={(f) => uploadFile(`${API}/vendor/upload-hero`, "hero", f)}
-        />
+        <div className="modal-backdrop" onClick={() => setShowHero(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Upload Hero Image</h3>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const fileInput = e.target.querySelector('input[type="file"]');
+                if (fileInput.files[0]) {
+                  uploadHero(fileInput.files[0]);
+                }
+              }}
+            >
+              <label className="field">Choose hero image</label>
+              <input type="file" name="hero" accept="image/*" required />
+              
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: ".5rem", marginTop: "1rem" }}>
+                <button type="button" className="btn-ghost" onClick={() => setShowHero(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn-brown">
+                  Upload
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
+      {/* LOGO UPLOAD MODAL */}
       {showLogo && (
-        <UploadModal
-          title="Upload Logo"
-          onClose={() => setShowLogo(false)}
-          onUpload={(f) => uploadFile(`${API}/vendor/upload-logo`, "logo", f)}
-        />
+        <div className="modal-backdrop" onClick={() => setShowLogo(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Upload Vendor Logo</h3>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const fileInput = e.target.querySelector('input[type="file"]');
+                if (fileInput.files[0]) {
+                  uploadLogo(fileInput.files[0]);
+                }
+              }}
+            >
+              <label className="field">Choose logo image</label>
+              <input type="file" name="logo" accept="image/*" required />
+              
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: ".5rem", marginTop: "1rem" }}>
+                <button type="button" className="btn-ghost" onClick={() => setShowLogo(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn-brown">
+                  Upload
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </>
-  );
-}
-
-/* ================= SMALL COMPONENTS ================= */
-
-function Modal({ title, children, onClose }) {
-  return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[9999]">
-      <div className="bg-[#f6f0e8] p-4 rounded-xl w-full max-w-[720px]">
-        <h3 className="font-semibold mb-3">{title}</h3>
-        {children}
-        <button className="btn-ghost mt-3" onClick={onClose}>
-          Close
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function UploadModal({ title, onUpload, onClose }) {
-  return (
-    <Modal title={title} onClose={onClose}>
-      <input
-        type="file"
-        accept="image/*"
-        onChange={(e) => onUpload(e.target.files[0])}
-      />
-    </Modal>
-  );
-}
-
-function Field({ label, children }) {
-  return (
-    <div className="mt-3">
-      <label className="block text-sm font-semibold mb-1">{label}</label>
-      {children}
-    </div>
   );
 }

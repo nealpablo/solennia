@@ -109,7 +109,7 @@ export default function Footer() {
 
           <li>
             <button
-              onClick={openModal("vendorTerms")}
+              onClick={openModal("vendorAgreement")}
               className="hover:underline hover:text-[#f2e7c6] transition-colors text-left"
             >
               Vendor Agreement

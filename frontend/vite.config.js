@@ -1,5 +1,5 @@
 import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
+import { resolve } from 'path';
 
 // ✅ Use Railway in production, localhost in dev
 const BACKEND =
@@ -8,8 +8,6 @@ const BACKEND =
     : (process.env.VITE_BACKEND_URL || 'http://127.0.0.1:3000');
 
 export default defineConfig({
-  plugins: [react()],
-
   server: {
     port: 5173,
     open: true,
@@ -19,7 +17,7 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
         configure: (proxy) => {
-          proxy.on('error', (err) => {
+          proxy.on('error', (err, _req, _res) => {
             console.error('[vite-proxy] error:', err?.message || err);
           });
           proxy.on('proxyReq', (_proxyReq, req) => {
@@ -29,6 +27,16 @@ export default defineConfig({
             console.log('[vite-proxy] ←', req.method, req.url, proxyRes.statusCode);
           });
         },
+      },
+    },
+  },
+  build: {
+  rollupOptions: {
+    input: {
+      index: resolve(__dirname, 'index.html'),
+      profile: resolve(__dirname, 'profile.html'),
+      aboutus: resolve(__dirname, 'aboutus.html'),
+      adminpanel: resolve(__dirname, 'adminpanel.html'),
       },
     },
   },

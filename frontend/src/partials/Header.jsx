@@ -1,8 +1,26 @@
 // src/partials/Header.jsx
 import { Link } from "react-router-dom";
-import React from "react";
+import React, { useEffect } from "react";
 
 export default function Header() {
+
+  /* =========================
+     AUTH DROPDOWN STATE
+  ========================= */
+  useEffect(() => {
+    const token = localStorage.getItem("solennia_token");
+
+    if (token) {
+      document.getElementById("menuSignIn")?.classList.add("hidden");
+      document.getElementById("menuSignUp")?.classList.add("hidden");
+      document.getElementById("menuLogout")?.classList.remove("hidden");
+    } else {
+      document.getElementById("menuLogout")?.classList.add("hidden");
+      document.getElementById("menuSignIn")?.classList.remove("hidden");
+      document.getElementById("menuSignUp")?.classList.remove("hidden");
+    }
+  }, []);
+
   return (
     <header className="bg-[#e8ddae] border-b border-gray-300">
       <nav className="max-w-7xl mx-auto px-4 flex items-center justify-between h-14">
@@ -42,45 +60,23 @@ export default function Header() {
         <div className="flex items-center gap-2">
 
           {/* SEARCH */}
-          <div className="relative">
-            <button
-              id="searchBtn"
-              className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-black/5"
-            >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                viewBox="0 0 24 24"
-              >
-                <circle cx="11" cy="11" r="7" />
-                <path d="M20 20l-3.5-3.5" />
-              </svg>
-            </button>
-          </div>
+          <button
+            id="searchBtn"
+            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-black/5"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M20 20l-3.5-3.5" />
+            </svg>
+          </button>
 
-          {/* ✅ FIXED CHAT BUTTON */}
+          {/* CHAT */}
           <Link
             to="/chat"
             aria-label="Messages"
-            className="
-              w-10 h-10
-              flex items-center justify-center
-              rounded-full
-              hover:bg-black/5
-              transition
-            "
+            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-black/5"
           >
-            <svg
-              className="w-5 h-5"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.9"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
               <path d="M21 15a4 4 0 0 1-4 4H7l-4 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
             </svg>
           </Link>
@@ -91,13 +87,7 @@ export default function Header() {
               id="notifBtn"
               className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-black/5"
             >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                viewBox="0 0 24 24"
-              >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                 <path d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5" />
                 <path d="M9 17a3 3 0 0 0 6 0" />
               </svg>
@@ -118,20 +108,9 @@ export default function Header() {
           <div className="relative">
             <button
               id="profileBtn"
-              className="
-                w-10 h-10
-                rounded-full
-                border border-gray-700
-                flex items-center justify-center
-                hover:bg-black/5
-                transition
-              "
+              className="w-10 h-10 rounded-full border border-gray-700 flex items-center justify-center hover:bg-black/5"
             >
-              <svg
-                className="w-5 h-5 text-gray-800"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-              >
+              <svg className="w-5 h-5 text-gray-800" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-5 0-9 2.5-9 5.5V21h18v-1.5C21 16.5 17 14 12 14Z" />
               </svg>
             </button>
@@ -169,6 +148,7 @@ export default function Header() {
                 <button
                   id="menuLogout"
                   className="hidden w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
+                  onClick={() => window.solenniaLogout && window.solenniaLogout()}
                 >
                   Logout
                 </button>

@@ -7,7 +7,9 @@ export default function Profile() {
   const token = localStorage.getItem("solennia_token");
 
   const [profile, setProfile] = useState(null);
-  const [role, setRole] = useState(Number(localStorage.getItem("solennia_role") || 0));
+  const [role, setRole] = useState(
+    Number(localStorage.getItem("solennia_role") || 0)
+  );
   const [vendorStatus, setVendorStatus] = useState(null);
 
   const [showAvatarModal, setShowAvatarModal] = useState(false);
@@ -18,10 +20,10 @@ export default function Profile() {
     if (!token) return;
 
     fetch(`${API}/auth/me`, {
-      headers: { Authorization: `Bearer ${token}` }
+      headers: { Authorization: `Bearer ${token}` },
     })
-      .then(r => r.json())
-      .then(j => {
+      .then((r) => r.json())
+      .then((j) => {
         if (!j?.user) return;
         setProfile(j.user);
         localStorage.setItem("solennia_role", j.user.role ?? 0);
@@ -34,10 +36,10 @@ export default function Profile() {
     if (!token || role !== 0) return;
 
     fetch(`${API}/vendor/status`, {
-      headers: { Authorization: `Bearer ${token}` }
+      headers: { Authorization: `Bearer ${token}` },
     })
-      .then(r => r.json())
-      .then(j => setVendorStatus(j.status))
+      .then((r) => r.json())
+      .then((j) => setVendorStatus(j.status))
       .catch(() => {});
   }, [token, role]);
 
@@ -52,13 +54,13 @@ export default function Profile() {
     const res = await fetch(`${API}/user/update`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
-      body: fd
+      body: fd,
     });
 
     const json = await res.json();
     if (!res.ok) return alert(json.error || "Upload failed");
 
-    setProfile(p => ({ ...p, avatar: json.avatar || p.avatar }));
+    setProfile((p) => ({ ...p, avatar: json.avatar || p.avatar }));
     setShowAvatarModal(false);
   }
 
@@ -71,15 +73,15 @@ export default function Profile() {
 
   /* ================= DASHBOARD ================= */
   function dashboardHref() {
-    if (role === 2) return "/adminpanel.html";
-    if (role === 1) return "/vendordashboard.html";
-    return "#";
+    if (role === 2) return "/admin"; // Admin
+    if (role === 1) return "/vendor-dashboard"; // Vendor
+    return null; // Client → NO ACCESS
   }
 
   function dashboardLabel() {
     if (role === 2) return "Admin Panel";
     if (role === 1) return "Manage Dashboard";
-    return "View Dashboard";
+    return null;
   }
 
   const name = profile
@@ -90,7 +92,6 @@ export default function Profile() {
     <>
       <main className="pb-24 bg-[#f6f0e8] text-[#1c1b1a]">
         <div className="max-w-6xl mx-auto px-4">
-
           {/* ================= PROFILE HEADER ================= */}
           <h2 className="mt-6 text-xl md:text-2xl font-semibold tracking-wide">
             PROFILE
@@ -109,7 +110,10 @@ export default function Profile() {
                   alt="Profile avatar"
                 />
               ) : (
-                <svg viewBox="0 0 24 24" className="w-12 h-12 text-[#1c1b1a]">
+                <svg
+                  viewBox="0 0 24 24"
+                  className="w-12 h-12 text-[#1c1b1a]"
+                >
                   <path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-5 0-9 2.5-9 5.5V21h18v-1.5C21 16.5 17 14 12 14Z" />
                 </svg>
               )}
@@ -122,12 +126,15 @@ export default function Profile() {
               <span>{name}</span>
             </div>
 
-            <a
-              href={dashboardHref()}
-              className="bg-[#e0d6c6] text-[#3b2f25] px-4 py-2 rounded-lg text-sm hover:opacity-90"
-            >
-              {dashboardLabel()}
-            </a>
+            {/* ✅ FIX: ONLY RENDER DASHBOARD BUTTON IF ALLOWED */}
+            {dashboardHref() && dashboardLabel() && (
+              <a
+                href={dashboardHref()}
+                className="bg-[#e0d6c6] text-[#3b2f25] px-4 py-2 rounded-lg text-sm hover:opacity-90"
+              >
+                {dashboardLabel()}
+              </a>
+            )}
           </div>
 
           {/* ================= FAVORITES ================= */}
@@ -137,11 +144,17 @@ export default function Profile() {
 
           <section className="mt-3 bg-[#ece8e1] border border-[#d9d6cf] rounded-xl p-4 md:p-6">
             <article className="rounded-xl border border-[#ded7c9] overflow-hidden bg-[#f5f0ea] mb-4">
-              <img src="/images/gallery1.jpg" className="w-full object-cover" />
+              <img
+                src="/images/gallery1.jpg"
+                className="w-full object-cover"
+              />
             </article>
 
             <article className="rounded-xl border border-[#ded7c9] overflow-hidden bg-[#f5f0ea]">
-              <img src="/images/gallery2.jpg" className="w-full object-cover" />
+              <img
+                src="/images/gallery2.jpg"
+                className="w-full object-cover"
+              />
             </article>
 
             <div className="mt-6 flex justify-center">
@@ -158,7 +171,9 @@ export default function Profile() {
                 onClick={joinVendor}
                 disabled={vendorStatus === "pending"}
                 className={`bg-[#7a5d47] text-white px-6 py-2 rounded-lg hover:opacity-90 ${
-                  vendorStatus === "pending" ? "opacity-50 cursor-not-allowed" : ""
+                  vendorStatus === "pending"
+                    ? "opacity-50 cursor-not-allowed"
+                    : ""
                 }`}
               >
                 {vendorStatus === "pending"
@@ -183,7 +198,7 @@ export default function Profile() {
                 type="file"
                 accept="image/*"
                 required
-                onChange={e => setAvatarFile(e.target.files[0])}
+                onChange={(e) => setAvatarFile(e.target.files[0])}
                 className="border border-gray-400 rounded-lg p-2 w-full bg-white"
               />
               <button className="bg-[#7a5d47] text-white w-full py-2 rounded-lg mt-4">
