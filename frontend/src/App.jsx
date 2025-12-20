@@ -27,7 +27,6 @@ function Layout({ children }) {
 
   /**
    * 🔥 RESTORE LEGACY DROPDOWN + MODAL BEHAVIOR
-   * This replaces the old app.js side-effects
    */
   useEffect(() => {
     const profileBtn = document.getElementById("profileBtn");
@@ -65,20 +64,16 @@ function Layout({ children }) {
       loginModal?.classList.add("hidden");
     }
 
-    function closeAll() {
-      profileMenu?.classList.add("hidden");
-      authBackdrop?.classList.add("hidden");
-      loginModal?.classList.add("hidden");
-      registerModal?.classList.add("hidden");
-    }
-
     // --- Attach listeners ---
     profileBtn?.addEventListener("click", openProfileMenu);
     menuSignIn?.addEventListener("click", openLogin);
     menuSignUp?.addEventListener("click", openRegister);
 
+    // ✅ KEEP this (profile dropdown)
     document.addEventListener("click", closeProfileMenu);
-    authBackdrop?.addEventListener("click", closeAll);
+
+    // ❌ REMOVE this (auth modal is handled in Modals.jsx)
+    // authBackdrop?.addEventListener("click", closeAll);
 
     // --- Cleanup ---
     return () => {
@@ -87,15 +82,14 @@ function Layout({ children }) {
       menuSignUp?.removeEventListener("click", openRegister);
 
       document.removeEventListener("click", closeProfileMenu);
-      authBackdrop?.removeEventListener("click", closeAll);
+      // authBackdrop?.removeEventListener("click", closeAll);
     };
-  }, [location.pathname]); // rebind on route change
+  }, [location.pathname]);
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f6f0e8]">
       {!hideLayout && <Header />}
 
-      {/* main content */}
       <div className="flex-1">{children}</div>
 
       {!hideLayout && <Footer />}
