@@ -3,7 +3,10 @@ import { auth } from "../firebase";
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  sendEmailVerification,
+  sendPasswordResetEmail,
 } from "firebase/auth";
+import toast from "../utils/toast";
 
 export default function Modals() {
 
@@ -15,6 +18,8 @@ export default function Modals() {
   const [loginPassword, setLoginPassword] = useState("");
   const [feedback, setFeedback] = useState("");
   const [vendorLoading, setVendorLoading] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotLoading, setForgotLoading] = useState(false);
 
   const [register, setRegister] = useState({
     first_name: "",
@@ -22,7 +27,17 @@ export default function Modals() {
     email: "",
     username: "",
     password: "",
+    confirmPassword: "",
   });
+
+  const [passwordStrength, setPasswordStrength] = useState({
+    score: 0,
+    label: "",
+    color: "",
+  });
+
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   
   const [vendorForm, setVendorForm] = useState({
     business_name: "",
@@ -39,6 +54,50 @@ export default function Modals() {
   });
 
   /* =========================
+     PASSWORD STRENGTH CHECKER
+  ========================= */
+  const checkPasswordStrength = (password) => {
+    if (!password) {
+      return { score: 0, label: "", color: "" };
+    }
+
+    let score = 0;
+    
+    // Length check
+    if (password.length >= 8) score++;
+    if (password.length >= 12) score++;
+    
+    // Character variety checks
+    if (/[a-z]/.test(password)) score++; // lowercase
+    if (/[A-Z]/.test(password)) score++; // uppercase
+    if (/[0-9]/.test(password)) score++; // numbers
+    if (/[^A-Za-z0-9]/.test(password)) score++; // special chars
+
+    // Determine label and color
+    let label = "";
+    let color = "";
+    
+    if (score <= 2) {
+      label = "Weak";
+      color = "#dc2626"; // red
+    } else if (score <= 4) {
+      label = "Medium";
+      color = "#f59e0b"; // orange
+    } else {
+      label = "Strong";
+      color = "#16a34a"; // green
+    }
+
+    return { score, label, color };
+  };
+
+  // Update password strength when password changes
+  useEffect(() => {
+    const strength = checkPasswordStrength(register.password);
+    setPasswordStrength(strength);
+  }, [register.password]);
+
+  /* =========================
      HELPERS
   ========================= */
 
@@ -46,18 +105,27 @@ export default function Modals() {
     document.getElementById("authBackdrop")?.classList.add("hidden");
     document.getElementById("loginModal")?.classList.add("hidden");
     document.getElementById("registerModal")?.classList.add("hidden");
+    document.getElementById("forgotPasswordModal")?.classList.add("hidden");
   };
 
   const openLogin = () => {
     document.getElementById("authBackdrop")?.classList.remove("hidden");
     document.getElementById("registerModal")?.classList.add("hidden");
+    document.getElementById("forgotPasswordModal")?.classList.add("hidden");
     document.getElementById("loginModal")?.classList.remove("hidden");
   };
 
   const openRegister = () => {
     document.getElementById("authBackdrop")?.classList.remove("hidden");
     document.getElementById("loginModal")?.classList.add("hidden");
+    document.getElementById("forgotPasswordModal")?.classList.add("hidden");
     document.getElementById("registerModal")?.classList.remove("hidden");
+  };
+
+  const openForgotPassword = () => {
+    document.getElementById("loginModal")?.classList.add("hidden");
+    document.getElementById("registerModal")?.classList.add("hidden");
+    document.getElementById("forgotPasswordModal")?.classList.remove("hidden");
   };
 
   const closePrivacy = () =>
@@ -116,6 +184,13 @@ export default function Modals() {
         loginPassword
       );
 
+      // Check if email is verified
+      if (!cred.user.emailVerified) {
+        toast.warning("Please verify your email before logging in. Check your inbox!");
+        await auth.signOut();
+        return;
+      }
+
       const backendRes = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -136,9 +211,10 @@ export default function Modals() {
       document.getElementById("menuSignUp")?.classList.add("hidden");
       document.getElementById("menuLogout")?.classList.remove("hidden");
 
+      toast.success("Login successful! Welcome back!");
       closeAll();
     } catch (err) {
-      alert(err.message);
+      toast.error(err.message || "Login failed. Please try again.");
     }
   };
 
@@ -150,17 +226,37 @@ export default function Modals() {
     e.preventDefault();
 
     try {
+      // Validate password strength
+      if (passwordStrength.score <= 2) {
+        toast.warning("Please use a stronger password");
+        return;
+      }
+
+      // Validate passwords match
+      if (register.password !== register.confirmPassword) {
+        toast.error("Passwords do not match!");
+        return;
+      }
+
+      // Create user in Firebase
       const cred = await createUserWithEmailAndPassword(
         auth,
         register.email,
         register.password
       );
 
+      // Send email verification
+      await sendEmailVerification(cred.user);
+
+      // Register in backend
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...register,
+          first_name: register.first_name,
+          last_name: register.last_name,
+          email: register.email,
+          username: register.username,
           firebase_uid: cred.user.uid,
         }),
       });
@@ -168,9 +264,60 @@ export default function Modals() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
 
+      toast.success("Registration successful! Please check your email to verify your account.");
+      
+      // Sign out user until they verify
+      await auth.signOut();
+      
+      // Clear form
+      setRegister({
+        first_name: "",
+        last_name: "",
+        email: "",
+        username: "",
+        password: "",
+        confirmPassword: "",
+      });
+
       openLogin();
     } catch (err) {
-      alert(err.message);
+      toast.error(err.message || "Registration failed. Please try again.");
+    }
+  };
+
+  /* =========================
+     FORGOT PASSWORD
+  ========================= */
+
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+    
+    if (!forgotEmail) {
+      toast.warning("Please enter your email address");
+      return;
+    }
+
+    setForgotLoading(true);
+
+    try {
+      // Send password reset email via Firebase
+      await sendPasswordResetEmail(auth, forgotEmail);
+      
+      toast.success("Password reset email sent! Check your inbox.");
+      setForgotEmail("");
+      closeAll();
+    } catch (err) {
+      console.error("Password reset error:", err);
+      
+      if (err.code === "auth/user-not-found") {
+        toast.error("No account found with this email address");
+      } else if (err.code === "auth/invalid-email") {
+        toast.error("Invalid email address");
+      } else {
+        toast.error("Failed to send reset email. Please try again.");
+      }
+    } finally {
+      setForgotLoading(false);
     }
   };
 
@@ -189,6 +336,7 @@ export default function Modals() {
     document.getElementById("menuSignIn")?.classList.remove("hidden");
     document.getElementById("menuSignUp")?.classList.remove("hidden");
 
+    toast.info("Logged out successfully");
     window.location.href = "/";
   };
 
@@ -200,7 +348,10 @@ export default function Modals() {
     e.preventDefault();
 
     const token = localStorage.getItem("solennia_token");
-    if (!token) return alert("Please login first.");
+    if (!token) {
+      toast.warning("Please login first.");
+      return;
+    }
 
     try {
       const res = await fetch("/api/feedback", {
@@ -215,11 +366,11 @@ export default function Modals() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
 
-      alert("Thank you for your feedback!");
+      toast.success("Thank you for your feedback!");
       setFeedback("");
       closeFeedback();
     } catch (err) {
-      alert(err.message);
+      toast.error(err.message || "Failed to submit feedback");
     }
   };
 
@@ -251,7 +402,10 @@ export default function Modals() {
     e.preventDefault();
 
     const token = localStorage.getItem("solennia_token");
-    if (!token) return alert("Please login first.");
+    if (!token) {
+      toast.warning("Please login to apply as a vendor.");
+      return;
+    }
 
     const form = e.target;
     const formData = new FormData(form);
@@ -277,7 +431,7 @@ export default function Modals() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Application failed");
 
-      alert("Application submitted successfully! We'll review it soon.");
+      toast.success("Application submitted successfully! We'll review it soon.");
       closeAllVendorModals();
       
       // Reset form
@@ -295,14 +449,14 @@ export default function Modals() {
         portfolio: null,
       });
     } catch (err) {
-      alert(err.message);
+      toast.error(err.message || "An error occurred");
     } finally {
       setVendorLoading(false);
     }
   };
 
   /* =========================
-     JSX
+     RENDER
   ========================= */
 
   return (
@@ -310,88 +464,383 @@ export default function Modals() {
       {/* ================= AUTH BACKDROP ================= */}
       <div
         id="authBackdrop"
-        className="fixed inset-0 bg-black/50 hidden flex items-center justify-center z-[9999]"
-        onClick={(e) => e.target === e.currentTarget && closeAll()}
+        className="fixed inset-0 hidden z-[100] bg-black/40"
+        onClick={closeAll}
+      />
+
+      {/* ================= LOGIN MODAL ================= */}
+      <div
+        id="loginModal"
+        className="fixed inset-0 hidden z-[200] grid place-items-center pointer-events-none p-4"
       >
-        {/* LOGIN */}
-        <div
-          id="loginModal"
-          className="hidden bg-[#f6f0e8] p-8 rounded-2xl w-full max-w-md"
+        <div 
+          className="bg-[#f6f0e8] w-full max-w-md rounded-2xl shadow-xl pointer-events-auto"
           onClick={(e) => e.stopPropagation()}
         >
-          <form onSubmit={handleLogin} className="space-y-4">
-            <h2 className="text-2xl font-semibold mb-4 text-center">Login to Solennia</h2>
-            <input
-              placeholder="Email or Username"
-              className="border p-2 w-full rounded-lg"
-              value={loginIdentifier}
-              onChange={(e) => setLoginIdentifier(e.target.value)}
-            />
-            <input
-              type="password"
-              placeholder="Password"
-              className="border p-2 w-full rounded-lg"
-              value={loginPassword}
-              onChange={(e) => setLoginPassword(e.target.value)}
-            />
-            <button className="w-full bg-[#7a5d47] text-white py-2 rounded-lg">
+          <div className="flex justify-between items-center p-6 border-b border-gray-300 bg-[#e8ddae]">
+            <h2 className="text-lg font-semibold">Login</h2>
+            <button 
+              onClick={closeAll}
+              className="text-2xl font-light hover:text-gray-600" 
+              aria-label="Close"
+            >
+              &times;
+            </button>
+          </div>
+
+          <form onSubmit={handleLogin} className="p-6 space-y-4">
+            <div>
+              <label className="block text-sm font-semibold uppercase">
+                Username or Email
+              </label>
+              <input
+                type="text"
+                required
+                value={loginIdentifier}
+                onChange={(e) => setLoginIdentifier(e.target.value)}
+                className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold uppercase">
+                Password
+              </label>
+              <input
+                type="password"
+                required
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
+                className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
+              />
+            </div>
+
+            <div className="text-right">
+              <button
+                type="button"
+                onClick={openForgotPassword}
+                className="text-sm text-blue-600 hover:underline"
+              >
+                Forgot password?
+              </button>
+            </div>
+
+            <button
+              type="submit"
+              className="w-full bg-[#e8ddae] hover:bg-[#dbcf9f] text-sm font-semibold uppercase py-2 rounded"
+            >
               Login
             </button>
+
             <p className="text-center text-sm">
-              No account?{" "}
-              <button type="button" onClick={openRegister} className="underline">
-                Register
+              Don't have an account?{" "}
+              <button
+                type="button"
+                onClick={openRegister}
+                className="text-blue-600 hover:underline"
+              >
+                Register here
               </button>
             </p>
           </form>
         </div>
+      </div>
 
-        {/* REGISTER */}
-        <div
-          id="registerModal"
-          className="hidden bg-[#f6f0e8] p-8 rounded-2xl w-full max-w-md"
+      {/* ================= REGISTER MODAL ================= */}
+      <div
+        id="registerModal"
+        className="fixed inset-0 hidden z-[200] grid place-items-center pointer-events-none p-4"
+      >
+        <div 
+          className="bg-[#f6f0e8] w-full max-w-md rounded-2xl shadow-xl pointer-events-auto max-h-[90vh] overflow-y-auto"
           onClick={(e) => e.stopPropagation()}
         >
-          <form onSubmit={handleRegister} className="space-y-3">
-            <h2 className="text-2xl font-semibold mb-4 text-center">Create Your Account</h2>
-            <div className="grid grid-cols-2 gap-4">
-              <input 
-                placeholder="First name" 
-                className="border p-2 w-full rounded-lg"
-                onChange={(e) => setRegister(r => ({ ...r, first_name: e.target.value }))}
-              />
-              <input 
-                placeholder="Last name" 
-                className="border p-2 w-full rounded-lg"
-                onChange={(e) => setRegister(r => ({ ...r, last_name: e.target.value }))}
+          <div className="flex justify-between items-center p-6 border-b border-gray-300 bg-[#e8ddae] sticky top-0 z-10">
+            <h2 className="text-lg font-semibold">Register</h2>
+            <button 
+              onClick={closeAll}
+              className="text-2xl font-light hover:text-gray-600" 
+              aria-label="Close"
+            >
+              &times;
+            </button>
+          </div>
+
+          <form onSubmit={handleRegister} className="p-6 space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-semibold uppercase">
+                  First Name
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={register.first_name}
+                  onChange={(e) =>
+                    setRegister({ ...register, first_name: e.target.value })
+                  }
+                  className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold uppercase">
+                  Last Name
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={register.last_name}
+                  onChange={(e) =>
+                    setRegister({ ...register, last_name: e.target.value })
+                  }
+                  className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold uppercase">
+                Email
+              </label>
+              <input
+                type="email"
+                required
+                value={register.email}
+                onChange={(e) =>
+                  setRegister({ ...register, email: e.target.value })
+                }
+                className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
               />
             </div>
-            <input 
-              placeholder="Email" 
-              type="email"
-              className="border p-2 w-full rounded-lg"
-              onChange={(e) => setRegister(r => ({ ...r, email: e.target.value }))}
-            />
-            <input 
-              placeholder="Username" 
-              className="border p-2 w-full rounded-lg"
-              onChange={(e) => setRegister(r => ({ ...r, username: e.target.value }))}
-            />
-            <input 
-              type="password" 
-              placeholder="Password" 
-              className="border p-2 w-full rounded-lg"
-              onChange={(e) => setRegister(r => ({ ...r, password: e.target.value }))}
-            />
-            <button className="w-full bg-[#7a5d47] text-white py-2 rounded-lg">
-              Create account
+
+            <div>
+              <label className="block text-sm font-semibold uppercase">
+                Username
+              </label>
+              <input
+                type="text"
+                required
+                value={register.username}
+                onChange={(e) =>
+                  setRegister({ ...register, username: e.target.value })
+                }
+                className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold uppercase">
+                Password
+              </label>
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  required
+                  minLength={6}
+                  value={register.password}
+                  onChange={(e) =>
+                    setRegister({ ...register, password: e.target.value })
+                  }
+                  className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2 pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-800"
+                >
+                  {showPassword ? "👁️" : "👁️‍🗨️"}
+                </button>
+              </div>
+              
+              {/* Password Strength Indicator */}
+              {register.password && (
+                <div className="mt-2">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full transition-all duration-300"
+                        style={{
+                          width: `${(passwordStrength.score / 6) * 100}%`,
+                          backgroundColor: passwordStrength.color
+                        }}
+                      />
+                    </div>
+                    <span 
+                      className="text-xs font-semibold"
+                      style={{ color: passwordStrength.color }}
+                    >
+                      {passwordStrength.label}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-600">
+                    Use 8+ characters with a mix of letters, numbers & symbols
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold uppercase">
+                Confirm Password
+              </label>
+              <div className="relative">
+                <input
+                  type={showConfirmPassword ? "text" : "password"}
+                  required
+                  minLength={6}
+                  value={register.confirmPassword}
+                  onChange={(e) =>
+                    setRegister({ ...register, confirmPassword: e.target.value })
+                  }
+                  className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2 pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-800"
+                >
+                  {showConfirmPassword ? "👁️" : "👁️‍🗨️"}
+                </button>
+              </div>
+              
+              {/* Password Match Indicator */}
+              {register.confirmPassword && (
+                <div className="mt-1">
+                  {register.password === register.confirmPassword ? (
+                    <p className="text-xs text-green-600 flex items-center gap-1">
+                      <span>✓</span> Passwords match
+                    </p>
+                  ) : (
+                    <p className="text-xs text-red-600 flex items-center gap-1">
+                      <span>✗</span> Passwords do not match
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <button
+              type="submit"
+              className="w-full bg-[#e8ddae] hover:bg-[#dbcf9f] text-sm font-semibold uppercase py-2 rounded"
+            >
+              Register
             </button>
-            <p className="text-sm text-center mt-3">
+
+            <p className="text-center text-sm">
               Already have an account?{" "}
-              <button type="button" onClick={openLogin} className="underline">
-                Login
+              <button
+                type="button"
+                onClick={openLogin}
+                className="text-blue-600 hover:underline"
+              >
+                Login here
               </button>
             </p>
+          </form>
+        </div>
+      </div>
+
+      {/* ================= FORGOT PASSWORD MODAL ================= */}
+      <div
+        id="forgotPasswordModal"
+        className="fixed inset-0 hidden z-[200] grid place-items-center pointer-events-none p-4"
+      >
+        <div 
+          className="bg-[#f6f0e8] w-full max-w-md rounded-2xl shadow-xl pointer-events-auto"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex justify-between items-center p-6 border-b border-gray-300 bg-[#e8ddae]">
+            <h2 className="text-lg font-semibold">Reset Password</h2>
+            <button 
+              onClick={closeAll}
+              className="text-2xl font-light hover:text-gray-600" 
+              aria-label="Close"
+            >
+              &times;
+            </button>
+          </div>
+
+          <form onSubmit={handleForgotPassword} className="p-6 space-y-4">
+            <p className="text-sm text-gray-700">
+              Enter your email address and we'll send you a link to reset your password.
+            </p>
+
+            <div>
+              <label className="block text-sm font-semibold uppercase">
+                Email Address
+              </label>
+              <input
+                type="email"
+                required
+                value={forgotEmail}
+                onChange={(e) => setForgotEmail(e.target.value)}
+                placeholder="your@email.com"
+                className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={forgotLoading}
+              className="w-full bg-[#e8ddae] hover:bg-[#dbcf9f] text-sm font-semibold uppercase py-2 rounded disabled:opacity-50"
+            >
+              {forgotLoading ? "Sending..." : "Send Reset Link"}
+            </button>
+
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={openLogin}
+                className="text-sm text-blue-600 hover:underline"
+              >
+                Back to login
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      {/* ================= FEEDBACK MODAL ================= */}
+      <div
+        id="feedbackModal"
+        className="fixed inset-0 hidden z-[200] grid place-items-center bg-black/40 p-4"
+        onClick={closeFeedback}
+      >
+        <div 
+          className="bg-[#f6f0e8] w-full max-w-md rounded-2xl shadow-xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex justify-between items-center p-6 border-b border-gray-300 bg-[#e8ddae]">
+            <h2 className="text-lg font-semibold">Send Feedback</h2>
+            <button 
+              onClick={closeFeedback}
+              className="text-2xl font-light hover:text-gray-600" 
+              aria-label="Close"
+            >
+              &times;
+            </button>
+          </div>
+
+          <form onSubmit={submitFeedback} className="p-6 space-y-4">
+            <div>
+              <label className="block text-sm font-semibold uppercase">
+                Your Message
+              </label>
+              <textarea
+                required
+                rows="5"
+                value={feedback}
+                onChange={(e) => setFeedback(e.target.value)}
+                className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="w-full bg-[#e8ddae] hover:bg-[#dbcf9f] text-sm font-semibold uppercase py-2 rounded"
+            >
+              Submit Feedback
+            </button>
           </form>
         </div>
       </div>
@@ -399,60 +848,32 @@ export default function Modals() {
       {/* ================= PRIVACY MODAL ================= */}
       <div
         id="privacyModal"
-        className="hidden fixed inset-0 z-[270] bg-black/40 flex items-center justify-center p-4"
-        onClick={(e) => e.target === e.currentTarget && closePrivacy()}
+        className="fixed inset-0 hidden z-[200] grid place-items-center bg-black/40 p-4"
+        onClick={closePrivacy}
       >
-        <div
-          className="bg-[#f6f0e8] w-full max-w-2xl rounded-2xl shadow-xl border border-gray-300 overflow-hidden"
+        <div 
+          className="bg-[#f6f0e8] w-full max-w-2xl rounded-2xl shadow-xl overflow-y-auto max-h-[80vh]"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="flex justify-between items-center px-6 py-4 border-b border-gray-300 bg-[#e8ddae]">
-            <h3 className="text-lg font-semibold tracking-wide">Privacy Policy</h3>
-            <button
+          <div className="flex justify-between items-center p-6 border-b border-gray-300 bg-[#e8ddae]">
+            <h2 className="text-lg font-semibold">Privacy Policy</h2>
+            <button 
               onClick={closePrivacy}
-              className="text-2xl font-light hover:text-gray-600"
+              className="text-2xl font-light hover:text-gray-600" 
               aria-label="Close"
             >
               &times;
             </button>
           </div>
 
-          <div className="p-6 space-y-4 text-sm leading-relaxed text-gray-800 max-h-[70vh] overflow-y-auto">
-            <p><strong>Introduction</strong><br />
-              At Solennia, we are committed to protecting your privacy and ensuring that your personal information is handled responsibly. This Privacy Policy outlines how we collect, use, store, and share information when you use our mobile application or website. By using Solennia, you agree to the terms described in this policy.
+          <div className="p-6 space-y-4 text-sm leading-relaxed">
+            <p>
+              At Solennia, we are committed to protecting your privacy and ensuring
+              the security of your personal information.
             </p>
-            <p><strong>Information We Collect</strong><br />
-              We may collect personal data including your name, email address, contact number, and information related to your wedding plans. For vendors, we may collect business details such as company name, service descriptions, photos, and relevant documentation. Additionally, we gather non-personal information such as usage statistics, device information, and location data to help enhance our services and provide a more personalized user experience.
-            </p>
-            <p><strong>How We Use Your Information</strong><br />
-              The information we collect is used solely to operate and improve our platform. This includes matching couples with suitable vendors, facilitating communication, managing bookings, sending relevant updates or promotional messages (which you may opt out of), and ensuring platform security.
-            </p>
-            <p><strong>Sharing of Information</strong><br />
-              Your data is never sold to third parties. However, in certain cases, we may share your information with trusted service providers who assist us in delivering our services, or with legal authorities if required by law.
-            </p>
-            <p><strong>Data Protection</strong><br />
-              We prioritize your privacy and employ appropriate security measures such as encryption and secure servers to protect your data. Nonetheless, users are encouraged to keep their login credentials secure, as no system can be completely immune to risk.
-            </p>
-            <p><strong>Your Rights</strong><br />
-              You have the right to access, update, or delete your personal data at any time. If you wish to deactivate your account or request the removal of your information, you may contact us directly.
-            </p>
-            <p><strong>Cookies & Tracking</strong><br />
-              We use cookies and tracking technologies to analyze usage patterns and improve site functionality; you can adjust your browser settings to manage cookie preferences.
-            </p>
-            <p><strong>Third-Party Links</strong><br />
-              Solennia may contain links to third-party websites, including vendor pages and external services. Please note that we are not responsible for the privacy practices of these third parties, and we encourage users to review their respective policies.
-            </p>
-            <p><strong>Children's Privacy</strong><br />
-              Our platform is not intended for children under the age of 13, and we do not knowingly collect personal information from minors. If we become aware of such data, it will be promptly deleted.
-            </p>
-            <p><strong>Policy Updates</strong><br />
-              This policy may be updated periodically to reflect changes in our services or legal obligations. We will notify users of significant updates through email or in-app notifications.
-            </p>
-            <p><strong>Contact</strong><br />
-              If you have any questions or concerns regarding this Privacy Policy, you may contact us at{" "}
-              <a href="mailto:solenniainquires@gmail.com" className="underline">
-                solenniainquires@gmail.com
-              </a>. We are committed to maintaining your trust and safeguarding your privacy at every stage of your wedding planning journey.
+            <p>
+              This Privacy Policy outlines how we collect, use, and safeguard your
+              data when you use our platform.
             </p>
           </div>
         </div>
@@ -461,86 +882,30 @@ export default function Modals() {
       {/* ================= TERMS MODAL ================= */}
       <div
         id="termsModal"
-        className="hidden fixed inset-0 z-[275] bg-black/40 flex items-center justify-center p-4"
-        onClick={(e) => e.target === e.currentTarget && closeTerms()}
+        className="fixed inset-0 hidden z-[200] grid place-items-center bg-black/40 p-4"
+        onClick={closeTerms}
       >
-        <div
-          className="bg-[#f6f0e8] w-full max-w-4xl rounded-2xl shadow-xl border border-gray-300 overflow-hidden"
+        <div 
+          className="bg-[#f6f0e8] w-full max-w-2xl rounded-2xl shadow-xl overflow-y-auto max-h-[80vh]"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="flex justify-between items-center px-6 py-4 border-b border-gray-300 bg-[#e8ddae]">
-            <h3 className="text-xl font-semibold tracking-wide">Terms and Conditions</h3>
-            <button
+          <div className="flex justify-between items-center p-6 border-b border-gray-300 bg-[#e8ddae]">
+            <h2 className="text-lg font-semibold">Terms of Service</h2>
+            <button 
               onClick={closeTerms}
-              className="text-2xl font-light hover:text-gray-600"
+              className="text-2xl font-light hover:text-gray-600" 
               aria-label="Close"
             >
               &times;
             </button>
           </div>
 
-          <div className="p-6 space-y-5 text-sm leading-relaxed text-gray-800 max-h-[70vh] overflow-y-auto">
-            <p><strong>Acceptance of Terms</strong><br />
-              Welcome to Solennia. By accessing or using our website, mobile application, or any services provided through our platform, you agree to be bound by the following Terms and Conditions. Please read them carefully. If you do not agree with these terms, you must refrain from using our platform.
-            </p>
-            <p><strong>About Solennia</strong><br />
-              Solennia is a digital platform designed to connect couples planning their weddings with professional vendors offering relevant services. These services may include, but are not limited to, venue rentals, catering, photography, floral design, gown rentals, and entertainment.
-            </p>
-            <p><strong>User Accounts & Vendor Content</strong><br />
-              All users—whether couples or vendors—must provide accurate and truthful information during registration. Vendors are responsible for ensuring that the content they submit is lawful and truthful.
-            </p>
-            <p><strong>Role as Intermediary</strong><br />
-              Solennia acts only as an intermediary and is not responsible for agreements, disputes, payments, or service outcomes between users and vendors.
-            </p>
-            <p><strong>Vendor Responsibilities</strong><br />
-              Vendors must maintain professionalism and transparency at all times.
-            </p>
-            <p><strong>Privacy</strong><br />
-              All data is handled in accordance with our Privacy Policy.
-            </p>
-            <p><strong>Changes to Terms</strong><br />
-              These terms may be updated at any time without prior notice.
-            </p>
-            <p><strong>Contact</strong><br />
-              Contact us at{" "}
-              <a href="mailto:solenniainquires@gmail.com" className="underline">
-                solenniainquires@gmail.com
-              </a>.
+          <div className="p-6 space-y-4 text-sm leading-relaxed">
+            <p>
+              Welcome to Solennia. By accessing and using our platform, you agree
+              to comply with and be bound by these Terms of Service.
             </p>
           </div>
-        </div>
-      </div>
-
-      {/* ================= FEEDBACK MODAL ================= */}
-      <div
-        id="feedbackModal"
-        className="hidden fixed inset-0 z-[260] bg-black/40 flex items-center justify-center p-4"
-        onClick={(e) => e.target === e.currentTarget && closeFeedback()}
-      >
-        <div
-          className="bg-[#f6f0e8] w-full max-w-md rounded-2xl shadow-xl border border-gray-300 overflow-hidden"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="flex justify-between items-center px-6 py-4 border-b bg-[#e8ddae]">
-            <h3 className="text-lg font-semibold">Your Feedback</h3>
-            <button onClick={closeFeedback} className="text-2xl">&times;</button>
-          </div>
-
-          <form onSubmit={submitFeedback} className="px-6 py-5 space-y-4">
-            <textarea
-              rows="4"
-              required
-              value={feedback}
-              onChange={(e) => setFeedback(e.target.value)}
-              placeholder="Type your feedback here..."
-              className="w-full rounded-lg border p-2"
-            />
-            <div className="flex justify-end">
-              <button className="px-6 py-2 rounded-md bg-[#7a5d47] text-white">
-                Send Feedback
-              </button>
-            </div>
-          </form>
         </div>
       </div>
 
@@ -551,11 +916,11 @@ export default function Modals() {
         onClick={(e) => e.target === e.currentTarget && closeAllVendorModals()}
       >
         <div 
-          className="bg-[#f6f0e8] w-full max-w-3xl rounded-2xl shadow-xl overflow-y-auto max-h-[80vh]"
+          className="bg-[#f6f0e8] w-full max-w-2xl rounded-2xl shadow-xl overflow-y-auto max-h-[80vh]"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex justify-between items-center p-6 border-b border-gray-300 bg-[#e8ddae]">
-            <h2 className="text-xl font-semibold">Terms & Conditions</h2>
+            <h2 className="text-lg font-semibold">Become a Vendor</h2>
             <button 
               onClick={closeAllVendorModals}
               className="text-2xl font-light hover:text-gray-600" 
@@ -564,32 +929,46 @@ export default function Modals() {
               &times;
             </button>
           </div>
-          
-          <div className="p-6 space-y-4 text-sm leading-relaxed text-gray-800">
-            <p>
-              By applying to become a vendor on Solennia, you agree to the following terms and conditions. Solennia is a wedding planning platform that helps couples connect with trusted service providers like you.
-            </p>
-            <p>
-              As a vendor, you are responsible for providing accurate and up-to-date information about your business, including your services, pricing, photos, and availability.
-            </p>
-            <p>
-              Solennia acts only as a facilitator between clients and vendors. We do not control or guarantee the outcome of any agreements, bookings, or payments between you and your clients.
-            </p>
-            <p>
-              For questions or support, you may contact us at{" "}
-              <a href="mailto:vendors@solennia.com" className="underline">
-                vendors@solennia.com
-              </a>.
-            </p>
-          </div>
-          
-          <div className="p-6 border-t border-gray-300 flex justify-end">
-            <button 
-              onClick={openVendorBackground}
-              className="px-6 py-2 rounded-md bg-[#e8ddae] hover:bg-[#dbcf9f] font-medium"
-            >
-              Agree and Continue
-            </button>
+
+          <div className="p-6 space-y-4">
+            <h3 className="font-semibold text-base">Vendor Terms & Conditions</h3>
+            <div className="text-sm space-y-3 leading-relaxed max-h-64 overflow-y-auto bg-gray-50 p-4 rounded">
+              <p>By becoming a vendor on Solennia, you agree to:</p>
+              <ul className="list-disc pl-5 space-y-2">
+                <li>Provide accurate and up-to-date business information</li>
+                <li>Maintain professional communication with clients</li>
+                <li>Deliver services as described in your listings</li>
+                <li>Comply with all applicable laws and regulations</li>
+                <li>Pay applicable service fees as outlined in our pricing</li>
+              </ul>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input 
+                type="checkbox" 
+                id="vendorAgree" 
+                className="w-4 h-4"
+              />
+              <label htmlFor="vendorAgree" className="text-sm">
+                I agree to the terms and conditions
+              </label>
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                onClick={() => {
+                  const checkbox = document.getElementById("vendorAgree");
+                  if (!checkbox?.checked) {
+                    toast.warning("Please agree to the terms and conditions");
+                    return;
+                  }
+                  openVendorBackground();
+                }}
+                className="px-5 py-2 bg-[#e8ddae] hover:bg-[#dbcf9f] text-sm font-medium rounded"
+              >
+                Continue
+              </button>
+            </div>
           </div>
         </div>
       </div>

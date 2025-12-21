@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import "../chat.css";
+import toast from "../utils/toast";
 import {
   initChat,
   currentUserUid,
@@ -13,11 +14,14 @@ const API = "/api";
 
 export default function Chat() {
   const [threads, setThreads] = useState([]);
-  const [availableContacts, setAvailableContacts] = useState([]);
+  const [adminContacts, setAdminContacts] = useState([]);
+  const [vendorContacts, setVendorContacts] = useState([]);
+  const [showVendors, setShowVendors] = useState(false);
   const [active, setActive] = useState(null);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(true);
+  const [unreadCount, setUnreadCount] = useState(0);
   const meUid = useRef(null);
   const messagesRef = useRef(null);
   const unsubscribeRef = useRef(null);
@@ -27,7 +31,6 @@ export default function Chat() {
   ========================= */
   async function fetchAvailableContacts() {
     try {
-      // Get token
       const token = localStorage.getItem("solennia_token");
       if (!token) {
         console.log("No token, skipping contacts fetch");
@@ -36,7 +39,7 @@ export default function Chat() {
 
       console.log("Fetching available contacts...");
 
-      // Fetch vendors and admins
+      // Fetch all contacts (vendors and admins)
       const res = await fetch(`${API}/chat/contacts`, {
         headers: {
           Authorization: `Bearer ${token}`
@@ -82,8 +85,15 @@ export default function Chat() {
         })
       );
 
-      console.log("Enriched contacts:", enriched);
-      setAvailableContacts(enriched);
+      // Separate admins and vendors
+      const admins = enriched.filter(c => c.role === 2);
+      const vendors = enriched.filter(c => c.role === 1);
+
+      console.log("Admins:", admins);
+      console.log("Vendors:", vendors);
+
+      setAdminContacts(admins);
+      setVendorContacts(vendors);
     } catch (e) {
       console.error("Error fetching contacts:", e);
     }
@@ -124,7 +134,7 @@ export default function Chat() {
           openThreadByOtherUid(toParam, async (info) => {
             if (!info) {
               console.error("Could not open thread");
-              alert("Could not open chat with this user");
+              toast.error("Could not open chat with this user");
               return;
             }
             
@@ -133,10 +143,15 @@ export default function Chat() {
           });
         }
 
+        // Check for new messages every 30 seconds
+        const interval = setInterval(checkForNewMessages, 30000);
+
         setLoading(false);
+        
+        return () => clearInterval(interval);
       } catch (e) {
         console.error("Chat init error:", e);
-        alert("Could not initialize chat. Please make sure you're logged in.");
+        toast.error("Could not initialize chat. Please make sure you're logged in.");
         setLoading(false);
       }
     }
@@ -149,6 +164,33 @@ export default function Chat() {
       }
     };
   }, []);
+
+  /* =========================
+     CHECK FOR NEW MESSAGES
+  ========================= */
+  async function checkForNewMessages() {
+    try {
+      const currentThreads = await listThreadsForCurrentUser();
+      const oldThreadCount = threads.length;
+      const newThreadCount = currentThreads.length;
+      
+      if (newThreadCount > oldThreadCount) {
+        setUnreadCount(prev => prev + (newThreadCount - oldThreadCount));
+        toast.info("You have new messages!");
+        
+        // Play notification sound (optional)
+        if (typeof Audio !== 'undefined') {
+          const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiDYIFWW47OyhUQ==');
+          audio.volume = 0.3;
+          audio.play().catch(() => {});
+        }
+      }
+      
+      setThreads(currentThreads);
+    } catch (e) {
+      console.error("Error checking for new messages:", e);
+    }
+  }
 
   /* =========================
      FETCH USER DATA
@@ -223,6 +265,12 @@ export default function Chat() {
       setMessages((prev) => {
         // Avoid duplicates
         if (prev.find(m => m.id === msg.id)) return prev;
+        
+        // Show notification if message is from other person
+        if (msg.senderUid !== meUid.current) {
+          toast.info(`New message from ${meta.displayName}`);
+        }
+        
         return [...prev, msg];
       });
     });
@@ -241,7 +289,7 @@ export default function Chat() {
     
     openThreadByOtherUid(identifier, async (info) => {
       if (!info) {
-        alert("Could not start chat with this user");
+        toast.error("Could not start chat with this user");
         return;
       }
 
@@ -249,13 +297,12 @@ export default function Chat() {
         displayName: contact.displayName || `${contact.first_name} ${contact.last_name}`,
         avatar: contact.avatar,
         role: contact.role,
-        isVendor: contact.role === 1
+        isVendor: contact.isVendor
       };
 
-      console.log("Thread info:", info);
-      console.log("User data:", userData);
-
-      await openThread(info.threadId, info.otherUid, userData);
+      openThread(info.threadId, info.otherUid, userData);
+      
+      toast.success(`Chat started with ${userData.displayName}`);
     });
   }
 
@@ -264,7 +311,6 @@ export default function Chat() {
   ========================= */
   async function send() {
     if (!input.trim() || !active) {
-      console.log("Cannot send:", { hasInput: !!input.trim(), hasActive: !!active });
       return;
     }
     
@@ -276,7 +322,7 @@ export default function Chat() {
       console.log("Message sent successfully");
     } catch (e) {
       console.error("Error sending message:", e);
-      alert("Could not send message: " + e.message);
+      toast.error("Could not send message: " + e.message);
     }
   }
 
@@ -286,13 +332,6 @@ export default function Chat() {
   useEffect(() => {
     messagesRef.current?.scrollTo(0, messagesRef.current.scrollHeight);
   }, [messages]);
-
-  /* =========================
-     DEBUG ACTIVE STATE
-  ========================= */
-  useEffect(() => {
-    console.log("Active state changed:", active);
-  }, [active]);
 
   /* =========================
      ROLE LABEL
@@ -314,6 +353,18 @@ export default function Chat() {
     );
   }
 
+  // Get available contacts to show (admins always, vendors only if showVendors is true)
+  const displayContacts = showVendors 
+    ? [...adminContacts, ...vendorContacts]
+    : adminContacts;
+
+  // Filter out contacts that already have threads
+  const threadUserIds = threads.map(t => t.otherUid);
+  const availableContacts = displayContacts.filter(contact => {
+    const contactUid = contact.firebase_uid;
+    return !threadUserIds.includes(contactUid);
+  });
+
   return (
     <main role="main" aria-label="Chat interface">
       <section className="chat-shell">
@@ -321,7 +372,12 @@ export default function Chat() {
             CONTACT LIST
         ========================= */}
         <aside className="chat-sidebar" aria-label="Contacts">
-          <div className="chat-sidebar-header">Conversations</div>
+          <div className="chat-sidebar-header">
+            <span>Conversations</span>
+            {unreadCount > 0 && (
+              <span className="unread-badge">{unreadCount}</span>
+            )}
+          </div>
 
           <div className="chat-contact-list">
             {/* Existing Threads */}
@@ -331,12 +387,13 @@ export default function Chat() {
                 className={`chat-contact ${
                   active?.threadId === t.threadId ? "active" : ""
                 }`}
-                onClick={() =>
+                onClick={() => {
                   openThread(t.threadId, t.otherUid, {
                     displayName: t.otherName,
                     role: t.otherRole
-                  })
-                }
+                  });
+                  setUnreadCount(0);
+                }}
               >
                 <div className="chat-contact-avatar">
                   {(t.otherName || "U")[0].toUpperCase()}
@@ -353,19 +410,24 @@ export default function Chat() {
               </button>
             ))}
 
-            {/* Available Contacts */}
-            {threads.length === 0 && availableContacts.length === 0 && (
-              <div className="px-3 py-4 text-[0.8rem] text-gray-600">
-                No contacts available
-              </div>
-            )}
-
+            {/* Available Contacts Section */}
             {availableContacts.length > 0 && (
               <>
-                {threads.length > 0 && (
-                  <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase">
-                    Available Contacts
-                  </div>
+                <div className="contacts-divider">
+                  <div className="divider-line"></div>
+                  <span className="divider-text">Available Contacts</span>
+                  <div className="divider-line"></div>
+                </div>
+
+                {/* Toggle Vendors Button */}
+                {vendorContacts.length > 0 && (
+                  <button
+                    className="toggle-vendors-btn"
+                    onClick={() => setShowVendors(!showVendors)}
+                  >
+                    {showVendors ? "Hide Vendors" : "Show Vendors"}
+                    <span className="vendor-count">({vendorContacts.length})</span>
+                  </button>
                 )}
                 
                 {availableContacts.map((contact) => (
@@ -379,12 +441,7 @@ export default function Chat() {
                         <img 
                           src={contact.avatar}
                           alt={contact.displayName}
-                          style={{
-                            width: '100%',
-                            height: '100%',
-                            objectFit: 'cover',
-                            borderRadius: '9999px'
-                          }}
+                          className="contact-avatar-img"
                         />
                       ) : (
                         <span>{(contact.displayName || "U")[0].toUpperCase()}</span>
@@ -395,24 +452,10 @@ export default function Chat() {
                       <div className="chat-contact-name">
                         {contact.displayName}
                         {contact.role === 1 && (
-                          <span style={{
-                            fontSize: '0.65rem',
-                            color: '#7a5d47',
-                            marginLeft: '0.5rem',
-                            fontWeight: '600'
-                          }}>
-                            VENDOR
-                          </span>
+                          <span className="role-badge vendor-badge">VENDOR</span>
                         )}
                         {contact.role === 2 && (
-                          <span style={{
-                            fontSize: '0.65rem',
-                            color: '#b91c1c',
-                            marginLeft: '0.5rem',
-                            fontWeight: '600'
-                          }}>
-                            ADMIN
-                          </span>
+                          <span className="role-badge admin-badge">ADMIN</span>
                         )}
                       </div>
                       <div className="chat-contact-status">
@@ -423,6 +466,21 @@ export default function Chat() {
                 ))}
               </>
             )}
+
+            {/* Empty State */}
+            {threads.length === 0 && availableContacts.length === 0 && (
+              <div className="empty-state">
+                <p>No contacts available</p>
+                {vendorContacts.length > 0 && !showVendors && (
+                  <button 
+                    className="btn-show-vendors"
+                    onClick={() => setShowVendors(true)}
+                  >
+                    Show {vendorContacts.length} Vendor{vendorContacts.length > 1 ? 's' : ''}
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </aside>
 
@@ -432,26 +490,20 @@ export default function Chat() {
         <section className="chat-main" aria-live="polite">
           <header className="chat-main-header">
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <div className="header-user-info">
                 {active?.meta?.avatar && (
                   <img 
                     src={active.meta.avatar}
                     alt={active.meta.displayName}
-                    style={{
-                      width: '40px',
-                      height: '40px',
-                      borderRadius: '9999px',
-                      objectFit: 'cover',
-                      border: '2px solid #1c1b1a'
-                    }}
+                    className="header-avatar"
                   />
                 )}
                 <div>
-                  <div style={{ fontWeight: '600' }}>
+                  <div className="header-name">
                     {active?.meta?.displayName || (active ? "User" : "Select a contact")}
                   </div>
                   {active && active.meta?.role !== undefined && (
-                    <div style={{ fontSize: ".75rem", color: "#666" }}>
+                    <div className="header-role">
                       {getRoleLabel(active.meta.role)}
                     </div>
                   )}
@@ -459,7 +511,7 @@ export default function Chat() {
               </div>
             </div>
 
-            <div style={{ fontSize: ".75rem", color: "#444" }}>
+            <div className="header-status">
               {meUid.current ? "Connected" : "Not signed in"}
             </div>
           </header>
@@ -471,9 +523,10 @@ export default function Chat() {
             aria-live="polite"
           >
             {!active && (
-              <p className="chat-timestamp">
-                Choose a contact on the left to start chatting.
-              </p>
+              <div className="chat-empty-state">
+                <div className="empty-icon">💬</div>
+                <p>Choose a contact on the left to start chatting</p>
+              </div>
             )}
 
             {messages.map((m, i) => (
@@ -483,9 +536,12 @@ export default function Chat() {
                   m.senderUid === meUid.current ? "me" : "them"
                 }`}
               >
-                <div>{m.text}</div>
+                <div className="message-text">{m.text}</div>
                 <div className="chat-meta">
-                  {new Date(m.ts || Date.now()).toLocaleString()}
+                  {new Date(m.ts || Date.now()).toLocaleTimeString([], { 
+                    hour: '2-digit', 
+                    minute: '2-digit' 
+                  })}
                 </div>
               </div>
             ))}
@@ -497,7 +553,7 @@ export default function Chat() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && send()}
-              placeholder="Type a message…"
+              placeholder={active ? "Type a message…" : "Select a contact first"}
               aria-label="Message input"
               disabled={!active}
             />
