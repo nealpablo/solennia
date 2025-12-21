@@ -209,13 +209,8 @@ export default function AdminPanel() {
   return (
     <>
       <style>{`
-        body {
-          font-family: 'Cinzel', serif;
-          background-color: #f6f0e8;
-          color: #1c1b1a;
-        }
-
-        .table-container {
+        /* Admin Panel Specific Styles - Don't override body/header */
+        .admin-panel .table-container {
           overflow-x: auto;
           background: #fff;
           border: 1px solid #d1d5db;
@@ -225,24 +220,25 @@ export default function AdminPanel() {
           margin-bottom: 2rem;
         }
 
-        table {
+        .admin-panel table {
           width: 100%;
           border-collapse: collapse;
         }
 
-        th, td {
+        .admin-panel th, 
+        .admin-panel td {
           padding: 0.75rem;
           text-align: left;
           border-bottom: 1px solid #e5e5e5;
           vertical-align: middle;
         }
 
-        th {
+        .admin-panel th {
           background: #e8ddae;
           color: #1c1b1a;
         }
 
-        button {
+        .admin-panel button {
           border: 2px solid transparent;
           padding: 0.4rem 0.8rem;
           border-radius: 0.5rem;
@@ -251,27 +247,27 @@ export default function AdminPanel() {
           transition: all 0.2s ease;
         }
 
-        button.approve-btn {
+        .admin-panel button.approve-btn {
           background: #7a5d47;
           color: #fff;
           border-color: #5a4333;
         }
 
-        button.approve-btn:hover {
+        .admin-panel button.approve-btn:hover {
           background: #6a503d;
         }
 
-        button.deny-btn {
+        .admin-panel button.deny-btn {
           background: #b91c1c;
           color: #fff;
           border-color: #7f1414;
         }
 
-        button.deny-btn:hover {
+        .admin-panel button.deny-btn:hover {
           background: #991b1b;
         }
 
-        button.muted {
+        .admin-panel button.muted {
           background: #e5e7eb;
           color: #6b7280;
           border-color: #d1d5db;
@@ -281,7 +277,7 @@ export default function AdminPanel() {
         /* Toast */
         .toast-container {
           position: fixed;
-          top: 1.5rem;
+          top: 5rem;
           left: 0;
           right: 0;
           display: flex;
@@ -442,8 +438,8 @@ export default function AdminPanel() {
         </div>
       )}
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto w-full p-6 font-[Cinzel] bg-[#f6f0e8] text-[#1c1b1a]">
+      {/* Main Content - wrapped in admin-panel class */}
+      <main className="admin-panel max-w-7xl mx-auto w-full p-6">
         <h2 className="text-2xl font-semibold mb-6 mt-2">Vendor Applications</h2>
 
         <div className="table-container">

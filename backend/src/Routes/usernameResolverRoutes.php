@@ -7,28 +7,32 @@ use Illuminate\Database\Capsule\Manager as DB;
 
 return function (App $app) {
 
-    // Resolve username → email
+    // Resolve username OR email → email
     $app->get('/api/auth/resolve-username', function (Request $req, Response $res) {
 
         $params = $req->getQueryParams();
-        $username = trim($params['u'] ?? '');
+        $identifier = trim($params['u'] ?? '');
 
-        if ($username === '') {
+        if ($identifier === '') {
             $res->getBody()->write(json_encode([
                 "success" => false,
-                "message" => "Username required"
+                "message" => "Email or username required"
             ]));
             return $res->withHeader("Content-Type", "application/json")->withStatus(400);
         }
 
+        // 🔥 FIX: Check BOTH username AND email
         $row = DB::table('credential')
-            ->where('username', $username)
+            ->where(function($query) use ($identifier) {
+                $query->where('username', $identifier)
+                      ->orWhere('email', $identifier);
+            })
             ->first();
 
         if (!$row) {
             $res->getBody()->write(json_encode([
                 "success" => false,
-                "message" => "Username not found"
+                "message" => "Account not found"
             ]));
             return $res->withHeader("Content-Type", "application/json")->withStatus(404);
         }

@@ -8,26 +8,110 @@ use Src\Middleware\AuthMiddleware;
 
 return function (App $app) {
 
+    /* ===========================================================
+     *  GET USER BY FIREBASE UID (for Firebase chat)
+     * =========================================================== */
+    $app->get('/api/users/{uid}', function (Request $req, Response $res, array $args) {
+        
+        $uid = $args['uid'];
+        
+        try {
+            $user = DB::table('credential')
+                ->where('firebase_uid', $uid)
+                ->first();
+            
+            if (!$user) {
+                $res->getBody()->write(json_encode([
+                    'success' => false,
+                    'error' => 'User not found'
+                ]));
+                return $res->withHeader('Content-Type', 'application/json')
+                          ->withStatus(404);
+            }
+            
+            $res->getBody()->write(json_encode([
+                'success' => true,
+                'user' => $user
+            ]));
+            
+            return $res->withHeader('Content-Type', 'application/json');
+            
+        } catch (\Throwable $e) {
+            error_log('USER_FETCH_ERROR: ' . $e->getMessage());
+            $res->getBody()->write(json_encode([
+                'success' => false,
+                'error' => 'Server error'
+            ]));
+            return $res->withHeader('Content-Type', 'application/json')
+                      ->withStatus(500);
+        }
+    });
+
+    /* Get user by MySQL ID (returns firebase_uid) */
+    $app->get('/api/users/by-id/{id}', function (Request $req, Response $res, array $args) {
+        
+        $id = (int)$args['id'];
+        
+        try {
+            $user = DB::table('credential')
+                ->where('id', $id)
+                ->first();
+            
+            if (!$user) {
+                $res->getBody()->write(json_encode([
+                    'success' => false,
+                    'error' => 'User not found'
+                ]));
+                return $res->withHeader('Content-Type', 'application/json')
+                          ->withStatus(404);
+            }
+            
+            $res->getBody()->write(json_encode([
+                'success' => true,
+                'user' => $user
+            ]));
+            
+            return $res->withHeader('Content-Type', 'application/json');
+            
+        } catch (\Throwable $e) {
+            error_log('USER_FETCH_ERROR: ' . $e->getMessage());
+            $res->getBody()->write(json_encode([
+                'success' => false,
+                'error' => 'Server error'
+            ]));
+            return $res->withHeader('Content-Type', 'application/json')
+                      ->withStatus(500);
+        }
+    });
+
     /**
      * GET /api/chat/contacts
      * Returns all vendors/admins as possible contacts.
+     * ✅ FIXED: Now includes firebase_uid and excludes current user
      */
     $app->get('/api/chat/contacts', function (Request $req, Response $res) {
         $jwt = $req->getAttribute('user');
-        $meId = (int)($jwt->sub ?? 0);
-        if (!$meId) {
-            $res->getBody()->write(json_encode(['error' => 'Unauthorized']));
-            return $res->withHeader('Content-Type', 'application/json')->withStatus(401);
-        }
+        
+        // Get current user's MySQL ID
+        $meId = isset($jwt->mysql_id) ? (int)$jwt->mysql_id : 0;
+        
+        error_log("CHAT_CONTACTS: Current user MySQL ID = {$meId}");
 
         $contacts = DB::table('credential')
-            ->select('id', 'first_name', 'last_name', 'username', 'role')
-            ->whereIn('role', [1, 2]) // 1 = Supplier, 2 = Admin
+            ->select('id', 'first_name', 'last_name', 'username', 'role', 'firebase_uid', 'avatar')
+            ->whereIn('role', [1, 2]) // 1 = Vendor, 2 = Admin
+            ->where('id', '!=', $meId) // Exclude self
+            ->orderBy('role', 'desc') // Admins first
             ->orderBy('first_name')
             ->orderBy('last_name')
             ->get();
 
-        $res->getBody()->write(json_encode(['contacts' => $contacts]));
+        error_log("CHAT_CONTACTS: Found " . count($contacts) . " contacts");
+
+        $res->getBody()->write(json_encode([
+            'success' => true,
+            'contacts' => $contacts
+        ]));
         return $res->withHeader('Content-Type', 'application/json');
     })->add(new AuthMiddleware());
 
@@ -37,7 +121,8 @@ return function (App $app) {
      */
     $app->get('/api/chat/conversation/{id}', function (Request $req, Response $res, array $args) {
         $jwt = $req->getAttribute('user');
-        $meId = (int)($jwt->sub ?? 0);
+        $meId = (int)($jwt->mysql_id ?? 0);
+        
         if (!$meId) {
             $res->getBody()->write(json_encode(['error' => 'Unauthorized']));
             return $res->withHeader('Content-Type', 'application/json')->withStatus(401);
@@ -66,7 +151,8 @@ return function (App $app) {
      */
     $app->post('/api/chat/send', function (Request $req, Response $res) {
         $jwt = $req->getAttribute('user');
-        $meId = (int)($jwt->sub ?? 0);
+        $meId = (int)($jwt->mysql_id ?? 0);
+        
         if (!$meId) {
             $res->getBody()->write(json_encode(['error' => 'Unauthorized']));
             return $res->withHeader('Content-Type', 'application/json')->withStatus(401);

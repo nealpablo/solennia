@@ -72,9 +72,6 @@ function Layout({ children }) {
     // ✅ KEEP this (profile dropdown)
     document.addEventListener("click", closeProfileMenu);
 
-    // ❌ REMOVE this (auth modal is handled in Modals.jsx)
-    // authBackdrop?.addEventListener("click", closeAll);
-
     // --- Cleanup ---
     return () => {
       profileBtn?.removeEventListener("click", openProfileMenu);
@@ -82,7 +79,6 @@ function Layout({ children }) {
       menuSignUp?.removeEventListener("click", openRegister);
 
       document.removeEventListener("click", closeProfileMenu);
-      // authBackdrop?.removeEventListener("click", closeAll);
     };
   }, [location.pathname]);
 
@@ -105,7 +101,7 @@ export default function App() {
         <Route path="/landing" element={<Landing />} />
         <Route path="/" element={<HomePage />} />
         <Route path="/vendors" element={<Vendors />} />
-        <Route path="/vendor" element={<VendorProfile />} />
+        <Route path="/vendor-profile" element={<VendorProfile />} /> {/* ✅ FIXED: Changed from /vendor to /vendor-profile */}
         <Route path="/profile" element={<Profile />} />
         <Route path="/chat" element={<Chat />} />
         <Route path="/admin" element={<AdminPanel />} />

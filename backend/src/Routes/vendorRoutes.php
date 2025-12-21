@@ -244,169 +244,179 @@ return function (App $app) {
     });
 
     /* ===========================================================
-     *  VENDOR DASHBOARD FETCH
-     * =========================================================== */
-    $app->get('/api/vendor/dashboard', function (Request $req, Response $res) use ($json) {
+ *  VENDOR DASHBOARD FETCH
+ * =========================================================== */
+$app->get('/api/vendor/dashboard', function (Request $req, Response $res) use ($json) {
 
-        $auth = $req->getAttribute('user');
-        if (!$auth) {
-            return $json($res, ['success' => false, 'error' => 'Unauthorized'], 401);
-        }
+    $auth = $req->getAttribute('user');
+    if (!$auth) {
+        return $json($res, ['success' => false, 'error' => 'Unauthorized'], 401);
+    }
 
-        $vendor = DB::table('eventserviceprovider')
-            ->where('UserID', $auth->sub)
-            ->first();
+    // ✅ FIX: Use mysql_id instead of sub (Firebase UID)
+    $userId = $auth->mysql_id ?? $auth->sub;
 
-        if (!$vendor) {
-            return $json($res, ['success' => false, 'error' => 'Not an approved vendor'], 403);
-        }
+    $vendor = DB::table('eventserviceprovider')
+        ->where('UserID', $userId)  // Changed from $auth->sub
+        ->first();
 
-        return $json($res, [
-            'success' => true,
-            'vendor'  => [
-                'business_name' => $vendor->BusinessName,
-                'address'       => $vendor->BusinessAddress,
-                'bio'           => $vendor->bio,
-                'avatar'        => $vendor->avatar,
-                'hero_image'    => $vendor->HeroImageUrl,
-                'services'      => $vendor->services,
-                'service_areas' => $vendor->service_areas,
-                'description'   => $vendor->Description,
-                'pricing'       => $vendor->Pricing,
-                'gallery'       => json_decode($vendor->gallery ?? '[]', true)
-            ]
+    if (!$vendor) {
+        return $json($res, ['success' => false, 'error' => 'Not an approved vendor'], 403);
+    }
+
+    return $json($res, [
+        'success' => true,
+        'vendor'  => [
+            'business_name' => $vendor->BusinessName,
+            'address'       => $vendor->BusinessAddress,
+            'bio'           => $vendor->bio,
+            'avatar'        => $vendor->avatar,
+            'hero_image'    => $vendor->HeroImageUrl,
+            'services'      => $vendor->services,
+            'service_areas' => $vendor->service_areas,
+            'description'   => $vendor->Description,
+            'pricing'       => $vendor->Pricing,
+            'gallery'       => json_decode($vendor->gallery ?? '[]', true)
+        ]
+    ]);
+
+})->add(new AuthMiddleware());
+
+    /* ===========================================================
+ *  UPDATE VENDOR TEXT FIELDS
+ * =========================================================== */
+$app->post('/api/vendor/update', function (Request $req, Response $res) use ($json) {
+
+    $auth = $req->getAttribute('user');
+    if (!$auth) {
+        return $json($res, ['success' => false, 'error' => 'Unauthorized'], 401);
+    }
+
+    $userId = $auth->mysql_id ?? $auth->sub;  // ✅ Added
+    $data = (array) $req->getParsedBody();
+
+    DB::table('eventserviceprovider')
+        ->where('UserID', $userId)  // Changed from $auth->sub
+        ->update([
+            'bio'           => $data['bio'] ?? null,
+            'services'      => $data['services'] ?? null,
+            'service_areas' => $data['service_areas'] ?? null,
+            'Description'   => $data['description'] ?? null,
+            'Pricing'       => $data['pricing'] ?? null,
+            'BusinessName'  => $data['business_name'] ?? null
         ]);
 
-    })->add(new AuthMiddleware());
+    return $json($res, ['success' => true, 'message' => 'Vendor profile updated']);
 
-    /* ===========================================================
-     *  UPDATE VENDOR TEXT FIELDS
-     * =========================================================== */
-    $app->post('/api/vendor/update', function (Request $req, Response $res) use ($json) {
+})->add(new AuthMiddleware());
 
-        $auth = $req->getAttribute('user');
-        if (!$auth) {
-            return $json($res, ['success' => false, 'error' => 'Unauthorized'], 401);
-        }
+/* ===========================================================
+ *  UPLOAD HERO IMAGE
+ * =========================================================== */
+$app->post('/api/vendor/upload-hero', function (Request $req, Response $res) use ($json, $cloudinary) {
 
-        $data = (array) $req->getParsedBody();
+    $auth = $req->getAttribute('user');
+    if (!$auth) {
+        return $json($res, ['success' => false, 'error' => 'Unauthorized'], 401);
+    }
 
-        DB::table('eventserviceprovider')
-            ->where('UserID', $auth->sub)
-            ->update([
-                'bio'           => $data['bio'] ?? null,
-                'services'      => $data['services'] ?? null,
-                'service_areas' => $data['service_areas'] ?? null,
-                'Description'   => $data['description'] ?? null,
-                'Pricing'       => $data['pricing'] ?? null,
-                'BusinessName'  => $data['business_name'] ?? null
-            ]);
+    $userId = $auth->mysql_id ?? $auth->sub;  // ✅ Added
 
-        return $json($res, ['success' => true, 'message' => 'Vendor profile updated']);
+    $file = $req->getUploadedFiles()['hero'] ?? null;
+    if (!$file || $file->getError() !== UPLOAD_ERR_OK) {
+        return $json($res, ['success' => false, 'error' => 'Invalid hero image'], 422);
+    }
 
-    })->add(new AuthMiddleware());
+    $tmp = $file->getStream()->getMetadata('uri');
 
-    /* ===========================================================
-     *  UPLOAD HERO IMAGE
-     * =========================================================== */
-    $app->post('/api/vendor/upload-hero', function (Request $req, Response $res) use ($json, $cloudinary) {
+    $upload = $cloudinary->uploadApi()->upload($tmp, [
+        'folder'        => "solennia/vendors/hero/{$userId}",  // Changed
+        'resource_type' => 'image',
+        'public_id'     => "hero_{$userId}_" . time()  // Changed
+    ]);
 
-        $auth = $req->getAttribute('user');
-        if (!$auth) {
-            return $json($res, ['success' => false, 'error' => 'Unauthorized'], 401);
-        }
+    DB::table('eventserviceprovider')
+        ->where('UserID', $userId)  // Changed from $auth->sub
+        ->update(['HeroImageUrl' => $upload['secure_url']]);
 
-        $file = $req->getUploadedFiles()['hero'] ?? null;
-        if (!$file || $file->getError() !== UPLOAD_ERR_OK) {
-            return $json($res, ['success' => false, 'error' => 'Invalid hero image'], 422);
-        }
+    return $json($res, ['success' => true, 'url' => $upload['secure_url']]);
+
+})->add(new AuthMiddleware());
+
+/* ===========================================================
+ *  UPLOAD GALLERY IMAGES
+ * =========================================================== */
+$app->post('/api/vendor/upload-gallery', function (Request $req, Response $res) use ($json, $cloudinary) {
+
+    $auth = $req->getAttribute('user');
+    if (!$auth) {
+        return $json($res, ['success' => false, 'error' => 'Unauthorized'], 401);
+    }
+
+    $userId = $auth->mysql_id ?? $auth->sub;  // ✅ Added
+
+    $files = $req->getUploadedFiles()['images'] ?? [];
+    $urls  = [];
+
+    foreach ($files as $file) {
+        if ($file->getError() !== UPLOAD_ERR_OK) continue;
 
         $tmp = $file->getStream()->getMetadata('uri');
 
         $upload = $cloudinary->uploadApi()->upload($tmp, [
-            'folder'        => 'solennia/vendors/hero',
+            'folder'        => "solennia/vendors/gallery/{$userId}",  // Changed
             'resource_type' => 'image',
-            'public_id'     => "hero_{$auth->sub}_" . time()
+            'public_id'     => 'gallery_' . time() . '_' . bin2hex(random_bytes(2))
         ]);
 
-        DB::table('eventserviceprovider')
-            ->where('UserID', $auth->sub)
-            ->update(['HeroImageUrl' => $upload['secure_url']]);
+        $urls[] = $upload['secure_url'];
+    }
 
-        return $json($res, ['success' => true, 'url' => $upload['secure_url']]);
+    $existing = DB::table('eventserviceprovider')
+        ->where('UserID', $userId)  // Changed from $auth->sub
+        ->value('gallery');
 
-    })->add(new AuthMiddleware());
+    $merged = array_merge(json_decode($existing ?? '[]', true), $urls);
 
-    /* ===========================================================
-     *  UPLOAD GALLERY IMAGES
-     * =========================================================== */
-    $app->post('/api/vendor/upload-gallery', function (Request $req, Response $res) use ($json, $cloudinary) {
+    DB::table('eventserviceprovider')
+        ->where('UserID', $userId)  // Changed from $auth->sub
+        ->update(['gallery' => json_encode($merged)]);
 
-        $auth = $req->getAttribute('user');
-        if (!$auth) {
-            return $json($res, ['success' => false, 'error' => 'Unauthorized'], 401);
-        }
+    return $json($res, ['success' => true, 'gallery' => $merged]);
 
-        $files = $req->getUploadedFiles()['images'] ?? [];
-        $urls  = [];
+})->add(new AuthMiddleware());
 
-        foreach ($files as $file) {
-            if ($file->getError() !== UPLOAD_ERR_OK) continue;
+/* ===========================================================
+ *  UPLOAD VENDOR LOGO
+ * =========================================================== */
+$app->post('/api/vendor/upload-logo', function (Request $req, Response $res) use ($json, $cloudinary) {
 
-            $tmp = $file->getStream()->getMetadata('uri');
+    $auth = $req->getAttribute('user');
+    if (!$auth) {
+        return $json($res, ['success' => false, 'error' => 'Unauthorized'], 401);
+    }
 
-            $upload = $cloudinary->uploadApi()->upload($tmp, [
-                'folder'        => "solennia/vendors/gallery/{$auth->sub}",
-                'resource_type' => 'image',
-                'public_id'     => 'gallery_' . time() . '_' . bin2hex(random_bytes(2))
-            ]);
+    $userId = $auth->mysql_id ?? $auth->sub;  // ✅ Added
 
-            $urls[] = $upload['secure_url'];
-        }
+    $file = $req->getUploadedFiles()['logo'] ?? null;
+    if (!$file || $file->getError() !== UPLOAD_ERR_OK) {
+        return $json($res, ['success' => false, 'error' => 'Invalid logo image'], 422);
+    }
 
-        $existing = DB::table('eventserviceprovider')
-            ->where('UserID', $auth->sub)
-            ->value('gallery');
+    $tmp = $file->getStream()->getMetadata('uri');
 
-        $merged = array_merge(json_decode($existing ?? '[]', true), $urls);
+    $upload = $cloudinary->uploadApi()->upload($tmp, [
+        'folder'        => "solennia/vendors/logo/{$userId}",  // Changed
+        'resource_type' => 'image',
+        'public_id'     => 'logo_' . time()
+    ]);
 
-        DB::table('eventserviceprovider')
-            ->where('UserID', $auth->sub)
-            ->update(['gallery' => json_encode($merged)]);
+    DB::table('eventserviceprovider')
+        ->where('UserID', $userId)  // Changed from $auth->sub
+        ->update(['avatar' => $upload['secure_url']]);
 
-        return $json($res, ['success' => true, 'gallery' => $merged]);
+    return $json($res, ['success' => true, 'url' => $upload['secure_url']]);
 
-    })->add(new AuthMiddleware());
-
-    /* ===========================================================
-     *  UPLOAD VENDOR LOGO
-     * =========================================================== */
-    $app->post('/api/vendor/upload-logo', function (Request $req, Response $res) use ($json, $cloudinary) {
-
-        $auth = $req->getAttribute('user');
-        if (!$auth) {
-            return $json($res, ['success' => false, 'error' => 'Unauthorized'], 401);
-        }
-
-        $file = $req->getUploadedFiles()['logo'] ?? null;
-        if (!$file || $file->getError() !== UPLOAD_ERR_OK) {
-            return $json($res, ['success' => false, 'error' => 'Invalid logo image'], 422);
-        }
-
-        $tmp = $file->getStream()->getMetadata('uri');
-
-        $upload = $cloudinary->uploadApi()->upload($tmp, [
-            'folder'        => "solennia/vendors/logo/{$auth->sub}",
-            'resource_type' => 'image',
-            'public_id'     => 'logo_' . time()
-        ]);
-
-        DB::table('eventserviceprovider')
-            ->where('UserID', $auth->sub)
-            ->update(['avatar' => $upload['secure_url']]);
-
-        return $json($res, ['success' => true, 'url' => $upload['secure_url']]);
-
-    })->add(new AuthMiddleware());
+})->add(new AuthMiddleware());
 
 };
