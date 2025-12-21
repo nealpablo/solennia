@@ -9,6 +9,7 @@
     "preview": "vite preview --host --port 5174"
   },
   "devDependencies": {
+    "@vitejs/plugin-react": "^5.1.2",
     "autoprefixer": "^10.4.21",
     "baseline-browser-mapping": "^2.9.9",
     "postcss": "^8.5.6",
