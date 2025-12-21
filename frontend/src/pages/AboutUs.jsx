@@ -46,6 +46,8 @@ export default function AboutUs() {
 
     makeZoomable("aboutImg1");
     makeZoomable("aboutImg2");
+    makeZoomable("aboutImg3");
+    makeZoomable("aboutImg4");
 
     btnX.addEventListener("click", closeLightbox);
     lb.addEventListener("click", (e) => {
@@ -128,78 +130,150 @@ export default function AboutUs() {
           ABOUT SOLENNIA
         </h1>
 
-        <div className="mt-6 p-5 rounded-xl border border-gray-300 bg-[#efe9dd]">
-          <h2 className="text-sm font-semibold uppercase">About Solennia</h2>
-          <p className="mt-2 text-sm md:text-base">
-            Solennia is a modern event planning platform designed to connect
-            clients, planners, and event service providers in one seamless
-            digital space. Built with the Filipino market in mind, Solennia
-            bridges the gap between event organizers and suppliers through
-            accessible tools for booking, communication, and collaboration.
-          </p>
-        </div>
+<div className="mt-6 p-5 rounded-xl border border-gray-300 bg-[#efe9dd]">
+  <h1 className="text-lg md:text-xl font-semibold uppercase tracking-wide">
+    Driven by Innovation, Powered by Connection
+  </h1>
+  <p className="mt-2 text-sm md:text-base">
+    Your event, your vision. Solennia brings together essential planning tools and trusted event service providers 
+    in one centralized platform—so you can focus on creating meaningful experiences without unnecessary complexity.
+  </p>
+</div>
 
-        <div className="mt-6 p-5 rounded-xl border border-gray-300 bg-[#efe9dd]">
-          <h3 className="text-sm font-semibold uppercase">Who We Are</h3>
-          <div className="mt-3 space-y-4 text-sm md:text-base leading-relaxed">
-            <p>
-              We are a passionate team of innovators, developers, and event
-              enthusiasts who believe that planning an event should be
-              exciting—not stressful.
-            </p>
-            <p>
-              Our goal is to empower both clients and vendors by creating a
-              centralized, transparent, and user-friendly platform that
-              simplifies every step of the planning process.
-            </p>
-          </div>
-        </div>
+<div className="mt-6 p-5 rounded-xl border border-gray-300 bg-[#efe9dd]">
+  <h3 className="text-lg md:text-xl font-semibold uppercase tracking-wide">
+    Who We Are
+  </h3>
+  <div className="mt-3 space-y-4 text-sm md:text-base leading-relaxed">
+    <p>
+      We are a team of tech innovators, creative thinkers, and event 
+      industry professionals brought together by a shared mission: 
+      to simplify and elevate the way events are planned and managed.
+    </p>
+    <p>
+      Solennia was built as an all-in-one digital event platform designed to support a wide range of 
+      events—from corporate functions and social gatherings to private celebrations and community events. 
+      By combining smart technology with human-centered design, we empower users to plan, organize, 
+      and execute events with confidence and efficiency.
+    </p>
+    <p>
+      From discovering reliable vendors to managing event details in one place, 
+      Solennia serves as your digital partner—where creativity, organization, and convenience meet.
+    </p>
+  </div>
+</div>
 
-        <div className="mt-6 p-5 rounded-xl border border-gray-300 bg-[#efe9dd]">
-          <h3 className="text-sm font-semibold uppercase">What We Offer</h3>
-          <div className="mt-3 space-y-3 text-sm md:text-base leading-relaxed">
-            <p>
-              Solennia offers an all-in-one experience for discovering, booking,
-              and managing event services. Users can explore verified vendors,
-              communicate through real-time chat, manage event checklists, and
-              track progress—all in one place.
-            </p>
-            <p>
-              For vendors, we provide a space to showcase portfolios, connect
-              with potential clients, and grow their business through meaningful
-              digital exposure.
-            </p>
-          </div>
-        </div>
+<div className="mt-6 p-5 rounded-xl border border-gray-300 bg-[#efe9dd]">
+  <h1 className="text-lg md:text-xl font-semibold uppercase tracking-wide">
+    What We Offer
+  </h1>
 
-        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-          <figure className="relative overflow-hidden rounded-xl border border-gray-300 bg-[#efe9dd]">
-            <img
-              id="aboutImg1"
-              src="/images/about1.jpg"
-              alt="Solennia platform in action"
-              className="w-full h-64 md:h-80 object-cover zoomable"
-              loading="lazy"
-            />
-            <figcaption className="p-3 text-xs text-gray-700">
-              Solennia connects clients and trusted vendors.
-            </figcaption>
-          </figure>
+  <div className="mt-4 space-y-4 text-sm md:text-base leading-relaxed">
+    <div>
+      <p className="font-semibold text-base md:text-lg">
+        Curated Event Vendor Marketplace
+      </p>
+      <p>
+        Discover verified event service providers including venues, caterers,
+        photographers, entertainers, stylists, and equipment rentals—reviewed
+        to ensure quality and reliability.
+      </p>
+    </div>
 
-          <figure className="relative overflow-hidden rounded-xl border border-gray-300 bg-[#efe9dd]">
-            <img
-              id="aboutImg2"
-              src="/images/about2.jpg"
-              alt="Vendors showcasing their work"
-              className="w-full h-64 md:h-80 object-cover zoomable"
-              loading="lazy"
-            />
-            <figcaption className="p-3 text-xs text-gray-700">
-              Vendors showcase portfolios and grow their business.
-            </figcaption>
-          </figure>
-        </div>
-      </section>
+    <div>
+      <p className="font-semibold text-base md:text-lg">
+        Smart Event Planning Tools
+      </p>
+      <p>
+        Access planning tools such as task trackers, scheduling aids, budgeting
+        features, and vendor coordination tools through a unified dashboard.
+      </p>
+    </div>
+
+    <div>
+      <p className="font-semibold text-base md:text-lg">
+        Inspiration &amp; Event Concepts
+      </p>
+      <p>
+        Explore ideas, themes, and visual references to help shape the look,
+        feel, and atmosphere of your event.
+      </p>
+    </div>
+
+    <div>
+      <p className="font-semibold text-base md:text-lg">
+        Reliable Platform Support
+      </p>
+      <p>
+        Whether you are planning independently or coordinating with
+        professionals, Solennia provides guidance and platform support to help
+        you move forward with clarity and control.
+      </p>
+    </div>
+  </div>
+</div>
+
+
+
+
+ <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+  <figure className="relative overflow-hidden rounded-xl border border-gray-300 bg-[#efe9dd]">
+    <img
+      id="aboutImg1"
+      src="/images/about1.jpg"
+      alt="Solennia platform in action"
+      className="w-full h-64 md:h-80 object-cover zoomable"
+      loading="lazy"
+    />
+    <figcaption className="p-3 text-xs text-gray-700">
+      Solennia connects clients and trusted vendors.
+    </figcaption>
+  </figure>
+
+  <figure className="relative overflow-hidden rounded-xl border border-gray-300 bg-[#efe9dd]">
+    <img
+      id="aboutImg2"
+      src="/images/about6.jpg"
+      alt="Vendors showcasing their work"
+      className="w-full h-64 md:h-80 object-cover zoomable"
+      loading="lazy"
+    />
+    <figcaption className="p-3 text-xs text-gray-700">
+      Vendors showcase portfolios and grow their business.
+    </figcaption>
+  </figure>
+
+  {/* NEW IMAGE 3 */}
+  <figure className="relative overflow-hidden rounded-xl border border-gray-300 bg-[#efe9dd]">
+    <img
+      id="aboutImg3"
+      src="/images/about3.jpg"
+      alt="Event planning dashboard"
+      className="w-full h-64 md:h-80 object-cover zoomable"
+      loading="lazy"
+    />
+    <figcaption className="p-3 text-xs text-gray-700">
+      Plan and manage events using Solennia’s smart dashboard.
+    </figcaption>
+  </figure>
+
+  {/* NEW IMAGE 4 */}
+  <figure className="relative overflow-hidden rounded-xl border border-gray-300 bg-[#efe9dd]">
+    <img
+      id="aboutImg4"
+      src="/images/about4.jpg"
+      alt="Creative event inspiration"
+      className="w-full h-64 md:h-80 object-cover zoomable"
+      loading="lazy"
+    />
+    <figcaption className="p-3 text-xs text-gray-700">
+      Get inspired by curated themes and event concepts.
+    </figcaption>
+  </figure>
+</div>
+</section>
+
+      
 
       {/* Lightbox */}
       <div id="imgLightbox" className="lb-backdrop" aria-hidden="true">
@@ -221,3 +295,4 @@ export default function AboutUs() {
     </main>
   );
 }
+ 

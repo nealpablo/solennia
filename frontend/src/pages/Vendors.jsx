@@ -89,6 +89,7 @@ export default function Vendors() {
             "Photography & Videography",
             "Decoration",
             "Entertainment",
+            "Others",
           ].map((f) => (
             <button
               key={f}

@@ -523,7 +523,7 @@ export default function Modals() {
                   onClick={() => setShowLoginPassword(!showLoginPassword)}
                   className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-800 mt-0.5"
                 >
-                  {showLoginPassword ? "👁️" : "👁️‍🗨️"}
+                  {showLoginPassword ? "👁️‍🗨️" : "👁️‍🗨️"}
                 </button>
               </div>
             </div>
@@ -532,7 +532,7 @@ export default function Modals() {
               <button
                 type="button"
                 onClick={openForgotPassword}
-                className="text-sm text-blue-600 hover:underline"
+                className="text-sm text-white-600 hover:underline"
               >
                 Forgot password?
               </button>
@@ -546,11 +546,11 @@ export default function Modals() {
             </button>
 
             <p className="text-center text-sm">
-              Don't have an account?{" "}
+              Don't have an account?{" "} <br></br><br></br>
               <button
                 type="button"
                 onClick={openRegister}
-                className="text-blue-600 hover:underline"
+                className="text-white-600 hover:underline"
               >
                 Register here
               </button>
@@ -740,11 +740,11 @@ export default function Modals() {
             </button>
 
             <p className="text-center text-sm">
-              Already have an account?{" "}
+              Already have an account?{" "} <br></br><br></br>
               <button
                 type="button"
                 onClick={openLogin}
-                className="text-blue-600 hover:underline"
+                className="text-black-600 hover:underline"
               >
                 Login here
               </button>
@@ -804,7 +804,7 @@ export default function Modals() {
               <button
                 type="button"
                 onClick={openLogin}
-                className="text-sm text-blue-600 hover:underline"
+                className="text-sm text-black-600 hover:underline"
               >
                 Back to login
               </button>
@@ -881,12 +881,24 @@ export default function Modals() {
 
           <div className="p-6 space-y-4 text-sm leading-relaxed">
             <p>
-              At Solennia, we are committed to protecting your privacy and ensuring
-              the security of your personal information.
-            </p>
-            <p>
-              This Privacy Policy outlines how we collect, use, and safeguard your
-              data when you use our platform.
+              At Solennia, we value your trust and are committed to protecting your personal information. This Privacy Policy explains how information is collected, used, stored, and protected when you access or use the Solennia web platform and its related services. By using Solennia, you acknowledge and agree to the practices outlined in this policy.
+
+              Solennia collects personal information necessary to operate its platform effectively. This may include user details such as name, email address, contact information, and account credentials. For service providers and vendors, we may collect business-related information including business name, service categories, descriptions, portfolio images, and supporting documents required for verification. In addition, Solennia may collect non-personal data such as device information, usage activity, and approximate location data to improve system performance and user experience.
+
+              The information collected is used strictly to support the core functions of the platform. These functions include enabling user authentication, matching clients with suitable vendors, facilitating communication and bookings, processing applications, managing feedback, improving platform features, and maintaining security and system integrity. Solennia does not sell or trade user data. Information may be shared only with trusted third-party service providers who assist in operating the platform, or when disclosure is required by law or legal process.
+
+              Solennia implements reasonable administrative, technical, and security measures to protect personal information against unauthorized access, loss, or misuse. Despite these measures, users are advised to safeguard their account credentials, as no digital platform can guarantee absolute security.
+
+              Users have the right to access, update, or request the deletion of their personal information. Account deactivation or data removal requests may be submitted through official communication channels. Solennia also uses cookies and similar technologies to analyze platform usage and enhance functionality. Users may manage cookie preferences through their browser settings.
+
+              The Solennia platform may contain links to third-party websites or external vendor pages. Solennia is not responsible for the privacy practices or content of these third-party services, and users are encouraged to review their respective privacy policies.
+
+              Solennia is not intended for use by individuals under the age of thirteen (13). The platform does not knowingly collect personal information from minors. Any such data discovered will be removed promptly.
+
+              This Privacy Policy may be updated to reflect changes in platform features, legal requirements, or operational practices. Users will be notified of significant changes through email or platform notifications.
+
+              For questions, concerns, or data-related requests regarding this Privacy Policy, users may contact solenniainquires@gmail.com
+              . Solennia remains committed to transparency, accountability, and the responsible handling of user information throughout the platform.
             </p>
           </div>
         </div>
@@ -915,8 +927,22 @@ export default function Modals() {
 
           <div className="p-6 space-y-4 text-sm leading-relaxed">
             <p>
-              Welcome to Solennia. By accessing and using our platform, you agree
-              to comply with and be bound by these Terms of Service.
+              Welcome to Solennia. By accessing or using the Solennia website, application, or any services provided through the platform, you agree to comply with and be bound by these Terms and Conditions. If you do not agree to any part of these terms, you must immediately discontinue use of the platform.
+
+              Solennia is a digital event management and service-matching platform designed to connect individuals, organizations, and event planners with professional event service providers. These services may include, but are not limited to, venues, catering, photography and videography, event styling, equipment rentals, entertainment, and other event-related services. Solennia aims to streamline event planning by providing centralized tools for vendor discovery, communication, and coordination.
+
+              All users are required to provide accurate, complete, and truthful information during registration and platform usage. Vendors are solely responsible for ensuring that all submitted content—including business information, service descriptions, pricing details, images, and documentation—is lawful, accurate, and does not infringe on the rights of third parties. Solennia reserves the right to review, approve, reject, or remove content or accounts that violate platform standards, legal requirements, or community guidelines.
+
+              Solennia operates solely as an intermediary platform. While Solennia facilitates connections between users and vendors, it does not participate in, control, or guarantee any transactions, agreements, payments, or service outcomes. All negotiations, contracts, and service arrangements are entered into directly between users and vendors. Solennia shall not be held liable for disputes, losses, damages, delays, or dissatisfaction arising from services provided by vendors or interactions conducted through the platform.
+
+              Vendors listed on Solennia are expected to maintain professional conduct, provide accurate information, and communicate transparently with users. Any fraudulent, misleading, abusive, or unethical behavior is strictly prohibited. Solennia reserves the right to suspend, restrict, or permanently terminate accounts that violate these Terms and Conditions or receive repeated, substantiated complaints.
+
+              Solennia is committed to protecting user privacy and data security. All information collected and processed through the platform is handled in accordance with the Solennia Privacy Policy. By using Solennia, users consent to the collection and use of their information as described in that policy.
+
+              Solennia reserves the right to modify or update these Terms and Conditions at any time to reflect changes in platform functionality, services, or legal obligations. Any revisions shall take effect immediately upon posting. Continued use of the platform after such updates constitutes acceptance of the revised terms.
+
+              For questions or concerns regarding these Terms and Conditions, users may contact solenniainquires@gmail.com
+              . By using Solennia, you acknowledge your responsibility as a platform user and agree to engage in lawful, respectful, and professional interactions within the Solennia ecosystem.
             </p>
           </div>
         </div>
@@ -944,17 +970,40 @@ export default function Modals() {
           </div>
 
           <div className="p-6 space-y-4">
-            <h3 className="font-semibold text-base">Vendor Terms & Conditions</h3>
-            <div className="text-sm space-y-3 leading-relaxed max-h-64 overflow-y-auto bg-gray-50 p-4 rounded">
-              <p>By becoming a vendor on Solennia, you agree to:</p>
-              <ul className="list-disc pl-5 space-y-2">
-                <li>Provide accurate and up-to-date business information</li>
-                <li>Maintain professional communication with clients</li>
-                <li>Deliver services as described in your listings</li>
-                <li>Comply with all applicable laws and regulations</li>
-                <li>Pay applicable service fees as outlined in our pricing</li>
-              </ul>
-            </div>
+      <h3 className="font-semibold text-base uppercase">
+        Vendor Terms & Conditions
+      </h3>
+
+      <div className="text-sm space-y-3 leading-relaxed max-h-64 overflow-y-auto bg-gray-50 p-4 rounded">
+        <p>
+          By applying to become a vendor on Solennia, you acknowledge and agree
+          to the following:
+        </p>
+
+        <ul className="list-disc pl-5 space-y-2">
+          <li>
+            Provide accurate, complete, and up-to-date business and service
+            information.
+          </li>
+          <li>
+            Maintain professional, honest, and timely communication with
+            potential clients.
+          </li>
+          <li>
+            Deliver services in accordance with the descriptions and agreements
+            stated in your approved listings.
+          </li>
+          <li>
+            Comply with all applicable laws, regulations, licenses, and permits
+            related to your services.
+          </li>
+          <li>
+            Acknowledge that vendor application submission does not guarantee
+            approval or listing on the platform.
+          </li>
+        </ul>
+      </div>
+
 
             <div className="flex items-center gap-2">
               <input 
