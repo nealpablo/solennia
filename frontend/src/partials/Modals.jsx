@@ -16,6 +16,7 @@ export default function Modals() {
 
   const [loginIdentifier, setLoginIdentifier] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
+  const [showLoginPassword, setShowLoginPassword] = useState(false); // NEW: Login password toggle
   const [feedback, setFeedback] = useState("");
   const [vendorLoading, setVendorLoading] = useState(false);
   const [forgotEmail, setForgotEmail] = useState("");
@@ -213,6 +214,9 @@ export default function Modals() {
 
       toast.success("Login successful! Welcome back!");
       closeAll();
+      
+      // Refresh page to update header avatar
+      window.location.reload();
     } catch (err) {
       toast.error(err.message || "Login failed. Please try again.");
     }
@@ -506,13 +510,22 @@ export default function Modals() {
               <label className="block text-sm font-semibold uppercase">
                 Password
               </label>
-              <input
-                type="password"
-                required
-                value={loginPassword}
-                onChange={(e) => setLoginPassword(e.target.value)}
-                className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
-              />
+              <div className="relative">
+                <input
+                  type={showLoginPassword ? "text" : "password"}
+                  required
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2 pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowLoginPassword(!showLoginPassword)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-800 mt-0.5"
+                >
+                  {showLoginPassword ? "👁️" : "👁️‍🗨️"}
+                </button>
+              </div>
             </div>
 
             <div className="text-right">
