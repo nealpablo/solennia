@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import Chart from "chart.js/auto";
 import "../style.css";
 
@@ -7,10 +8,12 @@ const API = "/api";
 
 export default function VendorDashboard() {
   const token = localStorage.getItem("solennia_token");
+  const navigate = useNavigate();
 
   const [vendor, setVendor] = useState(null);
   const [bookings, setBookings] = useState([]);
   const [gallery, setGallery] = useState([]);
+  const [checkingVendorType, setCheckingVendorType] = useState(true);
 
   const [showEdit, setShowEdit] = useState(false);
   const [showHero, setShowHero] = useState(false);
@@ -43,6 +46,32 @@ export default function VendorDashboard() {
     alert(msg);
   }
 
+  /* ================= CHECK IF VENUE VENDOR ================= */
+  useEffect(() => {
+    async function checkVendorType() {
+      try {
+        const res = await fetch(`${API}/vendor/status`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        const data = await res.json();
+        
+        // ✅ If user is a VENUE vendor, redirect to venue dashboard
+        if (data.vendor && data.vendor.Category === "Venue") {
+          navigate("/venue-dashboard");
+          return;
+        }
+        
+        setCheckingVendorType(false);
+      } catch (err) {
+        console.error("Failed to check vendor type:", err);
+        setCheckingVendorType(false);
+      }
+    }
+
+    checkVendorType();
+  }, [token, navigate]);
+
   /* ================= LOAD DASHBOARD ================= */
   async function loadDashboard() {
     try {
@@ -73,9 +102,11 @@ export default function VendorDashboard() {
   }
 
   useEffect(() => {
-    loadDashboard();
+    if (!checkingVendorType) {
+      loadDashboard();
+    }
     return () => chartInstance.current?.destroy();
-  }, []);
+  }, [checkingVendorType]);
 
   /* ================= EDIT PROFILE ================= */
   function openEdit() {
@@ -163,6 +194,21 @@ export default function VendorDashboard() {
     } catch (err) {
       toast(err.message);
     }
+  }
+
+  // Show loading while checking vendor type
+  if (checkingVendorType) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        minHeight: '60vh',
+        fontFamily: 'Cinzel, serif'
+      }}>
+        <p>Loading dashboard...</p>
+      </div>
+    );
   }
 
   if (!vendor) return null;

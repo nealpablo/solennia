@@ -13,7 +13,7 @@ export default function Vendors() {
   const navigate = useNavigate();
 
   /* =========================
-     LOAD VENDORS
+     LOAD VENDORS (EXCLUDE VENUE VENDORS)
   ========================= */
   useEffect(() => {
     async function load() {
@@ -28,7 +28,9 @@ export default function Vendors() {
         }
 
         const json = await res.json();
-        setVendors(Array.isArray(json.vendors) ? json.vendors : []);
+        // ✅ FILTER OUT VENUE VENDORS - They should not appear here
+        const nonVenueVendors = (json.vendors || []).filter(v => v.category !== "Venue");
+        setVendors(Array.isArray(nonVenueVendors) ? nonVenueVendors : []);
         setStatus("");
       } catch (err) {
         console.error(err);
@@ -39,7 +41,7 @@ export default function Vendors() {
   }, []);
 
   /* =========================
-     FILTERED LIST
+     FILTERED LIST (NO VENUE CATEGORY)
   ========================= */
   const visible =
     filter === "all"
@@ -71,7 +73,7 @@ export default function Vendors() {
   }
 
   /* =========================
-     RENDER
+     RENDER (NO "Venue" IN FILTERS)
   ========================= */
   return (
     <main className="flex-1 bg-[#f6f0e8] text-[#1c1b1a]">
@@ -80,11 +82,10 @@ export default function Vendors() {
           MEET OUR VENDORS
         </h1>
 
-        {/* FILTERS */}
+        {/* FILTERS - NO "Venue" FILTER */}
         <div className="flex flex-wrap gap-3 text-[0.75rem] tracking-[0.2em] uppercase mb-6">
           {[
             "all",
-            "Venue",
             "Catering",
             "Photography & Videography",
             "Decoration",
@@ -134,8 +135,7 @@ export default function Vendors() {
                 </h2>
 
                 <p className="vendor-meta">
-                  {(v.category || "Vendor")} •{" "}
-                  {(v.address || "Philippines")}
+                  {(v.category || "Vendor")} • {(v.address || "Philippines")}
                 </p>
 
                 <p className="vendor-desc">{getDescription(v)}</p>

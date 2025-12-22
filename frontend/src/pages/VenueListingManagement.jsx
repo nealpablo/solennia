@@ -81,18 +81,21 @@ export default function VenueListingManagement() {
      HANDLE IMAGE UPLOAD
   ============================================= */
   const handleImageChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setListingForm({ ...listingForm, portfolio: file });
-      
-      // Create preview
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
+  const files = Array.from(e.target.files);
+
+  if (files.length > 10) {
+    alert("You can upload up to 10 images only");
+    return;
+  }
+
+  setListingForm({ ...listingForm, portfolio: files });
+
+  // Preview first image
+  const reader = new FileReader();
+  reader.onloadend = () => setImagePreview(reader.result);
+  reader.readAsDataURL(files[0]);
+};
+
 
   /* =============================================
      CREATE/UPDATE LISTING
@@ -100,6 +103,26 @@ export default function VenueListingManagement() {
   const handleSubmitListing = async (e) => {
     e.preventDefault();
     setUploadingImage(true);
+
+    // ✅ Frontend validation (prevents false "missing fields")
+if (
+  !listingForm.venue_name.trim() ||
+  !listingForm.venue_subcategory ||
+  !listingForm.address.trim() ||
+  Number(listingForm.venue_capacity) <= 0 ||
+  !listingForm.venue_parking.trim() ||
+  !listingForm.venue_operating_hours.trim() ||
+  !listingForm.venue_amenities.trim() ||
+  !listingForm.description.trim() ||
+  !listingForm.pricing.trim() ||
+  !listingForm.contact_email.trim() ||
+  (!editingListing && !listingForm.portfolio)
+) {
+  alert("Missing required fields");
+  setUploadingImage(false);
+  return;
+}
+
 
     try {
       const formData = new FormData();
@@ -538,6 +561,7 @@ export default function VenueListingManagement() {
                 <input
                   type="file"
                   accept="image/*"
+                  multiple
                   required={!editingListing}
                   onChange={handleImageChange}
                   className="w-full rounded-md bg-gray-100 border border-gray-300 p-2"

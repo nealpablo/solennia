@@ -602,17 +602,17 @@ export default function Modals() {
       const formData = new FormData();
 
       // Basic info
-     formData.append('venue_name', form.name.value);
-formData.append('venue_amenities', form.location.value);
-formData.append('address', form.address.value);
-formData.append('venue_type', form.venue_type.value);
-formData.append('capacity', form.capacity.value);
-formData.append('venue_parking', 'Contact for details');
-formData.append('venue_operating_hours', '9:00 AM - 10:00 PM');
-formData.append('description', form.description.value);
-formData.append('price_range', form.price_range.value);
-formData.append('contact_email', form.contact_email.value);
-formData.append('contact_phone', form.contact_phone ? form.contact_phone.value : '');
+     formData.append("venue_name", form.name.value);
+formData.append("venue_subcategory", form.venue_type.value);
+formData.append("venue_capacity", form.capacity.value);
+formData.append("venue_amenities", selectedAmenities.join(", "));
+formData.append("venue_operating_hours", "9:00 AM - 10:00 PM");
+formData.append("venue_parking", "Contact for details");
+formData.append("address", form.address.value);
+formData.append("description", form.description.value);
+formData.append("pricing", form.price_range.value);
+formData.append("contact_email", form.contact_email.value);
+
 
       // Amenities (as comma-separated string)
       formData.append('venue_amenities', selectedAmenities.join(', '));
