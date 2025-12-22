@@ -46,6 +46,8 @@ export default function AboutUs() {
 
     makeZoomable("aboutImg1");
     makeZoomable("aboutImg2");
+    makeZoomable("aboutImg3");
+    makeZoomable("aboutImg4");
 
     btnX.addEventListener("click", closeLightbox);
     lb.addEventListener("click", (e) => {
@@ -214,34 +216,64 @@ export default function AboutUs() {
 
 
 
-        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-          <figure className="relative overflow-hidden rounded-xl border border-gray-300 bg-[#efe9dd]">
-            <img
-              id="aboutImg1"
-              src="/images/about1.jpg"
-              alt="Solennia platform in action"
-              className="w-full h-64 md:h-80 object-cover zoomable"
-              loading="lazy"
-            />
-            <figcaption className="p-3 text-xs text-gray-700">
-              Solennia connects clients and trusted vendors.
-            </figcaption>
-          </figure>
+ <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+  <figure className="relative overflow-hidden rounded-xl border border-gray-300 bg-[#efe9dd]">
+    <img
+      id="aboutImg1"
+      src="/images/about1.jpg"
+      alt="Solennia platform in action"
+      className="w-full h-64 md:h-80 object-cover zoomable"
+      loading="lazy"
+    />
+    <figcaption className="p-3 text-xs text-gray-700">
+      Solennia connects clients and trusted vendors.
+    </figcaption>
+  </figure>
 
-          <figure className="relative overflow-hidden rounded-xl border border-gray-300 bg-[#efe9dd]">
-            <img
-              id="aboutImg2"
-              src="/images/about2.jpg"
-              alt="Vendors showcasing their work"
-              className="w-full h-64 md:h-80 object-cover zoomable"
-              loading="lazy"
-            />
-            <figcaption className="p-3 text-xs text-gray-700">
-              Vendors showcase portfolios and grow their business.
-            </figcaption>
-          </figure>
-        </div>
-      </section>
+  <figure className="relative overflow-hidden rounded-xl border border-gray-300 bg-[#efe9dd]">
+    <img
+      id="aboutImg2"
+      src="/images/about6.jpg"
+      alt="Vendors showcasing their work"
+      className="w-full h-64 md:h-80 object-cover zoomable"
+      loading="lazy"
+    />
+    <figcaption className="p-3 text-xs text-gray-700">
+      Vendors showcase portfolios and grow their business.
+    </figcaption>
+  </figure>
+
+  {/* NEW IMAGE 3 */}
+  <figure className="relative overflow-hidden rounded-xl border border-gray-300 bg-[#efe9dd]">
+    <img
+      id="aboutImg3"
+      src="/images/about3.jpg"
+      alt="Event planning dashboard"
+      className="w-full h-64 md:h-80 object-cover zoomable"
+      loading="lazy"
+    />
+    <figcaption className="p-3 text-xs text-gray-700">
+      Plan and manage events using Solennia’s smart dashboard.
+    </figcaption>
+  </figure>
+
+  {/* NEW IMAGE 4 */}
+  <figure className="relative overflow-hidden rounded-xl border border-gray-300 bg-[#efe9dd]">
+    <img
+      id="aboutImg4"
+      src="/images/about4.jpg"
+      alt="Creative event inspiration"
+      className="w-full h-64 md:h-80 object-cover zoomable"
+      loading="lazy"
+    />
+    <figcaption className="p-3 text-xs text-gray-700">
+      Get inspired by curated themes and event concepts.
+    </figcaption>
+  </figure>
+</div>
+</section>
+
+      
 
       {/* Lightbox */}
       <div id="imgLightbox" className="lb-backdrop" aria-hidden="true">
@@ -263,3 +295,4 @@ export default function AboutUs() {
     </main>
   );
 }
+ 

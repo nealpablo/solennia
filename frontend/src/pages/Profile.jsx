@@ -149,7 +149,20 @@ export default function Profile() {
       if (!res.ok) throw new Error(json.error || "Upload failed");
 
       setProfile((p) => ({ ...p, avatar: json.avatar || p.avatar }));
-      toast.success("Profile picture updated successfully!");
+
+// 🔥 SAVE TO LOCAL STORAGE FOR HEADER
+localStorage.setItem(
+  "solennia_profile",
+  JSON.stringify({
+    ...(JSON.parse(localStorage.getItem("solennia_profile")) || {}),
+    avatar: json.avatar,
+  })
+);
+
+// 🔔 NOTIFY HEADER
+window.dispatchEvent(new Event("profileUpdated"));
+
+toast.success("Profile picture updated successfully!");
       setShowAvatarModal(false);
       setAvatarFile(null);
       setAvatarPreview(null);

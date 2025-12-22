@@ -33,7 +33,6 @@ class AuthMiddleware implements Middleware
          */
         $auth = $request->getHeaderLine('Authorization');
 
-        // Apache / XAMPP fallback
         if (!$auth && isset($_SERVER['HTTP_AUTHORIZATION'])) {
             $auth = $_SERVER['HTTP_AUTHORIZATION'];
         }
@@ -61,8 +60,18 @@ class AuthMiddleware implements Middleware
         try {
             $decoded = JWT::decode($token, new Key($this->secret, 'HS256'));
 
-            if (!isset($decoded->sub)) {
-                return $this->unauthorized("Malformed token: missing sub");
+            /**
+             * =====================================================
+             * ✅ FIX: SUPPORT mysql_id OR sub
+             * =====================================================
+             */
+            if (!isset($decoded->mysql_id) && !isset($decoded->sub)) {
+                return $this->unauthorized("Malformed token: missing user identifier");
+            }
+
+            // Normalize user id (keep backward compatibility)
+            if (!isset($decoded->mysql_id) && isset($decoded->sub)) {
+                $decoded->mysql_id = $decoded->sub;
             }
 
             // Attach user to request
