@@ -233,7 +233,7 @@ export default function AboutUs() {
   <figure className="relative overflow-hidden rounded-xl border border-gray-300 bg-[#efe9dd]">
     <img
       id="aboutImg2"
-      src="/images/about6.jpg"
+      src="/images/about2.jpg"
       alt="Vendors showcasing their work"
       className="w-full h-64 md:h-80 object-cover zoomable"
       loading="lazy"
