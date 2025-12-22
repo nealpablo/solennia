@@ -31,6 +31,137 @@ return function (App $app) {
     };
 
     /* ===========================================================
+     *  GET ALL VENDORS (PUBLIC) - NEW ENDPOINT ✅
+     * =========================================================== */
+    $app->get('/api/vendors/public', function (Request $req, Response $res) use ($json) {
+        try {
+            // Get all approved vendors from eventserviceprovider table
+            $vendors = DB::table('eventserviceprovider as esp')
+                ->leftJoin('credential as c', 'esp.UserID', '=', 'c.id')
+                ->where('esp.ApplicationStatus', 'Approved')
+                ->select(
+                    'esp.id',
+                    'esp.UserID as user_id',
+                    'esp.BusinessName as business_name',
+                    'esp.Category as category',
+                    'esp.BusinessAddress as address',
+                    'esp.Description as description',
+                    'esp.bio',
+                    'esp.Pricing as pricing',
+                    'esp.HeroImageUrl as hero_image_url',
+                    'esp.VendorLogo as vendor_logo',
+                    'esp.services',
+                    'esp.ServiceAreas as service_areas',
+                    'c.firebase_uid',
+                    'c.avatar_url as user_avatar'
+                )
+                ->orderByDesc('esp.created_at')
+                ->get();
+
+            // Convert to array and format
+            $vendorsList = [];
+            foreach ($vendors as $vendor) {
+                $vendorsList[] = [
+                    'id' => $vendor->id,
+                    'user_id' => $vendor->user_id,
+                    'business_name' => $vendor->business_name,
+                    'category' => $vendor->category,
+                    'address' => $vendor->address,
+                    'description' => $vendor->description,
+                    'bio' => $vendor->bio,
+                    'pricing' => $vendor->pricing,
+                    'hero_image_url' => $vendor->hero_image_url,
+                    'vendor_logo' => $vendor->vendor_logo,
+                    'services' => $vendor->services ? json_decode($vendor->services, true) : [],
+                    'service_areas' => $vendor->service_areas ? json_decode($vendor->service_areas, true) : [],
+                    'firebase_uid' => $vendor->firebase_uid,
+                    'user_avatar' => $vendor->user_avatar,
+                ];
+            }
+
+            return $json($res, [
+                'success' => true,
+                'vendors' => $vendorsList
+            ]);
+
+        } catch (\Throwable $e) {
+            error_log('VENDORS_PUBLIC_ERROR: ' . $e->getMessage());
+            return $json($res, [
+                'success' => false,
+                'error' => 'Failed to load vendors',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    });
+
+    /* ===========================================================
+     *  GET SINGLE VENDOR (PUBLIC) - NEW ENDPOINT ✅
+     * =========================================================== */
+    $app->get('/api/vendor/public/{userId}', function (Request $req, Response $res, array $args) use ($json) {
+        try {
+            $userId = (int) $args['userId'];
+
+            $vendor = DB::table('eventserviceprovider as esp')
+                ->leftJoin('credential as c', 'esp.UserID', '=', 'c.id')
+                ->where('esp.UserID', $userId)
+                ->where('esp.ApplicationStatus', 'Approved')
+                ->select(
+                    'esp.id',
+                    'esp.UserID as user_id',
+                    'esp.BusinessName as business_name',
+                    'esp.Category as category',
+                    'esp.BusinessAddress as address',
+                    'esp.Description as description',
+                    'esp.bio',
+                    'esp.Pricing as pricing',
+                    'esp.HeroImageUrl as hero_image_url',
+                    'esp.VendorLogo as vendor_logo',
+                    'esp.services',
+                    'esp.ServiceAreas as service_areas',
+                    'esp.Gallery as gallery',
+                    'c.firebase_uid',
+                    'c.avatar_url as user_avatar'
+                )
+                ->first();
+
+            if (!$vendor) {
+                return $json($res, [
+                    'success' => false,
+                    'error' => 'Vendor not found'
+                ], 404);
+            }
+
+            return $json($res, [
+                'success' => true,
+                'vendor' => [
+                    'id' => $vendor->id,
+                    'user_id' => $vendor->user_id,
+                    'business_name' => $vendor->business_name,
+                    'category' => $vendor->category,
+                    'address' => $vendor->address,
+                    'description' => $vendor->description,
+                    'bio' => $vendor->bio,
+                    'pricing' => $vendor->pricing,
+                    'hero_image_url' => $vendor->hero_image_url,
+                    'vendor_logo' => $vendor->vendor_logo,
+                    'services' => $vendor->services ? json_decode($vendor->services, true) : [],
+                    'service_areas' => $vendor->service_areas ? json_decode($vendor->service_areas, true) : [],
+                    'gallery' => $vendor->gallery ? json_decode($vendor->gallery, true) : [],
+                    'firebase_uid' => $vendor->firebase_uid,
+                    'user_avatar' => $vendor->user_avatar,
+                ]
+            ]);
+
+        } catch (\Throwable $e) {
+            error_log('VENDOR_PUBLIC_ERROR: ' . $e->getMessage());
+            return $json($res, [
+                'success' => false,
+                'error' => 'Failed to load vendor'
+            ], 500);
+        }
+    });
+
+    /* ===========================================================
      *  APPLY AS VENDOR
      * =========================================================== */
     $app->post('/api/vendor/apply', function (Request $req, Response $res) use ($json, $cloudinary) {
@@ -41,7 +172,6 @@ return function (App $app) {
                 return $json($res, ['success' => false, 'error' => 'Unauthorized'], 401);
             }
 
-            // ✅ FIX: ALWAYS USE mysql_id
             $userId = (int) $auth->mysql_id;
 
             $role = DB::table('credential')
@@ -135,7 +265,7 @@ return function (App $app) {
     })->add(new AuthMiddleware());
 
     /* ===========================================================
-     *  CHECK VENDOR STATUS
+     *  CHECK VENDOR STATUS  ✅ UPDATED
      * =========================================================== */
     $app->get('/api/vendor/status', function (Request $req, Response $res) use ($json) {
 
@@ -144,279 +274,74 @@ return function (App $app) {
             return $json($res, ['success' => false, 'error' => 'Unauthorized'], 401);
         }
 
-        $row = DB::table('vendor_application')
-            ->where('user_id', $auth->mysql_id)
+        $userId = (int) $auth->mysql_id;
+
+        $application = DB::table('vendor_application')
+            ->where('user_id', $userId)
             ->orderByDesc('id')
+            ->first();
+
+        $vendor = DB::table('eventserviceprovider')
+            ->where('UserID', $userId)
+            ->where('ApplicationStatus', 'Approved')
             ->first();
 
         return $json($res, [
             'success' => true,
-            'status'  => strtolower($row->status ?? 'none')
+            'status' => strtolower($application->status ?? 'none'),
+            'vendor' => $vendor ? [
+                'ServiceType' => $vendor->Category,
+                'VerificationStatus' => 'approved'
+            ] : null
         ]);
 
     })->add(new AuthMiddleware());
 
     /* ===========================================================
-     *  PUBLIC VENDOR LIST
+     *  CREATE VENUE LISTING  ✅ ONLY ADDITION
      * =========================================================== */
-    $app->get('/api/vendors/public', function (Request $req, Response $res) use ($json) {
+    $app->post('/api/venue/listings', function (Request $req, Response $res) use ($json, $cloudinary) {
 
-        try {
-            $vendors = DB::table('eventserviceprovider as esp')
-                ->join('credential as c', 'esp.UserID', '=', 'c.id')
-                ->select(
-                    'esp.ID as id',
-                    'esp.UserID as user_id',
-                    'esp.BusinessName as business_name',
-                    'esp.Category as category',
-                    'esp.Description as description',
-                    'esp.Pricing as pricing',
-                    'esp.HeroImageUrl as hero_image_url',
-                    'esp.BusinessAddress as address',
-                    'esp.avatar as vendor_logo',
-                    'c.avatar as user_avatar',
-                    'esp.bio',
-                    'esp.services',
-                    'esp.service_areas',
-                    'esp.gallery',
-                    'c.first_name',
-                    'c.last_name',
-                    'c.firebase_uid',
-                    'esp.ApplicationStatus'
-                )
-                ->where('esp.ApplicationStatus', 'Approved')
-                ->get();
-
-            return $json($res, ['success' => true, 'vendors' => $vendors]);
-
-        } catch (\Throwable $e) {
-            error_log('PUBLIC_VENDOR_ERROR: ' . $e->getMessage());
-            return $json($res, ['success' => false, 'error' => 'Failed loading vendors'], 500);
+        $auth = $req->getAttribute('user');
+        if (!$auth || !isset($auth->mysql_id)) {
+            return $json($res, ['success' => false, 'error' => 'Unauthorized'], 401);
         }
 
-    });
+        $userId = (int) $auth->mysql_id;
+        $data   = $req->getParsedBody();
+        $files  = $req->getUploadedFiles();
 
-    /* ===========================================================
-     *  PUBLIC SINGLE VENDOR PROFILE
-     * =========================================================== */
-    $app->get('/api/vendor/public/{id}', function (Request $req, Response $res, array $args) use ($json) {
-
-        try {
-            $id = (int) $args['id'];
-
-            $vendor = DB::table('eventserviceprovider as esp')
-                ->leftJoin('credential as c', 'esp.UserID', '=', 'c.id')
-                ->select(
-                    'esp.UserID as user_id',
-                    'esp.BusinessName as business_name',
-                    'esp.Category as category',
-                    'esp.BusinessAddress as address',
-                    'esp.Description as description',
-                    'esp.Pricing as pricing',
-                    'esp.HeroImageUrl as hero_image_url',
-                    'esp.avatar as vendor_logo',
-                    'esp.bio',
-                    'esp.services',
-                    'esp.service_areas',
-                    'esp.gallery',
-                    'c.first_name',
-                    'c.last_name',
-                    'c.username',
-                    'c.firebase_uid'
-                )
-                ->where('esp.UserID', $id)
-                ->where('esp.ApplicationStatus', 'Approved')
-                ->first();
-
-            if (!$vendor) {
-                return $json($res, ['success' => false, 'error' => 'Vendor not found'], 404);
-            }
-
-            $vendor->gallery = json_decode($vendor->gallery ?? '[]', true);
-
-            return $json($res, ['success' => true, 'vendor' => $vendor]);
-
-        } catch (\Throwable $e) {
-            error_log('PUBLIC_VENDOR_FETCH_ERROR: ' . $e->getMessage());
-            return $json($res, ['success' => false, 'error' => 'Server error fetching vendor'], 500);
+        if (empty($data['venue_name']) || empty($data['address']) || empty($data['pricing'])) {
+            return $json($res, ['success' => false, 'error' => 'Missing required fields'], 422);
         }
 
-    });
+        $heroImage = null;
+        if (isset($files['portfolio']) && $files['portfolio']->getError() === UPLOAD_ERR_OK) {
+            $tmp = $files['portfolio']->getStream()->getMetadata('uri');
+            $upload = $cloudinary->uploadApi()->upload($tmp, [
+                'folder' => "solennia/venues/{$userId}",
+                'resource_type' => 'image',
+                'public_id' => 'venue_' . time()
+            ]);
+            $heroImage = $upload['secure_url'];
+        }
 
-    /* ===========================================================
- *  VENDOR DASHBOARD FETCH
- * =========================================================== */
-$app->get('/api/vendor/dashboard', function (Request $req, Response $res) use ($json) {
-
-    $auth = $req->getAttribute('user');
-    if (!$auth) {
-        return $json($res, ['success' => false, 'error' => 'Unauthorized'], 401);
-    }
-
-    // ✅ FIX: Use mysql_id instead of sub (Firebase UID)
-    $userId = $auth->mysql_id ?? $auth->sub;
-
-    $vendor = DB::table('eventserviceprovider')
-        ->where('UserID', $userId)  // Changed from $auth->sub
-        ->first();
-
-    if (!$vendor) {
-        return $json($res, ['success' => false, 'error' => 'Not an approved vendor'], 403);
-    }
-
-    return $json($res, [
-        'success' => true,
-        'vendor'  => [
-            'business_name' => $vendor->BusinessName,
-            'address'       => $vendor->BusinessAddress,
-            'bio'           => $vendor->bio,
-            'avatar'        => $vendor->avatar,
-            'hero_image'    => $vendor->HeroImageUrl,
-            'services'      => $vendor->services,
-            'service_areas' => $vendor->service_areas,
-            'description'   => $vendor->Description,
-            'pricing'       => $vendor->Pricing,
-            'gallery'       => json_decode($vendor->gallery ?? '[]', true)
-        ]
-    ]);
-
-})->add(new AuthMiddleware());
-
-    /* ===========================================================
- *  UPDATE VENDOR TEXT FIELDS
- * =========================================================== */
-$app->post('/api/vendor/update', function (Request $req, Response $res) use ($json) {
-
-    $auth = $req->getAttribute('user');
-    if (!$auth) {
-        return $json($res, ['success' => false, 'error' => 'Unauthorized'], 401);
-    }
-
-    $userId = $auth->mysql_id ?? $auth->sub;  // ✅ Added
-    $data = (array) $req->getParsedBody();
-
-    DB::table('eventserviceprovider')
-        ->where('UserID', $userId)  // Changed from $auth->sub
-        ->update([
-            'bio'           => $data['bio'] ?? null,
-            'services'      => $data['services'] ?? null,
-            'service_areas' => $data['service_areas'] ?? null,
-            'Description'   => $data['description'] ?? null,
-            'Pricing'       => $data['pricing'] ?? null,
-            'BusinessName'  => $data['business_name'] ?? null
+        DB::table('eventserviceprovider')->insert([
+            'UserID'            => $userId,
+            'BusinessName'      => $data['venue_name'],
+            'Category'          => 'Venue',
+            'BusinessAddress'   => $data['address'],
+            'Description'       => $data['description'] ?? '',
+            'Pricing'           => $data['pricing'],
+            'HeroImageUrl'      => $heroImage,
+            'services'          => $data['venue_amenities'] ?? null,
+            'bio'               => $data['packages'] ?? null,
+            'ApplicationStatus' => 'Approved',
+            'created_at'        => date('Y-m-d H:i:s')
         ]);
 
-    return $json($res, ['success' => true, 'message' => 'Vendor profile updated']);
+        return $json($res, ['success' => true, 'message' => 'Venue listing created'], 201);
 
-})->add(new AuthMiddleware());
-
-/* ===========================================================
- *  UPLOAD HERO IMAGE
- * =========================================================== */
-$app->post('/api/vendor/upload-hero', function (Request $req, Response $res) use ($json, $cloudinary) {
-
-    $auth = $req->getAttribute('user');
-    if (!$auth) {
-        return $json($res, ['success' => false, 'error' => 'Unauthorized'], 401);
-    }
-
-    $userId = $auth->mysql_id ?? $auth->sub;  // ✅ Added
-
-    $file = $req->getUploadedFiles()['hero'] ?? null;
-    if (!$file || $file->getError() !== UPLOAD_ERR_OK) {
-        return $json($res, ['success' => false, 'error' => 'Invalid hero image'], 422);
-    }
-
-    $tmp = $file->getStream()->getMetadata('uri');
-
-    $upload = $cloudinary->uploadApi()->upload($tmp, [
-        'folder'        => "solennia/vendors/hero/{$userId}",  // Changed
-        'resource_type' => 'image',
-        'public_id'     => "hero_{$userId}_" . time()  // Changed
-    ]);
-
-    DB::table('eventserviceprovider')
-        ->where('UserID', $userId)  // Changed from $auth->sub
-        ->update(['HeroImageUrl' => $upload['secure_url']]);
-
-    return $json($res, ['success' => true, 'url' => $upload['secure_url']]);
-
-})->add(new AuthMiddleware());
-
-/* ===========================================================
- *  UPLOAD GALLERY IMAGES
- * =========================================================== */
-$app->post('/api/vendor/upload-gallery', function (Request $req, Response $res) use ($json, $cloudinary) {
-
-    $auth = $req->getAttribute('user');
-    if (!$auth) {
-        return $json($res, ['success' => false, 'error' => 'Unauthorized'], 401);
-    }
-
-    $userId = $auth->mysql_id ?? $auth->sub;  // ✅ Added
-
-    $files = $req->getUploadedFiles()['images'] ?? [];
-    $urls  = [];
-
-    foreach ($files as $file) {
-        if ($file->getError() !== UPLOAD_ERR_OK) continue;
-
-        $tmp = $file->getStream()->getMetadata('uri');
-
-        $upload = $cloudinary->uploadApi()->upload($tmp, [
-            'folder'        => "solennia/vendors/gallery/{$userId}",  // Changed
-            'resource_type' => 'image',
-            'public_id'     => 'gallery_' . time() . '_' . bin2hex(random_bytes(2))
-        ]);
-
-        $urls[] = $upload['secure_url'];
-    }
-
-    $existing = DB::table('eventserviceprovider')
-        ->where('UserID', $userId)  // Changed from $auth->sub
-        ->value('gallery');
-
-    $merged = array_merge(json_decode($existing ?? '[]', true), $urls);
-
-    DB::table('eventserviceprovider')
-        ->where('UserID', $userId)  // Changed from $auth->sub
-        ->update(['gallery' => json_encode($merged)]);
-
-    return $json($res, ['success' => true, 'gallery' => $merged]);
-
-})->add(new AuthMiddleware());
-
-/* ===========================================================
- *  UPLOAD VENDOR LOGO
- * =========================================================== */
-$app->post('/api/vendor/upload-logo', function (Request $req, Response $res) use ($json, $cloudinary) {
-
-    $auth = $req->getAttribute('user');
-    if (!$auth) {
-        return $json($res, ['success' => false, 'error' => 'Unauthorized'], 401);
-    }
-
-    $userId = $auth->mysql_id ?? $auth->sub;  // ✅ Added
-
-    $file = $req->getUploadedFiles()['logo'] ?? null;
-    if (!$file || $file->getError() !== UPLOAD_ERR_OK) {
-        return $json($res, ['success' => false, 'error' => 'Invalid logo image'], 422);
-    }
-
-    $tmp = $file->getStream()->getMetadata('uri');
-
-    $upload = $cloudinary->uploadApi()->upload($tmp, [
-        'folder'        => "solennia/vendors/logo/{$userId}",  // Changed
-        'resource_type' => 'image',
-        'public_id'     => 'logo_' . time()
-    ]);
-
-    DB::table('eventserviceprovider')
-        ->where('UserID', $userId)  // Changed from $auth->sub
-        ->update(['avatar' => $upload['secure_url']]);
-
-    return $json($res, ['success' => true, 'url' => $upload['secure_url']]);
-
-})->add(new AuthMiddleware());
+    })->add(new AuthMiddleware());
 
 };

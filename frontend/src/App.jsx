@@ -10,6 +10,8 @@ import Modals from "./partials/Modals";
 // Pages
 import Landing from "./pages/Landing";
 import HomePage from "./pages/HomePage";
+import Venue from "./pages/Venue";
+import VenueDetail from "./pages/VenueDetail";
 import Vendors from "./pages/Vendors";
 import VendorProfile from "./pages/VendorProfile";
 import Profile from "./pages/Profile";
@@ -100,8 +102,10 @@ export default function App() {
       <Routes>
         <Route path="/landing" element={<Landing />} />
         <Route path="/" element={<HomePage />} />
+        <Route path="/venue" element={<Venue />} />
+        <Route path="/venue/:id" element={<VenueDetail />} />
         <Route path="/vendors" element={<Vendors />} />
-        <Route path="/vendor-profile" element={<VendorProfile />} /> {/* ✅ FIXED: Changed from /vendor to /vendor-profile */}
+        <Route path="/vendor-profile" element={<VendorProfile />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/chat" element={<Chat />} />
         <Route path="/admin" element={<AdminPanel />} />

@@ -1,8 +1,40 @@
 // src/partials/Header.jsx
 import { Link } from "react-router-dom";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 
 export default function Header() {
+  const [avatar, setAvatar] = useState(null);
+
+  /* =========================
+     LOAD PROFILE AVATAR
+  ========================= */
+  useEffect(() => {
+    const loadProfile = () => {
+      const profileData = localStorage.getItem("solennia_profile");
+      if (profileData) {
+        try {
+          const parsed = JSON.parse(profileData);
+          setAvatar(parsed.avatar || null);
+        } catch (e) {
+          console.error("Error parsing profile:", e);
+        }
+      } else {
+        setAvatar(null);
+      }
+    };
+
+    // Initial load
+    loadProfile();
+
+    // Listen for avatar updates
+    window.addEventListener("profileUpdated", loadProfile);
+    window.addEventListener("storage", loadProfile);
+
+    return () => {
+      window.removeEventListener("profileUpdated", loadProfile);
+      window.removeEventListener("storage", loadProfile);
+    };
+  }, []);
 
   /* =========================
      AUTH DROPDOWN STATE
@@ -20,6 +52,18 @@ export default function Header() {
       document.getElementById("menuSignUp")?.classList.remove("hidden");
     }
   }, []);
+
+  /* =========================
+     CHAT TOGGLE
+  ========================= */
+  const toggleChatPanel = () => {
+    document.getElementById("chatPanel")?.classList.toggle("hidden");
+    document.getElementById("notifPanel")?.classList.add("hidden");
+  };
+
+  const goToChat = () => {
+    window.location.href = "/chat";
+  };
 
   return (
     <header className="bg-[#e8ddae] border-b border-gray-300">
@@ -51,7 +95,7 @@ export default function Header() {
           id="mobileMenu"
           className="md:flex items-center gap-6 text-sm font-medium hidden"
         >
-          <li><Link to="/" className="hover:underline">VENUE</Link></li>
+          <li><Link to="/venue" className="hover:underline">VENUE</Link></li>
           <li><Link to="/vendors" className="hover:underline">VENDORS</Link></li>
           <li><Link to="/about" className="hover:underline">ABOUT US</Link></li>
         </ul>
@@ -71,15 +115,41 @@ export default function Header() {
           </button>
 
           {/* CHAT */}
-          <Link
-            to="/chat"
-            aria-label="Messages"
-            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-black/5"
-          >
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
-              <path d="M21 15a4 4 0 0 1-4 4H7l-4 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
-            </svg>
-          </Link>
+          <div className="relative">
+            <button
+              onClick={toggleChatPanel}
+              aria-label="Messages"
+              className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-black/5"
+            >
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
+                <path d="M21 15a4 4 0 0 1-4 4H7l-4 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+              </svg>
+            </button>
+
+            {/* CHAT PANEL */}
+            <div
+              id="chatPanel"
+              className="hidden absolute right-0 mt-2 w-80 bg-white border border-gray-300 rounded-2xl shadow-xl z-50"
+            >
+              <div className="p-3 border-b border-gray-200">
+                <p className="text-sm font-semibold">Messages</p>
+              </div>
+
+              <button
+                onClick={goToChat}
+                className="w-full text-left px-4 py-3 hover:bg-gray-100"
+              >
+                <p className="text-sm font-medium">Solennia Support</p>
+                <p className="text-xs text-gray-600 truncate">
+                  You have a new message
+                </p>
+              </button>
+
+              <div className="p-3 text-center text-xs text-gray-500">
+                Click a chat to open
+              </div>
+            </div>
+          </div>
 
           {/* NOTIFICATIONS */}
           <div className="relative">
@@ -108,11 +178,23 @@ export default function Header() {
           <div className="relative">
             <button
               id="profileBtn"
-              className="w-10 h-10 rounded-full border border-gray-700 flex items-center justify-center hover:bg-black/5"
+              className="w-10 h-10 rounded-full border border-gray-700 overflow-hidden flex items-center justify-center hover:bg-black/5"
             >
-              <svg className="w-5 h-5 text-gray-800" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-5 0-9 2.5-9 5.5V21h18v-1.5C21 16.5 17 14 12 14Z" />
-              </svg>
+              {avatar ? (
+                <img
+                  src={avatar}
+                  alt="Profile"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <svg
+                  className="w-5 h-5 text-gray-800"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                >
+                  <path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-5 0-9 2.5-9 5.5V21h18v-1.5C21 16.5 17 14 12 14Z" />
+                </svg>
+              )}
             </button>
 
             {/* PROFILE MENU */}
