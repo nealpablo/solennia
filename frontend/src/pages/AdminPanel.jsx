@@ -317,9 +317,9 @@ export default function AdminPanel() {
                           <td>{a.description}</td>
                           <td>{a.pricing}</td>
                           <td>
-                            <a onClick={() => previewDocument(a.permits, "Permit")} className="underline cursor-pointer text-blue-600">Permit</a>
-                            <a onClick={() => previewDocument(a.gov_id, "ID")} className="underline cursor-pointer text-blue-600 ml-2">ID</a>
-                            <a onClick={() => previewDocument(a.portfolio, "Portfolio")} className="underline cursor-pointer text-blue-600 ml-2">Portfolio</a>
+                            <a onClick={() => previewDocument(a.permits, "Permit")} className="underline cursor-pointer text-black-600">Permit</a>
+                            <a onClick={() => previewDocument(a.gov_id, "ID")} className="underline cursor-pointer text-black-600 ml-2">ID</a>
+                            <a onClick={() => previewDocument(a.portfolio, "Portfolio")} className="underline cursor-pointer text-black-600 ml-2">Portfolio</a>
                           </td>
                           <td>
                             <div className="flex gap-2">
@@ -381,9 +381,9 @@ export default function AdminPanel() {
                           <td>{a.description || "-"}</td>
                           <td>{a.pricing || "-"}</td>
                           <td>
-                            <a onClick={() => previewDocument(a.permits, "Business Permit")} className="underline cursor-pointer text-blue-600">Permit</a>
-                            <a onClick={() => previewDocument(a.gov_id, "Government ID")} className="underline cursor-pointer text-blue-600 ml-2">ID</a>
-                            <a onClick={() => previewDocument(a.portfolio, "Venue Photos")} className="underline cursor-pointer text-blue-600 ml-2">Photos</a>
+                            <a onClick={() => previewDocument(a.permits, "Business Permit")} className="underline cursor-pointer text-black-600">Permit</a>
+                            <a onClick={() => previewDocument(a.gov_id, "Government ID")} className="underline cursor-pointer text-black-600 ml-2">ID</a>
+                            <a onClick={() => previewDocument(a.portfolio, "Venue Photos")} className="underline cursor-pointer text-black-600 ml-2">Photos</a>
                           </td>
                           <td>
                             <div className="flex gap-2">
