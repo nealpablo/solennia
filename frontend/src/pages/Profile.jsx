@@ -291,16 +291,38 @@ toast.success("Profile picture updated successfully!");
     document.getElementById("vendorTerms")?.classList.remove("hidden");
   }
 
+  /* ================= VENDOR CATEGORY FOR DASHBOARD ROUTING ================= */
+  const [vendorCategory, setVendorCategory] = useState(null);
+
+  useEffect(() => {
+    if (!token || role !== 1) return;
+
+    fetch(`${API}/vendor/status`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((j) => {
+        if (j.success && j.vendor) {
+          setVendorCategory(j.vendor.Category);
+        }
+      })
+      .catch(() => {});
+  }, [token, role]);
+
   /* ================= DASHBOARD ================= */
   function dashboardHref() {
     if (role === 2) return "/admin";
-    if (role === 1) return "/vendor-dashboard";
+    if (role === 1) {
+      return vendorCategory === "Venue" ? "/venue-dashboard" : "/vendor-dashboard";
+    }
     return null;
   }
 
   function dashboardLabel() {
     if (role === 2) return "Admin Panel";
-    if (role === 1) return "Manage Dashboard";
+    if (role === 1) {
+      return vendorCategory === "Venue" ? "Venue Dashboard" : "Manage Dashboard";
+    }
     return null;
   }
 

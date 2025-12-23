@@ -30,10 +30,19 @@ return function (App $app) {
                     'va.created_at',
                     DB::raw('COALESCE(va.status, "Pending") as status'),
 
+                    // Document URLs
                     'va.permits',
                     'va.gov_id',
                     'va.portfolio',
 
+                    // ✅ NEW: Venue-specific fields
+                    'va.venue_subcategory',
+                    'va.venue_capacity',
+                    'va.venue_amenities',
+                    'va.venue_operating_hours',
+                    'va.venue_parking',
+
+                    // User info
                     'c.first_name',
                     'c.last_name',
                     'c.username',
@@ -73,7 +82,7 @@ return function (App $app) {
     })->add(new AuthMiddleware());
 
     /* =========================================================
-     * ADMIN: APPROVE / DENY VENDOR
+     * ADMIN: APPROVE / DENY VENDOR - ✅ FIXED FOR VENUES
      * ========================================================= */
     $app->post('/api/admin/vendor-application/decision', function (Request $req, Response $res) {
 
@@ -111,6 +120,7 @@ return function (App $app) {
                 return $res->withHeader('Content-Type', 'application/json');
             }
 
+            // ✅ APPROVE ACTION - FIXED TO HANDLE VENUE FIELDS
             DB::transaction(function () use ($appRow) {
 
                 $businessEmail = $appRow->contact_email;
@@ -131,7 +141,8 @@ return function (App $app) {
                     throw new \Exception('Business email missing');
                 }
 
-                DB::table('eventserviceprovider')->insert([
+                // ✅ NEW: Prepare insert data with venue fields if category is Venue
+                $insertData = [
                     'UserID'            => $appRow->user_id,
                     'BusinessName'      => $appRow->business_name,
                     'Category'          => $appRow->category,
@@ -142,12 +153,36 @@ return function (App $app) {
                     'ApplicationStatus' => 'Approved',
                     'DateApplied'       => $appRow->created_at,
                     'DateApproved'      => date('Y-m-d H:i:s'),
-                ]);
+                ];
 
+                // ✅ NEW: Add venue-specific fields if this is a venue application
+                if (strtolower(trim($appRow->category)) === 'venue') {
+                    $insertData['venue_subcategory'] = $appRow->venue_subcategory ?? null;
+                    $insertData['venue_capacity'] = $appRow->venue_capacity ?? null;
+                    $insertData['venue_amenities'] = $appRow->venue_amenities ?? null;
+                    $insertData['venue_operating_hours'] = $appRow->venue_operating_hours ?? null;
+                    $insertData['venue_parking'] = $appRow->venue_parking ?? null;
+                }
+
+                // ✅ NEW: Add document URLs (permits, gov_id, portfolio)
+                if (!empty($appRow->permits)) {
+                    $insertData['Permits'] = $appRow->permits;
+                }
+                if (!empty($appRow->gov_id)) {
+                    $insertData['GovID'] = $appRow->gov_id;
+                }
+                if (!empty($appRow->portfolio)) {
+                    $insertData['HeroImageUrl'] = $appRow->portfolio; // Use portfolio as hero image
+                }
+
+                DB::table('eventserviceprovider')->insert($insertData);
+
+                // Update user role to supplier (role 1)
                 DB::table('credential')
                     ->where('id', $appRow->user_id)
                     ->update(['role' => 1]);
 
+                // Mark application as approved
                 DB::table('vendor_application')
                     ->where('id', $appRow->id)
                     ->update(['status' => 'Approved']);

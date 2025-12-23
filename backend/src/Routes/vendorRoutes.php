@@ -5,6 +5,7 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Illuminate\Database\Capsule\Manager as DB;
 use Src\Middleware\AuthMiddleware;
+use Src\Controllers\VendorController;
 use Cloudinary\Cloudinary;
 
 return function (App $app) {
@@ -29,6 +30,94 @@ return function (App $app) {
             ->withHeader('Content-Type', 'application/json')
             ->withStatus($status);
     };
+
+    /* ===========================================================
+     *  VENDOR DASHBOARD - ✅ FIXED
+     * =========================================================== */
+    $app->get('/api/vendor/dashboard', function (Request $req, Response $res) use ($json) {
+        $auth = $req->getAttribute('user');
+        if (!$auth || !isset($auth->mysql_id)) {
+            return $json($res, ['success' => false, 'error' => 'Unauthorized'], 401);
+        }
+
+        $userId = (int) $auth->mysql_id;
+
+        try {
+            // Get vendor info
+            $vendor = DB::table('eventserviceprovider')
+                ->where('UserID', $userId)
+                ->where('ApplicationStatus', 'Approved')
+                ->first();
+
+            if (!$vendor) {
+                return $json($res, [
+                    'success' => false,
+                    'error' => 'No approved vendor profile found'
+                ], 404);
+            }
+
+            // Get user info
+            $user = DB::table('credential')
+                ->where('id', $userId)
+                ->first();
+
+            // Prepare vendor data
+            $vendorData = [
+                'id' => $vendor->ID,
+                'user_id' => $vendor->UserID,
+                'business_name' => $vendor->BusinessName,
+                'category' => $vendor->Category,
+                'description' => $vendor->Description,
+                'pricing' => $vendor->Pricing,
+                'hero_image_url' => $vendor->HeroImageUrl,
+                'vendor_logo' => $vendor->avatar,
+                'business_email' => $vendor->BusinessEmail,
+                'business_address' => $vendor->BusinessAddress,
+                'bio' => $vendor->bio,
+                'services' => $vendor->services,
+                'service_areas' => $vendor->service_areas,
+                'user_avatar' => $user->avatar ?? null
+            ];
+
+            // Get gallery images
+            $gallery = [];
+            if ($vendor->gallery) {
+                $gallery = json_decode($vendor->gallery, true) ?: [];
+            }
+
+            // Mock bookings data (you can implement real bookings later)
+            $bookings = [
+                ['title' => 'Total Bookings', 'count' => 0],
+                ['title' => 'Pending Bookings', 'count' => 0]
+            ];
+
+            // Mock insights data (you can implement real analytics later)
+            $insights = [
+                'labels' => ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+                'datasets' => [
+                    [
+                        'label' => 'Profile Views',
+                        'data' => [12, 19, 15, 25, 22, 30]
+                    ]
+                ]
+            ];
+
+            return $json($res, [
+                'success' => true,
+                'vendor' => $vendorData,
+                'gallery' => $gallery,
+                'bookings' => $bookings,
+                'insights' => $insights
+            ]);
+
+        } catch (\Throwable $e) {
+            error_log('VENDOR_DASHBOARD_ERROR: ' . $e->getMessage());
+            return $json($res, [
+                'success' => false,
+                'error' => 'Failed to load dashboard: ' . $e->getMessage()
+            ], 500);
+        }
+    })->add(new AuthMiddleware());
 
     /* ===========================================================
      *  GET ALL VENDORS (PUBLIC)
@@ -225,7 +314,7 @@ return function (App $app) {
             $govIdURL     = $cloudUpload($files['gov_id'], 'govid');
             $portfolioURL = $cloudUpload($files['portfolio'], 'portfolio');
 
-            DB::table('vendor_application')->insert([
+            $insertData = [
                 'user_id'       => $userId,
                 'business_name' => $data['business_name'],
                 'category'      => $data['category'],
@@ -239,7 +328,17 @@ return function (App $app) {
                 'pricing'       => $data['pricing'],
                 'status'        => 'Pending',
                 'created_at'    => date('Y-m-d H:i:s')
-            ]);
+            ];
+
+            if (strtolower(trim($data['category'])) === 'venue') {
+                $insertData['venue_subcategory'] = $data['venue_subcategory'] ?? null;
+                $insertData['venue_capacity'] = $data['venue_capacity'] ?? null;
+                $insertData['venue_amenities'] = $data['venue_amenities'] ?? null;
+                $insertData['venue_operating_hours'] = $data['venue_operating_hours'] ?? null;
+                $insertData['venue_parking'] = $data['venue_parking'] ?? null;
+            }
+
+            DB::table('vendor_application')->insert($insertData);
 
             return $json($res, [
                 'success' => true,
@@ -257,7 +356,7 @@ return function (App $app) {
     })->add(new AuthMiddleware());
 
     /* ===========================================================
-     *  CHECK VENDOR STATUS  ✅ FIXED FOR VENUE CATEGORY
+     *  CHECK VENDOR STATUS - ✅ FIXED FOR CONSISTENT RESPONSE
      * =========================================================== */
     $app->get('/api/vendor/status', function (Request $req, Response $res) use ($json) {
 
@@ -281,17 +380,59 @@ return function (App $app) {
         return $json($res, [
             'success' => true,
             'status' => strtolower($application->status ?? 'none'),
+            'category' => $application->category ?? null,
             'vendor' => $vendor ? [
                 'ServiceType' => $vendor->Category,
-                'VerificationStatus' => 'approved'
+                'Category' => $vendor->Category,
+                'VerificationStatus' => 'approved',
+                'venue_subcategory' => $vendor->venue_subcategory ?? null,
+                'venue_capacity' => $vendor->venue_capacity ?? null,
+                'venue_amenities' => $vendor->venue_amenities ?? null,
+                'venue_operating_hours' => $vendor->venue_operating_hours ?? null,
+                'venue_parking' => $vendor->venue_parking ?? null,
             ] : null
         ]);
 
     })->add(new AuthMiddleware());
 
-    /* ============================================================
-     * ❌ REMOVED DUPLICATE VENUE LISTING ROUTE
-     * Now handled in venueRoutes.php via VenueController
-     * ========================================================== */
+    /* ===========================================================
+     *  UPDATE VENDOR PROFILE (AVATAR) - Using VendorController
+     * =========================================================== */
+    $app->post('/api/vendor/profile', function (Request $req, Response $res) {
+        $controller = new VendorController();
+        return $controller->updateProfile($req, $res);
+    })->add(new AuthMiddleware());
+
+    /* ===========================================================
+     *  UPDATE VENDOR LOGO - Using VendorController
+     * =========================================================== */
+    $app->post('/api/vendor/logo', function (Request $req, Response $res) {
+        $controller = new VendorController();
+        return $controller->updateVendorLogo($req, $res);
+    })->add(new AuthMiddleware());
+
+    /* ===========================================================
+     *  UPDATE HERO IMAGE - Using VendorController
+     * =========================================================== */
+    $app->post('/api/vendor/hero', function (Request $req, Response $res) {
+        $controller = new VendorController();
+        return $controller->updateHero($req, $res);
+    })->add(new AuthMiddleware());
+
+    /* ===========================================================
+     *  UPDATE VENDOR INFO - Using VendorController
+     * =========================================================== */
+    $app->post('/api/vendor/info', function (Request $req, Response $res) {
+        $controller = new VendorController();
+        return $controller->updateVendorInfo($req, $res);
+    })->add(new AuthMiddleware());
+
+    /* ===========================================================
+     *  UPLOAD GALLERY - Using VendorController
+     * =========================================================== */
+    $app->post('/api/vendor/gallery', function (Request $req, Response $res) {
+        $controller = new VendorController();
+        return $controller->uploadGallery($req, $res);
+    })->add(new AuthMiddleware());
 
 };

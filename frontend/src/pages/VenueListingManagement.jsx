@@ -43,24 +43,42 @@ export default function VenueListingManagement() {
   }, [token]);
 
   const checkVenueVendorStatus = async () => {
-    try {
-      const res = await fetch("/api/vendor/status", {
-        headers: { Authorization: `Bearer ${token}` }
+  try {
+    const res = await fetch("/api/vendor/status", {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const data = await res.json();
+    
+    console.log("Venue Vendor Check:", data); // Debug log
+    
+    // ✅ FIXED: Check vendor.ServiceType or vendor.Category and verification status
+    // OLD (WRONG): data.status === "approved" && data.category === "Venue"
+    // NEW (CORRECT): Check both vendor object and category at root level
+    const isVenueVendor = data.success &&
+                         (data.category === "Venue" || 
+                          data.vendor?.ServiceType === "Venue" || 
+                          data.vendor?.Category === "Venue") &&
+                         (data.vendor?.VerificationStatus === "approved" || data.status === "approved");
+    
+    if (isVenueVendor) {
+      console.log("✅ User is an approved venue vendor!");
+      setIsVenueVendor(true);
+    } else {
+      console.log("❌ Not a venue vendor:", {
+        hasVendor: !!data.vendor,
+        category: data.category,
+        serviceType: data.vendor?.ServiceType,
+        verificationStatus: data.vendor?.VerificationStatus
       });
-      const data = await res.json();
-      
-      // Check if vendor is approved and category is "Venue"
-      if (data.status === "approved" && data.category === "Venue") {
-        setIsVenueVendor(true);
-      } else {
-        setIsVenueVendor(false);
-      }
-    } catch (error) {
-      console.error("Error checking vendor status:", error);
-    } finally {
-      setLoading(false);
+      setIsVenueVendor(false);
     }
-  };
+  } catch (error) {
+    console.error("Error checking vendor status:", error);
+    setIsVenueVendor(false);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const fetchMyListings = async () => {
     try {

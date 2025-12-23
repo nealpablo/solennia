@@ -85,32 +85,109 @@ return function (App $app) {
     });
 
     /**
-     * GET /api/chat/contacts
-     * Returns all vendors/admins as possible contacts.
-     * ✅ FIXED: Now includes firebase_uid and excludes current user
+     * GET /api/chat/contacts - ✅ FIXED WITH PROPER CONTACT LOGIC
+     * 
+     * Contact Rules:
+     * - Clients (role 0): Only see admin by default
+     * - Vendors (role 1): Only see admin by default
+     * - Admin (role 2): Only see people who messaged them
+     * - Everyone can see admin
+     * - Contacts are added when conversation starts
      */
     $app->get('/api/chat/contacts', function (Request $req, Response $res) {
         $jwt = $req->getAttribute('user');
         
-        // Get current user's MySQL ID
         $meId = isset($jwt->mysql_id) ? (int)$jwt->mysql_id : 0;
+        $myRole = isset($jwt->role) ? (int)$jwt->role : 0;
         
-        error_log("CHAT_CONTACTS: Current user MySQL ID = {$meId}");
+        error_log("CHAT_CONTACTS: User ID={$meId}, Role={$myRole}");
 
-        $contacts = DB::table('credential')
-            ->select('id', 'first_name', 'last_name', 'username', 'role', 'firebase_uid', 'avatar')
-            ->whereIn('role', [1, 2]) // 1 = Vendor, 2 = Admin
-            ->where('id', '!=', $meId) // Exclude self
-            ->orderBy('role', 'desc') // Admins first
-            ->orderBy('first_name')
-            ->orderBy('last_name')
-            ->get();
+        $contacts = [];
 
-        error_log("CHAT_CONTACTS: Found " . count($contacts) . " contacts");
+        if ($myRole === 2) {
+            // ✅ ADMIN: Only see people who have messaged them
+            $userIdsWhoMessaged = DB::table('message')
+                ->where('ReceiverID', $meId)
+                ->distinct()
+                ->pluck('SenderID')
+                ->toArray();
+
+            if (count($userIdsWhoMessaged) > 0) {
+                $contacts = DB::table('credential')
+                    ->select('id', 'first_name', 'last_name', 'username', 'role', 'firebase_uid', 'avatar')
+                    ->whereIn('id', $userIdsWhoMessaged)
+                    ->orderBy('first_name')
+                    ->get()
+                    ->toArray();
+            }
+        } else {
+            // ✅ CLIENT (role 0) or VENDOR (role 1): Admin + people they've talked to
+            
+            // 1. Always include admin(s)
+            $admins = DB::table('credential')
+                ->select('id', 'first_name', 'last_name', 'username', 'role', 'firebase_uid', 'avatar')
+                ->where('role', 2)
+                ->get()
+                ->toArray();
+
+            // 2. Get people current user has messaged or received messages from
+            $conversationPartnerIds = DB::table('message')
+                ->where(function ($q) use ($meId) {
+                    $q->where('SenderID', $meId)
+                      ->orWhere('ReceiverID', $meId);
+                })
+                ->get()
+                ->map(function ($msg) use ($meId) {
+                    return $msg->SenderID == $meId ? $msg->ReceiverID : $msg->SenderID;
+                })
+                ->unique()
+                ->filter(function ($id) use ($meId) {
+                    return $id != $meId; // Exclude self
+                })
+                ->toArray();
+
+            $conversationPartners = [];
+            if (count($conversationPartnerIds) > 0) {
+                $conversationPartners = DB::table('credential')
+                    ->select('id', 'first_name', 'last_name', 'username', 'role', 'firebase_uid', 'avatar')
+                    ->whereIn('id', $conversationPartnerIds)
+                    ->where('role', '!=', 2) // Exclude admins (already added)
+                    ->orderBy('first_name')
+                    ->get()
+                    ->toArray();
+            }
+
+            // Combine admins + conversation partners
+            $contacts = array_merge($admins, $conversationPartners);
+        }
+
+        error_log("CHAT_CONTACTS: Returning " . count($contacts) . " contacts");
 
         $res->getBody()->write(json_encode([
             'success' => true,
             'contacts' => $contacts
+        ]));
+        return $res->withHeader('Content-Type', 'application/json');
+    })->add(new AuthMiddleware());
+
+    /**
+     * GET /api/chat/vendors - Get vendor list for browsing
+     * This is separate from contacts - used when user wants to find vendors to message
+     */
+    $app->get('/api/chat/vendors', function (Request $req, Response $res) {
+        $jwt = $req->getAttribute('user');
+        $meId = isset($jwt->mysql_id) ? (int)$jwt->mysql_id : 0;
+
+        $vendors = DB::table('credential')
+            ->select('id', 'first_name', 'last_name', 'username', 'role', 'firebase_uid', 'avatar')
+            ->where('role', 1) // Only vendors
+            ->where('id', '!=', $meId) // Exclude self
+            ->orderBy('first_name')
+            ->get();
+
+        $res->getBody()->write(json_encode([
+            'success' => true,
+            'vendors' => $vendors
         ]));
         return $res->withHeader('Content-Type', 'application/json');
     })->add(new AuthMiddleware());

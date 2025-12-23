@@ -1,5 +1,5 @@
 <?php
-// backend/src/Controllers/VenueController.php - FIXED FOR YOUR DATABASE SCHEMA
+// backend/src/Controllers/VenueController.php - ✅ FIXED
 namespace Src\Controllers;
 
 use Cloudinary\Cloudinary;
@@ -24,7 +24,7 @@ class VenueController
     }
 
     /* ===========================================================
-     *  GET ALL APPROVED VENUES - FIXED!
+     *  GET ALL APPROVED VENUES
      * =========================================================== */
     public function getAllVenues(Request $request, Response $response)
     {
@@ -42,7 +42,11 @@ class VenueController
                     'BusinessEmail as contact_email',
                     'Pricing as pricing',
                     'bio',
-                    'services as venue_amenities'
+                    'services as venue_amenities',
+                    'venue_subcategory',
+                    'venue_capacity',
+                    'venue_operating_hours',
+                    'venue_parking'
                 )
                 ->get();
 
@@ -56,9 +60,11 @@ class VenueController
                     'portfolio' => $venue->portfolio ?? null,
                     'contact_email' => $venue->contact_email ?? '',
                     'pricing' => $venue->pricing ?? '',
-                    'venue_subcategory' => 'Event Venue',
-                    'venue_capacity' => '100-500',
-                    'venue_amenities' => $venue->venue_amenities ?? ''
+                    'venue_subcategory' => $venue->venue_subcategory ?? 'Event Venue',
+                    'venue_capacity' => $venue->venue_capacity ?? '100-500',
+                    'venue_amenities' => $venue->venue_amenities ?? '',
+                    'venue_operating_hours' => $venue->venue_operating_hours ?? '9:00 AM - 10:00 PM',
+                    'venue_parking' => $venue->venue_parking ?? 'Available'
                 ];
             }
 
@@ -103,11 +109,11 @@ class VenueController
                 'portfolio' => $venue->HeroImageUrl ?? null,
                 'contact_email' => $venue->BusinessEmail ?? '',
                 'pricing' => $venue->Pricing ?? '',
-                'venue_subcategory' => 'Event Venue',
-                'venue_capacity' => '100-500',
+                'venue_subcategory' => $venue->venue_subcategory ?? 'Event Venue',
+                'venue_capacity' => $venue->venue_capacity ?? '100-500',
                 'venue_amenities' => $venue->services ?? '',
-                'venue_operating_hours' => '9:00 AM - 10:00 PM',
-                'venue_parking' => 'Available'
+                'venue_operating_hours' => $venue->venue_operating_hours ?? '9:00 AM - 10:00 PM',
+                'venue_parking' => $venue->venue_parking ?? 'Available'
             ];
 
             return $this->json($response, true, "Venue found", 200, ['venue' => $venueData]);
@@ -119,7 +125,7 @@ class VenueController
     }
 
     /* ===========================================================
-     *  CREATE VENUE LISTING - FIXED FOR YOUR DATABASE!
+     *  CREATE VENUE LISTING - ✅ FIXED: NO DUPLICATE CREATION
      * =========================================================== */
     public function createListing(Request $request, Response $response)
     {
@@ -134,7 +140,7 @@ class VenueController
             $userId = (int) $auth->mysql_id;
             error_log("CREATE_LISTING: UserID = {$userId}");
 
-            // Check if user already has an approved venue vendor application
+            // ✅ FIXED: Check if user is approved venue vendor
             $vendor = DB::table('eventserviceprovider')
                 ->where('UserID', $userId)
                 ->where('Category', 'Venue')
@@ -163,6 +169,8 @@ class VenueController
             $description = $data['description'] ?? '';
             $contactEmail = $data['contact_email'] ?? '';
             $venueAmenities = $data['venue_amenities'] ?? '';
+            $venueOperatingHours = $data['venue_operating_hours'] ?? '9:00 AM - 10:00 PM';
+            $venueParking = $data['venue_parking'] ?? 'Available';
 
             // Validate required fields
             if (empty($venueName)) {
@@ -200,28 +208,29 @@ class VenueController
                 }
             }
 
-            // Insert into eventserviceprovider table
-            $listingId = DB::table('eventserviceprovider')->insertGetId([
-                'UserID' => $userId,
-                'BusinessName' => $venueName,
-                'Category' => 'Venue',
-                'BusinessAddress' => $address,
-                'Description' => $description,
-                'Pricing' => $pricing,
-                'HeroImageUrl' => $heroImageUrl,
-                'BusinessEmail' => $contactEmail,
-                'bio' => $venueSubcategory,
-                'services' => $venueAmenities,
-                'ApplicationStatus' => 'Approved',
-                'created_at' => date('Y-m-d H:i:s'),
-                'DateApplied' => date('Y-m-d H:i:s')
-            ]);
+            // ✅ FIXED: Update existing vendor record instead of creating duplicate
+            DB::table('eventserviceprovider')
+                ->where('ID', $vendor->ID)
+                ->update([
+                    'BusinessName' => $venueName,
+                    'BusinessAddress' => $address,
+                    'Description' => $description,
+                    'Pricing' => $pricing,
+                    'HeroImageUrl' => $heroImageUrl ?? $vendor->HeroImageUrl,
+                    'BusinessEmail' => $contactEmail ?: $vendor->BusinessEmail,
+                    'venue_subcategory' => $venueSubcategory,
+                    'venue_capacity' => $venueCapacity,
+                    'services' => $venueAmenities,
+                    'venue_operating_hours' => $venueOperatingHours,
+                    'venue_parking' => $venueParking,
+                    'updated_at' => date('Y-m-d H:i:s')
+                ]);
 
-            error_log("LISTING_CREATED: ID=" . $listingId);
+            error_log("LISTING_UPDATED: ID=" . $vendor->ID);
 
-            return $this->json($response, true, "Venue listing created successfully", 201, [
-                'listing_id' => $listingId,
-                'portfolio_url' => $heroImageUrl
+            return $this->json($response, true, "Venue listing updated successfully", 200, [
+                'listing_id' => $vendor->ID,
+                'portfolio_url' => $heroImageUrl ?? $vendor->HeroImageUrl
             ]);
 
         } catch (\Exception $e) {

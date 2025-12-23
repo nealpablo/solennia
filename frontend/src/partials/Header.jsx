@@ -1,6 +1,7 @@
 // src/partials/Header.jsx
 import { Link } from "react-router-dom";
 import React, { useEffect, useState } from "react";
+import ChatDropdown from "./ChatDropdown";
 
 export default function Header() {
   const [avatar, setAvatar] = useState(null);
@@ -53,18 +54,6 @@ export default function Header() {
     }
   }, []);
 
-  /* =========================
-     CHAT TOGGLE
-  ========================= */
-  const toggleChatPanel = () => {
-    document.getElementById("chatPanel")?.classList.toggle("hidden");
-    document.getElementById("notifPanel")?.classList.add("hidden");
-  };
-
-  const goToChat = () => {
-    window.location.href = "/chat";
-  };
-
   return (
     <header className="bg-[#e8ddae] border-b border-gray-300">
       <nav className="max-w-7xl mx-auto px-4 flex items-center justify-between h-14">
@@ -114,42 +103,8 @@ export default function Header() {
             </svg>
           </button>
 
-          {/* CHAT */}
-          <div className="relative">
-            <button
-              onClick={toggleChatPanel}
-              aria-label="Messages"
-              className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-black/5"
-            >
-              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
-                <path d="M21 15a4 4 0 0 1-4 4H7l-4 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
-              </svg>
-            </button>
-
-            {/* CHAT PANEL */}
-            <div
-              id="chatPanel"
-              className="hidden absolute right-0 mt-2 w-80 bg-white border border-gray-300 rounded-2xl shadow-xl z-50"
-            >
-              <div className="p-3 border-b border-gray-200">
-                <p className="text-sm font-semibold">Messages</p>
-              </div>
-
-              <button
-                onClick={goToChat}
-                className="w-full text-left px-4 py-3 hover:bg-gray-100"
-              >
-                <p className="text-sm font-medium">Solennia Support</p>
-                <p className="text-xs text-gray-600 truncate">
-                  You have a new message
-                </p>
-              </button>
-
-              <div className="p-3 text-center text-xs text-gray-500">
-                Click a chat to open
-              </div>
-            </div>
-          </div>
+          {/* CHAT DROPDOWN - ✅ USING ChatDropdown COMPONENT */}
+          <ChatDropdown />
 
           {/* NOTIFICATIONS */}
           <div className="relative">

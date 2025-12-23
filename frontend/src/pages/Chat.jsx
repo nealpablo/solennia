@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import "../chat.css";
 import toast from "../utils/toast";
 import {
@@ -13,53 +14,44 @@ import {
 const API = "/api";
 
 export default function Chat() {
-  const [threads, setThreads] = useState([]);
-  const [adminContacts, setAdminContacts] = useState([]);
-  const [vendorContacts, setVendorContacts] = useState([]);
-  const [showVendors, setShowVendors] = useState(false);
+  const [contacts, setContacts] = useState([]);
   const [active, setActive] = useState(null);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(true);
-  const [unreadCount, setUnreadCount] = useState(0);
+  
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  
   const meUid = useRef(null);
   const messagesRef = useRef(null);
   const unsubscribeRef = useRef(null);
+  const hasAutoOpened = useRef(false);
 
-  /* =========================
-     FETCH AVAILABLE CONTACTS
-  ========================= */
-  async function fetchAvailableContacts() {
+  /* ================= FETCH CONTACTS ================= */
+  async function fetchContacts() {
     try {
       const token = localStorage.getItem("solennia_token");
       if (!token) {
-        console.log("No token, skipping contacts fetch");
+        setLoading(false);
         return;
       }
 
-      console.log("Fetching available contacts...");
-
-      // Fetch all contacts (vendors and admins)
       const res = await fetch(`${API}/chat/contacts`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
+        headers: { Authorization: `Bearer ${token}` }
       });
 
       if (!res.ok) {
-        console.error("Failed to fetch contacts:", res.status);
+        setLoading(false);
         return;
       }
 
       const json = await res.json();
-      const contacts = json.contacts || [];
+      const contactsList = json.contacts || [];
       
-      console.log("Raw contacts:", contacts);
-      
-      // Enrich with vendor info
+      // Enrich contacts
       const enriched = await Promise.all(
-        contacts.map(async (contact) => {
-          // If vendor, try to get business name
+        contactsList.map(async (contact) => {
           if (contact.role === 1) {
             try {
               const vendorRes = await fetch(`${API}/vendor/public/${contact.id}`);
@@ -68,96 +60,228 @@ export default function Chat() {
                 return {
                   ...contact,
                   displayName: vendorJson.vendor?.business_name || `${contact.first_name} ${contact.last_name}`,
-                  avatar: vendorJson.vendor?.vendor_logo || null,
-                  isVendor: true
+                  avatar: vendorJson.vendor?.vendor_logo || contact.avatar
                 };
               }
             } catch (e) {
-              console.log("Could not fetch vendor info:", e);
+              // Ignore
             }
           }
           
           return {
             ...contact,
-            displayName: `${contact.first_name} ${contact.last_name}`,
-            isVendor: false
+            displayName: `${contact.first_name} ${contact.last_name}`
           };
         })
       );
 
-      // Separate admins and vendors
-      const admins = enriched.filter(c => c.role === 2);
-      const vendors = enriched.filter(c => c.role === 1);
-
-      console.log("Admins:", admins);
-      console.log("Vendors:", vendors);
-
-      setAdminContacts(admins);
-      setVendorContacts(vendors);
+      setContacts(enriched);
+      
     } catch (e) {
       console.error("Error fetching contacts:", e);
+    } finally {
+      setLoading(false);
     }
   }
 
-  /* =========================
-     BOOTSTRAP CHAT
-  ========================= */
+  /* ================= LOAD THREAD PREVIEWS ================= */
+  async function loadThreadPreviews() {
+    try {
+      await initChat();
+      meUid.current = currentUserUid();
+      
+      const threads = await listThreadsForCurrentUser();
+      
+      setContacts(prevContacts => 
+        prevContacts.map(contact => {
+          const thread = threads.find(t => t.otherUid === contact.firebase_uid);
+          return {
+            ...contact,
+            lastMessage: thread?.lastMessageSnippet || "",
+            lastTs: thread?.lastTs || 0
+          };
+        })
+      );
+    } catch (err) {
+      console.error("Failed to load threads:", err);
+    }
+  }
+
+  /* ================= INITIAL LOAD ================= */
   useEffect(() => {
-    async function boot() {
-      try {
-        setLoading(true);
-        
-        // Initialize Firebase chat
-        await initChat();
-        meUid.current = currentUserUid();
-        console.log("Chat initialized for user:", meUid.current);
+    fetchContacts();
+  }, []);
 
-        // Load existing threads
-        const existingThreads = await listThreadsForCurrentUser();
-        setThreads(existingThreads || []);
+  useEffect(() => {
+    if (contacts.length > 0 && !meUid.current) {
+      loadThreadPreviews();
+    }
+  }, [contacts]);
 
-        // Load available contacts
-        await fetchAvailableContacts();
-
-        // Handle ?to= query parameter
-        const params = new URLSearchParams(window.location.search);
-        const toParam = params.get("to");
-        
-        if (toParam) {
-          console.log("Opening chat with:", toParam);
-          
-          // Fetch user data first
-          const userData = await fetchUserData(toParam);
-          console.log("Fetched user data:", userData);
-          
-          // Open thread with proper user data
-          openThreadByOtherUid(toParam, async (info) => {
-            if (!info) {
-              console.error("Could not open thread");
-              toast.error("Could not open chat with this user");
-              return;
-            }
-            
-            console.log("Thread opened:", info);
-            openThread(info.threadId, info.otherUid, userData);
-          });
-        }
-
-        // Check for new messages every 30 seconds
-        const interval = setInterval(checkForNewMessages, 30000);
-
-        setLoading(false);
-        
-        return () => clearInterval(interval);
-      } catch (e) {
-        console.error("Chat init error:", e);
-        toast.error("Could not initialize chat. Please make sure you're logged in.");
-        setLoading(false);
+  /* ================= HANDLE ?to= PARAMETER - ✅ NEW ================= */
+  useEffect(() => {
+    const toUid = searchParams.get('to');
+    
+    if (toUid && !hasAutoOpened.current && meUid.current && contacts.length > 0) {
+      hasAutoOpened.current = true;
+      
+      // Check if contact exists
+      let contact = contacts.find(c => c.firebase_uid === toUid);
+      
+      if (contact) {
+        // Contact exists, open chat
+        openChat(contact);
+        // Clear URL parameter
+        navigate('/chat', { replace: true });
+      } else {
+        // Contact doesn't exist yet, fetch user info and create contact
+        fetchUserAndOpenChat(toUid);
       }
     }
-    boot();
+  }, [searchParams, contacts, meUid.current]);
 
-    // Cleanup
+  /* ================= FETCH USER AND OPEN CHAT - ✅ NEW ================= */
+  async function fetchUserAndOpenChat(firebaseUid) {
+    try {
+      const token = localStorage.getItem("solennia_token");
+      
+      // Get user by firebase UID
+      const res = await fetch(`${API}/users/${firebaseUid}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (!res.ok) {
+        toast.error("User not found");
+        navigate('/chat', { replace: true });
+        return;
+      }
+      
+      const json = await res.json();
+      const user = json.user;
+      
+      // Enrich if vendor
+      let displayName = `${user.first_name} ${user.last_name}`;
+      let avatar = user.avatar;
+      
+      if (user.role === 1) {
+        try {
+          const vendorRes = await fetch(`${API}/vendor/public/${user.id}`);
+          if (vendorRes.ok) {
+            const vendorJson = await vendorRes.json();
+            displayName = vendorJson.vendor?.business_name || displayName;
+            avatar = vendorJson.vendor?.vendor_logo || avatar;
+          }
+        } catch (e) {
+          // Use defaults
+        }
+      }
+      
+      const newContact = {
+        id: user.id,
+        firebase_uid: user.firebase_uid,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        role: user.role,
+        avatar: avatar,
+        displayName: displayName
+      };
+      
+      // Add to contacts
+      setContacts(prev => {
+        const exists = prev.find(c => c.firebase_uid === firebaseUid);
+        if (exists) return prev;
+        return [...prev, newContact];
+      });
+      
+      // Open chat
+      openChat(newContact);
+      
+      // Clear URL parameter
+      navigate('/chat', { replace: true });
+      
+      // Refresh contacts from backend (this will persist the contact)
+      setTimeout(() => fetchContacts(), 1000);
+      
+    } catch (err) {
+      console.error("Failed to fetch user:", err);
+      toast.error("Failed to start conversation");
+      navigate('/chat', { replace: true });
+    }
+  }
+
+  /* ================= OPEN CHAT ================= */
+  function openChat(contact) {
+    if (!meUid.current) {
+      toast.error("Chat not initialized");
+      return;
+    }
+
+    setActive(contact);
+    setMessages([]);
+
+    if (unsubscribeRef.current) {
+      unsubscribeRef.current();
+      unsubscribeRef.current = null;
+    }
+
+    openThreadByOtherUid(contact.firebase_uid, (result) => {
+      if (!result) {
+        toast.error("Failed to open conversation");
+        return;
+      }
+
+      const { threadId } = result;
+      setMessages([]);
+
+      onThreadMessages(threadId, (msg) => {
+        setMessages((prev) => {
+          const exists = prev.find((m) => m.id === msg.id);
+          if (exists) return prev;
+          return [...prev, msg];
+        });
+      });
+
+      unsubscribeRef.current = () => {};
+    });
+
+    // Refresh contacts after opening
+    setTimeout(() => fetchContacts(), 1000);
+  }
+
+  /* ================= SEND MESSAGE ================= */
+  async function handleSend() {
+    if (!input.trim() || !active) return;
+
+    const threadId = (active.firebase_uid < meUid.current)
+      ? `${active.firebase_uid}__${meUid.current}`
+      : `${meUid.current}__${active.firebase_uid}`;
+
+    try {
+      await sendMessageToThread(threadId, { text: input });
+      setInput("");
+      
+      setTimeout(() => {
+        if (messagesRef.current) {
+          messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
+        }
+      }, 100);
+      
+      setTimeout(() => fetchContacts(), 500);
+    } catch (err) {
+      console.error("Send failed:", err);
+      toast.error("Failed to send message");
+    }
+  }
+
+  /* ================= AUTO SCROLL ================= */
+  useEffect(() => {
+    if (messagesRef.current) {
+      messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
+    }
+  }, [messages]);
+
+  /* ================= CLEANUP ================= */
+  useEffect(() => {
     return () => {
       if (unsubscribeRef.current) {
         unsubscribeRef.current();
@@ -165,408 +289,179 @@ export default function Chat() {
     };
   }, []);
 
-  /* =========================
-     CHECK FOR NEW MESSAGES
-  ========================= */
-  async function checkForNewMessages() {
-    try {
-      const currentThreads = await listThreadsForCurrentUser();
-      const oldThreadCount = threads.length;
-      const newThreadCount = currentThreads.length;
-      
-      if (newThreadCount > oldThreadCount) {
-        setUnreadCount(prev => prev + (newThreadCount - oldThreadCount));
-        toast.info("You have new messages!");
-        
-        // Play notification sound (optional)
-        if (typeof Audio !== 'undefined') {
-          const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiDYIFWW47OyhUQ==');
-          audio.volume = 0.3;
-          audio.play().catch(() => {});
-        }
-      }
-      
-      setThreads(currentThreads);
-    } catch (e) {
-      console.error("Error checking for new messages:", e);
-    }
-  }
-
-  /* =========================
-     FETCH USER DATA
-  ========================= */
-  async function fetchUserData(identifier) {
-    try {
-      // Try by Firebase UID first
-      let res = await fetch(`${API}/users/${identifier}`);
-      
-      // If not found, try by MySQL ID
-      if (!res.ok) {
-        res = await fetch(`${API}/users/by-id/${identifier}`);
-      }
-
-      if (res.ok) {
-        const json = await res.json();
-        const user = json.user;
-        
-        // If vendor, get business info
-        if (user.role === 1) {
-          try {
-            const vendorRes = await fetch(`${API}/vendor/public/${user.id}`);
-            if (vendorRes.ok) {
-              const vendorJson = await vendorRes.json();
-              return {
-                ...user,
-                displayName: vendorJson.vendor?.business_name || `${user.first_name} ${user.last_name}`,
-                avatar: vendorJson.vendor?.vendor_logo || user.avatar,
-                isVendor: true
-              };
-            }
-          } catch (e) {}
-        }
-
-        return {
-          ...user,
-          displayName: `${user.first_name} ${user.last_name}`,
-          isVendor: false
-        };
-      }
-    } catch (e) {
-      console.error("Error fetching user:", e);
-    }
-
-    return {
-      displayName: "Unknown User",
-      role: 0
-    };
-  }
-
-  /* =========================
-     OPEN THREAD
-  ========================= */
-  async function openThread(threadId, otherUid, meta = {}) {
-    console.log("Opening thread:", { threadId, otherUid, meta });
-    
-    // Clean up previous listener
-    if (unsubscribeRef.current) {
-      unsubscribeRef.current();
-    }
-
-    // Ensure meta has at least a displayName
-    if (!meta.displayName) {
-      meta = await fetchUserData(otherUid);
-    }
-
-    setActive({ threadId, otherUid, meta });
-    setMessages([]);
-
-    // Listen to messages
-    unsubscribeRef.current = onThreadMessages(threadId, (msg) => {
-      setMessages((prev) => {
-        // Avoid duplicates
-        if (prev.find(m => m.id === msg.id)) return prev;
-        
-        // Show notification if message is from other person
-        if (msg.senderUid !== meUid.current) {
-          toast.info(`New message from ${meta.displayName}`);
-        }
-        
-        return [...prev, msg];
-      });
-    });
-
-    // Refresh threads list to show this new conversation
-    const updatedThreads = await listThreadsForCurrentUser();
-    setThreads(updatedThreads || []);
-  }
-
-  /* =========================
-     START NEW CHAT
-  ========================= */
-  async function startChat(contact) {
-    console.log("Starting chat with:", contact);
-    const identifier = contact.firebase_uid || contact.id;
-    
-    openThreadByOtherUid(identifier, async (info) => {
-      if (!info) {
-        toast.error("Could not start chat with this user");
-        return;
-      }
-
-      const userData = {
-        displayName: contact.displayName || `${contact.first_name} ${contact.last_name}`,
-        avatar: contact.avatar,
-        role: contact.role,
-        isVendor: contact.isVendor
-      };
-
-      openThread(info.threadId, info.otherUid, userData);
-      
-      toast.success(`Chat started with ${userData.displayName}`);
-    });
-  }
-
-  /* =========================
-     SEND MESSAGE
-  ========================= */
-  async function send() {
-    if (!input.trim() || !active) {
-      return;
-    }
-    
-    console.log("Sending message:", input, "to thread:", active.threadId);
-    
-    try {
-      await sendMessageToThread(active.threadId, { text: input });
-      setInput("");
-      console.log("Message sent successfully");
-    } catch (e) {
-      console.error("Error sending message:", e);
-      toast.error("Could not send message: " + e.message);
-    }
-  }
-
-  /* =========================
-     AUTO-SCROLL
-  ========================= */
-  useEffect(() => {
-    messagesRef.current?.scrollTo(0, messagesRef.current.scrollHeight);
-  }, [messages]);
-
-  /* =========================
-     ROLE LABEL
-  ========================= */
-  function getRoleLabel(role) {
-    if (role === 2) return "Admin";
-    if (role === 1) return "Vendor";
-    return "Client";
-  }
-
-  /* =========================
-     RENDER
-  ========================= */
   if (loading) {
     return (
-      <main role="main" style={{ padding: "2rem", textAlign: "center" }}>
-        <p>Loading chat...</p>
-      </main>
+      <div className="chat-shell">
+        <div style={{ margin: "auto", textAlign: "center", padding: "2rem" }}>
+          <div style={{
+            width: '3rem',
+            height: '3rem',
+            border: '4px solid #e8ddae',
+            borderTopColor: 'transparent',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+            margin: '0 auto 1rem'
+          }} />
+          <p>Loading chat...</p>
+        </div>
+      </div>
     );
   }
 
-  // Get available contacts to show (admins always, vendors only if showVendors is true)
-  const displayContacts = showVendors 
-    ? [...adminContacts, ...vendorContacts]
-    : adminContacts;
-
-  // Filter out contacts that already have threads
-  const threadUserIds = threads.map(t => t.otherUid);
-  const availableContacts = displayContacts.filter(contact => {
-    const contactUid = contact.firebase_uid;
-    return !threadUserIds.includes(contactUid);
-  });
-
   return (
-    <main role="main" aria-label="Chat interface">
-      <section className="chat-shell">
-        {/* =========================
-            CONTACT LIST
-        ========================= */}
-        <aside className="chat-sidebar" aria-label="Contacts">
-          <div className="chat-sidebar-header">
-            <span>Conversations</span>
-            {unreadCount > 0 && (
-              <span className="unread-badge">{unreadCount}</span>
-            )}
-          </div>
+    <div className="chat-shell">
+      {/* ================= SIDEBAR ================= */}
+      <aside className="chat-sidebar">
+        <div className="chat-sidebar-header">
+          <span>CONVERSATIONS</span>
+          {contacts.length > 0 && (
+            <span className="unread-badge">{contacts.length}</span>
+          )}
+        </div>
 
-          <div className="chat-contact-list">
-            {/* Existing Threads */}
-            {threads.map((t) => (
-              <button
-                key={`thread-${t.threadId}`}
-                className={`chat-contact ${
-                  active?.threadId === t.threadId ? "active" : ""
-                }`}
-                onClick={() => {
-                  openThread(t.threadId, t.otherUid, {
-                    displayName: t.otherName,
-                    role: t.otherRole
-                  });
-                  setUnreadCount(0);
-                }}
-              >
-                <div className="chat-contact-avatar">
-                  {(t.otherName || "U")[0].toUpperCase()}
-                </div>
+        <div className="chat-contact-list">
+          {contacts.length === 0 ? (
+            <div className="empty-state">
+              <p style={{ textAlign: 'center', padding: '2rem 1rem', color: '#666', fontSize: '0.875rem' }}>
+                No contacts yet. Visit the Vendors page to start chatting with vendors.
+              </p>
+            </div>
+          ) : (
+            contacts.map((contact) => {
+              const isActive = active?.id === contact.id;
 
-                <div className="chat-contact-main">
-                  <div className="chat-contact-name">
-                    {t.otherName || "User"}
+              return (
+                <button
+                  key={contact.id}
+                  onClick={() => openChat(contact)}
+                  className={`chat-contact ${isActive ? "active" : ""}`}
+                >
+                  <div className="chat-contact-avatar">
+                    {contact.avatar ? (
+                      <img src={contact.avatar} alt="" className="contact-avatar-img" />
+                    ) : (
+                      contact.displayName?.charAt(0)?.toUpperCase() || "?"
+                    )}
                   </div>
-                  <div className="chat-contact-status">
-                    {t.lastMessageSnippet || "No messages yet"}
-                  </div>
-                </div>
-              </button>
-            ))}
-
-            {/* Available Contacts Section */}
-            {availableContacts.length > 0 && (
-              <>
-                <div className="contacts-divider">
-                  <div className="divider-line"></div>
-                  <span className="divider-text">Available Contacts</span>
-                  <div className="divider-line"></div>
-                </div>
-
-                {/* Toggle Vendors Button */}
-                {vendorContacts.length > 0 && (
-                  <button
-                    className="toggle-vendors-btn"
-                    onClick={() => setShowVendors(!showVendors)}
-                  >
-                    {showVendors ? "Hide Vendors" : "Show Vendors"}
-                    <span className="vendor-count">({vendorContacts.length})</span>
-                  </button>
-                )}
-                
-                {availableContacts.map((contact) => (
-                  <button
-                    key={`contact-${contact.id}`}
-                    className="chat-contact"
-                    onClick={() => startChat(contact)}
-                  >
-                    <div className="chat-contact-avatar">
-                      {contact.avatar ? (
-                        <img 
-                          src={contact.avatar}
-                          alt={contact.displayName}
-                          className="contact-avatar-img"
-                        />
-                      ) : (
-                        <span>{(contact.displayName || "U")[0].toUpperCase()}</span>
+                  
+                  <div className="chat-contact-main">
+                    <div className="chat-contact-name">
+                      {contact.displayName || "Unknown User"}
+                      {contact.role === 2 && (
+                        <span className="role-badge admin-badge">ADMIN</span>
+                      )}
+                      {contact.role === 1 && (
+                        <span className="role-badge vendor-badge">VENDOR</span>
                       )}
                     </div>
-
-                    <div className="chat-contact-main">
-                      <div className="chat-contact-name">
-                        {contact.displayName}
-                        {contact.role === 1 && (
-                          <span className="role-badge vendor-badge">VENDOR</span>
-                        )}
-                        {contact.role === 2 && (
-                          <span className="role-badge admin-badge">ADMIN</span>
-                        )}
+                    
+                    {contact.lastMessage && (
+                      <div className="chat-contact-preview">
+                        {contact.lastMessage.length > 40 
+                          ? contact.lastMessage.substring(0, 40) + "..." 
+                          : contact.lastMessage}
                       </div>
-                      <div className="chat-contact-status">
-                        Start a conversation
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </>
-            )}
+                    )}
+                  </div>
+                </button>
+              );
+            })
+          )}
+        </div>
+      </aside>
 
-            {/* Empty State */}
-            {threads.length === 0 && availableContacts.length === 0 && (
-              <div className="empty-state">
-                <p>No contacts available</p>
-                {vendorContacts.length > 0 && !showVendors && (
-                  <button 
-                    className="btn-show-vendors"
-                    onClick={() => setShowVendors(true)}
-                  >
-                    Show {vendorContacts.length} Vendor{vendorContacts.length > 1 ? 's' : ''}
-                  </button>
-                )}
-              </div>
-            )}
+      {/* ================= MAIN CHAT ================= */}
+      <main className="chat-main">
+        {!active ? (
+          <div className="chat-empty-state">
+            <div className="empty-icon">💬</div>
+            <p>Select a conversation to start messaging</p>
+            <p style={{ fontSize: '0.875rem', color: '#999', marginTop: '0.5rem' }}>
+              Or visit the Vendors page to chat with vendors
+            </p>
           </div>
-        </aside>
-
-        {/* =========================
-            CHAT MAIN
-        ========================= */}
-        <section className="chat-main" aria-live="polite">
-          <header className="chat-main-header">
-            <div>
+        ) : (
+          <>
+            {/* Header */}
+            <div className="chat-main-header">
               <div className="header-user-info">
-                {active?.meta?.avatar && (
-                  <img 
-                    src={active.meta.avatar}
-                    alt={active.meta.displayName}
-                    className="header-avatar"
-                  />
+                {active.avatar ? (
+                  <img src={active.avatar} alt="" className="header-avatar" />
+                ) : (
+                  <div className="header-avatar" style={{ 
+                    background: '#e8ddae', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    fontWeight: 600,
+                    color: '#7a5d47'
+                  }}>
+                    {active.displayName?.charAt(0)?.toUpperCase() || "?"}
+                  </div>
                 )}
                 <div>
-                  <div className="header-name">
-                    {active?.meta?.displayName || (active ? "User" : "Select a contact")}
+                  <div className="header-name">{active.displayName}</div>
+                  <div className="header-role">
+                    {active.role === 2 ? "Admin" : active.role === 1 ? "Vendor" : "Client"}
                   </div>
-                  {active && active.meta?.role !== undefined && (
-                    <div className="header-role">
-                      {getRoleLabel(active.meta.role)}
+                </div>
+              </div>
+            </div>
+
+            {/* Messages */}
+            <div className="chat-main-body" ref={messagesRef}>
+              {messages.length === 0 ? (
+                <div style={{ 
+                  textAlign: 'center', 
+                  color: '#999', 
+                  padding: '2rem',
+                  fontSize: '0.875rem'
+                }}>
+                  No messages yet. Say hello! 👋
+                </div>
+              ) : (
+                messages.map((msg) => {
+                  const isMe = msg.senderUid === meUid.current;
+                  return (
+                    <div key={msg.id} className={`chat-message ${isMe ? "me" : "them"}`}>
+                      <div className="message-text">{msg.text}</div>
+                      <div className="chat-meta">
+                        {new Date(msg.ts).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </div>
                     </div>
-                  )}
-                </div>
-              </div>
+                  );
+                })
+              )}
             </div>
 
-            <div className="header-status">
-              {meUid.current ? "Connected" : "Not signed in"}
-            </div>
-          </header>
-
-          <div
-            className="chat-main-body"
-            ref={messagesRef}
-            tabIndex={0}
-            aria-live="polite"
-          >
-            {!active && (
-              <div className="chat-empty-state">
-                <div className="empty-icon">💬</div>
-                <p>Choose a contact on the left to start chatting</p>
-              </div>
-            )}
-
-            {messages.map((m, i) => (
-              <div
-                key={m.id || i}
-                className={`chat-message ${
-                  m.senderUid === meUid.current ? "me" : "them"
-                }`}
+            {/* Input */}
+            <div className="chat-input-bar">
+              <input
+                className="chat-input"
+                placeholder="Type a message..."
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend();
+                  }
+                }}
+              />
+              <button
+                className="chat-send-btn"
+                onClick={handleSend}
+                disabled={!input.trim()}
               >
-                <div className="message-text">{m.text}</div>
-                <div className="chat-meta">
-                  {new Date(m.ts || Date.now()).toLocaleTimeString([], { 
-                    hour: '2-digit', 
-                    minute: '2-digit' 
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <footer className="chat-input-bar">
-            <input
-              className="chat-input"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && send()}
-              placeholder={active ? "Type a message…" : "Select a contact first"}
-              aria-label="Message input"
-              disabled={!active}
-            />
-            <button 
-              className="chat-send-btn" 
-              onClick={send}
-              disabled={!active || !input.trim()}
-            >
-              Send
-            </button>
-          </footer>
-        </section>
-      </section>
-    </main>
+                Send
+              </button>
+            </div>
+          </>
+        )}
+      </main>
+    </div>
   );
 }

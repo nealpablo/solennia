@@ -46,7 +46,7 @@ export default function VendorDashboard() {
     alert(msg);
   }
 
-  /* ================= CHECK IF VENUE VENDOR ================= */
+  /* ================= CHECK IF VENUE VENDOR - ✅ FIXED TO CHECK BOTH ================= */
   useEffect(() => {
     async function checkVendorType() {
       try {
@@ -56,8 +56,8 @@ export default function VendorDashboard() {
         
         const data = await res.json();
         
-        // ✅ If user is a VENUE vendor, redirect to venue dashboard
-        if (data.vendor && data.vendor.Category === "Venue") {
+        // ✅ FIXED: Check both Category AND ServiceType for venue vendors
+        if (data.vendor && (data.vendor.Category === "Venue" || data.vendor.ServiceType === "Venue")) {
           navigate("/venue-dashboard");
           return;
         }
