@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import toast from "../utils/toast";
 
 import "../style.css";
 import "../vendors.css";
@@ -66,10 +67,26 @@ export default function Vendors() {
     navigate(`/vendor-profile?id=${encodeURIComponent(v.user_id || v.id)}`);
   }
 
+  /* ================= ✅ FIXED: CHAT VENDOR ================= */
   function openChat(v) {
-    const uid = v.firebase_uid || v.user_id || v.id;
-    if (!uid) return;
-    navigate(`/chat?to=${encodeURIComponent(uid)}`);
+    // Check if user is logged in
+    const token = localStorage.getItem("solennia_token");
+    if (!token) {
+      toast.warning("Please login to chat with vendors");
+      return;
+    }
+
+    // Get firebase_uid from vendor
+    const firebaseUid = v.firebase_uid || v.user_firebase_uid;
+    
+    if (!firebaseUid) {
+      console.error("Vendor missing firebase_uid:", v);
+      toast.error("Unable to start chat with this vendor");
+      return;
+    }
+
+    // Navigate to chat with ?to= parameter
+    navigate(`/chat?to=${encodeURIComponent(firebaseUid)}`);
   }
 
   /* =========================
@@ -95,7 +112,11 @@ export default function Vendors() {
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className="px-4 py-2 border border-[#c9bda4] rounded-full bg-[#f6f0e8]"
+              className={`px-4 py-2 border border-[#c9bda4] rounded-full transition-colors ${
+                filter === f 
+                  ? 'bg-[#7a5d47] text-white border-[#7a5d47]' 
+                  : 'bg-[#f6f0e8] hover:bg-[#e8ddae]'
+              }`}
             >
               {f === "all" ? "All" : f}
             </button>
@@ -150,7 +171,6 @@ export default function Vendors() {
 
                   <button
                     className="vendor-chat-btn"
-                    disabled={!v.firebase_uid && !v.user_id}
                     onClick={() => openChat(v)}
                   >
                     CHAT VENDOR

@@ -19,6 +19,7 @@ export default function Chat() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(true);
+  const [myRole, setMyRole] = useState(0);
   
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -28,124 +29,161 @@ export default function Chat() {
   const unsubscribeRef = useRef(null);
   const hasAutoOpened = useRef(false);
 
-  /* ================= FETCH CONTACTS ================= */
-  async function fetchContacts() {
+  useEffect(() => {
+    async function init() {
+      try {
+        const token = localStorage.getItem("solennia_token");
+        if (!token) {
+          setLoading(false);
+          return;
+        }
+
+        const profileData = localStorage.getItem("solennia_profile");
+        if (profileData) {
+          const profile = JSON.parse(profileData);
+          setMyRole(profile.role || 0);
+        }
+
+        await initChat();
+        meUid.current = currentUserUid();
+        await loadContacts();
+        
+      } catch (err) {
+        console.error("Failed to initialize chat:", err);
+        toast.error("Failed to initialize chat");
+      } finally {
+        setLoading(false);
+      }
+    }
+    
+    init();
+  }, []);
+
+  // ✅ FIXED: Prevent duplicate contacts
+  async function loadContacts() {
     try {
       const token = localStorage.getItem("solennia_token");
-      if (!token) {
-        setLoading(false);
-        return;
-      }
+      if (!token) return;
 
+      // Get admin from MySQL
       const res = await fetch(`${API}/chat/contacts`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      if (!res.ok) {
-        setLoading(false);
-        return;
-      }
+      if (!res.ok) return;
 
       const json = await res.json();
-      const contactsList = json.contacts || [];
-      
-      // Enrich contacts
-      const enriched = await Promise.all(
-        contactsList.map(async (contact) => {
-          if (contact.role === 1) {
-            try {
-              const vendorRes = await fetch(`${API}/vendor/public/${contact.id}`);
-              if (vendorRes.ok) {
-                const vendorJson = await vendorRes.json();
-                return {
-                  ...contact,
-                  displayName: vendorJson.vendor?.business_name || `${contact.first_name} ${contact.last_name}`,
-                  avatar: vendorJson.vendor?.vendor_logo || contact.avatar
-                };
-              }
-            } catch (e) {
-              // Ignore
-            }
-          }
-          
-          return {
-            ...contact,
-            displayName: `${contact.first_name} ${contact.last_name}`
-          };
-        })
-      );
+      let mysqlContacts = json.contacts || [];
 
-      setContacts(enriched);
-      
-    } catch (e) {
-      console.error("Error fetching contacts:", e);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  /* ================= LOAD THREAD PREVIEWS ================= */
-  async function loadThreadPreviews() {
-    try {
-      await initChat();
-      meUid.current = currentUserUid();
-      
+      // Get Firebase threads
       const threads = await listThreadsForCurrentUser();
-      
-      setContacts(prevContacts => 
-        prevContacts.map(contact => {
-          const thread = threads.find(t => t.otherUid === contact.firebase_uid);
-          return {
+
+      // ✅ FIX: Use Map with firebase_uid as key to prevent duplicates
+      const contactMap = new Map();
+
+      // Add admin contacts first
+      for (const contact of mysqlContacts) {
+        if (contact.firebase_uid) {
+          contactMap.set(contact.firebase_uid, {
             ...contact,
-            lastMessage: thread?.lastMessageSnippet || "",
-            lastTs: thread?.lastTs || 0
-          };
-        })
-      );
+            displayName: `${contact.first_name} ${contact.last_name}`,
+            lastMessage: "",
+            lastTs: 0
+          });
+        }
+      }
+
+      // Add/update contacts from threads
+      for (const thread of threads) {
+        const { otherUid, lastMessageSnippet, lastTs } = thread;
+        
+        // ✅ FIX: Check if contact already exists by firebase_uid
+        if (contactMap.has(otherUid)) {
+          // Just update message info, don't replace contact
+          const contact = contactMap.get(otherUid);
+          contact.lastMessage = lastMessageSnippet;
+          contact.lastTs = lastTs;
+        } else {
+          // New contact from thread - fetch their info
+          try {
+            const userRes = await fetch(`${API}/users/${otherUid}`, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            
+            if (userRes.ok) {
+              const userData = await userRes.json();
+              const user = userData.user;
+              
+              let displayName = `${user.first_name} ${user.last_name}`;
+              let avatar = user.avatar;
+              
+              // If vendor, get business name
+              if (user.role === 1) {
+                try {
+                  const vendorRes = await fetch(`${API}/vendor/public/${user.id}`);
+                  if (vendorRes.ok) {
+                    const vendorData = await vendorRes.json();
+                    displayName = vendorData.vendor?.business_name || displayName;
+                    avatar = vendorData.vendor?.vendor_logo || avatar;
+                  }
+                } catch (e) {
+                  console.log("Could not fetch vendor info");
+                }
+              }
+              
+              // ✅ Only add if not already in map
+              if (!contactMap.has(otherUid)) {
+                contactMap.set(otherUid, {
+                  id: user.id,
+                  firebase_uid: otherUid,
+                  first_name: user.first_name,
+                  last_name: user.last_name,
+                  role: user.role,
+                  avatar: avatar,
+                  displayName: displayName,
+                  lastMessage: lastMessageSnippet,
+                  lastTs: lastTs
+                });
+              }
+            }
+          } catch (e) {
+            console.error("Failed to fetch user:", e);
+          }
+        }
+      }
+
+      // Convert to array and sort
+      const finalContacts = Array.from(contactMap.values())
+        .sort((a, b) => (b.lastTs || 0) - (a.lastTs || 0));
+
+      setContacts(finalContacts);
+      
     } catch (err) {
-      console.error("Failed to load threads:", err);
+      console.error("Failed to load contacts:", err);
     }
   }
 
-  /* ================= INITIAL LOAD ================= */
-  useEffect(() => {
-    fetchContacts();
-  }, []);
-
-  useEffect(() => {
-    if (contacts.length > 0 && !meUid.current) {
-      loadThreadPreviews();
-    }
-  }, [contacts]);
-
-  /* ================= HANDLE ?to= PARAMETER - ✅ NEW ================= */
   useEffect(() => {
     const toUid = searchParams.get('to');
     
-    if (toUid && !hasAutoOpened.current && meUid.current && contacts.length > 0) {
+    if (toUid && !hasAutoOpened.current && meUid.current && !loading) {
       hasAutoOpened.current = true;
       
-      // Check if contact exists
       let contact = contacts.find(c => c.firebase_uid === toUid);
       
       if (contact) {
-        // Contact exists, open chat
         openChat(contact);
-        // Clear URL parameter
         navigate('/chat', { replace: true });
       } else {
-        // Contact doesn't exist yet, fetch user info and create contact
         fetchUserAndOpenChat(toUid);
       }
     }
-  }, [searchParams, contacts, meUid.current]);
+  }, [searchParams, contacts, loading]);
 
-  /* ================= FETCH USER AND OPEN CHAT - ✅ NEW ================= */
   async function fetchUserAndOpenChat(firebaseUid) {
     try {
       const token = localStorage.getItem("solennia_token");
       
-      // Get user by firebase UID
       const res = await fetch(`${API}/users/${firebaseUid}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -159,7 +197,6 @@ export default function Chat() {
       const json = await res.json();
       const user = json.user;
       
-      // Enrich if vendor
       let displayName = `${user.first_name} ${user.last_name}`;
       let avatar = user.avatar;
       
@@ -171,9 +208,7 @@ export default function Chat() {
             displayName = vendorJson.vendor?.business_name || displayName;
             avatar = vendorJson.vendor?.vendor_logo || avatar;
           }
-        } catch (e) {
-          // Use defaults
-        }
+        } catch (e) {}
       }
       
       const newContact = {
@@ -186,21 +221,15 @@ export default function Chat() {
         displayName: displayName
       };
       
-      // Add to contacts
+      // ✅ FIX: Check for duplicates before adding
       setContacts(prev => {
         const exists = prev.find(c => c.firebase_uid === firebaseUid);
         if (exists) return prev;
-        return [...prev, newContact];
+        return [newContact, ...prev];
       });
       
-      // Open chat
       openChat(newContact);
-      
-      // Clear URL parameter
       navigate('/chat', { replace: true });
-      
-      // Refresh contacts from backend (this will persist the contact)
-      setTimeout(() => fetchContacts(), 1000);
       
     } catch (err) {
       console.error("Failed to fetch user:", err);
@@ -209,7 +238,7 @@ export default function Chat() {
     }
   }
 
-  /* ================= OPEN CHAT ================= */
+  // ✅ CRITICAL FIX: Properly unsubscribe from old messages when switching contacts
   function openChat(contact) {
     if (!meUid.current) {
       toast.error("Chat not initialized");
@@ -219,6 +248,7 @@ export default function Chat() {
     setActive(contact);
     setMessages([]);
 
+    // ✅ FIX: Unsubscribe from previous conversation
     if (unsubscribeRef.current) {
       unsubscribeRef.current();
       unsubscribeRef.current = null;
@@ -233,7 +263,8 @@ export default function Chat() {
       const { threadId } = result;
       setMessages([]);
 
-      onThreadMessages(threadId, (msg) => {
+      // ✅ CRITICAL FIX: Store the actual unsubscribe function
+      const unsubscribe = onThreadMessages(threadId, (msg) => {
         setMessages((prev) => {
           const exists = prev.find((m) => m.id === msg.id);
           if (exists) return prev;
@@ -241,14 +272,11 @@ export default function Chat() {
         });
       });
 
-      unsubscribeRef.current = () => {};
+      // ✅ FIX: Store the real unsubscribe function (not empty function!)
+      unsubscribeRef.current = unsubscribe;
     });
-
-    // Refresh contacts after opening
-    setTimeout(() => fetchContacts(), 1000);
   }
 
-  /* ================= SEND MESSAGE ================= */
   async function handleSend() {
     if (!input.trim() || !active) return;
 
@@ -266,21 +294,20 @@ export default function Chat() {
         }
       }, 100);
       
-      setTimeout(() => fetchContacts(), 500);
+      setTimeout(() => loadContacts(), 500);
+      
     } catch (err) {
       console.error("Send failed:", err);
       toast.error("Failed to send message");
     }
   }
 
-  /* ================= AUTO SCROLL ================= */
   useEffect(() => {
     if (messagesRef.current) {
       messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
     }
   }, [messages]);
 
-  /* ================= CLEANUP ================= */
   useEffect(() => {
     return () => {
       if (unsubscribeRef.current) {
@@ -310,7 +337,6 @@ export default function Chat() {
 
   return (
     <div className="chat-shell">
-      {/* ================= SIDEBAR ================= */}
       <aside className="chat-sidebar">
         <div className="chat-sidebar-header">
           <span>CONVERSATIONS</span>
@@ -323,16 +349,18 @@ export default function Chat() {
           {contacts.length === 0 ? (
             <div className="empty-state">
               <p style={{ textAlign: 'center', padding: '2rem 1rem', color: '#666', fontSize: '0.875rem' }}>
-                No contacts yet. Visit the Vendors page to start chatting with vendors.
+                {myRole === 0 ? "Visit Vendors/Venue pages to start chatting." : 
+                 myRole === 1 ? "Clients will appear when they message you." : 
+                 "Users will appear when they message you."}
               </p>
             </div>
           ) : (
             contacts.map((contact) => {
-              const isActive = active?.id === contact.id;
+              const isActive = active?.firebase_uid === contact.firebase_uid;
 
               return (
                 <button
-                  key={contact.id}
+                  key={contact.firebase_uid}
                   onClick={() => openChat(contact)}
                   className={`chat-contact ${isActive ? "active" : ""}`}
                 >
@@ -370,19 +398,14 @@ export default function Chat() {
         </div>
       </aside>
 
-      {/* ================= MAIN CHAT ================= */}
       <main className="chat-main">
         {!active ? (
           <div className="chat-empty-state">
             <div className="empty-icon">💬</div>
             <p>Select a conversation to start messaging</p>
-            <p style={{ fontSize: '0.875rem', color: '#999', marginTop: '0.5rem' }}>
-              Or visit the Vendors page to chat with vendors
-            </p>
           </div>
         ) : (
           <>
-            {/* Header */}
             <div className="chat-main-header">
               <div className="header-user-info">
                 {active.avatar ? (
@@ -408,7 +431,6 @@ export default function Chat() {
               </div>
             </div>
 
-            {/* Messages */}
             <div className="chat-main-body" ref={messagesRef}>
               {messages.length === 0 ? (
                 <div style={{ 
@@ -417,7 +439,7 @@ export default function Chat() {
                   padding: '2rem',
                   fontSize: '0.875rem'
                 }}>
-                  No messages yet. Say hello! 👋
+                  No messages yet. Start the conversation! 👋
                 </div>
               ) : (
                 messages.map((msg) => {
@@ -437,7 +459,6 @@ export default function Chat() {
               )}
             </div>
 
-            {/* Input */}
             <div className="chat-input-bar">
               <input
                 className="chat-input"

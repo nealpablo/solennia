@@ -1,5 +1,5 @@
 <?php
-// backend/src/Controllers/VenueController.php - ✅ FIXED
+// backend/src/Controllers/VenueController.php - ✅ FIXED WITH FIREBASE_UID
 namespace Src\Controllers;
 
 use Cloudinary\Cloudinary;
@@ -24,29 +24,34 @@ class VenueController
     }
 
     /* ===========================================================
-     *  GET ALL APPROVED VENUES
+     *  GET ALL APPROVED VENUES - ✅ FIXED: NOW INCLUDES FIREBASE_UID
      * =========================================================== */
     public function getAllVenues(Request $request, Response $response)
     {
         try {
-            // Get all approved venue providers from eventserviceprovider
-            $venues = DB::table('eventserviceprovider')
-                ->where('Category', 'Venue')
-                ->where('ApplicationStatus', 'Approved')
+            // ✅ FIX: JOIN credential table to get firebase_uid for chat
+            $venues = DB::table('eventserviceprovider as e')
+                ->join('credential as c', 'e.UserID', '=', 'c.id')
+                ->where('e.Category', 'Venue')
+                ->where('e.ApplicationStatus', 'Approved')
                 ->select(
-                    'ID as id',
-                    'BusinessName as business_name',
-                    'BusinessAddress as address',
-                    'Description as description',
-                    'HeroImageUrl as portfolio',
-                    'BusinessEmail as contact_email',
-                    'Pricing as pricing',
-                    'bio',
-                    'services as venue_amenities',
-                    'venue_subcategory',
-                    'venue_capacity',
-                    'venue_operating_hours',
-                    'venue_parking'
+                    'e.ID as id',
+                    'e.UserID as user_id',
+                    'e.BusinessName as business_name',
+                    'e.BusinessAddress as address',
+                    'e.Description as description',
+                    'e.HeroImageUrl as portfolio',
+                    'e.BusinessEmail as contact_email',
+                    'e.Pricing as pricing',
+                    'e.bio',
+                    'e.services as venue_amenities',
+                    'e.venue_subcategory',
+                    'e.venue_capacity',
+                    'e.venue_operating_hours',
+                    'e.venue_parking',
+                    'c.firebase_uid',  // ✅ ADDED: For chat functionality
+                    'c.first_name',     // ✅ ADDED: Owner info
+                    'c.last_name'       // ✅ ADDED: Owner info
                 )
                 ->get();
 
@@ -54,7 +59,10 @@ class VenueController
             foreach ($venues as $venue) {
                 $venuesList[] = [
                     'id' => $venue->id,
+                    'user_id' => $venue->user_id,
+                    'firebase_uid' => $venue->firebase_uid,  // ✅ ADDED
                     'business_name' => $venue->business_name,
+                    'owner_name' => trim($venue->first_name . ' ' . $venue->last_name),  // ✅ ADDED
                     'address' => $venue->address ?? '',
                     'description' => $venue->description ?? '',
                     'portfolio' => $venue->portfolio ?? null,
@@ -80,7 +88,7 @@ class VenueController
     }
 
     /* ===========================================================
-     *  GET SINGLE VENUE BY ID
+     *  GET SINGLE VENUE BY ID - ✅ FIXED: NOW INCLUDES FIREBASE_UID
      * =========================================================== */
     public function getVenueById(Request $request, Response $response, $args)
     {
@@ -91,10 +99,19 @@ class VenueController
                 return $this->json($response, false, "Venue ID required", 400);
             }
 
-            $venue = DB::table('eventserviceprovider')
-                ->where('ID', $id)
-                ->where('Category', 'Venue')
-                ->where('ApplicationStatus', 'Approved')
+            // ✅ FIX: JOIN credential table to get firebase_uid
+            $venue = DB::table('eventserviceprovider as e')
+                ->join('credential as c', 'e.UserID', '=', 'c.id')
+                ->where('e.ID', $id)
+                ->where('e.Category', 'Venue')
+                ->where('e.ApplicationStatus', 'Approved')
+                ->select(
+                    'e.*',
+                    'c.firebase_uid',
+                    'c.first_name',
+                    'c.last_name',
+                    'c.phone'
+                )
                 ->first();
 
             if (!$venue) {
@@ -103,11 +120,15 @@ class VenueController
 
             $venueData = [
                 'id' => $venue->ID,
+                'user_id' => $venue->UserID,
+                'firebase_uid' => $venue->firebase_uid,  // ✅ ADDED
                 'business_name' => $venue->BusinessName,
+                'owner_name' => trim($venue->first_name . ' ' . $venue->last_name),  // ✅ ADDED
                 'address' => $venue->BusinessAddress ?? '',
                 'description' => $venue->Description ?? '',
                 'portfolio' => $venue->HeroImageUrl ?? null,
                 'contact_email' => $venue->BusinessEmail ?? '',
+                'phone' => $venue->phone ?? '',  // ✅ ADDED
                 'pricing' => $venue->Pricing ?? '',
                 'venue_subcategory' => $venue->venue_subcategory ?? 'Event Venue',
                 'venue_capacity' => $venue->venue_capacity ?? '100-500',

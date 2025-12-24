@@ -49,7 +49,15 @@ return function (App $app) {
             return $res->withHeader('Content-Type','application/json')->withStatus(401);
         }
 
-        $user = DB::table('credential')->where('id', $auth->sub)->first();
+        // ✅ FIX: Use mysql_id instead of sub (Firebase UID)
+        $userId = $auth->mysql_id ?? null;
+        
+        if (!$userId) {
+            $res->getBody()->write(json_encode(['error' => 'Invalid user token']));
+            return $res->withHeader('Content-Type','application/json')->withStatus(401);
+        }
+
+        $user = DB::table('credential')->where('id', $userId)->first();
 
         $res->getBody()->write(json_encode([
             'success' => true,
@@ -60,7 +68,7 @@ return function (App $app) {
     })->add(new AuthMiddleware());
 
     /* ===========================================================
-     *  UPDATE USER PROFILE + CLOUDINARY AVATAR
+     *  UPDATE USER PROFILE + CLOUDINARY AVATAR (✅ FIXED)
      * =========================================================== */
     $app->post('/api/user/update', function (Request $req, Response $res) use ($cloudinary) {
 
@@ -71,19 +79,29 @@ return function (App $app) {
             return $res->withHeader('Content-Type','application/json')->withStatus(401);
         }
 
-        $userId = $auth->sub;
+        // ✅ CRITICAL FIX: Use mysql_id (integer) instead of sub (Firebase UID string)
+        $userId = $auth->mysql_id ?? null;
+        
+        if (!$userId) {
+            $res->getBody()->write(json_encode(['error' => 'Invalid user token - missing mysql_id']));
+            return $res->withHeader('Content-Type','application/json')->withStatus(401);
+        }
+
         $data   = $req->getParsedBody();
         $files  = $req->getUploadedFiles();
 
         /* Update fields if provided */
-        DB::table('credential')->where('id', $userId)->update([
-            'first_name' => $data['first_name'] ?? DB::raw('first_name'),
-            'last_name'  => $data['last_name']  ?? DB::raw('last_name'),
-            'email'      => $data['email']      ?? DB::raw('email'),
-            'username'   => $data['username']   ?? DB::raw('username')
-        ]);
+        if (!empty($data)) {
+            DB::table('credential')->where('id', $userId)->update([
+                'first_name' => $data['first_name'] ?? DB::raw('first_name'),
+                'last_name'  => $data['last_name']  ?? DB::raw('last_name'),
+                'email'      => $data['email']      ?? DB::raw('email'),
+                'username'   => $data['username']   ?? DB::raw('username')
+            ]);
+        }
 
-        /* Avatar Upload */
+        /* ✅ FIX: Avatar Upload - Store URL and return it */
+        $avatarUrl = null;
         if (isset($files['avatar']) && $files['avatar']->getError() === UPLOAD_ERR_OK) {
 
             try {
@@ -98,11 +116,18 @@ return function (App $app) {
                     ]
                 ]);
 
-                DB::table('credential')
+                $avatarUrl = $upload['secure_url'];
+                
+                // ✅ UPDATE USING MYSQL ID
+                $updated = DB::table('credential')
                     ->where('id', $userId)
-                    ->update(['avatar' => $upload['secure_url']]);
+                    ->update(['avatar' => $avatarUrl]);
+                
+                // Log for debugging
+                error_log("Avatar update - UserID: {$userId}, URL: {$avatarUrl}, Rows affected: {$updated}");
 
             } catch (\Throwable $e) {
+                error_log("Avatar upload error: " . $e->getMessage());
                 $res->getBody()->write(json_encode([
                     'success' => false,
                     'error'   => 'Avatar upload failed: ' . $e->getMessage()
@@ -111,107 +136,114 @@ return function (App $app) {
             }
         }
 
+        /* ✅ FIX: Get updated user data and return avatar URL */
+        $updatedUser = DB::table('credential')
+            ->where('id', $userId)
+            ->first();
+
         $res->getBody()->write(json_encode([
             'success' => true,
-            'message' => 'Profile updated successfully.'
+            'message' => 'Profile updated successfully.',
+            'avatar'  => $avatarUrl ?: ($updatedUser->avatar ?? null),
+            'user'    => $updatedUser
         ]));
 
         return $res->withHeader('Content-Type','application/json');
     })->add(new AuthMiddleware());
 
     /* ===========================================================
- *  UPDATE USERNAME
- * =========================================================== */
-$app->post('/api/user/update-username', function (Request $req, Response $res) {
-    $jwt = $req->getAttribute('user');
-    
-    if (!$jwt || !isset($jwt->mysql_id)) {
+     *  UPDATE USERNAME
+     * =========================================================== */
+    $app->post('/api/user/update-username', function (Request $req, Response $res) {
+        $jwt = $req->getAttribute('user');
+        
+        if (!$jwt || !isset($jwt->mysql_id)) {
+            $res->getBody()->write(json_encode([
+                'success' => false,
+                'message' => 'Unauthorized'
+            ]));
+            return $res->withHeader('Content-Type', 'application/json')->withStatus(401);
+        }
+
+        $userId = (int)$jwt->mysql_id;
+        $data = (array)$req->getParsedBody();
+        $username = trim($data['username'] ?? '');
+
+        if (!$username) {
+            $res->getBody()->write(json_encode([
+                'success' => false,
+                'message' => 'Username is required'
+            ]));
+            return $res->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
+
+        // Check if username is already taken by another user
+        $existing = DB::table('credential')
+            ->where('username', $username)
+            ->where('id', '!=', $userId)
+            ->first();
+
+        if ($existing) {
+            $res->getBody()->write(json_encode([
+                'success' => false,
+                'message' => 'Username is already taken'
+            ]));
+            return $res->withHeader('Content-Type', 'application/json')->withStatus(409);
+        }
+
+        // Update username
+        DB::table('credential')
+            ->where('id', $userId)
+            ->update(['username' => $username]);
+
         $res->getBody()->write(json_encode([
-            'success' => false,
-            'message' => 'Unauthorized'
+            'success' => true,
+            'message' => 'Username updated successfully',
+            'username' => $username
         ]));
-        return $res->withHeader('Content-Type', 'application/json')->withStatus(401);
-    }
+        return $res->withHeader('Content-Type', 'application/json');
+    })->add(new AuthMiddleware());
 
-    $userId = (int)$jwt->mysql_id;
-    $data = (array)$req->getParsedBody();
-    $username = trim($data['username'] ?? '');
 
-    if (!$username) {
+    /* ===========================================================
+     *  UPDATE PHONE NUMBER
+     * =========================================================== */
+    $app->post('/api/user/update-phone', function (Request $req, Response $res) {
+        $jwt = $req->getAttribute('user');
+        
+        if (!$jwt || !isset($jwt->mysql_id)) {
+            $res->getBody()->write(json_encode([
+                'success' => false,
+                'message' => 'Unauthorized'
+            ]));
+            return $res->withHeader('Content-Type', 'application/json')->withStatus(401);
+        }
+
+        $userId = (int)$jwt->mysql_id;
+        $data = (array)$req->getParsedBody();
+        $phone = trim($data['phone'] ?? '');
+
+        // Phone can be empty (user removing their phone number)
+        // But if provided, do basic validation
+        if ($phone && !preg_match('/^\+?[0-9]{10,15}$/', $phone)) {
+            $res->getBody()->write(json_encode([
+                'success' => false,
+                'message' => 'Invalid phone number format'
+            ]));
+            return $res->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
+
+        // Update phone
+        DB::table('credential')
+            ->where('id', $userId)
+            ->update(['phone' => $phone]);
+
         $res->getBody()->write(json_encode([
-            'success' => false,
-            'message' => 'Username is required'
+            'success' => true,
+            'message' => 'Phone number updated successfully',
+            'phone' => $phone
         ]));
-        return $res->withHeader('Content-Type', 'application/json')->withStatus(400);
-    }
-
-    // Check if username is already taken by another user
-    $existing = DB::table('credential')
-        ->where('username', $username)
-        ->where('id', '!=', $userId)
-        ->first();
-
-    if ($existing) {
-        $res->getBody()->write(json_encode([
-            'success' => false,
-            'message' => 'Username is already taken'
-        ]));
-        return $res->withHeader('Content-Type', 'application/json')->withStatus(409);
-    }
-
-    // Update username
-    DB::table('credential')
-        ->where('id', $userId)
-        ->update(['username' => $username]);
-
-    $res->getBody()->write(json_encode([
-        'success' => true,
-        'message' => 'Username updated successfully',
-        'username' => $username
-    ]));
-    return $res->withHeader('Content-Type', 'application/json');
-})->add(new AuthMiddleware());
-
-
-/* ===========================================================
- *  UPDATE PHONE NUMBER
- * =========================================================== */
-$app->post('/api/user/update-phone', function (Request $req, Response $res) {
-    $jwt = $req->getAttribute('user');
-    
-    if (!$jwt || !isset($jwt->mysql_id)) {
-        $res->getBody()->write(json_encode([
-            'success' => false,
-            'message' => 'Unauthorized'
-        ]));
-        return $res->withHeader('Content-Type', 'application/json')->withStatus(401);
-    }
-
-    $userId = (int)$jwt->mysql_id;
-    $data = (array)$req->getParsedBody();
-    $phone = trim($data['phone'] ?? '');
-
-    // Phone can be empty (user removing their phone number)
-    // But if provided, do basic validation
-    if ($phone && !preg_match('/^\+?[0-9]{10,15}$/', $phone)) {
-        $res->getBody()->write(json_encode([
-            'success' => false,
-            'message' => 'Invalid phone number format'
-        ]));
-        return $res->withHeader('Content-Type', 'application/json')->withStatus(400);
-    }
-
-    // Update phone
-    DB::table('credential')
-        ->where('id', $userId)
-        ->update(['phone' => $phone]);
-
-    $res->getBody()->write(json_encode([
-        'success' => true,
-        'message' => 'Phone number updated successfully',
-        'phone' => $phone
-    ]));
-    return $res->withHeader('Content-Type', 'application/json');
-})->add(new AuthMiddleware());
+        return $res->withHeader('Content-Type', 'application/json');
+    })->add(new AuthMiddleware());
 
 };

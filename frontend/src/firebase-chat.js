@@ -1,15 +1,12 @@
-// src/firebase-chat.js
+// src/firebase-chat.js - FIXED VERSION
 import { getApp, getApps } from "firebase/app";
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword } from "firebase/auth";
-import { getDatabase, ref, push, onChildAdded, query, orderByChild, get, set, child } from "firebase/database";
+import { getAuth, onAuthStateChanged } from "firebase/auth";
+import { getDatabase, ref, push, onChildAdded, query, orderByChild, get, set, child, update } from "firebase/database";
 
 let _db = null;
 let _auth = null;
 let _meUid = null;
 
-/**
- * initChat - Check if user is authenticated, if not try to re-authenticate
- */
 export async function initChat() {
   let app;
   try {
@@ -23,26 +20,18 @@ export async function initChat() {
   _auth = getAuth(app);
   _db = getDatabase(app);
 
-  // Wait for auth state
   return new Promise((resolve, reject) => {
     const unsub = onAuthStateChanged(_auth, user => {
       unsub();
       
       if (user) {
         _meUid = user.uid;
-        console.log('Firebase chat initialized for user:', _meUid);
+        console.log('✅ Firebase chat initialized for user:', _meUid);
         resolve({ uid: _meUid });
       } else {
-        // User not authenticated to Firebase
-        // But they might be logged into the app
-        console.warn('Not authenticated to Firebase, but checking app login...');
-        
-        // Check if user has app token
         const token = localStorage.getItem('solennia_token');
         if (token) {
-          console.log('User has app token, Firebase session might have expired');
-          console.log('You may need to re-login to use chat features');
-          // For now, reject - user needs to re-login
+          console.error('❌ Firebase session expired. Please logout and login again.');
           reject(new Error('Firebase session expired. Please logout and login again.'));
         } else {
           reject(new Error('Not authenticated. Please login first.'));
@@ -61,6 +50,7 @@ function threadIdFromPair(a, b) {
   return (a < b) ? `${a}__${b}` : `${b}__${a}`;
 }
 
+// ✅ FIXED: Correct thread structure handling
 export async function listThreadsForCurrentUser() {
   if (!_db) throw new Error('Init chat first');
   if (!_meUid) return [];
@@ -69,28 +59,25 @@ export async function listThreadsForCurrentUser() {
   const snap = await get(threadsRef);
   const res = [];
 
-  if (!snap.exists()) return res;
+  if (!snap.exists()) {
+    console.log('📭 No threads found');
+    return res;
+  }
 
   const threads = snap.val();
-  for (const [tid, meta] of Object.entries(threads)) {
+
+  for (const [tid, threadData] of Object.entries(threads)) {
+    // ✅ FIX: Access threadData.meta, not threadData.participants directly
+    const meta = threadData.meta || threadData;
     const participants = meta.participants || {};
+    
     if (participants[_meUid]) {
       const otherUid = Object.keys(participants).find(x => x !== _meUid);
-      
-      let otherName = null;
-      try {
-        const pSnap = await get(child(ref(_db), `profiles/${otherUid}`));
-        if (pSnap.exists()) {
-          otherName = pSnap.val().displayName || pSnap.val().business_name || null;
-        }
-      } catch(e) {
-        console.log('No profile found for:', otherUid);
-      }
       
       res.push({
         threadId: tid,
         otherUid,
-        otherName,
+        otherName: null,
         lastMessageSnippet: meta.lastMessage ? String(meta.lastMessage).slice(0, 60) : '',
         lastTs: meta.lastTs || 0
       });
@@ -110,7 +97,6 @@ export async function openThreadByOtherUid(otherUidOrId, callback) {
 
   let otherUid = otherUidOrId;
 
-  // If it's a number (MySQL ID), try to get Firebase UID
   if (/^\d+$/.test(String(otherUidOrId))) {
     try {
       const res = await fetch(`/api/users/by-id/${encodeURIComponent(otherUidOrId)}`);
@@ -135,28 +121,22 @@ export async function openThreadByOtherUid(otherUidOrId, callback) {
     return;
   }
 
-  const metaRef = ref(_db, `threads/${threadId}/meta`);
-  const metaSnap = await get(metaRef);
+  const threadRef = ref(_db, `threads/${threadId}`);
+  const threadSnap = await get(threadRef);
 
-  if (!metaSnap.exists()) {
-    const metaData = {
-      participants: { [_meUid]: true, [otherUid]: true },
-      createdAt: Date.now(),
-      lastMessage: null,
-      lastTs: 0
+  if (!threadSnap.exists()) {
+    const threadData = {
+      meta: {
+        participants: { [_meUid]: true, [otherUid]: true },
+        createdAt: Date.now(),
+        lastMessage: null,
+        lastTs: 0
+      }
     };
-    await set(metaRef, metaData);
+    await set(threadRef, threadData);
   }
 
-  let otherMeta = null;
-  try {
-    const p = await get(child(ref(_db), `profiles/${otherUid}`));
-    if (p.exists()) otherMeta = p.val();
-  } catch(e) {
-    console.log('No profile meta for:', otherUid);
-  }
-
-  callback({ threadId, otherUid, otherMeta });
+  callback({ threadId, otherUid, otherMeta: null });
 }
 
 export async function sendMessageToThread(threadId, { text }) {
@@ -173,9 +153,12 @@ export async function sendMessageToThread(threadId, { text }) {
   };
   await set(newMsgRef, payload);
 
+  // ✅ FIX: Update thread meta properly
   const metaRef = ref(_db, `threads/${threadId}/meta`);
-  await set(child(metaRef, 'lastMessage'), payload.text);
-  await set(child(metaRef, 'lastTs'), payload.ts);
+  await update(metaRef, {
+    lastMessage: payload.text,
+    lastTs: payload.ts
+  });
   
   return payload;
 }

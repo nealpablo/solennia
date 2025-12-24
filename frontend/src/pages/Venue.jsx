@@ -1,6 +1,6 @@
-// src/pages/Venue.jsx - ✅ FIXED VERSION
+// src/pages/Venue.jsx - ✅ WITH CHAT FUNCTIONALITY
 import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import toast from "../utils/toast";
 
 export default function Venue() {
@@ -9,6 +9,8 @@ export default function Venue() {
   const [visibleCount, setVisibleCount] = useState(12);
   const [isVenueVendor, setIsVenueVendor] = useState(false);
   const [checkingVendor, setCheckingVendor] = useState(true);
+  
+  const navigate = useNavigate();
 
   /* =========================
      FETCH VENUES FROM API
@@ -34,7 +36,7 @@ export default function Venue() {
   };
 
   /* =========================
-     ✅ FIXED: CHECK VENUE VENDOR STATUS
+     CHECK VENUE VENDOR STATUS
   ========================= */
   const checkVenueVendorStatus = async () => {
     const token = localStorage.getItem("solennia_token");
@@ -51,22 +53,10 @@ export default function Venue() {
       
       const data = await res.json();
       
-      console.log("Vendor Status Response:", data); // Debug log
-      
-      // ✅ FIXED: Check vendor.ServiceType and vendor.VerificationStatus
-      // OLD (WRONG): data.category === "Venue"
-      // NEW (CORRECT): data.vendor?.ServiceType === "Venue"
       if (data.success && 
           data.vendor?.ServiceType === "Venue" && 
           data.vendor?.VerificationStatus === "approved") {
         setIsVenueVendor(true);
-        console.log("✅ User is an approved venue vendor!");
-      } else {
-        console.log("❌ Not a venue vendor:", {
-          hasVendor: !!data.vendor,
-          serviceType: data.vendor?.ServiceType,
-          verificationStatus: data.vendor?.VerificationStatus
-        });
       }
     } catch (err) {
       console.error("Failed to check vendor status:", err);
@@ -179,7 +169,7 @@ export default function Venue() {
           {/* Venue Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             {visibleVenues.map((venue) => (
-              <VenueCard key={venue.id} venue={venue} />
+              <VenueCard key={venue.id} venue={venue} navigate={navigate} />
             ))}
           </div>
 
@@ -208,15 +198,41 @@ export default function Venue() {
 }
 
 /* =========================
-   VENUE CARD COMPONENT
+   VENUE CARD COMPONENT - ✅ WITH CHAT BUTTON
 ========================= */
-function VenueCard({ venue }) {
+function VenueCard({ venue, navigate }) {
   const [isFavorite, setIsFavorite] = useState(false);
 
   const toggleFavorite = (e) => {
     e.preventDefault();
+    e.stopPropagation();
     setIsFavorite(!isFavorite);
     // TODO: Add API call to save favorite
+  };
+
+  /* ================= ✅ ADDED: CHAT FUNCTIONALITY ================= */
+  const handleChatClick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Check if user is logged in
+    const token = localStorage.getItem("solennia_token");
+    if (!token) {
+      toast.warning("Please login to chat with venue vendors");
+      return;
+    }
+
+    // Get firebase_uid from venue
+    const firebaseUid = venue.firebase_uid || venue.user_firebase_uid;
+    
+    if (!firebaseUid) {
+      console.error("Venue vendor missing firebase_uid:", venue);
+      toast.error("Unable to start chat with this venue");
+      return;
+    }
+
+    // Navigate to chat with ?to= parameter
+    navigate(`/chat?to=${encodeURIComponent(firebaseUid)}`);
   };
 
   // Extract image from portfolio or use placeholder
@@ -244,6 +260,7 @@ function VenueCard({ venue }) {
           <button
             onClick={toggleFavorite}
             className="w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center hover:bg-white transition-colors"
+            title="Add to favorites"
           >
             <svg
               className={`w-5 h-5 transition-colors ${
@@ -256,13 +273,11 @@ function VenueCard({ venue }) {
             </svg>
           </button>
 
-          {/* Info Icon */}
+          {/* ✅ ADDED: Chat Icon */}
           <button
-            onClick={(e) => {
-              e.preventDefault();
-              // TODO: Show quick info modal
-            }}
+            onClick={handleChatClick}
             className="w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center hover:bg-white transition-colors"
+            title="Chat with venue"
           >
             <svg
               className="w-5 h-5 stroke-gray-700"
@@ -270,8 +285,7 @@ function VenueCard({ venue }) {
               fill="none"
               strokeWidth="2"
             >
-              <circle cx="12" cy="12" r="10" />
-              <path d="M12 16v-4M12 8h.01" />
+              <path d="M21 15a4 4 0 0 1-4 4H7l-4 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
             </svg>
           </button>
         </div>
@@ -310,6 +324,17 @@ function VenueCard({ venue }) {
             </span>
           )}
         </div>
+
+        {/* ✅ ADDED: Chat Button at Bottom */}
+        <button
+          onClick={handleChatClick}
+          className="mt-3 w-full px-4 py-2 bg-[#7a5d47] hover:bg-[#654a38] text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          </svg>
+          Chat with Venue
+        </button>
       </div>
     </Link>
   );
