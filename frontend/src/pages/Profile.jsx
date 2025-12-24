@@ -97,9 +97,6 @@ export default function Profile() {
         }));
         localStorage.setItem("solennia_role", j.user.role ?? 0);
         setRole(j.user.role ?? 0);
-        
-        // ✅ UPDATE: Save profile to localStorage for header
-        localStorage.setItem("solennia_profile", JSON.stringify(j.user));
       });
   }, [token]);
 
@@ -128,7 +125,7 @@ export default function Profile() {
     return () => URL.revokeObjectURL(objectUrl);
   }, [avatarFile]);
 
-  /* ================= AVATAR UPLOAD (✅ FIXED) ================= */
+  /* ================= AVATAR UPLOAD (CLOUDINARY) ================= */
   async function uploadAvatar(e) {
     e.preventDefault();
     if (!avatarFile) {
@@ -151,26 +148,21 @@ export default function Profile() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Upload failed");
 
-      // ✅ FIX: Update profile state with new avatar
-      const newAvatar = json.avatar;
-      setProfile((p) => ({ ...p, avatar: newAvatar }));
+      setProfile((p) => ({ ...p, avatar: json.avatar || p.avatar }));
 
-      // ✅ FIX: Update localStorage with new avatar
-      const existingProfile = JSON.parse(localStorage.getItem("solennia_profile") || "{}");
-      localStorage.setItem(
-        "solennia_profile",
-        JSON.stringify({
-          ...existingProfile,
-          avatar: newAvatar,
-        })
-      );
+// 🔥 SAVE TO LOCAL STORAGE FOR HEADER
+localStorage.setItem(
+  "solennia_profile",
+  JSON.stringify({
+    ...(JSON.parse(localStorage.getItem("solennia_profile")) || {}),
+    avatar: json.avatar,
+  })
+);
 
-      // ✅ FIX: Dispatch event to notify header and other components
-      window.dispatchEvent(new CustomEvent("profileUpdated", { 
-        detail: { avatar: newAvatar } 
-      }));
+// 🔔 NOTIFY HEADER
+window.dispatchEvent(new Event("profileUpdated"));
 
-      toast.success("Profile picture updated successfully!");
+toast.success("Profile picture updated successfully!");
       setShowAvatarModal(false);
       setAvatarFile(null);
       setAvatarPreview(null);
@@ -226,20 +218,23 @@ export default function Profile() {
         toast.success("Phone number updated!");
       }
 
-      // 3. Update Password if provided
+      // 3. Change Password (Firebase)
       if (editForm.newPassword) {
-        if (editForm.newPassword !== editForm.confirmPassword) {
-          throw new Error("Passwords do not match");
-        }
-        
         if (!editForm.currentPassword) {
           throw new Error("Current password is required to change password");
         }
 
-        const user = auth.currentUser;
-        if (!user || !user.email) {
-          throw new Error("User not authenticated");
+        if (passwordStrength.score <= 2) {
+          throw new Error("Please use a stronger password");
         }
+
+        if (editForm.newPassword !== editForm.confirmPassword) {
+          throw new Error("New passwords do not match");
+        }
+
+        // Reauthenticate user with current password
+        const user = auth.currentUser;
+        if (!user) throw new Error("Not authenticated");
 
         const credential = EmailAuthProvider.credential(
           user.email,
@@ -247,330 +242,233 @@ export default function Profile() {
         );
 
         await reauthenticateWithCredential(user, credential);
+
+        // Update password
         await updatePassword(user, editForm.newPassword);
         
         passwordChanged = true;
-        toast.success("Password updated successfully!");
+        toast.success("Password changed successfully!");
+
+        // Clear password fields
+        setEditForm(prev => ({
+          ...prev,
+          currentPassword: "",
+          newPassword: "",
+          confirmPassword: "",
+        }));
       }
 
-      // Update local profile state
-      setProfile(prev => ({
-        ...prev,
-        ...updatedFields
-      }));
+      // Update local profile
+      if (Object.keys(updatedFields).length > 0) {
+        setProfile(prev => ({ ...prev, ...updatedFields }));
+      }
 
-      // ✅ UPDATE: Update localStorage
-      const existingProfile = JSON.parse(localStorage.getItem("solennia_profile") || "{}");
-      localStorage.setItem(
-        "solennia_profile",
-        JSON.stringify({
-          ...existingProfile,
-          ...updatedFields
-        })
-      );
-
-      // ✅ UPDATE: Dispatch event
-      window.dispatchEvent(new Event("profileUpdated"));
-
-      if (!editForm.newPassword && Object.keys(updatedFields).length === 0) {
+      if (!passwordChanged && Object.keys(updatedFields).length === 0) {
         toast.info("No changes to save");
       } else if (Object.keys(updatedFields).length > 0 || passwordChanged) {
         toast.success("Profile updated successfully!");
+        setTimeout(() => setShowEditModal(false), 1000);
       }
 
-      // Reset password fields
-      setEditForm(prev => ({
-        ...prev,
-        currentPassword: "",
-        newPassword: "",
-        confirmPassword: "",
-      }));
-      
-      setShowEditModal(false);
-
     } catch (err) {
-      console.error("Error updating profile:", err);
+      console.error("Profile update error:", err);
       toast.error(err.message || "Failed to update profile");
     } finally {
       setSavingChanges(false);
     }
   }
 
-  /* ================= VENDOR REQUEST ================= */
-  async function requestVendorRole() {
-    if (!token) return;
-
-    const confirmRequest = window.confirm(
-      "Are you sure you want to request vendor access? An admin will review your request."
-    );
-
-    if (!confirmRequest) return;
-
-    try {
-      const res = await fetch(`${API}/vendor/request`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      const json = await res.json();
-
-      if (!res.ok) {
-        throw new Error(json.message || "Failed to submit request");
-      }
-
-      toast.success("Vendor request submitted successfully! Please wait for admin approval.");
-      setVendorStatus("pending");
-    } catch (err) {
-      toast.error(err.message || "Failed to submit vendor request");
+  /* ================= JOIN AS VENDOR ================= */
+  function joinVendor() {
+    if (!token) {
+      toast.warning("Please login first.");
+      return;
     }
+    if (role !== 0) {
+      toast.warning("You cannot apply as vendor.");
+      return;
+    }
+    document.getElementById("vendorTerms")?.classList.remove("hidden");
   }
 
-  if (!profile) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#7a5d47] mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading profile...</p>
-        </div>
-      </div>
-    );
+  /* ================= DASHBOARD ================= */
+  function dashboardHref() {
+    if (role === 2) return "/admin";
+    if (role === 1) return "/vendor-dashboard";
+    return null;
   }
+
+  function dashboardLabel() {
+    if (role === 2) return "Admin Panel";
+    if (role === 1) return "Manage Dashboard";
+    return null;
+  }
+
+  const name = profile
+    ? `${profile.first_name || ""} ${profile.last_name || ""}`.trim()
+    : "Guest";
 
   return (
     <>
-      <div className="max-w-4xl mx-auto p-6 space-y-6">
-        {/* Profile Header Card */}
-        <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-          <div className="bg-gradient-to-r from-[#e8ddae] to-[#dbcf9f] p-8">
-            <div className="flex flex-col md:flex-row items-center gap-6">
-              {/* Avatar */}
-              <div className="relative">
-                <div className="w-32 h-32 rounded-full border-4 border-white overflow-hidden bg-gray-100 flex items-center justify-center">
-                  {profile.avatar ? (
-                    <img
-                      src={profile.avatar}
-                      alt="Profile"
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <svg
-                      className="w-16 h-16 text-gray-400"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                    >
-                      <path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-5 0-9 2.5-9 5.5V21h18v-1.5C21 16.5 17 14 12 14Z" />
-                    </svg>
-                  )}
-                </div>
-                <button
-                  onClick={() => setShowAvatarModal(true)}
-                  className="absolute bottom-0 right-0 bg-[#7a5d47] text-white p-2 rounded-full hover:bg-[#614a38] transition-colors"
-                  title="Change profile picture"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                    <polyline points="9 22 9 12 15 12 15 22" />
-                  </svg>
-                </button>
-              </div>
-
-              {/* Profile Info */}
-              <div className="flex-1 text-center md:text-left">
-                <h1 className="text-3xl font-bold text-gray-900">
-                  {profile.first_name} {profile.last_name}
-                </h1>
-                <p className="text-gray-700 mt-1">@{profile.username}</p>
-                <p className="text-sm text-gray-600 mt-2">{profile.email}</p>
-                {profile.phone && (
-                  <p className="text-sm text-gray-600">{profile.phone}</p>
-                )}
-                <div className="flex gap-2 mt-4 justify-center md:justify-start">
-                  <span
-                    className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                      role === 2
-                        ? "bg-red-100 text-red-800"
-                        : role === 1
-                        ? "bg-blue-100 text-blue-800"
-                        : "bg-green-100 text-green-800"
-                    }`}
-                  >
-                    {role === 2 ? "ADMIN" : role === 1 ? "VENDOR" : "CLIENT"}
-                  </span>
-                </div>
-              </div>
-
-              {/* Edit Button */}
-              <button
-                onClick={() => setShowEditModal(true)}
-                className="px-6 py-2 bg-white text-[#7a5d47] rounded-lg font-medium hover:bg-gray-50 transition-colors flex items-center gap-2"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                </svg>
-                Edit Profile
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Account Information Card */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-              <circle cx="12" cy="7" r="4" />
-            </svg>
-            Account Information
-          </h2>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                First Name
-              </label>
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                {profile.first_name}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Last Name
-              </label>
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                {profile.last_name}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Email
-              </label>
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                {profile.email}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Username
-              </label>
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                @{profile.username}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Phone Number
-              </label>
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                {profile.phone || "Not set"}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Account Type
-              </label>
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                {role === 2 ? "Admin" : role === 1 ? "Vendor" : "Client"}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Vendor Request Card (Only for Clients) */}
-        {role === 0 && (
-          <div className="bg-gradient-to-r from-[#f6f0e8] to-[#e8ddae] rounded-2xl border border-gray-200 p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-                <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
-                <line x1="12" y1="22.08" x2="12" y2="12" />
-              </svg>
-              Vendor Access
+      <main className="pb-24 bg-[#f6f0e8] text-[#1c1b1a]">
+        <div className="max-w-6xl mx-auto px-4">
+          {/* ================= PROFILE HEADER ================= */}
+          <div className="flex justify-between items-center mt-6">
+            <h2 className="text-xl md:text-2xl font-semibold tracking-wide">
+              PROFILE
             </h2>
-
-            {vendorStatus === null && (
-              <div>
-                <p className="text-gray-700 mb-4">
-                  Are you a vendor? Request vendor access to start offering your services on our platform.
-                </p>
-                <button
-                  onClick={requestVendorRole}
-                  className="px-6 py-2 bg-[#7a5d47] text-white rounded-lg font-medium hover:bg-[#614a38] transition-colors"
-                >
-                  Request Vendor Access
-                </button>
-              </div>
-            )}
-
-            {vendorStatus === "pending" && (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                <p className="text-yellow-800 font-medium">
-                  ⏳ Your vendor request is pending admin approval.
-                </p>
-              </div>
-            )}
-
-            {vendorStatus === "rejected" && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <p className="text-red-800 font-medium">
-                  ❌ Your vendor request was rejected. Please contact support for more information.
-                </p>
-              </div>
-            )}
+            <button
+              onClick={() => setShowEditModal(true)}
+              className="bg-[#7a5d47] text-white px-4 py-2 rounded-lg text-sm hover:opacity-90 flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              Edit Profile
+            </button>
           </div>
-        )}
-      </div>
 
-      {/* ================= AVATAR UPLOAD MODAL ================= */}
-      {showAvatarModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[9999] p-4">
-          <div className="bg-[#f6f0e8] rounded-2xl w-full max-w-md border border-[#c9bda4] shadow-lg">
-            <div className="bg-[#e8ddae] p-6 border-b border-gray-300 flex justify-between items-center">
-              <h2 className="text-lg font-semibold">Change Profile Picture</h2>
-              <button
-                onClick={() => {
-                  setShowAvatarModal(false);
-                  setAvatarFile(null);
-                  setAvatarPreview(null);
-                }}
-                className="text-2xl font-light hover:text-gray-600"
+          {/* ================= AVATAR SECTION ================= */}
+          <div className="flex flex-col items-center text-center space-y-4 mt-6">
+            <div className="relative">
+              <div
+                onClick={() => token && setShowAvatarModal(true)}
+                className="w-28 h-28 rounded-full border-2 border-black overflow-hidden bg-white flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity"
               >
-                &times;
+                {profile?.avatar ? (
+                  <img
+                    src={profile.avatar}
+                    className="w-full h-full object-cover"
+                    alt="Profile avatar"
+                  />
+                ) : (
+                  <svg
+                    viewBox="0 0 24 24"
+                    className="w-12 h-12 text-[#1c1b1a]"
+                    fill="currentColor"
+                  >
+                    <path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-5 0-9 2.5-9 5.5V21h18v-1.5C21 16.5 17 14 12 14Z" />
+                  </svg>
+                )}
+              </div>
+              <button
+                onClick={() => token && setShowAvatarModal(true)}
+                className="absolute bottom-0 right-0 bg-[#7a5d47] text-white rounded-full p-2 hover:opacity-90"
+                title="Change profile picture"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
               </button>
             </div>
 
-            <form onSubmit={uploadAvatar} className="p-6">
-              <div className="mb-4">
-                <label className="block text-sm font-semibold uppercase mb-2">
-                  Select Image
-                </label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => setAvatarFile(e.target.files[0])}
-                  className="w-full rounded-md bg-gray-100 border border-gray-300 p-2"
-                />
-              </div>
-
-              {avatarPreview && (
-                <div className="mb-4">
-                  <p className="text-sm font-semibold uppercase mb-2">Preview</p>
-                  <div className="w-32 h-32 rounded-full overflow-hidden mx-auto border-2 border-gray-300">
-                    <img
-                      src={avatarPreview}
-                      alt="Preview"
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
+            <div className="space-y-2">
+              <div className="text-lg font-semibold">{name}</div>
+              {profile?.username && (
+                <div className="text-sm text-gray-600">@{profile.username}</div>
+              )}
+              {profile?.phone && (
+                <div className="text-sm text-gray-600 flex items-center justify-center gap-1">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                  </svg>
+                  {profile.phone}
                 </div>
               )}
+            </div>
 
+            {dashboardHref() && dashboardLabel() && (
+              <a
+                href={dashboardHref()}
+                className="bg-[#e0d6c6] text-[#3b2f25] px-4 py-2 rounded-lg text-sm hover:opacity-90"
+              >
+                {dashboardLabel()}
+              </a>
+            )}
+          </div>
+
+          {/* ================= FAVORITES ================= */}
+          <h2 className="mt-12 text-xl md:text-2xl font-semibold tracking-wide">
+            FAVORITES
+          </h2>
+
+          <section className="mt-3 bg-[#ece8e1] border border-[#d9d6cf] rounded-xl p-4 md:p-6">
+            <article className="rounded-xl border border-[#ded7c9] overflow-hidden bg-[#f5f0ea] mb-4">
+              <img
+                src="/images/gallery1.jpg"
+                className="w-full object-cover"
+                alt="Favorite 1"
+              />
+            </article>
+
+            <article className="rounded-xl border border-[#ded7c9] overflow-hidden bg-[#f5f0ea]">
+              <img
+                src="/images/gallery2.jpg"
+                className="w-full object-cover"
+                alt="Favorite 2"
+              />
+            </article>
+
+            <div className="mt-6 flex justify-center">
+              <button className="bg-[#7a5d47] text-white px-6 py-2 rounded-lg hover:opacity-90">
+                Compare Favorites
+              </button>
+            </div>
+          </section>
+
+          {/* ================= JOIN AS VENDOR ================= */}
+          {role === 0 && (
+            <section className="mt-12 text-center mb-16">
               <button
+                onClick={joinVendor}
+                disabled={vendorStatus === "pending"}
+                className={`bg-[#7a5d47] text-white px-6 py-2 rounded-lg hover:opacity-90 ${
+                  vendorStatus === "pending"
+                    ? "opacity-50 cursor-not-allowed"
+                    : ""
+                }`}
+              >
+                {vendorStatus === "pending"
+                  ? "Vendor Application Pending"
+                  : "Join as a Vendor"}
+              </button>
+            </section>
+          )}
+        </div>
+      </main>
+
+      {/* ================= AVATAR MODAL ================= */}
+      {showAvatarModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[9999] p-4">
+          <div className="bg-[#f6f0e8] p-6 rounded-2xl w-full max-w-md border border-[#c9bda4] shadow-lg">
+            <h2 className="text-lg font-semibold mb-4">
+              Update Profile Picture
+            </h2>
+
+            {avatarPreview && (
+              <div className="mb-4 flex justify-center">
+                <img
+                  src={avatarPreview}
+                  alt="Preview"
+                  className="w-32 h-32 rounded-full object-cover border-2 border-gray-300"
+                />
+              </div>
+            )}
+
+            <form onSubmit={uploadAvatar}>
+              <input
+                type="file"
+                accept="image/*"
+                required
+                onChange={(e) => setAvatarFile(e.target.files[0])}
+                className="border border-gray-400 rounded-lg p-2 w-full bg-white text-sm"
+              />
+              <p className="text-xs text-gray-600 mt-2">
+                Recommended: Square image, max 5MB
+              </p>
+              
+              <button 
                 type="submit"
                 disabled={uploadingAvatar}
                 className="bg-[#7a5d47] text-white w-full py-2 rounded-lg mt-4 disabled:opacity-50"
