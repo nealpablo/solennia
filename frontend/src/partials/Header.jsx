@@ -6,8 +6,62 @@ import NotificationDropdown from "./NotificationDropdown";
 
 export default function Header() {
   const [avatar, setAvatar] = useState(null);
+  const [username, setUsername] = useState(null);
+  const [email, setEmail] = useState(null);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
 
-  // Load profile avatar
+  // Toggle profile dropdown
+  const toggleProfileDropdown = () => {
+    setIsProfileOpen(!isProfileOpen);
+  };
+
+  // Open auth modals
+  const openLoginModal = () => {
+    setIsProfileOpen(false);
+    const authBackdrop = document.getElementById("authBackdrop");
+    const loginModal = document.getElementById("loginModal");
+    authBackdrop?.classList.remove("hidden");
+    loginModal?.classList.remove("hidden");
+  };
+
+  const openRegisterModal = () => {
+    setIsProfileOpen(false);
+    const authBackdrop = document.getElementById("authBackdrop");
+    const registerModal = document.getElementById("registerModal");
+    authBackdrop?.classList.remove("hidden");
+    registerModal?.classList.remove("hidden");
+  };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      const profileMenu = document.getElementById("profileMenu");
+      const profileBtn = document.getElementById("profileBtn");
+      
+      if (profileMenu && profileBtn && 
+          !profileMenu.contains(event.target) && 
+          !profileBtn.contains(event.target)) {
+        setIsProfileOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Update dropdown visibility based on state
+  useEffect(() => {
+    const profileMenu = document.getElementById("profileMenu");
+    if (profileMenu) {
+      if (isProfileOpen) {
+        profileMenu.classList.remove("hidden");
+      } else {
+        profileMenu.classList.add("hidden");
+      }
+    }
+  }, [isProfileOpen]);
+
+  // Load profile avatar and username
   useEffect(() => {
     const loadProfile = () => {
       const profileData = localStorage.getItem("solennia_profile");
@@ -15,11 +69,15 @@ export default function Header() {
         try {
           const parsed = JSON.parse(profileData);
           setAvatar(parsed.avatar || null);
+          setUsername(parsed.username || parsed.first_name || null);
+          setEmail(parsed.email || null);
         } catch (e) {
           console.error("Error parsing profile:", e);
         }
       } else {
         setAvatar(null);
+        setUsername(null);
+        setEmail(null);
       }
     };
 
@@ -47,6 +105,12 @@ export default function Header() {
       document.getElementById("menuSignUp")?.classList.remove("hidden");
     }
   }, []);
+
+  // Get user initials for avatar
+  const getInitials = () => {
+    if (!username) return "U";
+    return username.substring(0, 2).toUpperCase();
+  };
 
   return (
     <header className="bg-[#e8ddae] border-b border-gray-300">
@@ -107,6 +171,7 @@ export default function Header() {
           <div className="relative">
             <button
               id="profileBtn"
+              onClick={toggleProfileDropdown}
               className="w-10 h-10 rounded-full border border-gray-700 overflow-hidden flex items-center justify-center hover:bg-black/5"
             >
               {avatar ? (
@@ -116,25 +181,53 @@ export default function Header() {
                   className="w-full h-full object-cover"
                 />
               ) : (
-                <svg
-                  className="w-5 h-5 text-gray-800"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                >
-                  <path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-5 0-9 2.5-9 5.5V21h18v-1.5C21 16.5 17 14 12 14Z" />
-                </svg>
+                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#7a5d47] to-[#5d4436] text-white font-semibold text-sm">
+                  {getInitials()}
+                </div>
               )}
             </button>
 
             {/* PROFILE MENU */}
             <div
               id="profileMenu"
-              className="hidden absolute right-0 mt-2 w-56 rounded-xl border border-gray-300 bg-[#f6f0e8] shadow-xl z-50"
+              className="hidden absolute right-0 mt-2 w-64 rounded-xl border border-gray-300 bg-[#f6f0e8] shadow-xl z-50"
             >
+              {/* USERNAME SECTION - SHOWN AT TOP */}
+              {username && (
+                <div className="px-4 py-3 border-b border-gray-300 bg-[#e8ddae]">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-full border-2 border-gray-700 overflow-hidden flex items-center justify-center flex-shrink-0">
+                      {avatar ? (
+                        <img
+                          src={avatar}
+                          alt="Profile"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#7a5d47] to-[#5d4436] text-white font-semibold">
+                          {getInitials()}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-gray-900 truncate">
+                        {username}
+                      </p>
+                      {email && (
+                        <p className="text-xs text-gray-600 truncate">
+                          {email}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="py-1">
                 <Link
                   to="/profile"
                   id="menuProfile"
+                  onClick={() => setIsProfileOpen(false)}
                   className="block px-4 py-2 text-sm hover:bg-gray-100"
                 >
                   Profile
@@ -144,6 +237,7 @@ export default function Header() {
 
                 <button
                   id="menuSignIn"
+                  onClick={openLoginModal}
                   className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
                 >
                   Login
@@ -151,6 +245,7 @@ export default function Header() {
 
                 <button
                   id="menuSignUp"
+                  onClick={openRegisterModal}
                   className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
                 >
                   Register

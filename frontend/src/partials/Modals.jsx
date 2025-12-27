@@ -1,4 +1,4 @@
-// src/partials/Modals.jsx - COMPLETE FILE WITH FIX APPLIED
+// src/partials/Modals.jsx - COMPLETE FILE WITH REDESIGNED PRIVACY & TERMS
 import React, { useState, useEffect } from "react";
 import { auth } from "../firebase";
 import {
@@ -611,7 +611,7 @@ export default function Modals() {
   };
 
   /* =========================
-     VENUE LISTING CREATION - ✅ FIXED VERSION
+     VENUE LISTING CREATION
   ========================= */
 
   const submitVenueListing = async (e) => {
@@ -658,7 +658,6 @@ formData.append("contact_email", form.contact_email.value);
         formData.append('portfolio', imageFiles[0]);
       }
 
-      // ✅ CORRECT ENDPOINT
       const res = await fetch("/api/venue/listings", {
         method: "POST",
         headers: {
@@ -1167,7 +1166,6 @@ formData.append("contact_email", form.contact_email.value);
       </div>
 
       {/* ================= VENUE INQUIRY MODAL ================= */}
-      {/* (keeping same as original) */}
       <div
         id="venueInquiryModal"
         className="fixed inset-0 hidden z-[200] grid place-items-center bg-black/40 p-4"
@@ -1320,7 +1318,6 @@ formData.append("contact_email", form.contact_email.value);
       </div>
 
       {/* ================= SCHEDULE VISIT MODAL ================= */}
-      {/* (keeping same as original) */}
       <div
         id="scheduleVisitModal"
         className="fixed inset-0 hidden z-[200] grid place-items-center bg-black/40 p-4"
@@ -1458,431 +1455,668 @@ formData.append("contact_email", form.contact_email.value);
         </div>
       </div>
 
-      {/* ALL OTHER MODALS (Feedback, Privacy, Terms, Vendor Onboarding) REMAIN THE SAME */}
-      {/* I'm omitting them here to save space, but they stay exactly as they were */}
-      {/* Just keeping the Venue Listing Modal below since that's the main change */}
-
-      {/* ================= CREATE VENUE LISTING MODAL - WITH FIX ================= */}
+      {/* ================= FEEDBACK MODAL - REDESIGNED ================= */}
       <div
-        id="venueListingModal"
-        className="fixed inset-0 hidden z-[200] grid place-items-center bg-black/40 p-4"
-        onClick={(e) => e.target === e.currentTarget && closeVenueListing()}
+        id="feedbackModal"
+        className="fixed inset-0 hidden z-[200] grid place-items-center bg-black/50 backdrop-blur-sm p-4"
+        onClick={closeFeedback}
       >
         <div 
-          className="bg-[#f6f0e8] w-full max-w-4xl rounded-2xl shadow-xl overflow-y-auto max-h-[90vh]"
+          className="bg-[#f6f0e8] w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="flex justify-between items-center p-6 border-b border-gray-300 bg-[#e8ddae] sticky top-0 z-10">
-            <h2 className="text-lg font-semibold">Create Venue Listing</h2>
+          {/* Header with Icon */}
+          <div className="bg-gradient-to-r from-[#7a5d47] to-[#5d4436] px-6 py-5 flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="w-12 h-12 bg-white/10 backdrop-blur-sm rounded-xl flex items-center justify-center border border-white/20">
+                <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-white tracking-wide">Send Feedback</h2>
+                <p className="text-sm text-white/80">We'd love to hear from you!</p>
+              </div>
+            </div>
             <button 
-              onClick={closeVenueListing}
-              className="text-2xl font-light hover:text-gray-600" 
+              onClick={closeFeedback}
+              className="w-9 h-9 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all border border-white/20" 
               aria-label="Close"
             >
-              &times;
+              <span className="text-white text-xl">&times;</span>
             </button>
           </div>
 
-          <form onSubmit={submitVenueListing} className="p-6 space-y-6" encType="multipart/form-data">
-            {/* Basic Information */}
-            <div>
-              <h3 className="text-base font-semibold uppercase mb-4 text-[#7a5d47]">Basic Information</h3>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold uppercase mb-1">
-                    Venue Name <span className="text-red-600">*</span>
-                  </label>
-                  <input
-                    name="name"
-                    type="text"
-                    required
-                    className="w-full rounded-md bg-gray-100 border border-gray-300 p-2"
-                    placeholder="e.g., Grand Ballroom Events"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold uppercase mb-1">
-                    Location/City <span className="text-red-600">*</span>
-                  </label>
-                  <input
-                    name="location"
-                    type="text"
-                    required
-                    className="w-full rounded-md bg-gray-100 border border-gray-300 p-2"
-                    placeholder="e.g., Tagaytay City"
-                  />
-                </div>
-              </div>
-
-              <div className="mt-4">
-                <label className="block text-sm font-semibold uppercase mb-1">
-                  Full Address <span className="text-red-600">*</span>
-                </label>
-                <textarea
-                  name="address"
-                  required
-                  rows="2"
-                  className="w-full rounded-md bg-gray-100 border border-gray-300 p-2"
-                  placeholder="Complete address of the venue"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-                <div>
-                  <label className="block text-sm font-semibold uppercase mb-1">
-                    Venue Type <span className="text-red-600">*</span>
-                  </label>
-                  <select
-                    name="venue_type"
-                    required
-                    className="w-full rounded-md bg-gray-100 border border-gray-300 p-2"
-                  >
-                    <option value="">Select type</option>
-                    <option value="Church">Church</option>
-                    <option value="Garden">Garden</option>
-                    <option value="Resort">Resort</option>
-                    <option value="Conference Hall">Conference Hall</option>
-                    <option value="Ballroom">Ballroom</option>
-                    <option value="Beach">Beach</option>
-                    <option value="Other">Other</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold uppercase mb-1">
-                    Capacity (Guests) <span className="text-red-600">*</span>
-                  </label>
-                  <input
-                    name="capacity"
-                    type="number"
-                    required
-                    min="1"
-                    className="w-full rounded-md bg-gray-100 border border-gray-300 p-2"
-                    placeholder="e.g., 300"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold uppercase mb-1">
-                    Price Range <span className="text-red-600">*</span>
-                  </label>
-                  <select
-                    name="price_range"
-                    required
-                    className="w-full rounded-md bg-gray-100 border border-gray-300 p-2"
-                  >
-                    <option value="">Select range</option>
-                    <option value="$">$ (Budget-friendly)</option>
-                    <option value="$$">$$ (Moderate)</option>
-                    <option value="$$$">$$$ (Premium)</option>
-                    <option value="$$$$">$$$$ (Luxury)</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            {/* Description */}
-            <div>
-              <h3 className="text-base font-semibold uppercase mb-4 text-[#7a5d47]">Description</h3>
-              <textarea
-                name="description"
-                required
-                rows="4"
-                className="w-full rounded-md bg-gray-100 border border-gray-300 p-2"
-                placeholder="Describe your venue, its features, and what makes it special..."
-              />
-            </div>
-
-            {/* Amenities */}
-            <div>
-              <h3 className="text-base font-semibold uppercase mb-4 text-[#7a5d47]">Amenities</h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                {[
-                  "Air Conditioning",
-                  "Parking Available",
-                  "Catering Services",
-                  "Audio/Visual Equipment",
-                  "Bridal Room",
-                  "Garden Area",
-                  "Dance Floor",
-                  "Bar Service",
-                  "WiFi",
-                  "Stage/Platform",
-                  "Kitchen Access",
-                  "Wheelchair Accessible"
-                ].map((amenity) => (
-                  <label key={amenity} className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={selectedAmenities.includes(amenity)}
-                      onChange={() => toggleAmenity(amenity)}
-                      className="w-4 h-4 rounded"
-                    />
-                    <span className="text-sm">{amenity}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            {/* Packages */}
-            <div>
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-base font-semibold uppercase text-[#7a5d47]">Packages</h3>
-                <button
-                  type="button"
-                  onClick={addPackage}
-                  className="px-4 py-2 bg-[#e8ddae] hover:bg-[#dbcf9f] text-sm font-medium rounded"
-                >
-                  + Add Package
-                </button>
-              </div>
-              
-              {venueListing.packages.map((pkg, index) => (
-                <div key={index} className="bg-gray-50 p-4 rounded-lg mb-3">
-                  <div className="flex justify-between items-start mb-3">
-                    <span className="text-sm font-semibold">Package {index + 1}</span>
-                    {venueListing.packages.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removePackage(index)}
-                        className="text-red-600 hover:text-red-800 text-sm"
-                      >
-                        Remove
-                      </button>
-                    )}
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <input
-                      type="text"
-                      placeholder="Package Name (e.g., Basic Package)"
-                      value={pkg.name}
-                      onChange={(e) => updatePackage(index, "name", e.target.value)}
-                      className="w-full rounded-md bg-white border border-gray-300 p-2"
-                    />
-                    <input
-                      type="text"
-                      placeholder="Price (e.g., ₱80,000)"
-                      value={pkg.price}
-                      onChange={(e) => updatePackage(index, "price", e.target.value)}
-                      className="w-full rounded-md bg-white border border-gray-300 p-2"
-                    />
-                  </div>
-                  <textarea
-                    placeholder="What's included? (separate items with commas)"
-                    value={pkg.includes}
-                    onChange={(e) => updatePackage(index, "includes", e.target.value)}
-                    rows="2"
-                    className="w-full rounded-md bg-white border border-gray-300 p-2 mt-3"
-                  />
-                </div>
-              ))}
-            </div>
-
-            {/* Contact Information */}
-            <div>
-              <h3 className="text-base font-semibold uppercase mb-4 text-[#7a5d47]">Contact Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold uppercase mb-1">
-                    Contact Email <span className="text-red-600">*</span>
-                  </label>
-                  <input
-                    name="contact_email"
-                    type="email"
-                    required
-                    className="w-full rounded-md bg-gray-100 border border-gray-300 p-2"
-                    placeholder="venue@example.com"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold uppercase mb-1">
-                    Contact Phone <span className="text-red-600">*</span>
-                  </label>
-                  <input
-                    name="contact_phone"
-                    type="tel"
-                    required
-                    className="w-full rounded-md bg-gray-100 border border-gray-300 p-2"
-                    placeholder="+63 912 345 6789"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Images */}
-            <div>
-              <h3 className="text-base font-semibold uppercase mb-4 text-[#7a5d47]">Venue Images</h3>
-              <div>
-                <label className="block text-sm font-semibold uppercase mb-1">
-                  Upload Images <span className="text-red-600">*</span> <span className="text-xs font-normal text-gray-600">(Up to 10 images)</span>
-                </label>
-                <input
-                  name="images"
-                  type="file"
-                  required
-                  accept="image/png,image/jpeg,image/jpg"
-                  multiple
-                  className="w-full rounded-md bg-gray-100 border border-gray-300 p-2"
-                />
-                <p className="text-xs text-gray-600 mt-1">
-                  Upload high-quality images of your venue. First image will be the main display image.
+          {/* Content */}
+          <div className="p-6">
+            {/* Introduction Card */}
+            <div className="bg-[#e8ddae] border-l-4 border-[#7a5d47] rounded-lg p-4 mb-6 flex items-start space-x-3">
+              <svg className="w-6 h-6 text-[#7a5d47] flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+              </svg>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-gray-900 leading-relaxed">
+                  Your feedback helps us improve Solennia. Whether it's a suggestion, bug report, 
+                  or just a comment, we appreciate your input and will review it carefully.
                 </p>
               </div>
             </div>
 
-            {/* Submit Buttons */}
-            <div className="flex justify-end gap-3 pt-4 border-t border-gray-300">
-              <button
-                type="button"
-                onClick={closeVenueListing}
-                className="px-6 py-2 bg-gray-200 hover:bg-gray-300 text-sm font-medium rounded"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={venueListingLoading}
-                className="px-6 py-2 bg-[#e8ddae] hover:bg-[#dbcf9f] text-sm font-semibold uppercase rounded disabled:opacity-50"
-              >
-                {venueListingLoading ? "Creating..." : "Create Listing"}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
+            <form onSubmit={submitFeedback} className="space-y-6">
+              {/* Message Field */}
+              <div>
+                <label className="block text-sm font-bold text-gray-900 uppercase mb-2">
+                  Your Message <span className="text-red-600">*</span>
+                </label>
+                <textarea
+                  required
+                  rows="6"
+                  value={feedback}
+                  onChange={(e) => setFeedback(e.target.value)}
+                  placeholder="Share your thoughts, ideas, or report issues here..."
+                  className="w-full rounded-lg bg-gray-50 border-2 border-gray-300 p-3 focus:border-[#7a5d47] focus:ring-2 focus:ring-[#7a5d47]/20 transition-all text-sm"
+                />
+                <p className="text-xs text-gray-600 mt-2">
+                  Minimum 10 characters. Be as detailed as possible.
+                </p>
+              </div>
 
-      {/* ================= FEEDBACK MODAL ================= */}
-      <div
-        id="feedbackModal"
-        className="fixed inset-0 hidden z-[200] grid place-items-center bg-black/40 p-4"
-        onClick={closeFeedback}
-      >
-        <div 
-          className="bg-[#f6f0e8] w-full max-w-md rounded-2xl shadow-xl"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="flex justify-between items-center p-6 border-b border-gray-300 bg-[#e8ddae]">
-            <h2 className="text-lg font-semibold">Send Feedback</h2>
-            <button 
-              onClick={closeFeedback}
-              className="text-2xl font-light hover:text-gray-600" 
-              aria-label="Close"
-            >
-              &times;
-            </button>
+              {/* Tips Section */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h4 className="font-bold text-blue-900 text-sm mb-2 flex items-center space-x-2">
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"/>
+                  </svg>
+                  <span>Tips for better feedback:</span>
+                </h4>
+                <ul className="text-xs text-blue-800 space-y-1 ml-6">
+                  <li className="flex items-start">
+                    <span className="text-blue-600 mr-2">•</span>
+                    <span>Be specific about what you experienced</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="text-blue-600 mr-2">•</span>
+                    <span>Include steps to reproduce if reporting a bug</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="text-blue-600 mr-2">•</span>
+                    <span>Suggest improvements or alternatives</span>
+                  </li>
+                </ul>
+              </div>
+
+              {/* Contact Response Option */}
+              <div className="bg-gradient-to-br from-[#e8ddae] to-[#f6f0e8] border border-[#7a5d47]/20 rounded-xl p-4">
+                <div className="flex items-start space-x-3">
+                  <svg className="w-5 h-5 text-[#7a5d47] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                  </svg>
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-gray-900 mb-1">Need a response?</p>
+                    <p className="text-xs text-gray-700">
+                      We'll review all feedback. For urgent matters or to receive a direct response, 
+                      please contact us at{' '}
+                      <a href="mailto:solenniainquires@gmail.com" className="font-semibold text-[#7a5d47] hover:underline">
+                        solenniainquires@gmail.com
+                      </a>
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Submit Button */}
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={closeFeedback}
+                  className="px-6 py-2.5 bg-gray-200 hover:bg-gray-300 text-sm font-medium rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 bg-[#7a5d47] hover:bg-[#5d4436] text-white font-semibold text-sm rounded-lg transition-colors flex items-center space-x-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+                  </svg>
+                  <span>Submit Feedback</span>
+                </button>
+              </div>
+            </form>
           </div>
-
-          <form onSubmit={submitFeedback} className="p-6 space-y-4">
-            <div>
-              <label className="block text-sm font-semibold uppercase">
-                Your Message
-              </label>
-              <textarea
-                required
-                rows="5"
-                value={feedback}
-                onChange={(e) => setFeedback(e.target.value)}
-                className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
-              />
-            </div>
-
-            <button
-              type="submit"
-              className="w-full bg-[#e8ddae] hover:bg-[#dbcf9f] text-sm font-semibold uppercase py-2 rounded"
-            >
-              Submit Feedback
-            </button>
-          </form>
         </div>
       </div>
 
-      {/* ================= PRIVACY MODAL ================= */}
+      {/* ================= PRIVACY POLICY MODAL - REDESIGNED ================= */}
       <div
         id="privacyModal"
-        className="fixed inset-0 hidden z-[200] grid place-items-center bg-black/40 p-4"
+        className="fixed inset-0 hidden z-[200] grid place-items-center bg-black/50 backdrop-blur-sm p-4"
         onClick={closePrivacy}
       >
         <div 
-          className="bg-[#f6f0e8] w-full max-w-2xl rounded-2xl shadow-xl overflow-y-auto max-h-[80vh]"
+          className="bg-[#f6f0e8] w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="flex justify-between items-center p-6 border-b border-gray-300 bg-[#e8ddae]">
-            <h2 className="text-lg font-semibold">Privacy Policy</h2>
+          {/* Header with Icon */}
+          <div className="bg-gradient-to-r from-[#7a5d47] to-[#5d4436] px-6 py-5 flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="w-12 h-12 bg-white/10 backdrop-blur-sm rounded-xl flex items-center justify-center border border-white/20">
+                <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-white tracking-wide">Privacy Policy</h2>
+                <p className="text-sm text-white/80">Last updated: December 28, 2025</p>
+              </div>
+            </div>
             <button 
               onClick={closePrivacy}
-              className="text-2xl font-light hover:text-gray-600" 
+              className="w-9 h-9 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all border border-white/20" 
               aria-label="Close"
             >
-              &times;
+              <span className="text-white text-xl">&times;</span>
             </button>
           </div>
 
-          <div className="p-6 space-y-4 text-sm leading-relaxed">
-            <p>
-              At Solennia, we value your trust and are committed to protecting your personal information. This Privacy Policy explains how information is collected, used, stored, and protected when you access or use the Solennia web platform and its related services. By using Solennia, you acknowledge and agree to the practices outlined in this policy.
+          {/* Content with Scroll */}
+          <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            
+            {/* Introduction Card */}
+            <div className="bg-[#e8ddae] border-l-4 border-[#7a5d47] rounded-lg p-4 flex items-start space-x-3">
+              <svg className="w-6 h-6 text-[#7a5d47] flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+              </svg>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-gray-900 leading-relaxed">
+                  At Solennia, we value your trust and are committed to protecting your personal information. 
+                  This Privacy Policy explains how information is collected, used, stored, and protected when 
+                  you access or use the Solennia web platform and its related services.
+                </p>
+              </div>
+            </div>
 
-              Solennia collects personal information necessary to operate its platform effectively. This may include user details such as name, email address, contact information, and account credentials. For service providers and vendors, we may collect business-related information including business name, service categories, descriptions, portfolio images, and supporting documents required for verification. In addition, Solennia may collect non-personal data such as device information, usage activity, and approximate location data to improve system performance and user experience.
+            {/* Section 1 */}
+            <section className="space-y-3">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-[#7a5d47] text-white rounded-lg flex items-center justify-center font-bold text-lg">
+                  1
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 uppercase tracking-wide">
+                  Information Collection
+                </h3>
+              </div>
+              <div className="pl-13 space-y-3 text-sm text-gray-700 leading-relaxed">
+                <p>
+                  Solennia collects personal information necessary to operate its platform effectively. This may include:
+                </p>
+                <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                  <div className="flex items-start space-x-2">
+                    <span className="text-[#7a5d47] mt-0.5">•</span>
+                    <p><strong className="text-gray-900">Personal Details:</strong> Name, email address, contact information, and account credentials</p>
+                  </div>
+                  <div className="flex items-start space-x-2">
+                    <span className="text-[#7a5d47] mt-0.5">•</span>
+                    <p><strong className="text-gray-900">Business Information:</strong> For vendors - business name, service categories, descriptions, portfolio images, and verification documents</p>
+                  </div>
+                  <div className="flex items-start space-x-2">
+                    <span className="text-[#7a5d47] mt-0.5">•</span>
+                    <p><strong className="text-gray-900">Usage Data:</strong> Device information, usage activity, and approximate location data</p>
+                  </div>
+                </div>
+              </div>
+            </section>
 
-              The information collected is used strictly to support the core functions of the platform. These functions include enabling user authentication, matching clients with suitable vendors, facilitating communication and bookings, processing applications, managing feedback, improving platform features, and maintaining security and system integrity. Solennia does not sell or trade user data. Information may be shared only with trusted third-party service providers who assist in operating the platform, or when disclosure is required by law or legal process.
+            {/* Section 2 */}
+            <section className="space-y-3">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-[#7a5d47] text-white rounded-lg flex items-center justify-center font-bold text-lg">
+                  2
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 uppercase tracking-wide">
+                  How We Use Your Information
+                </h3>
+              </div>
+              <div className="pl-13 space-y-3 text-sm text-gray-700 leading-relaxed">
+                <p>The information collected is used strictly to support the core functions of the platform:</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="bg-gray-50 rounded-lg p-3 flex items-start space-x-2">
+                    <span className="text-green-600 mt-0.5">✓</span>
+                    <span>User authentication and account management</span>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-3 flex items-start space-x-2">
+                    <span className="text-green-600 mt-0.5">✓</span>
+                    <span>Matching clients with suitable vendors</span>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-3 flex items-start space-x-2">
+                    <span className="text-green-600 mt-0.5">✓</span>
+                    <span>Facilitating communication and bookings</span>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-3 flex items-start space-x-2">
+                    <span className="text-green-600 mt-0.5">✓</span>
+                    <span>Processing applications and managing feedback</span>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-3 flex items-start space-x-2">
+                    <span className="text-green-600 mt-0.5">✓</span>
+                    <span>Improving platform features and functionality</span>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-3 flex items-start space-x-2">
+                    <span className="text-green-600 mt-0.5">✓</span>
+                    <span>Maintaining security and system integrity</span>
+                  </div>
+                </div>
+              </div>
+            </section>
 
-              Solennia implements reasonable administrative, technical, and security measures to protect personal information against unauthorized access, loss, or misuse. Despite these measures, users are advised to safeguard their account credentials, as no digital platform can guarantee absolute security.
+            {/* Section 3 */}
+            <section className="space-y-3">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-[#7a5d47] text-white rounded-lg flex items-center justify-center font-bold text-lg">
+                  3
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 uppercase tracking-wide">
+                  Data Sharing & Protection
+                </h3>
+              </div>
+              <div className="pl-13 space-y-3 text-sm text-gray-700 leading-relaxed">
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <div className="flex items-center space-x-2 mb-2">
+                    <svg className="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"/>
+                    </svg>
+                    <strong className="text-green-900">We Do NOT Sell Your Data</strong>
+                  </div>
+                  <p className="text-green-800 text-xs">
+                    Solennia does not sell or trade user data. Information may be shared only with trusted third-party 
+                    service providers who assist in operating the platform, or when disclosure is required by law.
+                  </p>
+                </div>
+                <p>
+                  We implement appropriate technical and organizational security measures to protect your personal 
+                  information against unauthorized access, loss, or misuse.
+                </p>
+              </div>
+            </section>
 
-              Users have the right to access, update, or request the deletion of their personal information. Account deactivation or data removal requests may be submitted through official communication channels. Solennia also uses cookies and similar technologies to analyze platform usage and enhance functionality. Users may manage cookie preferences through their browser settings.
+            {/* Section 4 */}
+            <section className="space-y-3">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-[#7a5d47] text-white rounded-lg flex items-center justify-center font-bold text-lg">
+                  4
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 uppercase tracking-wide">
+                  Your Privacy Rights
+                </h3>
+              </div>
+              <div className="pl-13 space-y-3 text-sm text-gray-700 leading-relaxed">
+                <p>Depending on your location, you may have the following rights:</p>
+                <div className="space-y-2">
+                  <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
+                    <span className="text-[#7a5d47] font-bold">→</span>
+                    <div>
+                      <strong className="text-gray-900">Access:</strong> Request access to your personal information
+                    </div>
+                  </div>
+                  <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
+                    <span className="text-[#7a5d47] font-bold">→</span>
+                    <div>
+                      <strong className="text-gray-900">Correction:</strong> Request correction of inaccurate data
+                    </div>
+                  </div>
+                  <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
+                    <span className="text-[#7a5d47] font-bold">→</span>
+                    <div>
+                      <strong className="text-gray-900">Deletion:</strong> Request deletion of your personal information
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
 
-              The Solennia platform may contain links to third-party websites or external vendor pages. Solennia is not responsible for the privacy practices or content of these third-party services, and users are encouraged to review their respective privacy policies.
+            {/* Section 5 - Cookies */}
+            <section className="space-y-3">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-[#7a5d47] text-white rounded-lg flex items-center justify-center font-bold text-lg">
+                  5
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 uppercase tracking-wide">
+                  Cookies & Tracking
+                </h3>
+              </div>
+              <div className="pl-13 text-sm text-gray-700 leading-relaxed">
+                <p>
+                  Solennia uses cookies and similar technologies to analyze platform usage and enhance functionality. 
+                  Users may manage cookie preferences through their browser settings.
+                </p>
+              </div>
+            </section>
 
-              Solennia is not intended for use by individuals under the age of thirteen (13). The platform does not knowingly collect personal information from minors. Any such data discovered will be removed promptly.
+            {/* Section 6 - Children */}
+            <section className="space-y-3">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-[#7a5d47] text-white rounded-lg flex items-center justify-center font-bold text-lg">
+                  6
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 uppercase tracking-wide">
+                  Children's Privacy
+                </h3>
+              </div>
+              <div className="pl-13 text-sm text-gray-700 leading-relaxed">
+                <p>
+                  Solennia is not intended for use by individuals under the age of thirteen (13). The platform does 
+                  not knowingly collect personal information from minors. Any such data discovered will be removed promptly.
+                </p>
+              </div>
+            </section>
 
-              This Privacy Policy may be updated to reflect changes in platform features, legal requirements, or operational practices. Users will be notified of significant changes through email or platform notifications.
+            {/* Contact Card */}
+            <div className="bg-gradient-to-br from-[#e8ddae] to-[#f6f0e8] border border-[#7a5d47]/20 rounded-xl p-5 mt-6">
+              <h4 className="font-bold text-gray-900 mb-3 flex items-center space-x-2">
+                <svg className="w-5 h-5 text-[#7a5d47]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                </svg>
+                <span>Questions About Privacy?</span>
+              </h4>
+              <p className="text-sm text-gray-700 mb-3">
+                For questions, concerns, or data-related requests regarding this Privacy Policy, please contact:
+              </p>
+              <a 
+                href="mailto:solenniainquires@gmail.com" 
+                className="inline-flex items-center space-x-2 text-sm font-semibold text-[#7a5d47] hover:text-[#5d4436] transition-colors"
+              >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/>
+                  <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/>
+                </svg>
+                <span>solenniainquires@gmail.com</span>
+              </a>
+            </div>
+          </div>
 
-              For questions, concerns, or data-related requests regarding this Privacy Policy, users may contact solenniainquires@gmail.com. Solennia remains committed to transparency, accountability, and the responsible handling of user information throughout the platform.
-            </p>
+          {/* Footer Button */}
+          <div className="border-t border-gray-300 px-6 py-4 bg-[#e8ddae]/30">
+            <button
+              onClick={closePrivacy}
+              className="w-full bg-[#7a5d47] hover:bg-[#5d4436] text-white font-semibold py-3 px-4 rounded-lg transition-colors"
+            >
+              I Understand
+            </button>
           </div>
         </div>
       </div>
 
-      {/* ================= TERMS MODAL ================= */}
+      {/* ================= TERMS OF SERVICE MODAL - REDESIGNED ================= */}
       <div
         id="termsModal"
-        className="fixed inset-0 hidden z-[200] grid place-items-center bg-black/40 p-4"
+        className="fixed inset-0 hidden z-[200] grid place-items-center bg-black/50 backdrop-blur-sm p-4"
         onClick={closeTerms}
       >
         <div 
-          className="bg-[#f6f0e8] w-full max-w-2xl rounded-2xl shadow-xl overflow-y-auto max-h-[80vh]"
+          className="bg-[#f6f0e8] w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="flex justify-between items-center p-6 border-b border-gray-300 bg-[#e8ddae]">
-            <h2 className="text-lg font-semibold">Terms of Service</h2>
+          {/* Header with Icon */}
+          <div className="bg-gradient-to-r from-[#7a5d47] to-[#5d4436] px-6 py-5 flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="w-12 h-12 bg-white/10 backdrop-blur-sm rounded-xl flex items-center justify-center border border-white/20">
+                <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-white tracking-wide">Terms of Service</h2>
+                <p className="text-sm text-white/80">Last updated: December 28, 2025</p>
+              </div>
+            </div>
             <button 
               onClick={closeTerms}
-              className="text-2xl font-light hover:text-gray-600" 
+              className="w-9 h-9 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all border border-white/20" 
               aria-label="Close"
             >
-              &times;
+              <span className="text-white text-xl">&times;</span>
             </button>
           </div>
 
-          <div className="p-6 space-y-4 text-sm leading-relaxed">
-            <p>
-              Welcome to Solennia. By accessing or using the Solennia website, application, or any services provided through the platform, you agree to comply with and be bound by these Terms and Conditions. If you do not agree to any part of these terms, you must immediately discontinue use of the platform.
+          {/* Content with Scroll */}
+          <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            
+            {/* Introduction Card */}
+            <div className="bg-[#e8ddae] border-l-4 border-[#7a5d47] rounded-lg p-4 flex items-start space-x-3">
+              <svg className="w-6 h-6 text-[#7a5d47] flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+              </svg>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-gray-900 leading-relaxed">
+                  Welcome to Solennia. By accessing or using the Solennia website, application, or any services 
+                  provided through the platform, you agree to comply with and be bound by these Terms and Conditions.
+                </p>
+              </div>
+            </div>
 
-              Solennia is a digital event management and service-matching platform designed to connect individuals, organizations, and event planners with professional event service providers. These services may include, but are not limited to, venues, catering, photography and videography, event styling, equipment rentals, entertainment, and other event-related services. Solennia aims to streamline event planning by providing centralized tools for vendor discovery, communication, and coordination.
+            {/* Section 1 */}
+            <section className="space-y-3">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-[#7a5d47] text-white rounded-lg flex items-center justify-center font-bold text-lg">
+                  1
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 uppercase tracking-wide">
+                  Platform Overview
+                </h3>
+              </div>
+              <div className="pl-13 space-y-3 text-sm text-gray-700 leading-relaxed">
+                <p>
+                  Solennia is a digital event management and service-matching platform designed to connect individuals, 
+                  organizations, and event planners with professional event service providers.
+                </p>
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <p className="font-medium text-gray-900 mb-2">Services include:</p>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-[#7a5d47]">✓</span>
+                      <span>Venues</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-[#7a5d47]">✓</span>
+                      <span>Catering</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-[#7a5d47]">✓</span>
+                      <span>Photography & Videography</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-[#7a5d47]">✓</span>
+                      <span>Event Styling</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-[#7a5d47]">✓</span>
+                      <span>Equipment Rentals</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-[#7a5d47]">✓</span>
+                      <span>Entertainment</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
 
-              All users are required to provide accurate, complete, and truthful information during registration and platform usage. Vendors are solely responsible for ensuring that all submitted content—including business information, service descriptions, pricing details, images, and documentation—is lawful, accurate, and does not infringe on the rights of third parties. Solennia reserves the right to review, approve, reject, or remove content or accounts that violate platform standards, legal requirements, or community guidelines.
+            {/* Section 2 */}
+            <section className="space-y-3">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-[#7a5d47] text-white rounded-lg flex items-center justify-center font-bold text-lg">
+                  2
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 uppercase tracking-wide">
+                  User Responsibilities
+                </h3>
+              </div>
+              <div className="pl-13 space-y-3 text-sm text-gray-700 leading-relaxed">
+                <p className="font-medium text-gray-900">All users are required to:</p>
+                <div className="space-y-2">
+                  <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <span className="text-[#7a5d47] font-bold text-lg">1</span>
+                    <p>Provide accurate, complete, and truthful information during registration and platform usage</p>
+                  </div>
+                  <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <span className="text-[#7a5d47] font-bold text-lg">2</span>
+                    <p>Ensure all submitted content is lawful, accurate, and does not infringe on third-party rights</p>
+                  </div>
+                  <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <span className="text-[#7a5d47] font-bold text-lg">3</span>
+                    <p>Maintain professional conduct and communicate transparently</p>
+                  </div>
+                </div>
+              </div>
+            </section>
 
-              Solennia operates solely as an intermediary platform. While Solennia facilitates connections between users and vendors, it does not participate in, control, or guarantee any transactions, agreements, payments, or service outcomes. All negotiations, contracts, and service arrangements are entered into directly between users and vendors. Solennia shall not be held liable for disputes, losses, damages, delays, or dissatisfaction arising from services provided by vendors or interactions conducted through the platform.
+            {/* Section 3 - Important Notice */}
+            <section className="space-y-3">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-[#7a5d47] text-white rounded-lg flex items-center justify-center font-bold text-lg">
+                  3
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 uppercase tracking-wide">
+                  Platform Role & Liability
+                </h3>
+              </div>
+              <div className="pl-13 space-y-3">
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                  <div className="flex items-start space-x-3">
+                    <svg className="w-6 h-6 text-amber-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"/>
+                    </svg>
+                    <div className="text-sm text-amber-900 leading-relaxed">
+                      <p className="font-bold mb-2">Important Notice:</p>
+                      <p>
+                        Solennia operates solely as an <strong>intermediary platform</strong>. We facilitate connections 
+                        between users and vendors but do not participate in, control, or guarantee any transactions, 
+                        agreements, payments, or service outcomes.
+                      </p>
+                      <p className="mt-2">
+                        All negotiations, contracts, and service arrangements are entered into directly between users 
+                        and vendors. Solennia shall not be held liable for disputes, losses, damages, delays, or 
+                        dissatisfaction arising from services provided by vendors.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
 
-              Vendors listed on Solennia are expected to maintain professional conduct, provide accurate information, and communicate transparently with users. Any fraudulent, misleading, abusive, or unethical behavior is strictly prohibited. Solennia reserves the right to suspend, restrict, or permanently terminate accounts that violate these Terms and Conditions or receive repeated, substantiated complaints.
+            {/* Section 4 */}
+            <section className="space-y-3">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-[#7a5d47] text-white rounded-lg flex items-center justify-center font-bold text-lg">
+                  4
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 uppercase tracking-wide">
+                  Vendor Standards
+                </h3>
+              </div>
+              <div className="pl-13 text-sm text-gray-700 leading-relaxed">
+                <p className="mb-3">
+                  Vendors listed on Solennia are expected to maintain professional conduct, provide accurate 
+                  information, and communicate transparently with users.
+                </p>
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <p className="font-bold text-red-900 mb-2">Prohibited Behavior:</p>
+                  <p className="text-red-800 text-xs">
+                    Any fraudulent, misleading, abusive, or unethical behavior is strictly prohibited. Solennia 
+                    reserves the right to suspend, restrict, or permanently terminate accounts that violate these 
+                    Terms or receive repeated, substantiated complaints.
+                  </p>
+                </div>
+              </div>
+            </section>
 
-              Solennia is committed to protecting user privacy and data security. All information collected and processed through the platform is handled in accordance with the Solennia Privacy Policy. By using Solennia, users consent to the collection and use of their information as described in that policy.
+            {/* Section 5 */}
+            <section className="space-y-3">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-[#7a5d47] text-white rounded-lg flex items-center justify-center font-bold text-lg">
+                  5
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 uppercase tracking-wide">
+                  Account Termination
+                </h3>
+              </div>
+              <div className="pl-13 text-sm text-gray-700 leading-relaxed">
+                <p>
+                  Solennia reserves the right to review, approve, reject, or remove content or accounts that 
+                  violate platform standards, legal requirements, or community guidelines without prior notice.
+                </p>
+              </div>
+            </section>
 
-              Solennia reserves the right to modify or update these Terms and Conditions at any time to reflect changes in platform functionality, services, or legal obligations. Any revisions shall take effect immediately upon posting. Continued use of the platform after such updates constitutes acceptance of the revised terms.
+            {/* Section 6 */}
+            <section className="space-y-3">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-[#7a5d47] text-white rounded-lg flex items-center justify-center font-bold text-lg">
+                  6
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 uppercase tracking-wide">
+                  Privacy & Data
+                </h3>
+              </div>
+              <div className="pl-13 text-sm text-gray-700 leading-relaxed">
+                <p>
+                  Solennia is committed to protecting user privacy and data security. All information collected 
+                  and processed through the platform is handled in accordance with our Privacy Policy.
+                </p>
+              </div>
+            </section>
 
-              For questions or concerns regarding these Terms and Conditions, users may contact solenniainquires@gmail.com. By using Solennia, you acknowledge your responsibility as a platform user and agree to engage in lawful, respectful, and professional interactions within the Solennia ecosystem.
-            </p>
+            {/* Section 7 */}
+            <section className="space-y-3">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-[#7a5d47] text-white rounded-lg flex items-center justify-center font-bold text-lg">
+                  7
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 uppercase tracking-wide">
+                  Changes to Terms
+                </h3>
+              </div>
+              <div className="pl-13 text-sm text-gray-700 leading-relaxed">
+                <p>
+                  Solennia reserves the right to modify or update these Terms and Conditions at any time to 
+                  reflect changes in platform functionality, services, or legal obligations. Continued use of 
+                  the platform after such updates constitutes acceptance of the revised terms.
+                </p>
+              </div>
+            </section>
+
+            {/* Contact Card */}
+            <div className="bg-gradient-to-br from-[#e8ddae] to-[#f6f0e8] border border-[#7a5d47]/20 rounded-xl p-5 mt-6">
+              <h4 className="font-bold text-gray-900 mb-3 flex items-center space-x-2">
+                <svg className="w-5 h-5 text-[#7a5d47]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                </svg>
+                <span>Questions About Terms?</span>
+              </h4>
+              <p className="text-sm text-gray-700 mb-3">
+                For questions or concerns regarding these Terms and Conditions, please contact:
+              </p>
+              <a 
+                href="mailto:solenniainquires@gmail.com" 
+                className="inline-flex items-center space-x-2 text-sm font-semibold text-[#7a5d47] hover:text-[#5d4436] transition-colors"
+              >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/>
+                  <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/>
+                </svg>
+                <span>solenniainquires@gmail.com</span>
+              </a>
+            </div>
+          </div>
+
+          {/* Footer Button */}
+          <div className="border-t border-gray-300 px-6 py-4 bg-[#e8ddae]/30">
+            <button
+              onClick={closeTerms}
+              className="w-full bg-[#7a5d47] hover:bg-[#5d4436] text-white font-semibold py-3 px-4 rounded-lg transition-colors"
+            >
+              I Understand
+            </button>
           </div>
         </div>
       </div>

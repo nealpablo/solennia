@@ -181,6 +181,11 @@ export default function Profile() {
     }
   }
 
+  /* ================= REQUEST USERNAME CHANGE ================= */
+  function requestUsernameChange() {
+    toast.info("To change your username, please contact support at solenniainquires@gmail.com with your current username and desired new username.");
+  }
+
   /* ================= EDIT PROFILE ================= */
   async function saveProfileChanges(e) {
     e.preventDefault();
@@ -190,25 +195,7 @@ export default function Profile() {
       let updatedFields = {};
       let passwordChanged = false;
 
-      // 1. Update Username if changed
-      if (editForm.username && editForm.username !== profile.username) {
-        const usernameRes = await fetch(`${API}/user/update-username`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ username: editForm.username }),
-        });
-
-        const usernameData = await usernameRes.json();
-        if (!usernameRes.ok) throw new Error(usernameData.message || "Failed to update username");
-        
-        updatedFields.username = editForm.username;
-        toast.success("Username updated!");
-      }
-
-      // 2. Update Phone if changed
+      // 1. Update Phone if changed
       if (editForm.phone !== (profile.phone || "")) {
         const phoneRes = await fetch(`${API}/user/update-phone`, {
           method: "POST",
@@ -226,7 +213,7 @@ export default function Profile() {
         toast.success("Phone number updated!");
       }
 
-      // 3. Change Password (Firebase)
+      // 2. Change Password (Firebase)
       if (editForm.newPassword) {
         if (!editForm.currentPassword) {
           throw new Error("Current password is required to change password");
@@ -331,131 +318,236 @@ export default function Profile() {
 
   return (
     <>
-      <main className="pb-24 bg-[#f6f0e8] text-[#1c1b1a]">
-        <div className="max-w-6xl mx-auto px-4">
-          {/* ================= PROFILE HEADER ================= */}
-          <div className="flex justify-between items-center mt-6">
-            <h2 className="text-xl md:text-2xl font-semibold tracking-wide">
+      <main className="pb-24 bg-[#f6f0e8] text-[#1c1b1a] min-h-screen">
+        <div className="max-w-7xl mx-auto px-4 py-6">
+          {/* ================= PAGE HEADER ================= */}
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl md:text-3xl font-semibold tracking-wide">
               PROFILE
             </h2>
-            <button
-              onClick={() => setShowEditModal(true)}
-              className="bg-[#7a5d47] text-white px-4 py-2 rounded-lg text-sm hover:opacity-90 flex items-center gap-2"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-              </svg>
-              Edit Profile
-            </button>
           </div>
 
-          {/* ================= AVATAR SECTION ================= */}
-          <div className="flex flex-col items-center text-center space-y-4 mt-6">
-            <div className="relative">
-              <div
-                onClick={() => token && setShowAvatarModal(true)}
-                className="w-28 h-28 rounded-full border-2 border-black overflow-hidden bg-white flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity"
-              >
-                {profile?.avatar ? (
-                  <img
-                    src={profile.avatar}
-                    className="w-full h-full object-cover"
-                    alt="Profile avatar"
-                  />
-                ) : (
-                  <svg
-                    viewBox="0 0 24 24"
-                    className="w-12 h-12 text-[#1c1b1a]"
-                    fill="currentColor"
-                  >
-                    <path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-5 0-9 2.5-9 5.5V21h18v-1.5C21 16.5 17 14 12 14Z" />
-                  </svg>
-                )}
-              </div>
-              <button
-                onClick={() => token && setShowAvatarModal(true)}
-                className="absolute bottom-0 right-0 bg-[#7a5d47] text-white rounded-full p-2 hover:opacity-90"
-                title="Change profile picture"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-              </button>
-            </div>
+          {/* ================= TWO COLUMN LAYOUT (40/60) ================= */}
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+            
+            {/* ================= LEFT COLUMN - PROFILE INFO (40%) ================= */}
+            <div className="lg:col-span-2">
+              <div className="bg-white rounded-2xl shadow-lg border border-[#c9bda4] overflow-hidden flex flex-col" style={{ height: 'calc(100vh - 180px)' }}>
+                {/* Cover-like header */}
+                <div className="h-20 bg-gradient-to-r from-[#7a5d47] to-[#5d4436]"></div>
+                
+                {/* Profile Content */}
+                <div className="px-4 pb-4 flex-1 flex flex-col">
+                  {/* Avatar - overlapping the header */}
+                  <div className="flex justify-center -mt-10 mb-3">
+                    <div className="relative">
+                      <div
+                        onClick={() => token && setShowAvatarModal(true)}
+                        className="w-20 h-20 rounded-full border-4 border-white overflow-hidden bg-white flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity shadow-xl"
+                      >
+                        {profile?.avatar ? (
+                          <img
+                            src={profile.avatar}
+                            className="w-full h-full object-cover"
+                            alt="Profile avatar"
+                          />
+                        ) : (
+                          <svg
+                            viewBox="0 0 24 24"
+                            className="w-10 h-10 text-[#1c1b1a]"
+                            fill="currentColor"
+                          >
+                            <path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-5 0-9 2.5-9 5.5V21h18v-1.5C21 16.5 17 14 12 14Z" />
+                          </svg>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => token && setShowAvatarModal(true)}
+                        className="absolute bottom-0 right-0 bg-[#7a5d47] text-white rounded-full p-1.5 hover:opacity-90 shadow-lg"
+                        title="Change profile picture"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
 
-            <div className="space-y-2">
-              <div className="text-lg font-semibold">{name}</div>
-              {profile?.username && (
-                <div className="text-sm text-gray-600">@{profile.username}</div>
-              )}
-              {profile?.phone && (
-                <div className="text-sm text-gray-600 flex items-center justify-center gap-1">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                  </svg>
-                  {profile.phone}
+                  {/* Name and Username */}
+                  <div className="text-center mb-3">
+                    <h1 className="text-lg font-bold text-gray-900">{name}</h1>
+                    {profile?.username && (
+                      <p className="text-xs text-gray-500">@{profile.username}</p>
+                    )}
+                  </div>
+
+                  {/* Info Cards */}
+                  <div className="space-y-2 mb-3 flex-1 overflow-y-auto">
+                    {profile?.email && (
+                      <div className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
+                        <div className="w-8 h-8 bg-[#e8ddae] rounded-full flex items-center justify-center flex-shrink-0">
+                          <svg className="w-4 h-4 text-[#7a5d47]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                          </svg>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-gray-500 uppercase font-semibold">Email</p>
+                          <p className="text-xs text-gray-900 truncate">{profile.email}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {profile?.phone && (
+                      <div className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
+                        <div className="w-8 h-8 bg-[#e8ddae] rounded-full flex items-center justify-center flex-shrink-0">
+                          <svg className="w-4 h-4 text-[#7a5d47]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                          </svg>
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-xs text-gray-500 uppercase font-semibold">Phone</p>
+                          <p className="text-xs text-gray-900">{profile.phone}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => setShowEditModal(true)}
+                      className="w-full bg-[#7a5d47] text-white px-3 py-2 rounded-lg text-sm font-semibold hover:opacity-90 flex items-center justify-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                      Edit Profile
+                    </button>
+
+                    {dashboardHref() && dashboardLabel() && (
+                      <a
+                        href={dashboardHref()}
+                        className="w-full bg-[#e8ddae] text-[#3b2f25] px-3 py-2 rounded-lg text-sm font-semibold hover:opacity-90 flex items-center justify-center gap-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
+                        </svg>
+                        {dashboardLabel()}
+                      </a>
+                    )}
+
+                    {role === 0 && (
+                      <button
+                        onClick={joinVendor}
+                        disabled={vendorStatus === "pending"}
+                        className={`w-full bg-gradient-to-r from-[#7a5d47] to-[#5d4436] text-white px-3 py-2 rounded-lg text-sm font-semibold hover:opacity-90 ${
+                          vendorStatus === "pending" ? "opacity-50 cursor-not-allowed" : ""
+                        }`}
+                      >
+                        {vendorStatus === "pending" ? "Application Pending" : "Join as Vendor"}
+                      </button>
+                    )}
+                  </div>
                 </div>
-              )}
+              </div>
             </div>
 
-            {dashboardHref() && dashboardLabel() && (
-              <a
-                href={dashboardHref()}
-                className="bg-[#e0d6c6] text-[#3b2f25] px-4 py-2 rounded-lg text-sm hover:opacity-90"
-              >
-                {dashboardLabel()}
-              </a>
-            )}
+            {/* ================= RIGHT COLUMN - FAVORITES (60%) ================= */}
+            <div className="lg:col-span-3">
+              <div className="bg-white rounded-2xl shadow-lg border border-[#c9bda4] overflow-hidden flex flex-col" style={{ height: 'calc(100vh - 180px)' }}>
+                {/* Header */}
+                <div className="flex justify-between items-center px-4 py-3 border-b border-gray-200 flex-shrink-0">
+                  <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                    <svg className="w-5 h-5 text-[#7a5d47]" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                    </svg>
+                    Favorites
+                  </h2>
+                  <span className="text-xs text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full font-medium">
+                    2 items
+                  </span>
+                </div>
+
+                {/* Scrollable Content */}
+                <div className="flex-1 overflow-y-auto">
+                  {/* Favorite Item 1 */}
+                  <div className="group relative overflow-hidden cursor-pointer mb-3">
+                    <img
+                      src="/images/gallery1.jpg"
+                      className="w-full h-72 object-cover group-hover:scale-105 transition-transform duration-500"
+                      alt="Favorite 1"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/25 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                      <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
+                        <h3 className="text-xl font-bold mb-1">Kids Party Venue</h3>
+                        <p className="text-xs text-gray-200 mb-2">Perfect space for children's celebrations with colorful decorations and entertainment areas</p>
+                        <div className="flex items-center gap-3 text-xs mb-3">
+                          <span className="flex items-center gap-1">
+                            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z"/>
+                            </svg>
+                            Manila, PH
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                              <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/>
+                            </svg>
+                            50-100 guests
+                          </span>
+                        </div>
+                        <button className="w-full bg-[#7a5d47] text-white px-4 py-2 rounded-lg text-xs font-semibold hover:bg-[#5d4436] transition-colors">
+                          View Details
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Favorite Item 2 */}
+                  <div className="group relative overflow-hidden cursor-pointer mb-3">
+                    <img
+                      src="/images/gallery2.jpg"
+                      className="w-full h-72 object-cover group-hover:scale-105 transition-transform duration-500"
+                      alt="Favorite 2"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/25 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                      <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
+                        <h3 className="text-xl font-bold mb-1">Wedding Venue</h3>
+                        <p className="text-xs text-gray-200 mb-2">Elegant outdoor ceremony space with beautiful garden backdrop and sophisticated decor</p>
+                        <div className="flex items-center gap-3 text-xs mb-3">
+                          <span className="flex items-center gap-1">
+                            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z"/>
+                            </svg>
+                            Tagaytay, PH
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                              <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/>
+                            </svg>
+                            100-200 guests
+                          </span>
+                        </div>
+                        <button className="w-full bg-[#7a5d47] text-white px-4 py-2 rounded-lg text-xs font-semibold hover:bg-[#5d4436] transition-colors">
+                          View Details
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer Action */}
+                <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 flex-shrink-0">
+                  <button className="w-full bg-[#7a5d47] text-white px-6 py-2 rounded-lg hover:opacity-90 font-semibold flex items-center justify-center gap-2 text-sm">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                    Compare Favorites
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
-
-          {/* ================= FAVORITES ================= */}
-          <h2 className="mt-12 text-xl md:text-2xl font-semibold tracking-wide">
-            FAVORITES
-          </h2>
-
-          <section className="mt-3 bg-[#ece8e1] border border-[#d9d6cf] rounded-xl p-4 md:p-6">
-            <article className="rounded-xl border border-[#ded7c9] overflow-hidden bg-[#f5f0ea] mb-4">
-              <img
-                src="/images/gallery1.jpg"
-                className="w-full object-cover"
-                alt="Favorite 1"
-              />
-            </article>
-
-            <article className="rounded-xl border border-[#ded7c9] overflow-hidden bg-[#f5f0ea]">
-              <img
-                src="/images/gallery2.jpg"
-                className="w-full object-cover"
-                alt="Favorite 2"
-              />
-            </article>
-
-            <div className="mt-6 flex justify-center">
-              <button className="bg-[#7a5d47] text-white px-6 py-2 rounded-lg hover:opacity-90">
-                Compare Favorites
-              </button>
-            </div>
-          </section>
-
-          {/* ================= JOIN AS VENDOR ================= */}
-          {role === 0 && (
-            <section className="mt-12 text-center mb-16">
-              <button
-                onClick={joinVendor}
-                disabled={vendorStatus === "pending"}
-                className={`bg-[#7a5d47] text-white px-6 py-2 rounded-lg hover:opacity-90 ${
-                  vendorStatus === "pending"
-                    ? "opacity-50 cursor-not-allowed"
-                    : ""
-                }`}
-              >
-                {vendorStatus === "pending"
-                  ? "Vendor Application Pending"
-                  : "Join as a Vendor"}
-              </button>
-            </section>
-          )}
         </div>
       </main>
 
@@ -527,20 +619,32 @@ export default function Profile() {
             </div>
 
             <form onSubmit={saveProfileChanges} className="p-6 space-y-6">
-              {/* USERNAME */}
+              {/* USERNAME - READ ONLY WITH REQUEST BUTTON */}
               <div>
                 <label className="block text-sm font-semibold uppercase mb-2">
                   Username
                 </label>
-                <input
-                  type="text"
-                  value={editForm.username}
-                  onChange={(e) => setEditForm({ ...editForm, username: e.target.value })}
-                  placeholder="Enter username"
-                  className="w-full rounded-md bg-gray-100 border border-gray-300 p-2"
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={editForm.username}
+                    readOnly
+                    disabled
+                    className="flex-1 rounded-md bg-gray-200 border border-gray-300 p-2 cursor-not-allowed text-gray-600"
+                  />
+                  <button
+                    type="button"
+                    onClick={requestUsernameChange}
+                    className="bg-[#7a5d47] text-white px-4 py-2 rounded-md text-sm hover:opacity-90 whitespace-nowrap"
+                  >
+                    Request Change
+                  </button>
+                </div>
                 <p className="text-xs text-gray-600 mt-1">
                   Current: @{profile?.username || "Not set"}
+                </p>
+                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2 mt-2">
+                  ℹ️ Username changes require admin approval. Click "Request Change" to contact support.
                 </p>
               </div>
 
