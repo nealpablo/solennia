@@ -1,4 +1,4 @@
-// src/pages/Venue.jsx - ✅ FIXED: Gallery Support
+// src/pages/Venue.jsx - ✅ FIXED: Gallery Support + Working Filters
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import toast from "../utils/toast";
@@ -9,6 +9,7 @@ export default function Venue() {
   const [visibleCount, setVisibleCount] = useState(12);
   const [isVenueVendor, setIsVenueVendor] = useState(false);
   const [checkingVendor, setCheckingVendor] = useState(true);
+  const [filter, setFilter] = useState("all"); // ✅ NEW: Filter state
   
   const navigate = useNavigate();
 
@@ -84,7 +85,14 @@ export default function Venue() {
     setVisibleCount(prev => prev + 12);
   };
 
-  const visibleVenues = venues.slice(0, visibleCount);
+  // ✅ FIXED: Filter venues based on selected category
+  const filteredVenues = filter === "all"
+    ? venues
+    : venues.filter(v => 
+        (v.venue_subcategory || "").toLowerCase() === filter.toLowerCase()
+      );
+
+  const visibleVenues = filteredVenues.slice(0, visibleCount);
 
   if (loading || checkingVendor) {
     return (
@@ -99,53 +107,60 @@ export default function Venue() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
-      {/* Page Header */}
-      <div className="mb-8 flex justify-between items-start">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">Venues</h1>
-          <p className="text-gray-600">Discover the perfect venue for your special day</p>
-        </div>
+      {/* Page Header - Centered like Vendors.jsx */}
+      <div className="mb-8">
+        <h1 className="text-3xl md:text-4xl tracking-[0.25em] text-center mb-2">
+          VENUES
+        </h1>
+        <p className="text-center text-gray-600 mb-6">
+          Discover the perfect venue for your special day
+        </p>
 
         {/* Create Venue Listing Button - Only for Approved Venue Vendors */}
         {isVenueVendor && (
-          <button
-            onClick={handleCreateListing}
-            className="px-6 py-3 bg-[#7a5d47] hover:bg-[#654a38] text-white font-semibold rounded-lg transition-colors flex items-center gap-2 shadow-md"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
-            </svg>
-            Make a Listing
-          </button>
+          <div className="flex justify-center">
+            <button
+              onClick={handleCreateListing}
+              className="px-6 py-3 bg-[#7a5d47] hover:bg-[#654a38] text-white font-semibold rounded-lg transition-colors flex items-center gap-2 shadow-md"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+              </svg>
+              Make a Listing
+            </button>
+          </div>
         )}
       </div>
 
-      {/* Filter Bar */}
-      <div className="mb-6 flex flex-wrap gap-3">
-        <button className="px-4 py-2 bg-[#e8ddae] rounded-lg text-sm font-medium hover:bg-[#dbcf9f]">
-          All Venues
-        </button>
-        <button className="px-4 py-2 bg-gray-100 rounded-lg text-sm font-medium hover:bg-gray-200">
-          Churches
-        </button>
-        <button className="px-4 py-2 bg-gray-100 rounded-lg text-sm font-medium hover:bg-gray-200">
-          Gardens
-        </button>
-        <button className="px-4 py-2 bg-gray-100 rounded-lg text-sm font-medium hover:bg-gray-200">
-          Resorts
-        </button>
-        <button className="px-4 py-2 bg-gray-100 rounded-lg text-sm font-medium hover:bg-gray-200">
-          Conference
-        </button>
+      {/* ✅ FIXED: Filter Bar with Working Filters - Centered */}
+      <div className="flex flex-wrap gap-3 text-[0.75rem] tracking-[0.2em] uppercase mb-6 justify-center">
+        {["all", "Churches", "Gardens", "Resorts", "Conference", "Others"].map((f) => (
+          <button
+            key={f}
+            onClick={() => {
+              setFilter(f);
+              setVisibleCount(12); // Reset visible count when filtering
+            }}
+            className={`px-4 py-2 border border-[#c9bda4] rounded-full transition-colors ${
+              filter === f
+                ? "bg-[#7a5d47] text-white border-[#7a5d47]"
+                : "bg-[#f6f0e8] hover:bg-[#e8ddae]"
+            }`}
+          >
+            {f === "all" ? "All Venues" : f}
+          </button>
+        ))}
       </div>
 
       {/* Empty State or Venue Grid */}
-      {venues.length === 0 ? (
+      {filteredVenues.length === 0 ? (
         <div className="text-center py-20">
           <svg className="w-24 h-24 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
           </svg>
-          <h3 className="text-xl font-semibold text-gray-700 mb-2">No Venues Available Yet</h3>
+          <h3 className="text-xl font-semibold text-gray-700 mb-2">
+            {filter === "all" ? "No Venues Available Yet" : `No ${filter} Available`}
+          </h3>
           <p className="text-gray-500 mb-6">
             {isVenueVendor 
               ? "Be the first to add your venue to the platform!"
@@ -170,7 +185,7 @@ export default function Venue() {
           </div>
 
           {/* Show More Button */}
-          {visibleCount < venues.length && (
+          {visibleCount < filteredVenues.length && (
             <div className="text-center">
               <button
                 onClick={handleShowMore}
@@ -182,7 +197,7 @@ export default function Venue() {
           )}
 
           {/* End of Results */}
-          {visibleCount >= venues.length && venues.length > 12 && (
+          {visibleCount >= filteredVenues.length && filteredVenues.length > 12 && (
             <div className="text-center text-gray-500 text-sm">
               You've reached the end of the list
             </div>

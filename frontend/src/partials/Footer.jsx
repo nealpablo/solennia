@@ -70,7 +70,7 @@ export default function Footer() {
           </li>
 
           <li>
-            <Link to="/ai-planner" className="hover:underline hover:text-[#f2e7c6] transition-colors">
+            <Link to="/" className="hover:underline hover:text-[#f2e7c6] transition-colors">
               Wedding Planner AI
             </Link>
           </li>
