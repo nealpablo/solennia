@@ -9,6 +9,7 @@ export default function Header() {
   const [username, setUsername] = useState(null);
   const [email, setEmail] = useState(null);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   // Toggle profile dropdown
   const toggleProfileDropdown = () => {
@@ -64,7 +65,12 @@ export default function Header() {
   // Load profile avatar and username
   useEffect(() => {
     const loadProfile = () => {
+      const token = localStorage.getItem("solennia_token");
       const profileData = localStorage.getItem("solennia_profile");
+      
+      // Check if user is logged in
+      setIsLoggedIn(!!token);
+      
       if (profileData) {
         try {
           const parsed = JSON.parse(profileData);
@@ -106,9 +112,9 @@ export default function Header() {
     }
   }, []);
 
-  // Get user initials for avatar
+  // Get user initials for avatar (only if logged in)
   const getInitials = () => {
-    if (!username) return "U";
+    if (!username) return null;
     return username.substring(0, 2).toUpperCase();
   };
 
@@ -180,10 +186,14 @@ export default function Header() {
                   alt="Profile"
                   className="w-full h-full object-cover"
                 />
-              ) : (
+              ) : isLoggedIn && username ? (
                 <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#7a5d47] to-[#5d4436] text-white font-semibold text-sm">
                   {getInitials()}
                 </div>
+              ) : (
+                <svg className="w-6 h-6 text-gray-700" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-5 0-9 2.5-9 5.5V21h18v-1.5C21 16.5 17 14 12 14Z" />
+                </svg>
               )}
             </button>
 
@@ -192,8 +202,8 @@ export default function Header() {
               id="profileMenu"
               className="hidden absolute right-0 mt-2 w-64 rounded-xl border border-gray-300 bg-[#f6f0e8] shadow-xl z-50"
             >
-              {/* USERNAME SECTION - SHOWN AT TOP */}
-              {username && (
+              {/* USERNAME SECTION - SHOWN ONLY WHEN LOGGED IN */}
+              {isLoggedIn && username && (
                 <div className="px-4 py-3 border-b border-gray-300 bg-[#e8ddae]">
                   <div className="flex items-center gap-3">
                     <div className="w-12 h-12 rounded-full border-2 border-gray-700 overflow-hidden flex items-center justify-center flex-shrink-0">
@@ -224,16 +234,19 @@ export default function Header() {
               )}
 
               <div className="py-1">
-                <Link
-                  to="/profile"
-                  id="menuProfile"
-                  onClick={() => setIsProfileOpen(false)}
-                  className="block px-4 py-2 text-sm hover:bg-gray-100"
-                >
-                  Profile
-                </Link>
+                {/* PROFILE LINK - SHOWN ONLY WHEN LOGGED IN */}
+                {isLoggedIn && username && (
+                  <Link
+                    to="/profile"
+                    id="menuProfile"
+                    onClick={() => setIsProfileOpen(false)}
+                    className="block px-4 py-2 text-sm hover:bg-gray-100"
+                  >
+                    Profile
+                  </Link>
+                )}
 
-                <div className="my-1 border-t border-gray-300" />
+                {isLoggedIn && username && <div className="my-1 border-t border-gray-300" />}
 
                 <button
                   id="menuSignIn"

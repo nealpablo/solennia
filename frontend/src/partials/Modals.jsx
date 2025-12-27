@@ -1575,12 +1575,9 @@ formData.append("contact_email", form.contact_email.value);
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 bg-[#7a5d47] hover:bg-[#5d4436] text-white font-semibold text-sm rounded-lg transition-colors flex items-center space-x-2"
+                  className="px-6 py-2.5 bg-[#7a5d47] hover:bg-[#5d4436] text-white font-semibold text-sm rounded-lg transition-colors"
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
-                  </svg>
-                  <span>Submit Feedback</span>
+                  Submit Feedback
                 </button>
               </div>
             </form>

@@ -1,5 +1,5 @@
 // src/pages/HomePage.jsx
-import React, { useEffect, useState, useRef } from "react";
+import React from "react";
 import "../style.css";
 
 export default function HomePage() {
@@ -14,83 +14,6 @@ export default function HomePage() {
 
   // Duplicate images for seamless infinite scroll
   const infiniteImages = [...images, ...images, ...images];
-
-  const [index, setIndex] = useState(0);
-  const [isPaused, setIsPaused] = useState(false);
-  const scrollRef = useRef(null);
-  const touchStartX = useRef(0);
-  const touchEndX = useRef(0);
-
-  const nextSlide = () => {
-    setIsPaused(true);
-    setIndex((prev) => (prev + 1) % images.length);
-    setTimeout(() => setIsPaused(false), 1000);
-  };
-
-  const prevSlide = () => {
-    setIsPaused(true);
-    setIndex((prev) =>
-      prev === 0 ? images.length - 1 : prev - 1
-    );
-    setTimeout(() => setIsPaused(false), 1000);
-  };
-
-  // Touch/Swipe handlers
-  const handleTouchStart = (e) => {
-    touchStartX.current = e.touches[0].clientX;
-  };
-
-  const handleTouchMove = (e) => {
-    touchEndX.current = e.touches[0].clientX;
-  };
-
-  const handleTouchEnd = () => {
-    const swipeDistance = touchStartX.current - touchEndX.current;
-    const minSwipeDistance = 50; // Minimum distance for swipe detection
-
-    if (Math.abs(swipeDistance) > minSwipeDistance) {
-      if (swipeDistance > 0) {
-        // Swiped left - go to next
-        nextSlide();
-      } else {
-        // Swiped right - go to previous
-        prevSlide();
-      }
-    }
-
-    // Reset
-    touchStartX.current = 0;
-    touchEndX.current = 0;
-  };
-
-  // Mouse drag handlers (for desktop)
-  const handleMouseDown = (e) => {
-    touchStartX.current = e.clientX;
-    e.preventDefault();
-  };
-
-  const handleMouseMove = (e) => {
-    if (touchStartX.current === 0) return;
-    touchEndX.current = e.clientX;
-  };
-
-  const handleMouseUp = () => {
-    if (touchStartX.current === 0) return;
-    
-    const swipeDistance = touchStartX.current - touchEndX.current;
-    const minSwipeDistance = 50;
-
-    if (Math.abs(swipeDistance) > minSwipeDistance) {
-      if (swipeDistance > 0) {
-        nextSlide();
-      } else {
-        prevSlide();
-      }
-    }
-
-    touchStartX.current = 0;
-    touchEndX.current = 0;
-  };
 
   return (
     <main className="flex-1 font-[Cinzel] text-[#1c1b1a] bg-[#f6f0e8]">
@@ -113,23 +36,12 @@ export default function HomePage() {
                 }
               `}</style>
               <div
-                ref={scrollRef}
-                className="flex gap-6 cursor-grab active:cursor-grabbing"
+                className="flex gap-6"
                 style={{ 
                   paddingLeft: 'calc(50% - 40%)',
                   paddingRight: 'calc(50% - 40%)',
-                  animation: isPaused ? 'none' : 'scroll 20s linear infinite',
-                  transform: index !== 0 ? `translateX(calc(-${index * 100}% - ${index * 1.5}rem))` : undefined,
-                  transition: index !== 0 ? 'transform 700ms ease-in-out' : 'none'
+                  animation: 'scroll 20s linear infinite'
                 }}
-                onTransitionEnd={() => setIndex(0)}
-                onTouchStart={handleTouchStart}
-                onTouchMove={handleTouchMove}
-                onTouchEnd={handleTouchEnd}
-                onMouseDown={handleMouseDown}
-                onMouseMove={handleMouseMove}
-                onMouseUp={handleMouseUp}
-                onMouseLeave={handleMouseUp}
               >
                 {infiniteImages.map((img, i) => (
                   <div 
@@ -140,8 +52,7 @@ export default function HomePage() {
                     <img
                       src={img.src}
                       alt={img.alt}
-                      className="w-full h-64 sm:h-80 md:h-96 lg:h-[400px] object-cover rounded-2xl shadow-2xl pointer-events-none select-none"
-                      draggable="false"
+                      className="w-full h-64 sm:h-80 md:h-96 lg:h-[400px] object-cover rounded-2xl shadow-2xl"
                     />
                   </div>
                 ))}

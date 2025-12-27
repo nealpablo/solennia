@@ -322,9 +322,6 @@ export default function Profile() {
         <div className="max-w-7xl mx-auto px-4 py-6">
           {/* ================= PAGE HEADER ================= */}
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl md:text-3xl font-semibold tracking-wide">
-              PROFILE
-            </h2>
           </div>
 
           {/* ================= TWO COLUMN LAYOUT (40/60) ================= */}
@@ -332,123 +329,89 @@ export default function Profile() {
             
             {/* ================= LEFT COLUMN - PROFILE INFO (40%) ================= */}
             <div className="lg:col-span-2">
-              <div className="bg-white rounded-2xl shadow-lg border border-[#c9bda4] overflow-hidden flex flex-col" style={{ height: 'calc(100vh - 180px)' }}>
-                {/* Cover-like header */}
-                <div className="h-20 bg-gradient-to-r from-[#7a5d47] to-[#5d4436]"></div>
-                
-                {/* Profile Content */}
-                <div className="px-4 pb-4 flex-1 flex flex-col">
-                  {/* Avatar - overlapping the header */}
-                  <div className="flex justify-center -mt-10 mb-3">
-                    <div className="relative">
-                      <div
-                        onClick={() => token && setShowAvatarModal(true)}
-                        className="w-20 h-20 rounded-full border-4 border-white overflow-hidden bg-white flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity shadow-xl"
+              <div className="flex flex-col items-center justify-center" style={{ height: 'calc(100vh - 180px)' }}>
+                {/* Large Avatar */}
+                <div className="relative mb-6">
+                  <div
+                    onClick={() => token && setShowAvatarModal(true)}
+                    className="w-64 h-64 rounded-full border-8 border-white overflow-hidden bg-white flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity shadow-2xl"
+                  >
+                    {profile?.avatar ? (
+                      <img
+                        src={profile.avatar}
+                        className="w-full h-full object-cover"
+                        alt="Profile avatar"
+                      />
+                    ) : (
+                      <svg
+                        viewBox="0 0 24 24"
+                        className="w-32 h-32 text-[#7a5d47]"
+                        fill="currentColor"
                       >
-                        {profile?.avatar ? (
-                          <img
-                            src={profile.avatar}
-                            className="w-full h-full object-cover"
-                            alt="Profile avatar"
-                          />
-                        ) : (
-                          <svg
-                            viewBox="0 0 24 24"
-                            className="w-10 h-10 text-[#1c1b1a]"
-                            fill="currentColor"
-                          >
-                            <path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-5 0-9 2.5-9 5.5V21h18v-1.5C21 16.5 17 14 12 14Z" />
-                          </svg>
-                        )}
-                      </div>
-                      <button
-                        onClick={() => token && setShowAvatarModal(true)}
-                        className="absolute bottom-0 right-0 bg-[#7a5d47] text-white rounded-full p-1.5 hover:opacity-90 shadow-lg"
-                        title="Change profile picture"
-                      >
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Name and Username */}
-                  <div className="text-center mb-3">
-                    <h1 className="text-lg font-bold text-gray-900">{name}</h1>
-                    {profile?.username && (
-                      <p className="text-xs text-gray-500">@{profile.username}</p>
-                    )}
-                  </div>
-
-                  {/* Info Cards */}
-                  <div className="space-y-2 mb-3 flex-1 overflow-y-auto">
-                    {profile?.email && (
-                      <div className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
-                        <div className="w-8 h-8 bg-[#e8ddae] rounded-full flex items-center justify-center flex-shrink-0">
-                          <svg className="w-4 h-4 text-[#7a5d47]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                          </svg>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs text-gray-500 uppercase font-semibold">Email</p>
-                          <p className="text-xs text-gray-900 truncate">{profile.email}</p>
-                        </div>
-                      </div>
-                    )}
-
-                    {profile?.phone && (
-                      <div className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
-                        <div className="w-8 h-8 bg-[#e8ddae] rounded-full flex items-center justify-center flex-shrink-0">
-                          <svg className="w-4 h-4 text-[#7a5d47]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                          </svg>
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-xs text-gray-500 uppercase font-semibold">Phone</p>
-                          <p className="text-xs text-gray-900">{profile.phone}</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Action Buttons */}
-                  <div className="space-y-2">
-                    <button
-                      onClick={() => setShowEditModal(true)}
-                      className="w-full bg-[#7a5d47] text-white px-3 py-2 rounded-lg text-sm font-semibold hover:opacity-90 flex items-center justify-center gap-2"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        <path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-5 0-9 2.5-9 5.5V21h18v-1.5C21 16.5 17 14 12 14Z" />
                       </svg>
-                      Edit Profile
-                    </button>
-
-                    {dashboardHref() && dashboardLabel() && (
-                      <a
-                        href={dashboardHref()}
-                        className="w-full bg-[#e8ddae] text-[#3b2f25] px-3 py-2 rounded-lg text-sm font-semibold hover:opacity-90 flex items-center justify-center gap-2"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
-                        </svg>
-                        {dashboardLabel()}
-                      </a>
-                    )}
-
-                    {role === 0 && (
-                      <button
-                        onClick={joinVendor}
-                        disabled={vendorStatus === "pending"}
-                        className={`w-full bg-gradient-to-r from-[#7a5d47] to-[#5d4436] text-white px-3 py-2 rounded-lg text-sm font-semibold hover:opacity-90 ${
-                          vendorStatus === "pending" ? "opacity-50 cursor-not-allowed" : ""
-                        }`}
-                      >
-                        {vendorStatus === "pending" ? "Application Pending" : "Join as Vendor"}
-                      </button>
                     )}
                   </div>
+                  <button
+                    onClick={() => token && setShowAvatarModal(true)}
+                    className="absolute bottom-4 right-4 bg-[#7a5d47] text-white rounded-full p-4 hover:opacity-90 shadow-xl border-4 border-white"
+                    title="Change profile picture"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  </button>
+                </div>
+
+                {/* Name */}
+                <h1 className="text-2xl font-bold text-gray-900 mb-2">{name}</h1>
+                
+                {/* Username */}
+                {profile?.username && (
+                  <p className="text-sm text-gray-600 mb-4">@{profile.username}</p>
+                )}
+
+                {/* Email */}
+                {profile?.email && (
+                  <p className="text-sm text-gray-700 mb-6">{profile.email}</p>
+                )}
+
+                {/* Action Buttons */}
+                <div className="space-y-3 w-full max-w-xs">
+                  <button
+                    onClick={() => setShowEditModal(true)}
+                    className="w-full bg-[#7a5d47] text-white px-4 py-3 rounded-lg text-sm font-semibold hover:opacity-90 flex items-center justify-center gap-2 shadow-md"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                    Edit Profile
+                  </button>
+
+                  {dashboardHref() && dashboardLabel() && (
+                    <a
+                      href={dashboardHref()}
+                      className="w-full bg-[#e8ddae] text-[#3b2f25] px-4 py-3 rounded-lg text-sm font-semibold hover:opacity-90 flex items-center justify-center gap-2 shadow-md"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
+                      </svg>
+                      {dashboardLabel()}
+                    </a>
+                  )}
+
+                  {role === 0 && (
+                    <button
+                      onClick={joinVendor}
+                      disabled={vendorStatus === "pending"}
+                      className={`w-full bg-gradient-to-r from-[#7a5d47] to-[#5d4436] text-white px-4 py-3 rounded-lg text-sm font-semibold hover:opacity-90 shadow-md ${
+                        vendorStatus === "pending" ? "opacity-50 cursor-not-allowed" : ""
+                      }`}
+                    >
+                      {vendorStatus === "pending" ? "Application Pending" : "Join as Vendor"}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
