@@ -185,7 +185,7 @@ export default function Vendors() {
 
         {!status && visible.length === 0 && (
           <p className="mt-10 text-center text-xs tracking-[0.18em] uppercase text-gray-500">
-            No vendors found.
+            No vendors available at the moment.
           </p>
         )}
       </section>
