@@ -21,9 +21,20 @@ export default function ChatDropdown() {
       }
     }
 
+    // Close when other dropdowns open
+    function handleCloseOthers(event) {
+      if (event.detail !== 'chat') {
+        setIsOpen(false);
+      }
+    }
+
     if (isOpen) {
       document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
+      window.addEventListener("closeOtherDropdowns", handleCloseOthers);
+      return () => {
+        document.removeEventListener("mousedown", handleClickOutside);
+        window.removeEventListener("closeOtherDropdowns", handleCloseOthers);
+      };
     }
   }, [isOpen]);
 
@@ -207,6 +218,11 @@ export default function ChatDropdown() {
 
   const toggleDropdown = () => {
     setIsOpen(!isOpen);
+    
+    // Tell Header to close notification if open
+    if (!isOpen) {
+      window.dispatchEvent(new CustomEvent('closeOtherDropdowns', { detail: 'chat' }));
+    }
   };
 
   return (

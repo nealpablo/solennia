@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import React from "react";
+import toast from "../utils/toast";
 import "../style.css";
 
 const API =
@@ -24,7 +25,6 @@ export default function AdminPanel() {
   const [feedbacks, setFeedbacks] = useState([]);
   const [activeTab, setActiveTab] = useState("vendors");
   
-  const [toast, setToast] = useState({ show: false, message: "", type: "error" });
   const [lightbox, setLightbox] = useState({ show: false, url: "", title: "", isPdf: false });
   const [confirm, setConfirm] = useState({
     show: false,
@@ -33,13 +33,6 @@ export default function AdminPanel() {
     className: "approve-btn",
     onConfirm: null,
   });
-
-  const showToast = (message, type = "error") => {
-    setToast({ show: true, message, type });
-    setTimeout(() => {
-      setToast({ show: false, message: "", type: "error" });
-    }, 2300);
-  };
 
   const previewDocument = (url, title = "Document") => {
     const isPdf = url.endsWith(".pdf");
@@ -70,7 +63,7 @@ export default function AdminPanel() {
     const role = parseInt(localStorage.getItem("solennia_role") || "0", 10);
 
     if (!token || role !== 2) {
-      showToast("Access denied — admin only.");
+      toast.error("Access denied — admin only.");
       setTimeout(() => {
         window.location.href = "/";
       }, 1200);
@@ -85,7 +78,7 @@ export default function AdminPanel() {
       const json = await res.json();
       setApps(json.applications || []);
     } catch (err) {
-      showToast(err.message, "error");
+      toast.error(err.message);
     }
   }
 
@@ -97,7 +90,7 @@ export default function AdminPanel() {
       const json = await res.json();
       setUsers(json.users || []);
     } catch (err) {
-      showToast(err.message, "error");
+      toast.error(err.message);
     }
   }
 
@@ -109,7 +102,7 @@ export default function AdminPanel() {
       const json = await res.json();
       setFeedbacks(json.feedbacks || []);
     } catch (err) {
-      showToast(err.message, "error");
+      toast.error(err.message);
     }
   }
 
@@ -140,10 +133,10 @@ export default function AdminPanel() {
       
       if (!res.ok) throw new Error(json.message || json.error);
 
-      showToast(json.message || "Action completed successfully", "success");
+      toast.success(json.message || "Action completed successfully");
       loadVendorApplications();
     } catch (err) {
-      showToast(err.message, "error");
+      toast.error(err.message);
     }
   }
 
@@ -168,10 +161,10 @@ export default function AdminPanel() {
         throw new Error(json.message || json.error);
       }
 
-      showToast("Role updated successfully", "success");
+      toast.success("Role updated successfully");
       loadUsers();
     } catch (err) {
-      showToast(err.message, "error");
+      toast.error(err.message);
     }
   }
 
@@ -194,15 +187,10 @@ export default function AdminPanel() {
         .admin-panel th, .admin-panel td { padding: 0.75rem; text-align: left; border-bottom: 1px solid #e5e5e5; vertical-align: middle; }
         .admin-panel th { background: #e8ddae; color: #1c1b1a; font-weight: 600; }
         .admin-panel button { border: 2px solid transparent; padding: 0.4rem 0.8rem; border-radius: 0.5rem; cursor: pointer; font-weight: 600; transition: all 0.2s ease; }
-        .admin-panel button.approve-btn { background: #7a5d47; color: #fff; border-color: #5a4333; }
-        .admin-panel button.approve-btn:hover { background: #6a503d; }
-        .admin-panel button.deny-btn { background: #dc2626; color: #fff; border-color: #b91c1c; }
-        .admin-panel button.deny-btn:hover { background: #b91c1c; }
-        .admin-panel button.muted { background: #e5e5e5; color: #999; cursor: not-allowed; border-color: #d4d4d4; }
-        .toast-container { position: fixed; top: 1rem; left: 50%; transform: translateX(-50%); z-index: 9999; }
-        .toast { background: #7a5d47; color: #fff; padding: 0.75rem 1.25rem; border-radius: 0.5rem; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
-        .toast.success { background: #10b981; }
-        .toast.error { background: #ef4444; }
+        .admin-panel button.approve-btn { background: #7a5d47; color: #fff; border: 2px solid #5a4333; }
+        .admin-panel button.approve-btn:hover { background: #6a503d; border-color: #4a3323; }
+        .admin-panel button.deny-btn { background: #e63946; color: #fff; border: 2px solid #d62828; }
+        .admin-panel button.deny-btn:hover { background: #d62828; border-color: #c1121f; }
         .lb-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.75); display: flex; align-items: center; justify-content: center; z-index: 9999; }
         .lb-content { background: #fff; border-radius: 1rem; overflow: hidden; max-width: 90vw; max-height: 90vh; box-shadow: 0 20px 40px rgba(0,0,0,0.4); }
         .lb-header { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1rem; background: #e8ddae; }
@@ -220,12 +208,6 @@ export default function AdminPanel() {
         .badge { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; margin-left: 0.5rem; }
         .badge.pending { background: #fef3c7; color: #92400e; }
       `}</style>
-
-      {toast.show && (
-        <div className="toast-container">
-          <div className={`toast ${toast.type}`}>{toast.message}</div>
-        </div>
-      )}
 
       {lightbox.show && (
         <div className="lb-backdrop" onClick={closeLightbox}>
@@ -412,7 +394,7 @@ export default function AdminPanel() {
                     <th>Email</th>
                     <th>Username</th>
                     <th>Role</th>
-                    <th style={{ minWidth: "240px" }}>Actions</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -427,14 +409,10 @@ export default function AdminPanel() {
                         <td>{roleLabel(u.role)}</td>
                         <td>
                           <div className="flex gap-2">
-                            {u.role < 2 ? (
+                            {u.role < 2 && (
                               <button className="approve-btn" onClick={() => changeRole(u.id, u.role, u.role + 1)}>Promote</button>
-                            ) : (
-                              <span style={{ color: "#777" }}>Max role</span>
                             )}
-                            {u.role === 2 || u.role === 0 ? (
-                              <button className="muted" disabled>Demote</button>
-                            ) : (
+                            {u.role === 1 && (
                               <button className="deny-btn" onClick={() => changeRole(u.id, u.role, u.role - 1)}>Demote</button>
                             )}
                           </div>
@@ -470,7 +448,7 @@ export default function AdminPanel() {
                         <tr key={f.id}>
                           <td>{name}</td>
                           <td>{f.message}</td>
-                          <td>{new Date(f.created_at).toLocaleString()}</td>
+                          <td>{new Date(f.created_at).toLocaleDateString()}</td>
                         </tr>
                       );
                     })

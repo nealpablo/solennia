@@ -2,13 +2,12 @@
 import { Link } from "react-router-dom";
 import React, { useEffect, useState } from "react";
 import ChatDropdown from "./ChatDropdown";
+import NotificationDropdown from "./NotificationDropdown";
 
 export default function Header() {
   const [avatar, setAvatar] = useState(null);
 
-  /* =========================
-     LOAD PROFILE AVATAR
-  ========================= */
+  // Load profile avatar
   useEffect(() => {
     const loadProfile = () => {
       const profileData = localStorage.getItem("solennia_profile");
@@ -24,10 +23,7 @@ export default function Header() {
       }
     };
 
-    // Initial load
     loadProfile();
-
-    // Listen for avatar updates
     window.addEventListener("profileUpdated", loadProfile);
     window.addEventListener("storage", loadProfile);
 
@@ -37,9 +33,7 @@ export default function Header() {
     };
   }, []);
 
-  /* =========================
-     AUTH DROPDOWN STATE
-  ========================= */
+  // Auth dropdown state
   useEffect(() => {
     const token = localStorage.getItem("solennia_token");
 
@@ -103,31 +97,11 @@ export default function Header() {
             </svg>
           </button>
 
-          {/* CHAT DROPDOWN - ✅ USING ChatDropdown COMPONENT */}
+          {/* CHAT DROPDOWN */}
           <ChatDropdown />
 
-          {/* NOTIFICATIONS */}
-          <div className="relative">
-            <button
-              id="notifBtn"
-              className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-black/5"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5" />
-                <path d="M9 17a3 3 0 0 0 6 0" />
-              </svg>
-            </button>
-
-            <div
-              id="notifPanel"
-              className="hidden absolute right-0 mt-2 w-80 bg-white border border-gray-300 rounded-2xl shadow-xl z-50"
-            >
-              <div className="p-4 text-center">
-                <p className="text-base">no notifications yet.</p>
-                <p className="text-sm text-gray-600">We will let you know!</p>
-              </div>
-            </div>
-          </div>
+          {/* NOTIFICATION DROPDOWN */}
+          <NotificationDropdown />
 
           {/* PROFILE */}
           <div className="relative">

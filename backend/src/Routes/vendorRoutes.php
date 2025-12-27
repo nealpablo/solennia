@@ -10,9 +10,7 @@ use Cloudinary\Cloudinary;
 
 return function (App $app) {
 
-    /* ===========================================================
-     *  CLOUDINARY INSTANCE
-     * =========================================================== */
+    // Cloudinary instance
     $cloudinary = new Cloudinary([
         'cloud' => [
             'cloud_name' => $_ENV['CLOUDINARY_CLOUD'],
@@ -22,9 +20,7 @@ return function (App $app) {
         'url' => ['secure' => true]
     ]);
 
-    /* ===========================================================
-     *  Helper JSON Response
-     * =========================================================== */
+    // Helper JSON Response
     $json = function (Response $res, array $payload, int $status = 200) {
         $res->getBody()->write(json_encode($payload, JSON_UNESCAPED_UNICODE));
         return $res
@@ -32,9 +28,7 @@ return function (App $app) {
             ->withStatus($status);
     };
 
-    /* ===========================================================
-     *  ✅ OPTIMIZED FILE UPLOAD HELPER
-     * =========================================================== */
+    // Optimized file upload helper
     $uploadFileOptimized = function ($file, $userId, $tag) use ($cloudinary) {
         try {
             $tmp = $file->getStream()->getMetadata('uri');
@@ -67,17 +61,41 @@ return function (App $app) {
         }
     };
 
-    /* ===========================================================
-     *  ✅ NEW: CREATE VENDOR PROFILE (First-time setup)
-     * =========================================================== */
+    // Helper function to send notifications
+    $sendNotification = function ($userId, $type, $title, $message) {
+        try {
+            DB::table('notifications')->insert([
+                'user_id' => $userId,
+                'type' => $type,
+                'title' => $title,
+                'message' => $message,
+                'read' => false,
+                'created_at' => DB::raw('NOW()')
+            ]);
+        } catch (\Exception $e) {
+            error_log("Failed to send notification: " . $e->getMessage());
+        }
+    };
+
+    // Helper function to send notification to all admins
+    $sendToAdmins = function ($type, $title, $message) use ($sendNotification) {
+        try {
+            $admins = DB::table('credential')->where('role', 2)->get();
+            foreach ($admins as $admin) {
+                $sendNotification($admin->id, $type, $title, $message);
+            }
+        } catch (\Exception $e) {
+            error_log("Failed to send admin notification: " . $e->getMessage());
+        }
+    };
+
+    // Create vendor profile (first-time setup)
     $app->post('/api/vendor/profile/create', function (Request $req, Response $res) {
         $controller = new VendorController();
         return $controller->createVendorProfile($req, $res);
     })->add(new AuthMiddleware());
 
-    /* ===========================================================
-     *  VENDOR DASHBOARD
-     * =========================================================== */
+    // Vendor dashboard
     $app->get('/api/vendor/dashboard', function (Request $req, Response $res) use ($json) {
         $auth = $req->getAttribute('user');
         if (!$auth || !isset($auth->mysql_id)) {
@@ -157,15 +175,12 @@ return function (App $app) {
         }
     })->add(new AuthMiddleware());
 
-    /* ===========================================================
-     *  GET ALL VENDORS (PUBLIC) - ✅ Only shows profiles with setup complete
-     * =========================================================== */
+    // Get all vendors (public)
     $app->get('/api/vendors/public', function (Request $req, Response $res) use ($json) {
         try {
             $vendors = DB::table('eventserviceprovider as esp')
                 ->leftJoin('credential as c', 'esp.UserID', '=', 'c.id')
                 ->where('esp.ApplicationStatus', 'Approved')
-                // ✅ Only show vendors with logo (means they completed setup)
                 ->whereNotNull('esp.avatar')
                 ->select(
                     'esp.ID as id',
@@ -221,9 +236,7 @@ return function (App $app) {
         }
     });
 
-    /* ===========================================================
-     *  GET SINGLE VENDOR (PUBLIC)
-     * =========================================================== */
+    // Get single vendor (public)
     $app->get('/api/vendor/public/{userId}', function (Request $req, Response $res, array $args) use ($json) {
         try {
             $userId = (int) $args['userId'];
@@ -287,10 +300,8 @@ return function (App $app) {
         }
     });
 
-    /* ===========================================================
-     *  VENDOR APPLICATION - ✅ OPTIMIZED
-     * =========================================================== */
-    $app->post('/api/vendor/apply', function (Request $req, Response $res) use ($json, $uploadFileOptimized) {
+    // Vendor application
+    $app->post('/api/vendor/apply', function (Request $req, Response $res) use ($json, $uploadFileOptimized, $sendNotification, $sendToAdmins) {
 
         try {
             $auth = $req->getAttribute('user');
@@ -389,6 +400,20 @@ return function (App $app) {
 
             error_log("VENDOR_APPLICATION_SUCCESS: AppID={$appId}, UserID={$userId}");
 
+            // Send notifications
+            $sendToAdmins(
+                'application_submitted',
+                'New Vendor Application',
+                "{$data['business_name']} has submitted a vendor application"
+            );
+
+            $sendNotification(
+                $userId,
+                'application_received',
+                'Application Received',
+                'Your vendor application has been received and is under review. We\'ll notify you once it\'s processed.'
+            );
+
             return $json($res, [
                 'success' => true,
                 'message' => 'Vendor application submitted!',
@@ -405,17 +430,13 @@ return function (App $app) {
 
     })->add(new AuthMiddleware());
 
-    /* ===========================================================
-     *  CHECK VENDOR STATUS - ✅ UPDATED
-     * =========================================================== */
+    // Check vendor status
     $app->get('/api/vendor/status', function (Request $req, Response $res) {
         $controller = new VendorController();
         return $controller->getVendorStatus($req, $res);
     })->add(new AuthMiddleware());
 
-    /* ===========================================================
-     *  VENDOR UPDATE ROUTES
-     * =========================================================== */
+    // Vendor update routes
     $app->post('/api/vendor/profile', function (Request $req, Response $res) {
         $controller = new VendorController();
         return $controller->updateProfile($req, $res);

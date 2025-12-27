@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import Chart from "chart.js/auto";
+import toast from "../utils/toast";
 import "../style.css";
 
 const API = "/api";
@@ -63,12 +64,6 @@ export default function VendorDashboard() {
     return data;
   }
 
-  /* ================= TOAST ================= */
-  function toast(msg, type = "info") {
-    // You can replace this with a better toast library like react-toastify
-    alert(msg);
-  }
-
   /* ================= ✅ NEW: CHECK VENDOR STATUS ================= */
   useEffect(() => {
     async function checkStatus() {
@@ -100,21 +95,21 @@ export default function VendorDashboard() {
 
         // Not approved yet
         if (data.status === "pending") {
-          toast("Your vendor application is pending approval.");
+          toast.warning("Your vendor application is pending approval.");
           navigate("/profile");
           return;
         }
 
         // No application
         if (data.status === "none") {
-          toast("Please apply as a vendor first.");
+          toast.warning("Please apply as a vendor first.");
           navigate("/profile");
           return;
         }
 
       } catch (err) {
         console.error("Failed to check vendor status:", err);
-        toast(err.message);
+        toast.error(err.message);
         navigate("/profile");
       }
     }
@@ -136,13 +131,13 @@ export default function VendorDashboard() {
     try {
       // Validate
       if (!setupForm.bio || !setupForm.services || !setupForm.service_areas) {
-        toast("Please fill in all required fields");
+        toast.warning("Please fill in all required fields");
         setSubmittingSetup(false);
         return;
       }
 
       if (!setupForm.logo) {
-        toast("Please upload a business logo");
+        toast.warning("Please upload a business logo");
         setSubmittingSetup(false);
         return;
       }
@@ -163,14 +158,14 @@ export default function VendorDashboard() {
         body: fd,
       });
 
-      toast("Profile created successfully! You're now visible to clients.", "success");
+      toast.success("Profile created successfully! You're now visible to clients.");
       
       // Reload page to show dashboard
       setNeedsSetup(false);
       loadDashboard();
 
     } catch (err) {
-      toast(err.message, "error");
+      toast.error(err.message);
     } finally {
       setSubmittingSetup(false);
     }
@@ -198,7 +193,7 @@ export default function VendorDashboard() {
         }
       }
     } catch (err) {
-      toast(err.message);
+      toast.error(err.message);
     }
   }
 
@@ -228,9 +223,9 @@ export default function VendorDashboard() {
       
       setShowEdit(false);
       loadDashboard();
-      toast("Profile updated!");
+      toast.success("Profile updated!");
     } catch (err) {
-      toast(err.message);
+      toast.error(err.message);
     }
   }
 
@@ -247,9 +242,9 @@ export default function VendorDashboard() {
       
       setShowHero(false);
       loadDashboard();
-      toast("Hero image uploaded!");
+      toast.success("Hero image uploaded!");
     } catch (err) {
-      toast(err.message);
+      toast.error(err.message);
     }
   }
 
@@ -265,9 +260,9 @@ export default function VendorDashboard() {
       
       setShowLogo(false);
       loadDashboard();
-      toast("Logo uploaded!");
+      toast.success("Logo uploaded!");
     } catch (err) {
-      toast(err.message);
+      toast.error(err.message);
     }
   }
 
@@ -282,9 +277,9 @@ export default function VendorDashboard() {
       });
       
       loadDashboard();
-      toast("Gallery updated!");
+      toast.success("Gallery updated!");
     } catch (err) {
-      toast(err.message);
+      toast.error(err.message);
     }
   }
 

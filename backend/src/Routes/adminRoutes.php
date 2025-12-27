@@ -8,9 +8,23 @@ use Src\Middleware\AuthMiddleware;
 
 return function (App $app) {
 
-    /* =========================================================
-     * ADMIN: VENDOR APPLICATIONS
-     * ========================================================= */
+    // Helper function to send notifications
+    $sendNotification = function ($userId, $type, $title, $message) {
+        try {
+            DB::table('notifications')->insert([
+                'user_id' => $userId,
+                'type' => $type,
+                'title' => $title,
+                'message' => $message,
+                'read' => false,
+                'created_at' => DB::raw('NOW()')
+            ]);
+        } catch (\Exception $e) {
+            error_log("Failed to send notification: " . $e->getMessage());
+        }
+    };
+
+    // Admin: Get vendor applications
     $app->get('/api/admin/vendor-applications', function (Request $req, Response $res) {
 
         try {
@@ -75,11 +89,8 @@ return function (App $app) {
 
     })->add(new AuthMiddleware());
 
-    /* =========================================================
-     * ADMIN: APPROVE / DENY VENDOR - ✅ NEW WORKFLOW
-     * All vendors (including non-venue) set up their profile manually
-     * ========================================================= */
-    $app->post('/api/admin/vendor-application/decision', function (Request $req, Response $res) {
+    // Admin: Approve/deny vendor application
+    $app->post('/api/admin/vendor-application/decision', function (Request $req, Response $res) use ($sendNotification) {
 
         try {
             $data   = (array) $req->getParsedBody();
@@ -109,6 +120,14 @@ return function (App $app) {
                     ->where('id', $appId)
                     ->update(['status' => 'Denied']);
 
+                // Send denial notification
+                $sendNotification(
+                    $appRow->user_id,
+                    'application_denied',
+                    'Application Update',
+                    'Thank you for your application. Unfortunately, we cannot approve it at this time. Please contact support for more information.'
+                );
+
                 $res->getBody()->write(json_encode([
                     'success' => true,
                     'message' => 'Application denied.'
@@ -117,8 +136,8 @@ return function (App $app) {
                 return $res->withHeader('Content-Type', 'application/json');
             }
 
-            // ✅ NEW WORKFLOW: APPROVE WITHOUT CREATING PROFILE
-            DB::transaction(function () use ($appRow) {
+            // Approve application
+            DB::transaction(function () use ($appRow, $sendNotification) {
 
                 $businessEmail = $appRow->contact_email;
 
@@ -138,9 +157,6 @@ return function (App $app) {
                     throw new \Exception('Business email missing');
                 }
 
-                // ✅ NEW: Don't create eventserviceprovider for ANYONE
-                // ALL vendors (regular AND venue) will create their profiles manually
-                
                 // Update user role to supplier (role 1)
                 DB::table('credential')
                     ->where('id', $appRow->user_id)
@@ -150,6 +166,14 @@ return function (App $app) {
                 DB::table('vendor_application')
                     ->where('id', $appRow->id)
                     ->update(['status' => 'Approved']);
+
+                // Send approval notification
+                $sendNotification(
+                    $appRow->user_id,
+                    'application_approved',
+                    'Application Approved! 🎉',
+                    'Congratulations! Your vendor application has been approved. You can now access your vendor dashboard and complete your profile setup.'
+                );
 
                 error_log("VENDOR_APPROVED: UserID={$appRow->user_id}, Category={$appRow->category}. User will complete profile setup.");
             });
@@ -176,9 +200,7 @@ return function (App $app) {
 
     })->add(new AuthMiddleware());
 
-    /* =========================================================
-     * ADMIN: FEEDBACKS
-     * ========================================================= */
+    // Admin: Get feedbacks
     $app->get('/api/admin/feedbacks', function (Request $req, Response $res) {
 
         try {
@@ -217,9 +239,7 @@ return function (App $app) {
 
     })->add(new AuthMiddleware());
 
-    /* =========================================================
-     * ADMIN: USER MANAGEMENT
-     * ========================================================= */
+    // Admin: Get all users
     $app->get('/api/admin/users', function (Request $req, Response $res) {
 
         try {
@@ -250,9 +270,7 @@ return function (App $app) {
 
     })->add(new AuthMiddleware());
 
-    /* =========================================================
-     * ADMIN: UPDATE USER ROLE
-     * ========================================================= */
+    // Admin: Update user role
     $app->post('/api/admin/users/role', function (Request $req, Response $res) {
 
         try {
@@ -306,9 +324,7 @@ return function (App $app) {
 
     })->add(new AuthMiddleware());
 
-    /* =========================================================
-     * ADMIN: DELETE USER
-     * ========================================================= */
+    // Admin: Delete user
     $app->delete('/api/admin/users/{userId}', function (Request $req, Response $res, array $args) {
 
         try {

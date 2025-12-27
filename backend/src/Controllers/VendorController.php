@@ -126,7 +126,7 @@ class VendorController
                 'ApplicationStatus' => 'Approved',
                 'DateApplied' => $application->created_at,
                 'DateApproved' => date('Y-m-d H:i:s'),
-                'created_at' => date('Y-m-d H:i:s')
+                'created_at' => DB::raw('NOW()')
             ]);
 
             error_log("VENDOR_PROFILE_CREATED: UserID={$userId}");

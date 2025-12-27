@@ -9,6 +9,36 @@ import {
 } from "firebase/auth";
 import toast from "../utils/toast";
 
+// Helper function to convert Firebase error codes to user-friendly messages
+const getFirebaseErrorMessage = (error) => {
+  const errorCode = error?.code || '';
+  
+  const errorMessages = {
+    // Authentication errors
+    'auth/invalid-credential': 'Invalid email or password. Please try again.',
+    'auth/user-not-found': 'No account found with this email address.',
+    'auth/wrong-password': 'Incorrect password. Please try again.',
+    'auth/invalid-email': 'Please enter a valid email address.',
+    'auth/user-disabled': 'This account has been disabled.',
+    'auth/email-already-in-use': 'This email is already registered. Please login instead.',
+    'auth/weak-password': 'Password is too weak. Please use a stronger password.',
+    'auth/operation-not-allowed': 'This operation is not allowed. Please contact support.',
+    'auth/too-many-requests': 'Too many failed attempts. Please try again later.',
+    'auth/network-request-failed': 'Network error. Please check your internet connection.',
+    'auth/popup-blocked': 'Popup was blocked. Please allow popups for this site.',
+    'auth/popup-closed-by-user': 'Authentication was cancelled.',
+    'auth/requires-recent-login': 'Please login again to perform this action.',
+    'auth/credential-already-in-use': 'This credential is already associated with another account.',
+    'auth/invalid-verification-code': 'Invalid verification code.',
+    'auth/invalid-verification-id': 'Invalid verification ID.',
+    'auth/missing-verification-code': 'Please enter the verification code.',
+    'auth/missing-verification-id': 'Verification ID is missing.',
+    'auth/account-exists-with-different-credential': 'An account already exists with this email but different sign-in method.',
+  };
+  
+  return errorMessages[errorCode] || error?.message || 'An error occurred. Please try again.';
+};
+
 export default function Modals() {
 
   /* =========================
@@ -345,7 +375,8 @@ export default function Modals() {
       // Refresh page to update header avatar
       window.location.reload();
     } catch (err) {
-      toast.error(err.message || "Login failed. Please try again.");
+      console.error("Login error:", err);
+      toast.error(getFirebaseErrorMessage(err));
     }
   };
 
@@ -412,7 +443,8 @@ export default function Modals() {
 
       openLogin();
     } catch (err) {
-      toast.error(err.message || "Registration failed. Please try again.");
+      console.error("Registration error:", err);
+      toast.error(getFirebaseErrorMessage(err));
     }
   };
 
@@ -439,14 +471,7 @@ export default function Modals() {
       closeAll();
     } catch (err) {
       console.error("Password reset error:", err);
-      
-      if (err.code === "auth/user-not-found") {
-        toast.error("No account found with this email address");
-      } else if (err.code === "auth/invalid-email") {
-        toast.error("Invalid email address");
-      } else {
-        toast.error("Failed to send reset email. Please try again.");
-      }
+      toast.error(getFirebaseErrorMessage(err));
     } finally {
       setForgotLoading(false);
     }
@@ -467,8 +492,12 @@ export default function Modals() {
     document.getElementById("menuSignIn")?.classList.remove("hidden");
     document.getElementById("menuSignUp")?.classList.remove("hidden");
 
-    toast.info("Logged out successfully");
-    window.location.href = "/";
+    toast.success("Logged out successfully");
+    
+    // Give toast time to show before redirecting
+    setTimeout(() => {
+      window.location.href = "/";
+    }, 1000);
   };
 
   /* =========================

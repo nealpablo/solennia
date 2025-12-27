@@ -42,7 +42,7 @@ return function (App $app) {
             DB::table('feedback')->insert([
                 'user_id'    => $userId,
                 'message'    => $message,
-                'created_at' => date('Y-m-d H:i:s')
+                'created_at' => DB::raw('NOW()')
             ]);
 
             $res->getBody()->write(json_encode([

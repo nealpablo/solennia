@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import React from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import toast from "../utils/toast";
 import "../style.css";
 
 const API = "/api";
@@ -19,7 +20,7 @@ export default function VendorProfile() {
   ========================= */
   useEffect(() => {
     if (!vendorId) {
-      alert("Vendor not found");
+      toast.error("Vendor not found");
       navigate("/vendors");
       return;
     }
@@ -34,7 +35,7 @@ export default function VendorProfile() {
 
         setVendor(json.vendor);
       } catch (err) {
-        alert("Unable to load vendor.");
+        toast.error("Unable to load vendor.");
         navigate("/vendors");
       } finally {
         setLoading(false);

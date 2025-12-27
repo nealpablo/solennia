@@ -113,7 +113,7 @@ class VenueController
                 'pricing' => $data['pricing'],
                 'contact_email' => $data['contact_email'] ?? null,
                 'status' => 'Active',
-                'created_at' => date('Y-m-d H:i:s')
+                'created_at' => DB::raw('NOW()')
             ];
 
             // Try different possible column names for the main image

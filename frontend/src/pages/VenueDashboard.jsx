@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import React from "react";
 import { useNavigate } from "react-router-dom";
+import toast from "../utils/toast";
 import "../style.css";
 
 const API = "/api";
@@ -61,19 +62,19 @@ export default function VenueDashboard() {
       const data = await res.json();
       
       if (!data.success) {
-        alert("Please apply as a vendor first");
+        toast.warning("Please apply as a vendor first");
         navigate("/profile");
         return;
       }
 
       if (data.category?.toLowerCase() !== "venue") {
-        alert("Access denied - This page is for venue vendors only");
+        toast.error("Access denied - This page is for venue vendors only");
         navigate("/vendor-dashboard");
         return;
       }
 
       if (data.status !== "approved") {
-        alert("Your venue vendor application is still pending approval");
+        toast.warning("Your venue vendor application is still pending approval");
         navigate("/profile");
         return;
       }
@@ -83,7 +84,7 @@ export default function VenueDashboard() {
       
     } catch (err) {
       console.error("Failed to check vendor status:", err);
-      alert("Error checking vendor status");
+      toast.error("Error checking vendor status");
       navigate("/");
     }
   };
@@ -127,12 +128,12 @@ export default function VenueDashboard() {
     e.preventDefault();
 
     if (!listingForm.venue_name.trim() || !listingForm.address.trim() || !listingForm.pricing.trim()) {
-      alert("Please fill in venue name, address, and pricing");
+      toast.warning("Please fill in venue name, address, and pricing");
       return;
     }
 
     if (!editingListing && !listingForm.logo) {
-      alert("Please upload a logo image");
+      toast.warning("Please upload a logo image");
       return;
     }
 
@@ -182,7 +183,7 @@ export default function VenueDashboard() {
         throw new Error(data.error || "Failed to save listing");
       }
 
-      alert(editingListing ? "Listing updated successfully!" : "Listing created successfully!");
+      toast.success(editingListing ? "Listing updated successfully!" : "Listing created successfully!");
       
       resetForm();
       setShowCreateListing(false);
@@ -191,7 +192,7 @@ export default function VenueDashboard() {
       
     } catch (err) {
       console.error("Error submitting listing:", err);
-      alert(err.message);
+      toast.error(err.message);
     }
   };
 
@@ -213,12 +214,12 @@ export default function VenueDashboard() {
         throw new Error(data.error || "Failed to delete listing");
       }
 
-      alert("Listing deleted successfully!");
+      toast.success("Listing deleted successfully!");
       loadMyListings();
       
     } catch (err) {
       console.error("Error deleting listing:", err);
-      alert(err.message);
+      toast.error(err.message);
     }
   };
 
