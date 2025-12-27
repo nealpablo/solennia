@@ -321,7 +321,7 @@ export default function Profile() {
       <main className="pb-24 bg-[#f6f0e8] text-[#1c1b1a] min-h-screen">
         <div className="max-w-7xl mx-auto px-4 py-6">
           {/* ================= PAGE HEADER ================= */}
-          <div className="flex justify-between items-center mb-6">
+          <div className="mb-6">
           </div>
 
           {/* ================= TWO COLUMN LAYOUT (40/60) ================= */}
@@ -435,10 +435,10 @@ export default function Profile() {
                 {/* Scrollable Content */}
                 <div className="flex-1 overflow-y-auto">
                   {/* Favorite Item 1 */}
-                  <div className="group relative overflow-hidden cursor-pointer mb-3">
+                  <div className="group relative overflow-hidden cursor-pointer transition-transform duration-300 hover:-translate-y-2">
                     <img
                       src="/images/gallery1.jpg"
-                      className="w-full h-72 object-cover group-hover:scale-105 transition-transform duration-500"
+                      className="w-full h-72 object-cover"
                       alt="Favorite 1"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/25 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
@@ -467,10 +467,10 @@ export default function Profile() {
                   </div>
 
                   {/* Favorite Item 2 */}
-                  <div className="group relative overflow-hidden cursor-pointer mb-3">
+                  <div className="group relative overflow-hidden cursor-pointer transition-transform duration-300 hover:-translate-y-2">
                     <img
                       src="/images/gallery2.jpg"
-                      className="w-full h-72 object-cover group-hover:scale-105 transition-transform duration-500"
+                      className="w-full h-72 object-cover"
                       alt="Favorite 2"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/25 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
