@@ -1,7 +1,7 @@
 // src/partials/ChatDropdown.jsx - Message preview dropdown for header
 import React, { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
-import { listThreadsForCurrentUser, initChat } from "../firebase-chat";
+import { listThreadsForCurrentUser, initChat, onAllThreadsUpdate } from "../firebase-chat";
 import "../chat.css";
 
 const API = "/api";
@@ -10,6 +10,7 @@ export default function ChatDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0); // ✅ Track unread messages
   const dropdownRef = useRef(null);
 
   // Close dropdown when clicking outside
@@ -32,6 +33,66 @@ export default function ChatDropdown() {
       loadConversations();
     }
   }, [isOpen]);
+  
+  // ✅ NEW: Set up real-time listener for thread updates (for unread count)
+  useEffect(() => {
+    let unsubscribe = null;
+    
+    async function setupListener() {
+      try {
+        const token = localStorage.getItem("solennia_token");
+        if (!token) return;
+        
+        await initChat();
+        
+        unsubscribe = onAllThreadsUpdate(async (threads) => {
+          // Enrich with user data for unread count calculation
+          const enriched = await Promise.all(
+            threads.map(async (thread) => {
+              try {
+                const res = await fetch(`${API}/users/${thread.otherUid}`, {
+                  headers: { Authorization: `Bearer ${token}` }
+                });
+                
+                if (res.ok) {
+                  const json = await res.json();
+                  const user = json.user;
+                  
+                  let displayName = `${user.first_name} ${user.last_name}`;
+                  
+                  if (user.role === 1) {
+                    try {
+                      const vendorRes = await fetch(`${API}/vendor/public/${user.id}`);
+                      if (vendorRes.ok) {
+                        const vendorJson = await vendorRes.json();
+                        displayName = vendorJson.vendor?.business_name || displayName;
+                      }
+                    } catch (e) {}
+                  }
+                  
+                  return {
+                    ...thread,
+                    displayName
+                  };
+                }
+              } catch (e) {}
+              return thread;
+            })
+          );
+          
+          calculateUnreadCount(enriched.filter(t => t.displayName));
+        });
+      } catch (err) {
+        console.error('Error setting up thread listener:', err);
+      }
+    }
+    
+    setupListener();
+    
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
 
   async function loadConversations() {
     setLoading(true);
@@ -92,12 +153,38 @@ export default function ChatDropdown() {
         })
       );
 
-      setConversations(enriched.filter(c => c.displayName));
+      const filtered = enriched.filter(c => c.displayName);
+      setConversations(filtered);
+      
+      // ✅ Calculate unread count
+      calculateUnreadCount(filtered);
       
     } catch (err) {
       console.error("Failed to load conversations:", err);
     } finally {
       setLoading(false);
+    }
+  }
+
+  // ✅ NEW: Calculate unread messages based on last seen timestamps
+  function calculateUnreadCount(convs) {
+    try {
+      const lastSeenData = localStorage.getItem('chat_last_seen') || '{}';
+      const lastSeen = JSON.parse(lastSeenData);
+      
+      let count = 0;
+      for (const conv of convs) {
+        const threadLastSeen = lastSeen[conv.threadId] || 0;
+        // If conversation has a message newer than last seen, count as unread
+        if (conv.lastTs && conv.lastTs > threadLastSeen) {
+          count++;
+        }
+      }
+      
+      setUnreadCount(count);
+    } catch (e) {
+      console.error('Error calculating unread count:', e);
+      setUnreadCount(0);
     }
   }
 
@@ -141,9 +228,9 @@ export default function ChatDropdown() {
         </svg>
         
         {/* Unread Badge */}
-        {conversations.length > 0 && (
+        {unreadCount > 0 && (
           <span className="absolute -top-1 -right-1 bg-red-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-            {conversations.length > 9 ? "9+" : conversations.length}
+            {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
       </button>

@@ -97,6 +97,9 @@ export default function Profile() {
         }));
         localStorage.setItem("solennia_role", j.user.role ?? 0);
         setRole(j.user.role ?? 0);
+        
+        // ✅ FIX: Save profile to localStorage for header
+        localStorage.setItem("solennia_profile", JSON.stringify(j.user));
       });
   }, [token]);
 
@@ -125,7 +128,7 @@ export default function Profile() {
     return () => URL.revokeObjectURL(objectUrl);
   }, [avatarFile]);
 
-  /* ================= AVATAR UPLOAD (CLOUDINARY) ================= */
+  /* ================= AVATAR UPLOAD (✅ FIXED) ================= */
   async function uploadAvatar(e) {
     e.preventDefault();
     if (!avatarFile) {
@@ -148,21 +151,26 @@ export default function Profile() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Upload failed");
 
-      setProfile((p) => ({ ...p, avatar: json.avatar || p.avatar }));
+      // ✅ FIX: Extract avatar from response
+      const newAvatar = json.avatar;
+      setProfile((p) => ({ ...p, avatar: newAvatar }));
 
-// 🔥 SAVE TO LOCAL STORAGE FOR HEADER
-localStorage.setItem(
-  "solennia_profile",
-  JSON.stringify({
-    ...(JSON.parse(localStorage.getItem("solennia_profile")) || {}),
-    avatar: json.avatar,
-  })
-);
+      // ✅ FIX: Update localStorage with new avatar
+      const existingProfile = JSON.parse(localStorage.getItem("solennia_profile") || "{}");
+      localStorage.setItem(
+        "solennia_profile",
+        JSON.stringify({
+          ...existingProfile,
+          avatar: newAvatar,
+        })
+      );
 
-// 🔔 NOTIFY HEADER
-window.dispatchEvent(new Event("profileUpdated"));
+      // ✅ FIX: Dispatch event to notify header
+      window.dispatchEvent(new CustomEvent("profileUpdated", { 
+        detail: { avatar: newAvatar } 
+      }));
 
-toast.success("Profile picture updated successfully!");
+      toast.success("Profile picture updated successfully!");
       setShowAvatarModal(false);
       setAvatarFile(null);
       setAvatarPreview(null);
@@ -258,9 +266,22 @@ toast.success("Profile picture updated successfully!");
         }));
       }
 
-      // Update local profile
+      // ✅ FIX: Update local profile and localStorage
       if (Object.keys(updatedFields).length > 0) {
         setProfile(prev => ({ ...prev, ...updatedFields }));
+        
+        // Update localStorage
+        const existingProfile = JSON.parse(localStorage.getItem("solennia_profile") || "{}");
+        localStorage.setItem(
+          "solennia_profile",
+          JSON.stringify({
+            ...existingProfile,
+            ...updatedFields
+          })
+        );
+
+        // Dispatch event
+        window.dispatchEvent(new Event("profileUpdated"));
       }
 
       if (!passwordChanged && Object.keys(updatedFields).length === 0) {

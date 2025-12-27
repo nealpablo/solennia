@@ -29,20 +29,14 @@ return function (App $app) {
                     'va.pricing',
                     'va.created_at',
                     DB::raw('COALESCE(va.status, "Pending") as status'),
-
-                    // Document URLs
                     'va.permits',
                     'va.gov_id',
                     'va.portfolio',
-
-                    // ✅ NEW: Venue-specific fields
                     'va.venue_subcategory',
                     'va.venue_capacity',
                     'va.venue_amenities',
                     'va.venue_operating_hours',
                     'va.venue_parking',
-
-                    // User info
                     'c.first_name',
                     'c.last_name',
                     'c.username',
@@ -82,7 +76,8 @@ return function (App $app) {
     })->add(new AuthMiddleware());
 
     /* =========================================================
-     * ADMIN: APPROVE / DENY VENDOR - ✅ FIXED FOR VENUES
+     * ADMIN: APPROVE / DENY VENDOR - ✅ NEW WORKFLOW
+     * All vendors (including non-venue) set up their profile manually
      * ========================================================= */
     $app->post('/api/admin/vendor-application/decision', function (Request $req, Response $res) {
 
@@ -110,17 +105,19 @@ return function (App $app) {
             }
 
             if ($action === 'deny') {
-                DB::table('vendor_application')->where('id', $appId)->delete();
+                DB::table('vendor_application')
+                    ->where('id', $appId)
+                    ->update(['status' => 'Denied']);
 
                 $res->getBody()->write(json_encode([
                     'success' => true,
-                    'message' => 'Application denied and removed.'
+                    'message' => 'Application denied.'
                 ]));
 
                 return $res->withHeader('Content-Type', 'application/json');
             }
 
-            // ✅ APPROVE ACTION - FIXED TO HANDLE VENUE FIELDS
+            // ✅ NEW WORKFLOW: APPROVE WITHOUT CREATING PROFILE
             DB::transaction(function () use ($appRow) {
 
                 $businessEmail = $appRow->contact_email;
@@ -141,42 +138,9 @@ return function (App $app) {
                     throw new \Exception('Business email missing');
                 }
 
-                // ✅ NEW: Prepare insert data with venue fields if category is Venue
-                $insertData = [
-                    'UserID'            => $appRow->user_id,
-                    'BusinessName'      => $appRow->business_name,
-                    'Category'          => $appRow->category,
-                    'BusinessEmail'     => $businessEmail,
-                    'BusinessAddress'   => $appRow->address,
-                    'Description'       => $appRow->description,
-                    'Pricing'           => $appRow->pricing,
-                    'ApplicationStatus' => 'Approved',
-                    'DateApplied'       => $appRow->created_at,
-                    'DateApproved'      => date('Y-m-d H:i:s'),
-                ];
-
-                // ✅ NEW: Add venue-specific fields if this is a venue application
-                if (strtolower(trim($appRow->category)) === 'venue') {
-                    $insertData['venue_subcategory'] = $appRow->venue_subcategory ?? null;
-                    $insertData['venue_capacity'] = $appRow->venue_capacity ?? null;
-                    $insertData['venue_amenities'] = $appRow->venue_amenities ?? null;
-                    $insertData['venue_operating_hours'] = $appRow->venue_operating_hours ?? null;
-                    $insertData['venue_parking'] = $appRow->venue_parking ?? null;
-                }
-
-                // ✅ NEW: Add document URLs (permits, gov_id, portfolio)
-                if (!empty($appRow->permits)) {
-                    $insertData['Permits'] = $appRow->permits;
-                }
-                if (!empty($appRow->gov_id)) {
-                    $insertData['GovID'] = $appRow->gov_id;
-                }
-                if (!empty($appRow->portfolio)) {
-                    $insertData['HeroImageUrl'] = $appRow->portfolio; // Use portfolio as hero image
-                }
-
-                DB::table('eventserviceprovider')->insert($insertData);
-
+                // ✅ NEW: Don't create eventserviceprovider for ANYONE
+                // ALL vendors (regular AND venue) will create their profiles manually
+                
                 // Update user role to supplier (role 1)
                 DB::table('credential')
                     ->where('id', $appRow->user_id)
@@ -186,11 +150,13 @@ return function (App $app) {
                 DB::table('vendor_application')
                     ->where('id', $appRow->id)
                     ->update(['status' => 'Approved']);
+
+                error_log("VENDOR_APPROVED: UserID={$appRow->user_id}, Category={$appRow->category}. User will complete profile setup.");
             });
 
             $res->getBody()->write(json_encode([
                 'success' => true,
-                'message' => 'Vendor approved and promoted to supplier.'
+                'message' => 'Vendor approved. They can now complete their profile setup.'
             ]));
 
             return $res->withHeader('Content-Type', 'application/json');
@@ -200,10 +166,12 @@ return function (App $app) {
 
             $res->getBody()->write(json_encode([
                 'success' => false,
-                'error'   => $e->getMessage()
+                'error'   => 'Failed to process application: ' . $e->getMessage()
             ]));
 
-            return $res->withHeader('Content-Type', 'application/json')->withStatus(500);
+            return $res
+                ->withHeader('Content-Type', 'application/json')
+                ->withStatus(500);
         }
 
     })->add(new AuthMiddleware());
@@ -213,37 +181,72 @@ return function (App $app) {
      * ========================================================= */
     $app->get('/api/admin/feedbacks', function (Request $req, Response $res) {
 
-        $rows = DB::table('feedback as f')
-            ->leftJoin('credential as c', 'f.user_id', '=', 'c.id')
-            ->select('f.id','f.message','f.created_at','c.first_name','c.last_name','c.username')
-            ->orderBy('f.created_at', 'desc')
-            ->get();
+        try {
+            $rows = DB::table('feedback as f')
+                ->leftJoin('credential as c', 'f.user_id', '=', 'c.id')
+                ->select(
+                    'f.id',
+                    'f.message',
+                    'f.created_at',
+                    'c.first_name',
+                    'c.last_name',
+                    'c.username'
+                )
+                ->orderBy('f.created_at', 'desc')
+                ->get();
 
-        $res->getBody()->write(json_encode([
-            'success'   => true,
-            'feedbacks'=> $rows
-        ]));
+            $res->getBody()->write(json_encode([
+                'success'   => true,
+                'feedbacks' => $rows
+            ]));
 
-        return $res->withHeader('Content-Type', 'application/json');
+            return $res->withHeader('Content-Type', 'application/json');
+
+        } catch (\Throwable $e) {
+            error_log('ADMIN_FEEDBACKS_ERROR: ' . $e->getMessage());
+
+            $res->getBody()->write(json_encode([
+                'success' => false,
+                'error'   => 'Failed to fetch feedbacks'
+            ]));
+
+            return $res
+                ->withHeader('Content-Type', 'application/json')
+                ->withStatus(500);
+        }
 
     })->add(new AuthMiddleware());
 
     /* =========================================================
-     * ADMIN: USERS
+     * ADMIN: USER MANAGEMENT
      * ========================================================= */
     $app->get('/api/admin/users', function (Request $req, Response $res) {
 
-        $rows = DB::table('credential')
-            ->select('id','first_name','last_name','email','username','role','created_at')
-            ->orderBy('created_at', 'desc')
-            ->get();
+        try {
+            $users = DB::table('credential')
+                ->select('id', 'first_name', 'last_name', 'username', 'email', 'role', 'is_verified', 'created_at')
+                ->orderByDesc('created_at')
+                ->get();
 
-        $res->getBody()->write(json_encode([
-            'success' => true,
-            'users'   => $rows
-        ]));
+            $res->getBody()->write(json_encode([
+                'success' => true,
+                'users'   => $users
+            ]));
 
-        return $res->withHeader('Content-Type', 'application/json');
+            return $res->withHeader('Content-Type', 'application/json');
+
+        } catch (\Throwable $e) {
+            error_log('ADMIN_USERS_ERROR: ' . $e->getMessage());
+
+            $res->getBody()->write(json_encode([
+                'success' => false,
+                'error'   => 'Failed to fetch users'
+            ]));
+
+            return $res
+                ->withHeader('Content-Type', 'application/json')
+                ->withStatus(500);
+        }
 
     })->add(new AuthMiddleware());
 
@@ -252,14 +255,106 @@ return function (App $app) {
      * ========================================================= */
     $app->post('/api/admin/users/role', function (Request $req, Response $res) {
 
-        $data = (array) $req->getParsedBody();
+        try {
+            $data = (array) $req->getParsedBody();
+            $userId = (int) ($data['user_id'] ?? 0);
+            $newRole = (int) ($data['role'] ?? -1);
 
-        DB::table('credential')
-            ->where('id', (int) $data['user_id'])
-            ->update(['role' => (int) $data['role']]);
+            if (!$userId || $newRole < 0 || $newRole > 2) {
+                $res->getBody()->write(json_encode([
+                    'success' => false,
+                    'error'   => 'Invalid user or role'
+                ]));
+                return $res->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
 
-        $res->getBody()->write(json_encode(['success' => true]));
-        return $res->withHeader('Content-Type', 'application/json');
+            $userExists = DB::table('credential')
+                ->where('id', $userId)
+                ->exists();
+
+            if (!$userExists) {
+                $res->getBody()->write(json_encode([
+                    'success' => false,
+                    'error'   => 'User not found'
+                ]));
+                return $res->withHeader('Content-Type', 'application/json')->withStatus(404);
+            }
+
+            DB::table('credential')
+                ->where('id', $userId)
+                ->update(['role' => $newRole]);
+
+            $res->getBody()->write(json_encode([
+                'success' => true,
+                'message' => 'User role updated'
+            ]));
+
+            return $res->withHeader('Content-Type', 'application/json');
+
+        } catch (\Throwable $e) {
+            error_log('ADMIN_UPDATE_ROLE_ERROR: ' . $e->getMessage());
+
+            $res->getBody()->write(json_encode([
+                'success' => false,
+                'error'   => 'Failed to update role'
+            ]));
+
+            return $res
+                ->withHeader('Content-Type', 'application/json')
+                ->withStatus(500);
+        }
+
+    })->add(new AuthMiddleware());
+
+    /* =========================================================
+     * ADMIN: DELETE USER
+     * ========================================================= */
+    $app->delete('/api/admin/users/{userId}', function (Request $req, Response $res, array $args) {
+
+        try {
+            $userId = (int) ($args['userId'] ?? 0);
+
+            if (!$userId) {
+                $res->getBody()->write(json_encode([
+                    'success' => false,
+                    'error'   => 'Invalid user ID'
+                ]));
+                return $res->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+
+            $userExists = DB::table('credential')
+                ->where('id', $userId)
+                ->exists();
+
+            if (!$userExists) {
+                $res->getBody()->write(json_encode([
+                    'success' => false,
+                    'error'   => 'User not found'
+                ]));
+                return $res->withHeader('Content-Type', 'application/json')->withStatus(404);
+            }
+
+            DB::table('credential')->where('id', $userId)->delete();
+
+            $res->getBody()->write(json_encode([
+                'success' => true,
+                'message' => 'User deleted'
+            ]));
+
+            return $res->withHeader('Content-Type', 'application/json');
+
+        } catch (\Throwable $e) {
+            error_log('ADMIN_DELETE_USER_ERROR: ' . $e->getMessage());
+
+            $res->getBody()->write(json_encode([
+                'success' => false,
+                'error'   => 'Failed to delete user'
+            ]));
+
+            return $res
+                ->withHeader('Content-Type', 'application/json')
+                ->withStatus(500);
+        }
 
     })->add(new AuthMiddleware());
 

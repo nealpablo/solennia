@@ -8,7 +8,8 @@ import {
   listThreadsForCurrentUser,
   openThreadByOtherUid,
   sendMessageToThread,
-  onThreadMessages
+  onThreadMessages,
+  onAllThreadsUpdate
 } from "../firebase-chat";
 
 const API = "/api";
@@ -27,6 +28,7 @@ export default function Chat() {
   const meUid = useRef(null);
   const messagesRef = useRef(null);
   const unsubscribeRef = useRef(null);
+  const threadsUnsubscribeRef = useRef(null); // ✅ For real-time threads listener
   const hasAutoOpened = useRef(false);
 
   useEffect(() => {
@@ -48,6 +50,12 @@ export default function Chat() {
         meUid.current = currentUserUid();
         await loadContacts();
         
+        // ✅ NEW: Set up real-time listener for thread updates
+        threadsUnsubscribeRef.current = onAllThreadsUpdate(async (threads) => {
+          console.log('🔄 Threads updated:', threads.length);
+          await updateContactsFromThreads(threads);
+        });
+        
       } catch (err) {
         console.error("Failed to initialize chat:", err);
         toast.error("Failed to initialize chat");
@@ -58,6 +66,97 @@ export default function Chat() {
     
     init();
   }, []);
+
+  // ✅ NEW: Update contacts when threads change in real-time
+  async function updateContactsFromThreads(threads) {
+    const token = localStorage.getItem("solennia_token");
+    if (!token) return;
+
+    setContacts(prevContacts => {
+      const contactMap = new Map();
+      
+      // First, keep all existing contacts
+      for (const contact of prevContacts) {
+        if (contact.firebase_uid) {
+          contactMap.set(contact.firebase_uid, { ...contact });
+        }
+      }
+
+      // Update with thread data
+      for (const thread of threads) {
+        const { otherUid, lastMessageSnippet, lastTs } = thread;
+        
+        if (contactMap.has(otherUid)) {
+          // Update existing contact's message info
+          const contact = contactMap.get(otherUid);
+          contact.lastMessage = lastMessageSnippet;
+          contact.lastTs = lastTs;
+        } else {
+          // New contact - fetch their info asynchronously
+          fetchAndAddContact(otherUid, lastMessageSnippet, lastTs);
+        }
+      }
+
+      // Convert to array and sort
+      const updatedContacts = Array.from(contactMap.values())
+        .sort((a, b) => (b.lastTs || 0) - (a.lastTs || 0));
+
+      return updatedContacts;
+    });
+  }
+
+  // ✅ NEW: Fetch user info and add to contacts
+  async function fetchAndAddContact(firebaseUid, lastMessage, lastTs) {
+    try {
+      const token = localStorage.getItem("solennia_token");
+      const userRes = await fetch(`${API}/users/${firebaseUid}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (userRes.ok) {
+        const userData = await userRes.json();
+        const user = userData.user;
+        
+        let displayName = `${user.first_name} ${user.last_name}`;
+        let avatar = user.avatar;
+        
+        // If vendor, get business name
+        if (user.role === 1) {
+          try {
+            const vendorRes = await fetch(`${API}/vendor/public/${user.id}`);
+            if (vendorRes.ok) {
+              const vendorData = await vendorRes.json();
+              displayName = vendorData.vendor?.business_name || displayName;
+              avatar = vendorData.vendor?.vendor_logo || avatar;
+            }
+          } catch (e) {
+            console.log("Could not fetch vendor info");
+          }
+        }
+        
+        const newContact = {
+          id: user.id,
+          firebase_uid: firebaseUid,
+          first_name: user.first_name,
+          last_name: user.last_name,
+          role: user.role,
+          avatar: avatar,
+          displayName: displayName,
+          lastMessage: lastMessage,
+          lastTs: lastTs
+        };
+        
+        // Add to contacts if not already there
+        setContacts(prev => {
+          const exists = prev.find(c => c.firebase_uid === firebaseUid);
+          if (exists) return prev;
+          return [newContact, ...prev].sort((a, b) => (b.lastTs || 0) - (a.lastTs || 0));
+        });
+      }
+    } catch (err) {
+      console.error("Failed to fetch contact:", err);
+    }
+  }
 
   // ✅ FIXED: Prevent duplicate contacts
   async function loadContacts() {
@@ -80,13 +179,35 @@ export default function Chat() {
 
       // ✅ FIX: Use Map with firebase_uid as key to prevent duplicates
       const contactMap = new Map();
+      const userIdSet = new Set(); // Track MySQL user IDs to prevent duplicates
 
-      // Add admin contacts first
+      // Add admin/vendor contacts from MySQL first
       for (const contact of mysqlContacts) {
-        if (contact.firebase_uid) {
+        if (contact.firebase_uid && contact.id) {
+          // Track this user ID
+          userIdSet.add(contact.id);
+          
+          let displayName = `${contact.first_name} ${contact.last_name}`;
+          let avatar = contact.avatar;
+          
+          // ✅ FIX: If vendor, fetch business name even for MySQL contacts
+          if (contact.role === 1) {
+            try {
+              const vendorRes = await fetch(`${API}/vendor/public/${contact.id}`);
+              if (vendorRes.ok) {
+                const vendorData = await vendorRes.json();
+                displayName = vendorData.vendor?.business_name || displayName;
+                avatar = vendorData.vendor?.vendor_logo || avatar;
+              }
+            } catch (e) {
+              console.log("Could not fetch vendor info for MySQL contact");
+            }
+          }
+          
           contactMap.set(contact.firebase_uid, {
             ...contact,
-            displayName: `${contact.first_name} ${contact.last_name}`,
+            displayName: displayName,
+            avatar: avatar,
             lastMessage: "",
             lastTs: 0
           });
@@ -97,58 +218,60 @@ export default function Chat() {
       for (const thread of threads) {
         const { otherUid, lastMessageSnippet, lastTs } = thread;
         
-        // ✅ FIX: Check if contact already exists by firebase_uid
-        if (contactMap.has(otherUid)) {
-          // Just update message info, don't replace contact
-          const contact = contactMap.get(otherUid);
-          contact.lastMessage = lastMessageSnippet;
-          contact.lastTs = lastTs;
-        } else {
-          // New contact from thread - fetch their info
-          try {
-            const userRes = await fetch(`${API}/users/${otherUid}`, {
-              headers: { Authorization: `Bearer ${token}` }
-            });
+        // ✅ CRITICAL FIX: Always fetch user info to get latest data and vendor info
+        try {
+          const userRes = await fetch(`${API}/users/${otherUid}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          
+          if (userRes.ok) {
+            const userData = await userRes.json();
+            const user = userData.user;
             
-            if (userRes.ok) {
-              const userData = await userRes.json();
-              const user = userData.user;
-              
-              let displayName = `${user.first_name} ${user.last_name}`;
-              let avatar = user.avatar;
-              
-              // If vendor, get business name
-              if (user.role === 1) {
-                try {
-                  const vendorRes = await fetch(`${API}/vendor/public/${user.id}`);
-                  if (vendorRes.ok) {
-                    const vendorData = await vendorRes.json();
-                    displayName = vendorData.vendor?.business_name || displayName;
-                    avatar = vendorData.vendor?.vendor_logo || avatar;
-                  }
-                } catch (e) {
-                  console.log("Could not fetch vendor info");
-                }
+            // ✅ FIX: Skip if this user ID was already added from MySQL
+            if (userIdSet.has(user.id)) {
+              // Just update the message info for existing entry
+              const existingContact = contactMap.get(otherUid);
+              if (existingContact) {
+                existingContact.lastMessage = lastMessageSnippet;
+                existingContact.lastTs = lastTs;
               }
-              
-              // ✅ Only add if not already in map
-              if (!contactMap.has(otherUid)) {
-                contactMap.set(otherUid, {
-                  id: user.id,
-                  firebase_uid: otherUid,
-                  first_name: user.first_name,
-                  last_name: user.last_name,
-                  role: user.role,
-                  avatar: avatar,
-                  displayName: displayName,
-                  lastMessage: lastMessageSnippet,
-                  lastTs: lastTs
-                });
+              continue;
+            }
+            
+            let displayName = `${user.first_name} ${user.last_name}`;
+            let avatar = user.avatar;
+            
+            // If vendor, get business name
+            if (user.role === 1) {
+              try {
+                const vendorRes = await fetch(`${API}/vendor/public/${user.id}`);
+                if (vendorRes.ok) {
+                  const vendorData = await vendorRes.json();
+                  displayName = vendorData.vendor?.business_name || displayName;
+                  avatar = vendorData.vendor?.vendor_logo || avatar;
+                }
+              } catch (e) {
+                console.log("Could not fetch vendor info");
               }
             }
-          } catch (e) {
-            console.error("Failed to fetch user:", e);
+            
+            // ✅ FIX: Set/update contact with complete info including vendor data
+            userIdSet.add(user.id); // Track this user ID
+            contactMap.set(otherUid, {
+              id: user.id,
+              firebase_uid: otherUid,
+              first_name: user.first_name,
+              last_name: user.last_name,
+              role: user.role,
+              avatar: avatar,
+              displayName: displayName,
+              lastMessage: lastMessageSnippet,
+              lastTs: lastTs
+            });
           }
+        } catch (e) {
+          console.error("Failed to fetch user:", e);
         }
       }
 
@@ -238,6 +361,18 @@ export default function Chat() {
     }
   }
 
+  // ✅ NEW: Mark thread as seen (update last seen timestamp)
+  function markThreadAsSeen(threadId) {
+    try {
+      const lastSeenData = localStorage.getItem('chat_last_seen') || '{}';
+      const lastSeen = JSON.parse(lastSeenData);
+      lastSeen[threadId] = Date.now();
+      localStorage.setItem('chat_last_seen', JSON.stringify(lastSeen));
+    } catch (e) {
+      console.error('Error marking thread as seen:', e);
+    }
+  }
+
   // ✅ CRITICAL FIX: Properly unsubscribe from old messages when switching contacts
   function openChat(contact) {
     if (!meUid.current) {
@@ -262,12 +397,31 @@ export default function Chat() {
 
       const { threadId } = result;
       setMessages([]);
+      
+      // ✅ Mark this thread as seen
+      markThreadAsSeen(threadId);
 
-      // ✅ CRITICAL FIX: Store the actual unsubscribe function
+      // ✅ CRITICAL FIX: Store the actual unsubscribe function and filter messages
       const unsubscribe = onThreadMessages(threadId, (msg) => {
         setMessages((prev) => {
+          // Only add message if it doesn't already exist
           const exists = prev.find((m) => m.id === msg.id);
           if (exists) return prev;
+          
+          // ✅ FIX: Since messages are stored under messages/${threadId}, they already belong to this thread
+          // Just verify the sender is one of the two participants (me or active contact)
+          const isValidSender = 
+            msg.senderUid === meUid.current || 
+            msg.senderUid === contact.firebase_uid;
+          
+          if (!isValidSender) {
+            console.warn('Message from unexpected sender:', msg.senderUid);
+            return prev;
+          }
+          
+          // ✅ Mark thread as seen when new message arrives in active conversation
+          markThreadAsSeen(threadId);
+          
           return [...prev, msg];
         });
       });
@@ -294,7 +448,7 @@ export default function Chat() {
         }
       }, 100);
       
-      setTimeout(() => loadContacts(), 500);
+      // ✅ Real-time listener will update contacts automatically
       
     } catch (err) {
       console.error("Send failed:", err);
@@ -312,6 +466,10 @@ export default function Chat() {
     return () => {
       if (unsubscribeRef.current) {
         unsubscribeRef.current();
+      }
+      // ✅ NEW: Cleanup threads listener
+      if (threadsUnsubscribeRef.current) {
+        threadsUnsubscribeRef.current();
       }
     };
   }, []);

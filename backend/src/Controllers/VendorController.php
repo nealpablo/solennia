@@ -23,209 +23,227 @@ class VendorController
     }
 
     /* ===========================================================
-     *  VENDOR DASHBOARD (STATIC PLACEHOLDER FOR NOW)
+     *  ✅ NEW: CREATE VENDOR PROFILE (First time setup)
+     *  This is called after vendor is approved by admin
      * =========================================================== */
-    public function dashboard($request, $response)
+    public function createVendorProfile(Request $request, Response $response)
     {
-        $user = $request->getAttribute('user');
-
-        $profile = [
-            'name'     => $user->first_name . ' ' . $user->last_name,
-            'bio'      => 'Custom vendor bio here',
-            'style'    => 'Modern Planning',
-            'services' => 'Full Service, Coordination',
-            'areas'    => 'Metro Manila, Rizal',
-            'avatar'   => $user->avatar ?? '/images/default-avatar.png'
-        ];
-
-        $bookings = [
-            ['title' => 'El Nido Chapel', 'count' => 24],
-            ['title' => 'Mactan Venue', 'count' => 18]
-        ];
-
-        $listings = [
-            ['title' => 'Laguna Garden Venue', 'image' => '/images/gallery1.jpg'],
-            ['title' => 'Cebu Ocean Venue', 'image' => '/images/gallery2.jpg']
-        ];
-
-        $messages = [
-            ['from' => 'Jane Perez', 'message' => 'Interested in your package'],
-            ['from' => 'Michael Cruz', 'message' => 'Can I get a quote?']
-        ];
-
-        $insights = [
-            'labels' => ['Jan','Feb','Mar','Apr'],
-            'datasets' => [
-                [
-                    'label' => 'Visitors',
-                    'data' => [120, 190, 170, 220]
-                ]
-            ]
-        ];
-
-        $payload = compact('profile','bookings','listings','messages','insights');
-        $response->getBody()->write(json_encode($payload));
-        return $response->withHeader('Content-Type', 'application/json');
-    }
-
-    /* ===========================================================
-     *  VENDOR APPLICATION (WITH VENUE SUPPORT) - NEW METHOD
-     * =========================================================== */
-    public function applyAsVendor(Request $request, Response $response)
-    {
-        $u = $request->getAttribute('user');
-        if (!$u || !isset($u->sub)) {
-            return $this->json($response, false, "Unauthorized", 401);
-        }
-        $userId = $u->sub;
-
-        // Check if user already has a pending/approved application
-        $existing = DB::table('eventserviceprovider')
-            ->where('UserID', $userId)
-            ->first();
-
-        if ($existing) {
-            return $this->json($response, false, "You already have a vendor application", 400);
-        }
-
-        $data = $request->getParsedBody();
-        $files = $request->getUploadedFiles();
-
-        // Get basic vendor info
-        $businessName = $data['business_name'] ?? '';
-        $fullName = $data['full_name'] ?? '';
-        $category = $data['category'] ?? '';
-        $categoryOther = $data['category_other'] ?? null;
-        $address = $data['address'] ?? '';
-        $description = $data['description'] ?? '';
-        $pricing = $data['pricing'] ?? '';
-        $contactEmail = $data['contact_email'] ?? '';
-
-        // Get venue-specific fields (only if category is "Venue")
-        $venueSubcategory = $data['venue_subcategory'] ?? null;
-        $venueCapacity = $data['venue_capacity'] ?? null;
-        $venueAmenities = $data['venue_amenities'] ?? null;
-        $venueOperatingHours = $data['venue_operating_hours'] ?? null;
-        $venueParking = $data['venue_parking'] ?? null;
-
-        // Validate required fields
-        if (empty($businessName) || empty($fullName) || empty($category) || empty($contactEmail)) {
-            return $this->json($response, false, "Missing required fields", 400);
-        }
-
-        // Upload files to Cloudinary
-        $permitsUrl = null;
-        $govIdUrl = null;
-        $portfolioUrl = null;
-
         try {
-            // Upload Permits
-            if (isset($files['permits']) && $files['permits']->getError() === UPLOAD_ERR_OK) {
-                $tmpPath = $files['permits']->getStream()->getMetadata('uri');
-                $upload = $this->cloud->uploadApi()->upload($tmpPath, [
-                    "folder" => "solennia/vendor/{$userId}/documents",
-                    "resource_type" => "auto",
-                    "public_id" => "permits_" . time()
-                ]);
-                $permitsUrl = $upload['secure_url'];
+            $u = $request->getAttribute('user');
+            if (!$u || !isset($u->mysql_id)) {
+                return $this->json($response, false, "Unauthorized", 401);
+            }
+            $userId = $u->mysql_id;
+
+            // Check if user is approved vendor
+            $application = DB::table('vendor_application')
+                ->where('user_id', $userId)
+                ->where('status', 'Approved')
+                ->first();
+
+            if (!$application) {
+                return $this->json($response, false, "No approved vendor application found", 403);
             }
 
-            // Upload Government ID
-            if (isset($files['gov_id']) && $files['gov_id']->getError() === UPLOAD_ERR_OK) {
-                $tmpPath = $files['gov_id']->getStream()->getMetadata('uri');
-                $upload = $this->cloud->uploadApi()->upload($tmpPath, [
-                    "folder" => "solennia/vendor/{$userId}/documents",
-                    "resource_type" => "auto",
-                    "public_id" => "gov_id_" . time()
-                ]);
-                $govIdUrl = $upload['secure_url'];
+            // Check if profile already exists
+            $existingProfile = DB::table('eventserviceprovider')
+                ->where('UserID', $userId)
+                ->first();
+
+            if ($existingProfile) {
+                return $this->json($response, false, "Vendor profile already exists", 400);
             }
 
-            // Upload Portfolio
-            if (isset($files['portfolio']) && $files['portfolio']->getError() === UPLOAD_ERR_OK) {
-                $tmpPath = $files['portfolio']->getStream()->getMetadata('uri');
-                $upload = $this->cloud->uploadApi()->upload($tmpPath, [
-                    "folder" => "solennia/vendor/{$userId}/portfolio",
-                    "resource_type" => "auto",
-                    "public_id" => "portfolio_" . time()
-                ]);
-                $portfolioUrl = $upload['secure_url'];
+            $data = $request->getParsedBody();
+            $files = $request->getUploadedFiles();
+
+            // Required fields
+            $businessName = $data['business_name'] ?? $application->business_name;
+            $bio = $data['bio'] ?? '';
+            $services = $data['services'] ?? '';
+            $serviceAreas = $data['service_areas'] ?? '';
+
+            if (empty($bio) || empty($services)) {
+                return $this->json($response, false, "Bio and services are required", 422);
             }
 
-        } catch (\Exception $e) {
-            return $this->json($response, false, "File upload failed: " . $e->getMessage(), 500);
-        }
+            // Upload images with optimization
+            $logoUrl = null;
+            $heroUrl = null;
 
-        // Insert vendor application into database
-        try {
+            // Upload Logo
+            if (isset($files['logo']) && $files['logo']->getError() === UPLOAD_ERR_OK) {
+                try {
+                    $tmpPath = $files['logo']->getStream()->getMetadata('uri');
+                    $upload = $this->cloud->uploadApi()->upload($tmpPath, [
+                        "folder" => "solennia/vendors/logo/{$userId}",
+                        "resource_type" => "image",
+                        "public_id" => "logo_" . time(),
+                        "transformation" => [
+                            ["width" => 300, "height" => 300, "crop" => "fit", "quality" => "auto:good"]
+                        ],
+                        "timeout" => 60
+                    ]);
+                    $logoUrl = $upload['secure_url'];
+                } catch (\Exception $e) {
+                    error_log("LOGO_UPLOAD_ERROR: " . $e->getMessage());
+                }
+            }
+
+            // Upload Hero Image
+            if (isset($files['hero']) && $files['hero']->getError() === UPLOAD_ERR_OK) {
+                try {
+                    $tmpPath = $files['hero']->getStream()->getMetadata('uri');
+                    $upload = $this->cloud->uploadApi()->upload($tmpPath, [
+                        "folder" => "solennia/vendors/hero/{$userId}",
+                        "resource_type" => "image",
+                        "public_id" => "hero_" . time(),
+                        "transformation" => [
+                            ["width" => 1920, "height" => 1080, "crop" => "limit", "quality" => "auto:good"]
+                        ],
+                        "timeout" => 60
+                    ]);
+                    $heroUrl = $upload['secure_url'];
+                } catch (\Exception $e) {
+                    error_log("HERO_UPLOAD_ERROR: " . $e->getMessage());
+                }
+            }
+
+            // Create vendor profile
             DB::table('eventserviceprovider')->insert([
                 'UserID' => $userId,
                 'BusinessName' => $businessName,
-                'OwnerName' => $fullName,
-                'ServiceType' => $category,
-                'CategoryOther' => $categoryOther,
-                'Address' => $address,
-                'Description' => $description,
-                'Pricing' => $pricing,
-                'ContactEmail' => $contactEmail,
-                'Permits' => $permitsUrl,
-                'GovID' => $govIdUrl,
-                'Portfolio' => $portfolioUrl,
-                // Venue-specific fields
-                'venue_subcategory' => $venueSubcategory,
-                'venue_capacity' => $venueCapacity,
-                'venue_amenities' => $venueAmenities,
-                'venue_operating_hours' => $venueOperatingHours,
-                'venue_parking' => $venueParking,
-                'VerificationStatus' => 'pending',
+                'Category' => $application->category,
+                'BusinessEmail' => $application->contact_email,
+                'BusinessAddress' => $application->address,
+                'Description' => $application->description,
+                'Pricing' => $application->pricing,
+                'bio' => $bio,
+                'services' => $services,
+                'service_areas' => $serviceAreas,
+                'avatar' => $logoUrl,
+                'HeroImageUrl' => $heroUrl,
+                'ApplicationStatus' => 'Approved',
+                'DateApplied' => $application->created_at,
+                'DateApproved' => date('Y-m-d H:i:s'),
                 'created_at' => date('Y-m-d H:i:s')
             ]);
 
-            return $this->json($response, true, "Application submitted successfully!", 200);
+            error_log("VENDOR_PROFILE_CREATED: UserID={$userId}");
+
+            return $this->json($response, true, "Vendor profile created successfully!", 201, [
+                'logo' => $logoUrl,
+                'hero' => $heroUrl
+            ]);
 
         } catch (\Exception $e) {
-            return $this->json($response, false, "Database error: " . $e->getMessage(), 500);
+            error_log("CREATE_VENDOR_PROFILE_ERROR: " . $e->getMessage());
+            return $this->json($response, false, "Failed to create profile: " . $e->getMessage(), 500);
         }
     }
 
     /* ===========================================================
-     *  GET VENDOR STATUS - NEW METHOD
+     *  ✅ OPTIMIZED: Check Profile Setup Status
      * =========================================================== */
     public function getVendorStatus(Request $request, Response $response)
     {
         $u = $request->getAttribute('user');
-        if (!$u || !isset($u->sub)) {
+        if (!$u || !isset($u->mysql_id)) {
             return $this->json($response, false, "Unauthorized", 401);
         }
-        $userId = $u->sub;
+        $userId = $u->mysql_id;
 
-        $vendor = DB::table('eventserviceprovider')
-            ->where('UserID', $userId)
+        // Check vendor_application
+        $application = DB::table('vendor_application')
+            ->where('user_id', $userId)
+            ->orderBy('created_at', 'desc')
             ->first();
 
-        if (!$vendor) {
-            return $this->json($response, true, "No application found", 200, [
-                'status' => null,
-                'category' => null
-            ]);
+        // Check if profile exists
+        $profile = DB::table('eventserviceprovider')
+            ->where('UserID', $userId)
+            ->where('ApplicationStatus', 'Approved')
+            ->first();
+
+        $needsSetup = false;
+        if ($application && $application->status === 'Approved' && !$profile) {
+            $needsSetup = true; // Approved but profile not created yet
         }
 
         return $this->json($response, true, "Status retrieved", 200, [
-            'status' => $vendor->VerificationStatus ?? 'pending',
-            'category' => $vendor->ServiceType ?? null
+            'status' => strtolower($application->status ?? 'none'),
+            'category' => $application->category ?? null,
+            'has_profile' => $profile !== null,
+            'needs_setup' => $needsSetup,
+            'vendor' => $profile ? [
+                'ServiceType' => $profile->Category,
+                'Category' => $profile->Category,
+                'VerificationStatus' => 'approved',
+                'BusinessName' => $profile->BusinessName,
+                'bio' => $profile->bio,
+                'services' => $profile->services,
+                'avatar' => $profile->avatar,
+                'HeroImageUrl' => $profile->HeroImageUrl
+            ] : null
         ]);
     }
 
     /* ===========================================================
-     *  A — UPDATE USER PROFILE PICTURE (PERSONAL AVATAR)
+     *  GET VENDOR PUBLIC DATA
+     * =========================================================== */
+    public function getPublicVendorData(Request $request, Response $response, $args)
+    {
+        $userId = $args['id'] ?? null;
+        
+        if (!$userId) {
+            return $this->json($response, false, "User ID required", 400);
+        }
+
+        $vendor = DB::table('eventserviceprovider')
+            ->where('UserID', $userId)
+            ->where('ApplicationStatus', 'Approved')
+            ->first();
+
+        if (!$vendor) {
+            return $this->json($response, false, "Vendor not found", 404);
+        }
+
+        $gallery = DB::table('vendor_gallery')
+            ->where('user_id', $userId)
+            ->pluck('image_url')
+            ->toArray();
+
+        $vendorData = [
+            'id' => $vendor->ID,
+            'business_name' => $vendor->BusinessName,
+            'category' => $vendor->Category,
+            'description' => $vendor->Description,
+            'bio' => $vendor->bio,
+            'pricing' => $vendor->Pricing,
+            'services' => $vendor->services,
+            'service_areas' => $vendor->service_areas,
+            'business_email' => $vendor->BusinessEmail,
+            'business_address' => $vendor->BusinessAddress,
+            'logo' => $vendor->avatar,
+            'hero_image' => $vendor->HeroImageUrl,
+            'gallery' => $gallery
+        ];
+
+        return $this->json($response, true, "Vendor found", 200, [
+            'vendor' => $vendorData
+        ]);
+    }
+
+    /* ===========================================================
+     *  UPDATE USER PROFILE PICTURE - ✅ OPTIMIZED
      * =========================================================== */
     public function updateProfile(Request $request, Response $response)
     {
         $u = $request->getAttribute('user');
-        if (!$u || !isset($u->sub)) {
+        if (!$u || !isset($u->mysql_id)) {
             return $this->json($response, false, "Unauthorized", 401);
         }
-        $userId = $u->sub;
+        $userId = $u->mysql_id;
 
         $files = $request->getUploadedFiles();
         if (!isset($files['avatar'])) {
@@ -237,174 +255,253 @@ class VendorController
             return $this->json($response, false, "Upload error", 400);
         }
 
-        // Upload to Cloudinary
-        $tmpPath = $avatar->getStream()->getMetadata('uri');
+        try {
+            $tmpPath = $avatar->getStream()->getMetadata('uri');
 
-        $upload = $this->cloud->uploadApi()->upload($tmpPath, [
-            "folder"        => "solennia/users/{$userId}",
-            "resource_type" => "image",
-            "public_id"     => "profile_" . time(),
-            "transformation" => [
-                ["width" => 400, "height" => 400, "crop" => "fill"]
-            ]
-        ]);
+            $upload = $this->cloud->uploadApi()->upload($tmpPath, [
+                "folder" => "solennia/users/{$userId}",
+                "resource_type" => "image",
+                "public_id" => "profile_" . time(),
+                "transformation" => [
+                    [
+                        "width" => 400,
+                        "height" => 400,
+                        "crop" => "fill",
+                        "quality" => "auto:good",
+                        "fetch_format" => "auto"
+                    ]
+                ],
+                "timeout" => 30
+            ]);
 
-        $url = $upload['secure_url'];
+            $url = $upload['secure_url'];
 
-        DB::table('credential')->where('id', $userId)->update([
-            'avatar' => $url
-        ]);
+            DB::table('credential')->where('id', $userId)->update([
+                'avatar' => $url
+            ]);
 
-        return $this->json($response, true, "Profile updated", 200, [
-            "avatar" => $url
-        ]);
+            return $this->json($response, true, "Profile updated", 200, [
+                "avatar" => $url
+            ]);
+
+        } catch (\Exception $e) {
+            error_log("AVATAR_UPLOAD_ERROR: " . $e->getMessage());
+            return $this->json($response, false, "Failed to upload avatar", 500);
+        }
     }
 
     /* ===========================================================
-     *  B — UPDATE VENDOR LOGO (eventserviceprovider.avatar)
+     *  UPDATE VENDOR LOGO - ✅ OPTIMIZED
      * =========================================================== */
     public function updateVendorLogo(Request $request, Response $response)
     {
         $u = $request->getAttribute('user');
-        if (!$u) return $this->json($response, false, "Unauthorized", 401);
-
-        $userId = $u->sub;
+        if (!$u || !isset($u->mysql_id)) {
+            return $this->json($response, false, "Unauthorized", 401);
+        }
+        $userId = $u->mysql_id;
 
         $logo = $request->getUploadedFiles()['logo'] ?? null;
-        if (!$logo || $logo->getError() !== UPLOAD_ERR_OK)
+        if (!$logo || $logo->getError() !== UPLOAD_ERR_OK) {
             return $this->json($response, false, "Invalid logo upload", 400);
+        }
 
-        $tmp = $logo->getStream()->getMetadata('uri');
+        try {
+            $tmp = $logo->getStream()->getMetadata('uri');
 
-        $upload = $this->cloud->uploadApi()->upload($tmp, [
-            "folder"        => "solennia/vendor/{$userId}/logo",
-            "resource_type" => "image",
-            "public_id"     => "logo_" . time()
-        ]);
+            $upload = $this->cloud->uploadApi()->upload($tmp, [
+                "folder" => "solennia/vendors/logo/{$userId}",
+                "resource_type" => "image",
+                "public_id" => "logo_" . time(),
+                "transformation" => [
+                    [
+                        "width" => 300,
+                        "height" => 300,
+                        "crop" => "fit",
+                        "quality" => "auto:good"
+                    ]
+                ],
+                "timeout" => 30
+            ]);
 
-        $url = $upload['secure_url'];
+            $url = $upload['secure_url'];
 
-        DB::table("eventserviceprovider")
-            ->where("UserID", $userId)
-            ->update(["avatar" => $url]);
+            DB::table("eventserviceprovider")
+                ->where("UserID", $userId)
+                ->update(["avatar" => $url]);
 
-        return $this->json($response, true, "Vendor logo updated", 200, [
-            "logo" => $url
-        ]);
+            return $this->json($response, true, "Vendor logo updated", 200, [
+                "logo" => $url
+            ]);
+
+        } catch (\Exception $e) {
+            error_log("LOGO_UPLOAD_ERROR: " . $e->getMessage());
+            return $this->json($response, false, "Failed to upload logo", 500);
+        }
     }
 
     /* ===========================================================
-     *  C — UPDATE HERO IMAGE
+     *  UPDATE HERO IMAGE - ✅ OPTIMIZED
      * =========================================================== */
     public function updateHero(Request $request, Response $response)
     {
         $u = $request->getAttribute('user');
-        if (!$u) return $this->json($response, false, "Unauthorized", 401);
-
-        $userId = $u->sub;
+        if (!$u || !isset($u->mysql_id)) {
+            return $this->json($response, false, "Unauthorized", 401);
+        }
+        $userId = $u->mysql_id;
 
         $hero = $request->getUploadedFiles()['hero'] ?? null;
-        if (!$hero || $hero->getError() !== UPLOAD_ERR_OK)
+        if (!$hero || $hero->getError() !== UPLOAD_ERR_OK) {
             return $this->json($response, false, "Invalid hero image", 400);
+        }
 
-        $tmp = $hero->getStream()->getMetadata('uri');
+        try {
+            $tmp = $hero->getStream()->getMetadata('uri');
 
-        $upload = $this->cloud->uploadApi()->upload($tmp, [
-            "folder"        => "solennia/vendor/{$userId}/hero",
-            "resource_type" => "image",
-            "public_id"     => "hero_" . time()
-        ]);
+            $upload = $this->cloud->uploadApi()->upload($tmp, [
+                "folder" => "solennia/vendors/hero/{$userId}",
+                "resource_type" => "image",
+                "public_id" => "hero_{$userId}_" . time(),
+                "transformation" => [
+                    [
+                        "width" => 1920,
+                        "height" => 1080,
+                        "crop" => "limit",
+                        "quality" => "auto:good"
+                    ]
+                ],
+                "timeout" => 30
+            ]);
 
-        $url = $upload['secure_url'];
+            $url = $upload['secure_url'];
 
-        DB::table("eventserviceprovider")
-            ->where("UserID", $userId)
-            ->update(["HeroImageUrl" => $url]);
+            DB::table("eventserviceprovider")
+                ->where("UserID", $userId)
+                ->update(["HeroImageUrl" => $url]);
 
-        return $this->json($response, true, "Hero image updated", 200, [
-            "hero_image" => $url
-        ]);
+            return $this->json($response, true, "Hero image updated", 200, [
+                "hero_image" => $url
+            ]);
+
+        } catch (\Exception $e) {
+            error_log("HERO_UPLOAD_ERROR: " . $e->getMessage());
+            return $this->json($response, false, "Failed to upload hero image", 500);
+        }
     }
 
     /* ===========================================================
-     *  D — UPLOAD MULTIPLE GALLERY IMAGES
+     *  UPLOAD GALLERY - ✅ OPTIMIZED
      * =========================================================== */
     public function uploadGallery(Request $request, Response $response)
     {
         $u = $request->getAttribute('user');
-        if (!$u) return $this->json($response, false, "Unauthorized", 401);
-
-        $userId = $u->sub;
-
-        if (!DB::schema()->hasTable('vendor_gallery')) {
-            DB::statement("
-                CREATE TABLE vendor_gallery (
-                    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-                    user_id INT UNSIGNED NOT NULL,
-                    image_url TEXT NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ");
+        if (!$u || !isset($u->mysql_id)) {
+            return $this->json($response, false, "Unauthorized", 401);
         }
+        $userId = $u->mysql_id;
 
         $files = $request->getUploadedFiles()['gallery'] ?? [];
-        if (!$files) {
+        if (empty($files)) {
             return $this->json($response, false, "No gallery images uploaded", 400);
         }
 
+        if (count($files) > 10) {
+            return $this->json($response, false, "Maximum 10 images per upload", 400);
+        }
+
         $urls = [];
+        $errors = [];
 
-        foreach ($files as $file) {
-            if ($file->getError() !== UPLOAD_ERR_OK) continue;
+        foreach ($files as $index => $file) {
+            if ($file->getError() !== UPLOAD_ERR_OK) {
+                $errors[] = "Image " . ($index + 1) . " upload failed";
+                continue;
+            }
 
-            $tmp = $file->getStream()->getMetadata('uri');
+            try {
+                $tmp = $file->getStream()->getMetadata('uri');
 
-            $upload = $this->cloud->uploadApi()->upload($tmp, [
-                "folder"        => "solennia/vendor/{$userId}/gallery",
-                "resource_type" => "image",
-                "public_id"     => "gallery_" . time() . "_" . bin2hex(random_bytes(2))
-            ]);
+                $upload = $this->cloud->uploadApi()->upload($tmp, [
+                    "folder" => "solennia/vendors/gallery/{$userId}",
+                    "resource_type" => "image",
+                    "public_id" => "gallery_" . time() . "_" . bin2hex(random_bytes(2)),
+                    "transformation" => [
+                        [
+                            "width" => 1200,
+                            "crop" => "limit",
+                            "quality" => "auto:good"
+                        ]
+                    ],
+                    "timeout" => 30
+                ]);
 
-            $url = $upload['secure_url'];
-            $urls[] = $url;
+                $url = $upload['secure_url'];
+                $urls[] = $url;
 
-            DB::table("vendor_gallery")->insert([
-                "user_id"   => $userId,
-                "image_url" => $url
-            ]);
+                DB::table("vendor_gallery")->insert([
+                    "user_id" => $userId,
+                    "image_url" => $url,
+                    "created_at" => date('Y-m-d H:i:s')
+                ]);
+
+            } catch (\Exception $e) {
+                error_log("GALLERY_UPLOAD_ERROR: " . $e->getMessage());
+                $errors[] = "Image " . ($index + 1) . " failed";
+            }
+        }
+
+        if (empty($urls) && !empty($errors)) {
+            return $this->json($response, false, "All uploads failed", 500, ['errors' => $errors]);
         }
 
         return $this->json($response, true, "Gallery updated", 200, [
-            "images" => $urls
+            "images" => $urls,
+            "errors" => $errors
         ]);
     }
 
     /* ===========================================================
-     *  E — UPDATE TEXT INFO (bio, services, pricing, etc.)
+     *  UPDATE VENDOR INFO - ✅ OPTIMIZED
      * =========================================================== */
     public function updateVendorInfo(Request $request, Response $response)
     {
         $u = $request->getAttribute('user');
-        if (!$u) return $this->json($response, false, "Unauthorized", 401);
+        if (!$u || !isset($u->mysql_id)) {
+            return $this->json($response, false, "Unauthorized", 401);
+        }
+        $userId = $u->mysql_id;
 
-        $userId = $u->sub;
         $data = (array)$request->getParsedBody();
 
-        DB::table("eventserviceprovider")
-            ->where("UserID", $userId)
-            ->update([
-                "bio"          => $data['bio'] ?? null,
-                "services"     => $data['services'] ?? null,
-                "service_areas"=> $data['service_areas'] ?? null,
-                "Description"  => $data['description'] ?? null,
-                "Pricing"      => $data['pricing'] ?? null
-            ]);
+        $updateData = [];
+        $allowedFields = ['bio', 'services', 'service_areas', 'Description', 'Pricing'];
 
-        return $this->json($response, true, "Vendor info updated", 200);
+        foreach ($allowedFields as $field) {
+            if (isset($data[strtolower($field)]) || isset($data[$field])) {
+                $updateData[$field] = $data[strtolower($field)] ?? $data[$field];
+            }
+        }
+
+        if (empty($updateData)) {
+            return $this->json($response, false, "No data to update", 400);
+        }
+
+        try {
+            DB::table("eventserviceprovider")
+                ->where("UserID", $userId)
+                ->update($updateData);
+
+            return $this->json($response, true, "Vendor info updated", 200);
+
+        } catch (\Exception $e) {
+            error_log("UPDATE_VENDOR_INFO_ERROR: " . $e->getMessage());
+            return $this->json($response, false, "Failed to update info", 500);
+        }
     }
 
     /* ===========================================================
-     * JSON Helper
+     *  JSON Helper
      * =========================================================== */
     private function json(Response $res, bool $success, string $message, int $status = 200, array $extra = [])
     {

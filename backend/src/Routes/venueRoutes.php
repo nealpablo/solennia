@@ -1,42 +1,55 @@
 <?php
-// backend/src/Routes/venueRoutes.php - COMPLETE FIXED VERSION
 
-use Src\Controllers\VenueController;
+use Slim\App;
+use Psr\Http\Message\ResponseInterface as Response;
+use Psr\Http\Message\ServerRequestInterface as Request;
 use Src\Middleware\AuthMiddleware;
+use Src\Controllers\VenueController;
+use Illuminate\Database\Capsule\Manager as DB;
 
-return function ($app) {
-    $venueController = new VenueController();
+return function (App $app) {
 
-    // ============================================================
-    // PUBLIC ROUTES - No authentication required
-    // ============================================================
-    
-    // GET /api/venues - Get all approved venues
-    $app->get('/api/venues', function ($request, $response, $args) use ($venueController) {
-        return $venueController->getAllVenues($request, $response);
+    $app->get('/api/venue/my-listings', fn($r, $s) =>
+        (new VenueController)->getMyListings($r, $s)
+    )->add(new AuthMiddleware());
+
+    $app->post('/api/venue/listings', fn($r, $s) =>
+        (new VenueController)->createListing($r, $s)
+    )->add(new AuthMiddleware());
+
+    $app->put('/api/venue/listings/{id}', fn($r, $s, $a) =>
+        (new VenueController)->updateListing($r, $s, $a)
+    )->add(new AuthMiddleware());
+
+    $app->delete('/api/venue/listings/{id}', fn($r, $s, $a) =>
+        (new VenueController)->deleteListing($r, $s, $a)
+    )->add(new AuthMiddleware());
+
+    $app->get('/api/venues', function (Request $r, Response $s) {
+        $venues = DB::table('venue_listings')
+            ->where('status', 'Active')
+            ->orderByDesc('created_at')
+            ->get()
+            ->map(fn($v) => ($v->gallery = json_decode($v->gallery ?? '[]', true)) ? $v : $v);
+
+        $s->getBody()->write(json_encode(['success' => true, 'venues' => $venues]));
+        return $s->withHeader('Content-Type', 'application/json');
     });
 
-    // GET /api/venues/{id} - Get single venue by ID
-    $app->get('/api/venues/{id}', function ($request, $response, $args) use ($venueController) {
-        return $venueController->getVenueById($request, $response, $args);
+    $app->get('/api/venues/{id}', function (Request $r, Response $s, $a) {
+        $venue = DB::table('venue_listings as v')
+            ->leftJoin('credential as c', 'v.user_id', '=', 'c.id')
+            ->select('v.*', 'c.firebase_uid', DB::raw('CONCAT(c.first_name," ",c.last_name) as owner_name'))
+            ->where('v.id', (int)$a['id'])
+            ->first();
+
+        if (!$venue) {
+            return $s->withStatus(404);
+        }
+
+        $venue->gallery = json_decode($venue->gallery ?? '[]', true);
+
+        $s->getBody()->write(json_encode(['success' => true, 'venue' => $venue]));
+        return $s->withHeader('Content-Type', 'application/json');
     });
-
-    // ============================================================
-    // PROTECTED ROUTES - Authentication required
-    // ============================================================
-
-    // POST /api/venue/listings - Create new venue listing (FIXED!)
-    $app->post('/api/venue/listings', function ($request, $response, $args) use ($venueController) {
-        return $venueController->createListing($request, $response);
-    })->add(AuthMiddleware::class);
-
-    // POST /api/venue/inquiry - Send inquiry to venue
-    $app->post('/api/venue/inquiry', function ($request, $response, $args) use ($venueController) {
-        return $venueController->sendInquiry($request, $response);
-    })->add(AuthMiddleware::class);
-
-    // POST /api/venue/schedule-visit - Schedule venue visit
-    $app->post('/api/venue/schedule-visit', function ($request, $response, $args) use ($venueController) {
-        return $venueController->scheduleVisit($request, $response);
-    })->add(AuthMiddleware::class);
 };

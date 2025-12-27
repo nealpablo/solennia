@@ -1,5 +1,4 @@
 <?php
-// backend/src/Controllers/VenueController.php - ✅ FIXED WITH FIREBASE_UID
 namespace Src\Controllers;
 
 use Cloudinary\Cloudinary;
@@ -23,295 +22,375 @@ class VenueController
         ]);
     }
 
-    /* ===========================================================
-     *  GET ALL APPROVED VENUES - ✅ FIXED: NOW INCLUDES FIREBASE_UID
-     * =========================================================== */
-    public function getAllVenues(Request $request, Response $response)
-    {
-        try {
-            // ✅ FIX: JOIN credential table to get firebase_uid for chat
-            $venues = DB::table('eventserviceprovider as e')
-                ->join('credential as c', 'e.UserID', '=', 'c.id')
-                ->where('e.Category', 'Venue')
-                ->where('e.ApplicationStatus', 'Approved')
-                ->select(
-                    'e.ID as id',
-                    'e.UserID as user_id',
-                    'e.BusinessName as business_name',
-                    'e.BusinessAddress as address',
-                    'e.Description as description',
-                    'e.HeroImageUrl as portfolio',
-                    'e.BusinessEmail as contact_email',
-                    'e.Pricing as pricing',
-                    'e.bio',
-                    'e.services as venue_amenities',
-                    'e.venue_subcategory',
-                    'e.venue_capacity',
-                    'e.venue_operating_hours',
-                    'e.venue_parking',
-                    'c.firebase_uid',  // ✅ ADDED: For chat functionality
-                    'c.first_name',     // ✅ ADDED: Owner info
-                    'c.last_name'       // ✅ ADDED: Owner info
-                )
-                ->get();
-
-            $venuesList = [];
-            foreach ($venues as $venue) {
-                $venuesList[] = [
-                    'id' => $venue->id,
-                    'user_id' => $venue->user_id,
-                    'firebase_uid' => $venue->firebase_uid,  // ✅ ADDED
-                    'business_name' => $venue->business_name,
-                    'owner_name' => trim($venue->first_name . ' ' . $venue->last_name),  // ✅ ADDED
-                    'address' => $venue->address ?? '',
-                    'description' => $venue->description ?? '',
-                    'portfolio' => $venue->portfolio ?? null,
-                    'contact_email' => $venue->contact_email ?? '',
-                    'pricing' => $venue->pricing ?? '',
-                    'venue_subcategory' => $venue->venue_subcategory ?? 'Event Venue',
-                    'venue_capacity' => $venue->venue_capacity ?? '100-500',
-                    'venue_amenities' => $venue->venue_amenities ?? '',
-                    'venue_operating_hours' => $venue->venue_operating_hours ?? '9:00 AM - 10:00 PM',
-                    'venue_parking' => $venue->venue_parking ?? 'Available'
-                ];
-            }
-
-            return $this->json($response, true, "Venues retrieved successfully", 200, [
-                'venues' => $venuesList,
-                'count' => count($venuesList)
-            ]);
-
-        } catch (\Exception $e) {
-            error_log("GET_VENUES_ERROR: " . $e->getMessage());
-            return $this->json($response, false, "Failed to fetch venues: " . $e->getMessage(), 500);
-        }
-    }
-
-    /* ===========================================================
-     *  GET SINGLE VENUE BY ID - ✅ FIXED: NOW INCLUDES FIREBASE_UID
-     * =========================================================== */
-    public function getVenueById(Request $request, Response $response, $args)
-    {
-        try {
-            $id = $args['id'] ?? null;
-            
-            if (!$id) {
-                return $this->json($response, false, "Venue ID required", 400);
-            }
-
-            // ✅ FIX: JOIN credential table to get firebase_uid
-            $venue = DB::table('eventserviceprovider as e')
-                ->join('credential as c', 'e.UserID', '=', 'c.id')
-                ->where('e.ID', $id)
-                ->where('e.Category', 'Venue')
-                ->where('e.ApplicationStatus', 'Approved')
-                ->select(
-                    'e.*',
-                    'c.firebase_uid',
-                    'c.first_name',
-                    'c.last_name',
-                    'c.phone'
-                )
-                ->first();
-
-            if (!$venue) {
-                return $this->json($response, false, "Venue not found", 404);
-            }
-
-            $venueData = [
-                'id' => $venue->ID,
-                'user_id' => $venue->UserID,
-                'firebase_uid' => $venue->firebase_uid,  // ✅ ADDED
-                'business_name' => $venue->BusinessName,
-                'owner_name' => trim($venue->first_name . ' ' . $venue->last_name),  // ✅ ADDED
-                'address' => $venue->BusinessAddress ?? '',
-                'description' => $venue->Description ?? '',
-                'portfolio' => $venue->HeroImageUrl ?? null,
-                'contact_email' => $venue->BusinessEmail ?? '',
-                'phone' => $venue->phone ?? '',  // ✅ ADDED
-                'pricing' => $venue->Pricing ?? '',
-                'venue_subcategory' => $venue->venue_subcategory ?? 'Event Venue',
-                'venue_capacity' => $venue->venue_capacity ?? '100-500',
-                'venue_amenities' => $venue->services ?? '',
-                'venue_operating_hours' => $venue->venue_operating_hours ?? '9:00 AM - 10:00 PM',
-                'venue_parking' => $venue->venue_parking ?? 'Available'
-            ];
-
-            return $this->json($response, true, "Venue found", 200, ['venue' => $venueData]);
-
-        } catch (\Exception $e) {
-            error_log("GET_VENUE_BY_ID_ERROR: " . $e->getMessage());
-            return $this->json($response, false, "Failed to fetch venue", 500);
-        }
-    }
-
-    /* ===========================================================
-     *  CREATE VENUE LISTING - ✅ FIXED: NO DUPLICATE CREATION
-     * =========================================================== */
+    /* =========================================================
+     * ✅ CREATE VENUE LISTING - ADAPTIVE VERSION
+     * ========================================================= */
     public function createListing(Request $request, Response $response)
     {
         try {
-            // Get authenticated user
-            $auth = $request->getAttribute('user');
-            if (!$auth || !isset($auth->mysql_id)) {
-                error_log("AUTH_ERROR: No mysql_id found. Auth object: " . json_encode($auth));
-                return $this->json($response, false, "Authentication required", 401);
+            $u = $request->getAttribute('user');
+            if (!$u || !isset($u->mysql_id)) {
+                return $this->json($response, false, "Unauthorized", 401);
             }
+            $userId = $u->mysql_id;
 
-            $userId = (int) $auth->mysql_id;
-            error_log("CREATE_LISTING: UserID = {$userId}");
-
-            // ✅ FIXED: Check if user is approved venue vendor
-            $vendor = DB::table('eventserviceprovider')
-                ->where('UserID', $userId)
-                ->where('Category', 'Venue')
-                ->where('ApplicationStatus', 'Approved')
-                ->first();
-
-            if (!$vendor) {
-                error_log("VENDOR_CHECK_FAILED: No approved venue vendor found for UserID {$userId}");
-                return $this->json($response, false, "Only approved venue vendors can create listings", 403);
-            }
-
-            error_log("VENDOR_CHECK_PASSED: Found vendor ID {$vendor->ID}");
-
-            $data = $request->getParsedBody();
+            $data = (array) $request->getParsedBody();
             $files = $request->getUploadedFiles();
 
-            error_log("CREATE_LISTING_DATA: " . json_encode($data));
-            error_log("CREATE_LISTING_FILES: " . json_encode(array_keys($files)));
-
-            // Field normalization
-            $venueName = $data['venue_name'] ?? $data['name'] ?? '';
-            $venueSubcategory = $data['venue_subcategory'] ?? $data['venue_type'] ?? 'Event Venue';
-            $venueCapacity = $data['venue_capacity'] ?? $data['capacity'] ?? '';
-            $pricing = $data['pricing'] ?? $data['price_range'] ?? '';
-            $address = $data['address'] ?? '';
-            $description = $data['description'] ?? '';
-            $contactEmail = $data['contact_email'] ?? '';
-            $venueAmenities = $data['venue_amenities'] ?? '';
-            $venueOperatingHours = $data['venue_operating_hours'] ?? '9:00 AM - 10:00 PM';
-            $venueParking = $data['venue_parking'] ?? 'Available';
-
             // Validate required fields
-            if (empty($venueName)) {
-                return $this->json($response, false, "Venue name is required", 422);
-            }
-            if (empty($address)) {
-                return $this->json($response, false, "Address is required", 422);
-            }
-            if (empty($pricing)) {
-                return $this->json($response, false, "Price range is required", 422);
+            if (empty($data['venue_name']) || empty($data['address']) || empty($data['pricing'])) {
+                return $this->json($response, false, "Missing required fields", 422);
             }
 
-            // Handle image upload
-            $heroImageUrl = null;
-            $imageFile = $files['portfolio'] ?? $files['images'] ?? null;
-
-            if ($imageFile && $imageFile->getError() === UPLOAD_ERR_OK) {
+            // ✅ Upload Logo (Main Image)
+            $logoUrl = null;
+            if (isset($files['logo']) && $files['logo']->getError() === UPLOAD_ERR_OK) {
                 try {
-                    $tmpPath = $imageFile->getStream()->getMetadata('uri');
-
-                    $upload = $this->cloud->uploadApi()->upload($tmpPath, [
-                        "folder" => "solennia/venue/{$userId}/listings",
-                        "resource_type" => "image",
-                        "public_id" => "venue_" . time(),
-                        "transformation" => [
-                            ["width" => 800, "height" => 600, "crop" => "fill"]
-                        ]
+                    $tmp = $files['logo']->getStream()->getMetadata('uri');
+                    $upload = $this->cloud->uploadApi()->upload($tmp, [
+                        'folder' => "solennia/venues/logo/{$userId}",
+                        'resource_type' => 'image',
+                        'public_id' => 'logo_' . time(),
+                        'transformation' => [
+                            [
+                                'width' => 1200,
+                                'height' => 800,
+                                'crop' => 'limit',
+                                'quality' => 'auto:good',
+                                'fetch_format' => 'auto'
+                            ]
+                        ],
+                        'timeout' => 60
                     ]);
-
-                    $heroImageUrl = $upload['secure_url'];
-                    error_log("IMAGE_UPLOADED: " . $heroImageUrl);
+                    $logoUrl = $upload['secure_url'];
                 } catch (\Exception $e) {
-                    error_log("CLOUDINARY_ERROR: " . $e->getMessage());
-                    // Don't fail if image upload fails
+                    error_log("LOGO_UPLOAD_ERROR: " . $e->getMessage());
+                    return $this->json($response, false, "Failed to upload logo image", 500);
                 }
             }
 
-            // ✅ FIXED: Update existing vendor record instead of creating duplicate
-            DB::table('eventserviceprovider')
-                ->where('ID', $vendor->ID)
-                ->update([
-                    'BusinessName' => $venueName,
-                    'BusinessAddress' => $address,
-                    'Description' => $description,
-                    'Pricing' => $pricing,
-                    'HeroImageUrl' => $heroImageUrl ?? $vendor->HeroImageUrl,
-                    'BusinessEmail' => $contactEmail ?: $vendor->BusinessEmail,
-                    'venue_subcategory' => $venueSubcategory,
-                    'venue_capacity' => $venueCapacity,
-                    'services' => $venueAmenities,
-                    'venue_operating_hours' => $venueOperatingHours,
-                    'venue_parking' => $venueParking,
-                    'updated_at' => date('Y-m-d H:i:s')
-                ]);
+            // ✅ Upload Gallery Images (up to 3 individual images)
+            $galleryUrls = [];
+            $galleryKeys = ['gallery_1', 'gallery_2', 'gallery_3'];
+            
+            foreach ($galleryKeys as $key) {
+                if (isset($files[$key]) && $files[$key]->getError() === UPLOAD_ERR_OK) {
+                    try {
+                        $tmp = $files[$key]->getStream()->getMetadata('uri');
+                        $upload = $this->cloud->uploadApi()->upload($tmp, [
+                            'folder' => "solennia/venues/gallery/{$userId}",
+                            'resource_type' => 'image',
+                            'public_id' => $key . '_' . time() . '_' . bin2hex(random_bytes(4)),
+                            'transformation' => [
+                                [
+                                    'width' => 800,
+                                    'height' => 600,
+                                    'crop' => 'limit',
+                                    'quality' => 'auto:good',
+                                    'fetch_format' => 'auto'
+                                ]
+                            ],
+                            'timeout' => 60
+                        ]);
+                        $galleryUrls[] = $upload['secure_url'];
+                    } catch (\Exception $e) {
+                        error_log("GALLERY_UPLOAD_ERROR_{$key}: " . $e->getMessage());
+                    }
+                }
+            }
 
-            error_log("LISTING_UPDATED: ID=" . $vendor->ID);
+            // ✅ ADAPTIVE: Build insert data based on what columns might exist
+            $insertData = [
+                'user_id' => $userId,
+                'venue_name' => $data['venue_name'],
+                'venue_subcategory' => $data['venue_subcategory'] ?? null,
+                'venue_capacity' => $data['venue_capacity'] ?? null,
+                'venue_amenities' => $data['venue_amenities'] ?? null,
+                'venue_operating_hours' => $data['venue_operating_hours'] ?? null,
+                'venue_parking' => $data['venue_parking'] ?? null,
+                'address' => $data['address'],
+                'description' => $data['description'] ?? null,
+                'pricing' => $data['pricing'],
+                'contact_email' => $data['contact_email'] ?? null,
+                'status' => 'Active',
+                'created_at' => date('Y-m-d H:i:s')
+            ];
 
-            return $this->json($response, true, "Venue listing updated successfully", 200, [
-                'listing_id' => $vendor->ID,
-                'portfolio_url' => $heroImageUrl ?? $vendor->HeroImageUrl
+            // Try different possible column names for the main image
+            if ($logoUrl) {
+                // Check which columns exist by trying to get column info
+                $tableColumns = DB::select("SHOW COLUMNS FROM venue_listings");
+                $columnNames = array_column($tableColumns, 'Field');
+                
+                // Try common image column names
+                $possibleImageColumns = [
+                    'portfolio_image',
+                    'portfolio',
+                    'hero_image',
+                    'HeroImageUrl',
+                    'main_image',
+                    'image_url',
+                    'venue_image'
+                ];
+                
+                foreach ($possibleImageColumns as $col) {
+                    if (in_array($col, $columnNames)) {
+                        $insertData[$col] = $logoUrl;
+                        break;
+                    }
+                }
+            }
+
+            // Add gallery if column exists
+            if (!empty($galleryUrls)) {
+                $tableColumns = $tableColumns ?? DB::select("SHOW COLUMNS FROM venue_listings");
+                $columnNames = $columnNames ?? array_column($tableColumns, 'Field');
+                
+                if (in_array('gallery', $columnNames)) {
+                    $insertData['gallery'] = json_encode($galleryUrls);
+                } elseif (in_array('gallery_images', $columnNames)) {
+                    $insertData['gallery_images'] = json_encode($galleryUrls);
+                }
+            }
+
+            // ✅ Insert listing
+            $listingId = DB::table('venue_listings')->insertGetId($insertData);
+
+            error_log("VENUE_LISTING_CREATED: ID={$listingId}, Logo={$logoUrl}, Gallery=" . count($galleryUrls));
+
+            return $this->json($response, true, "Listing created successfully!", 201, [
+                'listing_id' => $listingId,
+                'logo' => $logoUrl,
+                'gallery' => $galleryUrls,
+                'gallery_count' => count($galleryUrls)
             ]);
 
         } catch (\Exception $e) {
             error_log("CREATE_LISTING_ERROR: " . $e->getMessage());
-            error_log("STACK_TRACE: " . $e->getTraceAsString());
             return $this->json($response, false, "Failed to create listing: " . $e->getMessage(), 500);
         }
     }
 
-    /* ===========================================================
-     *  SEND INQUIRY (Optional - for future use)
-     * =========================================================== */
-    public function sendInquiry(Request $request, Response $response)
+    /* =========================================================
+     * ✅ GET MY VENUE LISTINGS
+     * ========================================================= */
+    public function getMyListings(Request $request, Response $response)
     {
         try {
-            $auth = $request->getAttribute('user');
-            if (!$auth || !isset($auth->mysql_id)) {
-                return $this->json($response, false, "Authentication required", 401);
+            $u = $request->getAttribute('user');
+            if (!$u || !isset($u->mysql_id)) {
+                return $this->json($response, false, "Unauthorized", 401);
             }
+            $userId = $u->mysql_id;
 
-            $data = $request->getParsedBody();
-            
-            // Store inquiry (you'd need to create this table)
-            error_log("INQUIRY_DATA: " . json_encode($data));
+            $listings = DB::table('venue_listings')
+                ->where('user_id', $userId)
+                ->orderBy('created_at', 'desc')
+                ->get();
 
-            return $this->json($response, true, "Inquiry sent successfully", 200);
+            // ✅ Parse gallery JSON and normalize image field names
+            $listings = array_map(function($listing) {
+                $listing = (array) $listing;
+                
+                // Parse gallery
+                $galleryField = $listing['gallery'] ?? $listing['gallery_images'] ?? null;
+                if ($galleryField) {
+                    try {
+                        $listing['gallery'] = json_decode($galleryField, true);
+                    } catch (\Exception $e) {
+                        $listing['gallery'] = [];
+                    }
+                } else {
+                    $listing['gallery'] = [];
+                }
+                
+                // Normalize main image field name
+                if (!isset($listing['portfolio'])) {
+                    $listing['portfolio'] = $listing['portfolio_image'] 
+                        ?? $listing['hero_image'] 
+                        ?? $listing['HeroImageUrl'] 
+                        ?? $listing['main_image'] 
+                        ?? $listing['image_url'] 
+                        ?? $listing['venue_image'] 
+                        ?? null;
+                }
+                
+                return $listing;
+            }, $listings->toArray());
+
+            return $this->json($response, true, "Listings retrieved", 200, [
+                'listings' => $listings
+            ]);
 
         } catch (\Exception $e) {
-            error_log("SEND_INQUIRY_ERROR: " . $e->getMessage());
-            return $this->json($response, false, "Failed to send inquiry", 500);
+            error_log("GET_MY_LISTINGS_ERROR: " . $e->getMessage());
+            return $this->json($response, false, "Failed to get listings", 500);
         }
     }
 
-    /* ===========================================================
-     *  SCHEDULE VISIT (Optional - for future use)
-     * =========================================================== */
-    public function scheduleVisit(Request $request, Response $response)
+    /* =========================================================
+     * ✅ UPDATE VENUE LISTING - ADAPTIVE VERSION
+     * ========================================================= */
+    public function updateListing(Request $request, Response $response, $args)
     {
         try {
-            $auth = $request->getAttribute('user');
-            if (!$auth || !isset($auth->mysql_id)) {
-                return $this->json($response, false, "Authentication required", 401);
+            $u = $request->getAttribute('user');
+            if (!$u || !isset($u->mysql_id)) {
+                return $this->json($response, false, "Unauthorized", 401);
+            }
+            $userId = $u->mysql_id;
+            $listingId = (int) $args['id'];
+
+            // Verify ownership
+            $listing = DB::table('venue_listings')
+                ->where('id', $listingId)
+                ->where('user_id', $userId)
+                ->first();
+
+            if (!$listing) {
+                return $this->json($response, false, "Listing not found or access denied", 404);
             }
 
-            $data = $request->getParsedBody();
-            
-            // Store visit request (you'd need to create this table)
-            error_log("SCHEDULE_VISIT_DATA: " . json_encode($data));
+            $data = (array) $request->getParsedBody();
+            $files = $request->getUploadedFiles();
 
-            return $this->json($response, true, "Visit scheduled successfully", 200);
+            $updateData = [];
+
+            // Text fields
+            $textFields = ['venue_name', 'venue_subcategory', 'venue_capacity', 
+                          'venue_amenities', 'venue_operating_hours', 'venue_parking',
+                          'description', 'pricing', 'address', 'contact_email'];
+            
+            foreach ($textFields as $field) {
+                if (isset($data[$field])) {
+                    $updateData[$field] = $data[$field];
+                }
+            }
+
+            // ✅ Upload new logo if provided
+            if (isset($files['logo']) && $files['logo']->getError() === UPLOAD_ERR_OK) {
+                try {
+                    $tmp = $files['logo']->getStream()->getMetadata('uri');
+                    $upload = $this->cloud->uploadApi()->upload($tmp, [
+                        'folder' => "solennia/venues/logo/{$userId}",
+                        'resource_type' => 'image',
+                        'transformation' => [
+                            ['width' => 1200, 'height' => 800, 'crop' => 'limit', 'quality' => 'auto:good']
+                        ],
+                        'timeout' => 60
+                    ]);
+                    
+                    // Find which column to update
+                    $tableColumns = DB::select("SHOW COLUMNS FROM venue_listings");
+                    $columnNames = array_column($tableColumns, 'Field');
+                    
+                    $possibleImageColumns = ['portfolio_image', 'portfolio', 'hero_image', 'HeroImageUrl', 'main_image'];
+                    foreach ($possibleImageColumns as $col) {
+                        if (in_array($col, $columnNames)) {
+                            $updateData[$col] = $upload['secure_url'];
+                        }
+                    }
+                } catch (\Exception $e) {
+                    error_log("LOGO_UPDATE_ERROR: " . $e->getMessage());
+                }
+            }
+
+            // ✅ Upload new gallery images if provided
+            $existingGallery = [];
+            $galleryField = $listing->gallery ?? $listing->gallery_images ?? null;
+            if ($galleryField) {
+                $existingGallery = json_decode($galleryField, true) ?? [];
+            }
+            
+            $newGalleryUrls = [];
+            $galleryKeys = ['gallery_1', 'gallery_2', 'gallery_3'];
+            
+            foreach ($galleryKeys as $idx => $key) {
+                if (isset($files[$key]) && $files[$key]->getError() === UPLOAD_ERR_OK) {
+                    try {
+                        $tmp = $files[$key]->getStream()->getMetadata('uri');
+                        $upload = $this->cloud->uploadApi()->upload($tmp, [
+                            'folder' => "solennia/venues/gallery/{$userId}",
+                            'resource_type' => 'image',
+                            'transformation' => [
+                                ['width' => 800, 'height' => 600, 'crop' => 'limit', 'quality' => 'auto:good']
+                            ],
+                            'timeout' => 60
+                        ]);
+                        $newGalleryUrls[$idx] = $upload['secure_url'];
+                    } catch (\Exception $e) {
+                        error_log("GALLERY_UPDATE_ERROR_{$key}: " . $e->getMessage());
+                        if (isset($existingGallery[$idx])) {
+                            $newGalleryUrls[$idx] = $existingGallery[$idx];
+                        }
+                    }
+                } else {
+                    if (isset($existingGallery[$idx])) {
+                        $newGalleryUrls[$idx] = $existingGallery[$idx];
+                    }
+                }
+            }
+
+            if (!empty($newGalleryUrls)) {
+                $tableColumns = $tableColumns ?? DB::select("SHOW COLUMNS FROM venue_listings");
+                $columnNames = $columnNames ?? array_column($tableColumns, 'Field');
+                
+                if (in_array('gallery', $columnNames)) {
+                    $updateData['gallery'] = json_encode(array_values($newGalleryUrls));
+                } elseif (in_array('gallery_images', $columnNames)) {
+                    $updateData['gallery_images'] = json_encode(array_values($newGalleryUrls));
+                }
+            }
+
+            if (empty($updateData)) {
+                return $this->json($response, false, "No data to update", 400);
+            }
+
+            DB::table('venue_listings')
+                ->where('id', $listingId)
+                ->update($updateData);
+
+            return $this->json($response, true, "Listing updated successfully!", 200);
 
         } catch (\Exception $e) {
-            error_log("SCHEDULE_VISIT_ERROR: " . $e->getMessage());
-            return $this->json($response, false, "Failed to schedule visit", 500);
+            error_log("UPDATE_LISTING_ERROR: " . $e->getMessage());
+            return $this->json($response, false, "Failed to update listing", 500);
         }
     }
 
-    /* ===========================================================
-     *  JSON HELPER
-     * =========================================================== */
+    /* =========================================================
+     * ✅ DELETE VENUE LISTING
+     * ========================================================= */
+    public function deleteListing(Request $request, Response $response, $args)
+    {
+        try {
+            $u = $request->getAttribute('user');
+            if (!$u || !isset($u->mysql_id)) {
+                return $this->json($response, false, "Unauthorized", 401);
+            }
+            $userId = $u->mysql_id;
+            $listingId = (int) $args['id'];
+
+            $deleted = DB::table('venue_listings')
+                ->where('id', $listingId)
+                ->where('user_id', $userId)
+                ->delete();
+
+            if (!$deleted) {
+                return $this->json($response, false, "Listing not found", 404);
+            }
+
+            return $this->json($response, true, "Listing deleted successfully!", 200);
+
+        } catch (\Exception $e) {
+            error_log("DELETE_LISTING_ERROR: " . $e->getMessage());
+            return $this->json($response, false, "Failed to delete listing", 500);
+        }
+    }
+
+    /* =========================================================
+     * HELPER
+     * ========================================================= */
     private function json(Response $res, bool $success, string $message, int $status = 200, array $extra = [])
     {
         $payload = array_merge([
@@ -324,3 +403,4 @@ class VenueController
                    ->withStatus($status);
     }
 }
+

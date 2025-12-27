@@ -1,4 +1,4 @@
-// src/pages/VenueDetail.jsx - ✅ WITH CHAT BUTTON
+// src/pages/VenueDetail.jsx - ✅ FIXED: Gallery Support
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import toast from "../utils/toast";
@@ -9,6 +9,7 @@ export default function VenueDetail() {
   const [venue, setVenue] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
+  const [selectedImage, setSelectedImage] = useState(0);
 
   /* =========================
      FETCH VENUE DATA FROM API
@@ -19,19 +20,39 @@ export default function VenueDetail() {
         const response = await fetch(`/api/venues/${id}`);
         const data = await response.json();
         
+        console.log("Venue detail data:", data); // Debug
+        
         if (response.ok && data.venue) {
-          // Transform the data to match the expected structure
+          // ✅ FIXED: Parse gallery properly
+          let galleryImages = [];
+          if (data.venue.gallery) {
+            try {
+              galleryImages = typeof data.venue.gallery === 'string' 
+                ? JSON.parse(data.venue.gallery) 
+                : (Array.isArray(data.venue.gallery) ? data.venue.gallery : []);
+            } catch (e) {
+              console.error("Error parsing gallery:", e);
+              galleryImages = [];
+            }
+          }
+
+          // ✅ FIXED: Get main image
+          const mainImage = data.venue.logo 
+            || data.venue.portfolio 
+            || data.venue.portfolio_image 
+            || data.venue.HeroImageUrl 
+            || "https://via.placeholder.com/800?text=Venue+Image";
+
+          // Combine main image with gallery
+          const allImages = [mainImage, ...galleryImages].filter(Boolean);
+
           setVenue({
             id: data.venue.id,
-            firebase_uid: data.venue.firebase_uid,  // ✅ ADDED: For chat
-            owner_name: data.venue.owner_name,       // ✅ ADDED: For display
-            name: data.venue.business_name,
+            firebase_uid: data.venue.firebase_uid,
+            owner_name: data.venue.owner_name,
+            name: data.venue.venue_name || data.venue.business_name,
             location: data.venue.address,
-            images: [
-              data.venue.portfolio || "https://via.placeholder.com/800?text=Venue+Image",
-              data.venue.portfolio || "https://via.placeholder.com/800?text=Venue+Image",
-              data.venue.portfolio || "https://via.placeholder.com/800?text=Venue+Image"
-            ],
+            images: allImages.length > 0 ? allImages : [mainImage],
             capacity: data.venue.venue_capacity || "Not specified",
             venue_type: data.venue.venue_subcategory || "",
             description: data.venue.description || "No description available.",
@@ -67,9 +88,7 @@ export default function VenueDetail() {
     fetchVenue();
   }, [id]);
 
-  /* ================= ✅ ADDED: CHAT FUNCTIONALITY ================= */
   const handleChatClick = () => {
-    // Check if user is logged in
     const token = localStorage.getItem("solennia_token");
     if (!token) {
       toast.warning("Please login to chat with this venue");
@@ -82,7 +101,6 @@ export default function VenueDetail() {
       return;
     }
 
-    // Navigate to chat with ?to= parameter
     navigate(`/chat?to=${encodeURIComponent(venue.firebase_uid)}`);
   };
 
@@ -126,23 +144,49 @@ export default function VenueDetail() {
         Back to Venues
       </button>
 
-      {/* Image Gallery */}
+      {/* ✅ FIXED: Image Gallery with Multiple Images */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+        {/* Main Image */}
         <div className="h-96 rounded-lg overflow-hidden">
           <img
-            src={venue.images[0]}
+            src={venue.images[selectedImage] || venue.images[0]}
             alt={venue.name}
             className="w-full h-full object-cover"
+            onError={(e) => {
+              e.target.src = "https://via.placeholder.com/800?text=Venue+Image";
+            }}
           />
         </div>
+
+        {/* Thumbnail Grid */}
         <div className="grid grid-cols-2 gap-4">
-          {venue.images.slice(1).map((img, idx) => (
-            <div key={idx} className="h-[11.5rem] rounded-lg overflow-hidden">
-              <img src={img} alt={`${venue.name} ${idx + 2}`} className="w-full h-full object-cover" />
+          {venue.images.slice(0, 4).map((img, idx) => (
+            <div 
+              key={idx} 
+              className={`h-[11.5rem] rounded-lg overflow-hidden cursor-pointer border-2 transition-all ${
+                selectedImage === idx ? 'border-[#7a5d47]' : 'border-transparent hover:border-gray-300'
+              }`}
+              onClick={() => setSelectedImage(idx)}
+            >
+              <img 
+                src={img} 
+                alt={`${venue.name} ${idx + 1}`} 
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.target.src = "https://via.placeholder.com/400?text=Image";
+                }}
+              />
             </div>
           ))}
         </div>
       </div>
+
+      {/* Image Counter */}
+      {venue.images.length > 1 && (
+        <div className="text-center text-sm text-gray-600 mb-4">
+          Image {selectedImage + 1} of {venue.images.length}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Main Content */}
@@ -158,7 +202,6 @@ export default function VenueDetail() {
               )}
             </div>
             
-            {/* ✅ ADDED: Owner name display */}
             {venue.owner_name && (
               <p className="text-sm text-gray-600 mb-2">
                 Managed by <span className="font-medium">{venue.owner_name}</span>
@@ -182,7 +225,6 @@ export default function VenueDetail() {
                 </span>
               </div>
 
-              {/* Additional Venue Info */}
               {(venue.operating_hours || venue.parking) && (
                 <div className="flex items-center gap-4 text-sm text-gray-600 flex-wrap mt-2">
                   {venue.operating_hours && (
@@ -236,40 +278,48 @@ export default function VenueDetail() {
           {activeTab === "packages" && (
             <div className="space-y-4">
               <h3 className="text-lg font-semibold mb-4">Available Packages</h3>
-              {venue.packages.map((pkg, idx) => (
-                <div key={idx} className="bg-white p-6 rounded-lg border border-gray-200">
-                  <div className="flex justify-between items-start mb-3">
-                    <h4 className="font-semibold text-gray-800">{pkg.name}</h4>
-                    <span className="text-xl font-bold text-[#7a5d47]">{pkg.price}</span>
+              {venue.packages.length > 0 ? (
+                venue.packages.map((pkg, idx) => (
+                  <div key={idx} className="bg-white p-6 rounded-lg border border-gray-200">
+                    <div className="flex justify-between items-start mb-3">
+                      <h4 className="font-semibold text-gray-800">{pkg.name}</h4>
+                      <span className="text-xl font-bold text-[#7a5d47]">{pkg.price}</span>
+                    </div>
+                    <ul className="space-y-2">
+                      {pkg.includes.map((item, i) => (
+                        <li key={i} className="flex items-start gap-2 text-sm text-gray-600">
+                          <svg className="w-5 h-5 text-green-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                          </svg>
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                  <ul className="space-y-2">
-                    {pkg.includes.map((item, i) => (
-                      <li key={i} className="flex items-start gap-2 text-sm text-gray-600">
-                        <svg className="w-5 h-5 text-green-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                        </svg>
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
+                ))
+              ) : (
+                <p className="text-gray-600">Contact venue for package details.</p>
+              )}
             </div>
           )}
 
           {activeTab === "amenities" && (
             <div>
               <h3 className="text-lg font-semibold mb-4">Venue Amenities</h3>
-              <div className="grid grid-cols-2 gap-3">
-                {venue.amenities.map((amenity, idx) => (
-                  <div key={idx} className="flex items-center gap-2 text-gray-700">
-                    <svg className="w-5 h-5 text-[#7a5d47]" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                    </svg>
-                    {amenity}
-                  </div>
-                ))}
-              </div>
+              {venue.amenities.length > 0 ? (
+                <div className="grid grid-cols-2 gap-3">
+                  {venue.amenities.map((amenity, idx) => (
+                    <div key={idx} className="flex items-center gap-2 text-gray-700">
+                      <svg className="w-5 h-5 text-[#7a5d47]" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      {amenity}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-600">Contact venue for amenities information.</p>
+              )}
             </div>
           )}
         </div>
@@ -280,19 +330,23 @@ export default function VenueDetail() {
             <h3 className="font-semibold text-lg mb-4">Contact Venue</h3>
             
             <div className="space-y-4 mb-6">
-              <div>
-                <p className="text-sm text-gray-600 mb-1">Email</p>
-                <a href={`mailto:${venue.contact.email}`} className="text-[#7a5d47] hover:underline">
-                  {venue.contact.email}
-                </a>
-              </div>
+              {venue.contact.email && (
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Email</p>
+                  <a href={`mailto:${venue.contact.email}`} className="text-[#7a5d47] hover:underline break-words">
+                    {venue.contact.email}
+                  </a>
+                </div>
+              )}
               
-              <div>
-                <p className="text-sm text-gray-600 mb-1">Phone</p>
-                <a href={`tel:${venue.contact.phone}`} className="text-[#7a5d47] hover:underline">
-                  {venue.contact.phone}
-                </a>
-              </div>
+              {venue.contact.phone && (
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Phone</p>
+                  <a href={`tel:${venue.contact.phone}`} className="text-[#7a5d47] hover:underline">
+                    {venue.contact.phone}
+                  </a>
+                </div>
+              )}
               
               <div>
                 <p className="text-sm text-gray-600 mb-1">Address</p>
@@ -300,7 +354,6 @@ export default function VenueDetail() {
               </div>
             </div>
 
-            {/* ✅ ADDED: Chat Button */}
             <button 
               onClick={handleChatClick}
               className="w-full bg-[#7a5d47] hover:bg-[#654a38] text-white font-semibold py-3 rounded-lg transition-colors mb-3 flex items-center justify-center gap-2"
@@ -312,14 +365,12 @@ export default function VenueDetail() {
             </button>
 
             <button 
-              onClick={() => window.openVenueInquiry && window.openVenueInquiry(venue.id, venue.name)}
               className="w-full bg-[#e8ddae] hover:bg-[#dbcf9f] text-gray-800 font-semibold py-3 rounded-lg transition-colors mb-3"
             >
               Send Inquiry
             </button>
             
             <button 
-              onClick={() => window.openScheduleVisit && window.openScheduleVisit(venue.id, venue.name)}
               className="w-full border-2 border-[#e8ddae] hover:bg-[#e8ddae]/10 text-gray-800 font-semibold py-3 rounded-lg transition-colors"
             >
               Schedule Visit

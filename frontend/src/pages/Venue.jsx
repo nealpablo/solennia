@@ -1,4 +1,4 @@
-// src/pages/Venue.jsx - ✅ WITH CHAT FUNCTIONALITY
+// src/pages/Venue.jsx - ✅ FIXED: Gallery Support
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import toast from "../utils/toast";
@@ -26,6 +26,7 @@ export default function Venue() {
       const data = await res.json();
       
       if (res.ok) {
+        console.log("Venues fetched:", data.venues); // Debug
         setVenues(data.venues || []);
       }
     } catch (err) {
@@ -53,9 +54,8 @@ export default function Venue() {
       
       const data = await res.json();
       
-      if (data.success && 
-          data.vendor?.ServiceType === "Venue" && 
-          data.vendor?.VerificationStatus === "approved") {
+      // Check if venue vendor based on category
+      if (data.success && data.category?.toLowerCase() === "venue" && data.status === "approved") {
         setIsVenueVendor(true);
       }
     } catch (err) {
@@ -76,12 +76,8 @@ export default function Venue() {
       return;
     }
 
-    // Open the venue listing modal from Modals.jsx
-    if (window.openCreateVenueListing) {
-      window.openCreateVenueListing();
-    } else {
-      toast.error("Listing modal not available");
-    }
+    // Navigate to venue dashboard
+    navigate("/venue-dashboard");
   };
 
   const handleShowMore = () => {
@@ -198,7 +194,7 @@ export default function Venue() {
 }
 
 /* =========================
-   VENUE CARD COMPONENT - ✅ WITH CHAT BUTTON
+   VENUE CARD COMPONENT - ✅ FIXED: Gallery Support
 ========================= */
 function VenueCard({ venue, navigate }) {
   const [isFavorite, setIsFavorite] = useState(false);
@@ -207,22 +203,18 @@ function VenueCard({ venue, navigate }) {
     e.preventDefault();
     e.stopPropagation();
     setIsFavorite(!isFavorite);
-    // TODO: Add API call to save favorite
   };
 
-  /* ================= ✅ ADDED: CHAT FUNCTIONALITY ================= */
   const handleChatClick = (e) => {
     e.preventDefault();
     e.stopPropagation();
     
-    // Check if user is logged in
     const token = localStorage.getItem("solennia_token");
     if (!token) {
       toast.warning("Please login to chat with venue vendors");
       return;
     }
 
-    // Get firebase_uid from venue
     const firebaseUid = venue.firebase_uid || venue.user_firebase_uid;
     
     if (!firebaseUid) {
@@ -231,12 +223,24 @@ function VenueCard({ venue, navigate }) {
       return;
     }
 
-    // Navigate to chat with ?to= parameter
     navigate(`/chat?to=${encodeURIComponent(firebaseUid)}`);
   };
 
-  // Extract image from portfolio or use placeholder
-  const venueImage = venue.portfolio || "https://via.placeholder.com/400x300?text=Venue+Image";
+  // ✅ FIXED: Get image from logo field or portfolio
+  const venueImage = venue.logo || venue.portfolio || venue.portfolio_image || venue.HeroImageUrl || "https://via.placeholder.com/400x300?text=Venue+Image";
+
+  // ✅ FIXED: Parse gallery if it's a JSON string
+  let galleryImages = [];
+  if (venue.gallery) {
+    try {
+      galleryImages = typeof venue.gallery === 'string' 
+        ? JSON.parse(venue.gallery) 
+        : (Array.isArray(venue.gallery) ? venue.gallery : []);
+    } catch (e) {
+      console.error("Error parsing gallery:", e);
+      galleryImages = [];
+    }
+  }
 
   return (
     <Link
@@ -247,7 +251,7 @@ function VenueCard({ venue, navigate }) {
       <div className="relative h-48 overflow-hidden bg-gray-200">
         <img
           src={venueImage}
-          alt={venue.business_name}
+          alt={venue.venue_name || venue.business_name}
           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
           onError={(e) => {
             e.target.src = "https://via.placeholder.com/400x300?text=Venue+Image";
@@ -256,7 +260,6 @@ function VenueCard({ venue, navigate }) {
         
         {/* Overlay Icons */}
         <div className="absolute top-3 right-3 flex gap-2">
-          {/* Favorite Icon */}
           <button
             onClick={toggleFavorite}
             className="w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center hover:bg-white transition-colors"
@@ -273,7 +276,6 @@ function VenueCard({ venue, navigate }) {
             </svg>
           </button>
 
-          {/* ✅ ADDED: Chat Icon */}
           <button
             onClick={handleChatClick}
             className="w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center hover:bg-white transition-colors"
@@ -291,10 +293,28 @@ function VenueCard({ venue, navigate }) {
         </div>
       </div>
 
+      {/* ✅ NEW: Gallery Preview Strip */}
+      {galleryImages.length > 0 && (
+        <div className="flex gap-1 p-2 bg-gray-50">
+          {galleryImages.slice(0, 3).map((img, idx) => (
+            <div key={idx} className="flex-1 h-16 rounded overflow-hidden">
+              <img 
+                src={img} 
+                alt={`Gallery ${idx + 1}`} 
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                }}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Card Content */}
       <div className="p-4">
         <h3 className="font-semibold text-gray-800 mb-1 line-clamp-2 group-hover:text-[#7a5d47] transition-colors">
-          {venue.business_name}
+          {venue.venue_name || venue.business_name}
         </h3>
         <p className="text-sm text-gray-600 flex items-center gap-1 mb-2">
           <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -304,7 +324,6 @@ function VenueCard({ venue, navigate }) {
           {venue.address}
         </p>
 
-        {/* Venue Type Badge */}
         {venue.venue_subcategory && (
           <div className="mb-2">
             <span className="inline-block px-2 py-1 bg-[#e8ddae]/50 text-xs rounded-full">
@@ -313,7 +332,6 @@ function VenueCard({ venue, navigate }) {
           </div>
         )}
 
-        {/* Additional Info */}
         <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
           {venue.venue_capacity && (
             <span className="flex items-center gap-1">
@@ -323,9 +341,13 @@ function VenueCard({ venue, navigate }) {
               {venue.venue_capacity} guests
             </span>
           )}
+          {galleryImages.length > 0 && (
+            <span className="text-[#7a5d47] font-medium">
+              📷 {galleryImages.length} photos
+            </span>
+          )}
         </div>
 
-        {/* ✅ ADDED: Chat Button at Bottom */}
         <button
           onClick={handleChatClick}
           className="mt-3 w-full px-4 py-2 bg-[#7a5d47] hover:bg-[#654a38] text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2"

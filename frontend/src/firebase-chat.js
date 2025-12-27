@@ -1,7 +1,7 @@
 // src/firebase-chat.js - FIXED VERSION
 import { getApp, getApps } from "firebase/app";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
-import { getDatabase, ref, push, onChildAdded, query, orderByChild, get, set, child, update } from "firebase/database";
+import { getDatabase, ref, push, onChildAdded, onValue, query, orderByChild, get, set, child, update } from "firebase/database";
 
 let _db = null;
 let _auth = null;
@@ -88,6 +88,46 @@ export async function listThreadsForCurrentUser() {
   return res;
 }
 
+// ✅ NEW: Listen for real-time updates to all threads
+export function onAllThreadsUpdate(callback) {
+  if (!_db) throw new Error('Init chat first');
+  if (!_meUid) return () => {};
+
+  const threadsRef = ref(_db, 'threads');
+  
+  const unsubscribe = onValue(threadsRef, (snapshot) => {
+    if (!snapshot.exists()) {
+      callback([]);
+      return;
+    }
+
+    const threads = snapshot.val();
+    const res = [];
+
+    for (const [tid, threadData] of Object.entries(threads)) {
+      const meta = threadData.meta || threadData;
+      const participants = meta.participants || {};
+      
+      if (participants[_meUid]) {
+        const otherUid = Object.keys(participants).find(x => x !== _meUid);
+        
+        res.push({
+          threadId: tid,
+          otherUid,
+          otherName: null,
+          lastMessageSnippet: meta.lastMessage ? String(meta.lastMessage).slice(0, 60) : '',
+          lastTs: meta.lastTs || 0
+        });
+      }
+    }
+
+    res.sort((a, b) => (b.lastTs || 0) - (a.lastTs || 0));
+    callback(res);
+  });
+
+  return unsubscribe;
+}
+
 export async function openThreadByOtherUid(otherUidOrId, callback) {
   if (!_db) throw new Error('Init chat first');
   if (!_meUid) {
@@ -167,7 +207,7 @@ export function onThreadMessages(threadId, onMessage) {
   if (!_db) throw new Error('Init chat first');
   const q = query(ref(_db, `messages/${threadId}`), orderByChild('ts'));
   
-  onChildAdded(q, snap => {
+  const unsubscribe = onChildAdded(q, snap => {
     if (!snap.exists()) return;
     const m = snap.val();
     onMessage({ 
@@ -177,4 +217,7 @@ export function onThreadMessages(threadId, onMessage) {
       id: snap.key 
     });
   });
+  
+  // ✅ FIX: Return the unsubscribe function
+  return unsubscribe;
 }
