@@ -103,17 +103,26 @@ export default function Profile() {
       });
   }, [token]);
 
+  
   /* ================= VENDOR STATUS ================= */
-  useEffect(() => {
-    if (!token || role !== 0) return;
+useEffect(() => {
+  if (!token || role !== 0) return;
 
-    fetch(`${API}/vendor/status`, {
-      headers: { Authorization: `Bearer ${token}` },
+  fetch(`${API}/vendor/status`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+    .then((r) => r.json())
+    .then((j) => {
+      setVendorStatus(j.status);
+      
+      // ✅ SHOW STATUS NOTIFICATION
+      if (j.status === 'pending') {
+        // Optional: Show a subtle notification that application is pending
+        console.log('Vendor application is pending review');
+      }
     })
-      .then((r) => r.json())
-      .then((j) => setVendorStatus(j.status))
-      .catch(() => {});
-  }, [token, role]);
+    .catch(() => {});
+}, [token, role]);
 
   /* ================= AVATAR PREVIEW ================= */
   useEffect(() => {

@@ -28,7 +28,7 @@ return function (App $app) {
             ->withStatus($status);
     };
 
-    // Optimized file upload helper
+    // ✅ OPTIMIZED FOR RAILWAY: 10s timeout, aggressive compression
     $uploadFileOptimized = function ($file, $userId, $tag) use ($cloudinary) {
         try {
             $tmp = $file->getStream()->getMetadata('uri');
@@ -37,16 +37,17 @@ return function (App $app) {
                 'folder' => "solennia/vendor/{$userId}",
                 'resource_type' => 'auto',
                 'public_id' => "{$tag}_" . time(),
-                'timeout' => 60
+                'timeout' => 10  // ✅ 10 seconds - perfect for 1MB files
             ];
 
             $mimeType = $file->getClientMediaType();
             if (strpos($mimeType, 'image/') === 0) {
+                // ✅ Aggressive compression for fast uploads
                 $uploadOptions['transformation'] = [
                     [
-                        'quality' => 'auto:good',
+                        'quality' => 'auto:low',  // Lower quality = faster
                         'fetch_format' => 'auto',
-                        'width' => 1200,
+                        'width' => 800,  // Smaller size = faster
                         'crop' => 'limit'
                     ]
                 ];
@@ -300,7 +301,7 @@ return function (App $app) {
         }
     });
 
-    // Vendor application
+    // ✅ OPTIMIZED FOR RAILWAY: 1MB limit, 10s timeout per file
     $app->post('/api/vendor/apply', function (Request $req, Response $res) use ($json, $uploadFileOptimized, $sendNotification, $sendToAdmins) {
 
         try {
@@ -348,20 +349,33 @@ return function (App $app) {
 
             $files = $req->getUploadedFiles();
             
+            // ✅ STRICT 1MB LIMIT FOR RAILWAY
             foreach (['permits','gov_id','portfolio'] as $fileKey) {
                 if (!isset($files[$fileKey]) || $files[$fileKey]->getError() !== UPLOAD_ERR_OK) {
                     return $json($res, [
-                        'success' => false,
-                        'error'   => "Invalid upload: {$fileKey}"
+                        'success' => false, 
+                        'error' => "Invalid upload: {$fileKey}"
+                    ], 422);
+                }
+                
+                $fileSize = $files[$fileKey]->getSize();
+                if ($fileSize > 1 * 1024 * 1024) { // 1MB
+                    $fileSizeMB = round($fileSize / (1024 * 1024), 2);
+                    return $json($res, [
+                        'success' => false, 
+                        'error' => "{$fileKey} is too large ({$fileSizeMB}MB). Maximum 1MB. Compress at TinyPNG.com before uploading."
                     ], 422);
                 }
             }
 
+            // ✅ Upload files (fast with 1MB files and 10s timeout!)
+            error_log("UPLOAD_START: UserID={$userId}");
             $uploadResults = [
                 'permits' => $uploadFileOptimized($files['permits'], $userId, 'permits'),
                 'gov_id' => $uploadFileOptimized($files['gov_id'], $userId, 'govid'),
                 'portfolio' => $uploadFileOptimized($files['portfolio'], $userId, 'portfolio')
             ];
+            error_log("UPLOAD_COMPLETE: UserID={$userId}");
 
             foreach ($uploadResults as $key => $result) {
                 if (!$result['success']) {
@@ -411,7 +425,7 @@ return function (App $app) {
                 $userId,
                 'application_received',
                 'Application Received',
-                'Your vendor application has been received and is under review. We\'ll notify you once it\'s processed.'
+                'Your vendor application has been received and is under review.'
             );
 
             return $json($res, [

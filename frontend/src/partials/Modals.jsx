@@ -750,66 +750,98 @@ formData.append("contact_email", form.contact_email.value);
   };
 
   const submitVendorApplication = async (e) => {
-    e.preventDefault();
+  e.preventDefault();
 
-    const token = localStorage.getItem("solennia_token");
-    if (!token) {
-      toast.warning("Please login to apply as a vendor.");
+  const token = localStorage.getItem("solennia_token");
+  if (!token) {
+    toast.warning("Please login to apply as a vendor.");
+    return;
+  }
+
+  const form = e.target;
+  const formData = new FormData(form);
+
+  // ✅ STRICT 1MB LIMIT - Fast uploads, no blocking
+  const maxSize = 1 * 1024 * 1024; // 1MB
+  const files = {
+    permits: formData.get('permits'),
+    gov_id: formData.get('gov_id'),
+    portfolio: formData.get('portfolio')
+  };
+
+  for (const [key, file] of Object.entries(files)) {
+    if (!file || file.size === 0) {
+      toast.error(`Please select ${key.replace('_', ' ')}`);
       return;
     }
+    
+    const fileSizeKB = Math.round(file.size / 1024);
+    const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+    
+    if (file.size > maxSize) {
+      toast.error(`${key.replace('_', ' ').toUpperCase()} is too large (${fileSizeMB}MB). Maximum 1MB allowed. Use TinyPNG.com to compress.`);
+      return;
+    }
+  }
 
-    const form = e.target;
-    const formData = new FormData(form);
+  // Append step 1 data
+  Object.entries(vendorForm).forEach(([key, value]) => {
+    if (value && !["permits", "gov_id", "portfolio"].includes(key)) {
+      formData.set(key, value);
+    }
+  });
 
-    // Append step 1 data
-    Object.entries(vendorForm).forEach(([key, value]) => {
-      if (value && !["permits", "gov_id", "portfolio"].includes(key)) {
-        formData.set(key, value);
-      }
+  try {
+    setVendorLoading(true);
+    
+    // ✅ Clear progress message
+    toast.info("Uploading documents... (5-15 seconds)");
+
+    const res = await fetch("/api/vendor/apply", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: formData,
     });
 
-    try {
-      setVendorLoading(true);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Application failed");
 
-      const res = await fetch("/api/vendor/apply", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
-      });
+    toast.success("Application submitted successfully! We'll review it soon.");
+    closeAllVendorModals();
+    
+    // Reset form
+    setVendorForm({
+      business_name: "",
+      full_name: "",
+      category: "",
+      category_other: "",
+      address: "",
+      description: "",
+      pricing: "",
+      contact_email: "",
+      permits: null,
+      gov_id: null,
+      portfolio: null,
+      venue_subcategory: "",
+      venue_capacity: "",
+      venue_amenities: "",
+      venue_operating_hours: "",
+      venue_parking: "",
+    });
+    
+    setTimeout(() => window.location.reload(), 1500);
+    
+  } catch (err) {
+    console.error("Vendor application error:", err);
+    toast.error(err.message || "An error occurred");
+  } finally {
+    setVendorLoading(false);
+  }
+};
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Application failed");
 
-      toast.success("Application submitted successfully! We'll review it soon.");
-      closeAllVendorModals();
-      
-      // Reset form
-      setVendorForm({
-        business_name: "",
-        full_name: "",
-        category: "",
-        category_other: "",
-        address: "",
-        description: "",
-        pricing: "",
-        contact_email: "",
-        permits: null,
-        gov_id: null,
-        portfolio: null,
-        venue_subcategory: "",
-        venue_capacity: "",
-        venue_amenities: "",
-        venue_operating_hours: "",
-        venue_parking: "",
-      });
-    } catch (err) {
-      toast.error(err.message || "An error occurred");
-    } finally {
-      setVendorLoading(false);
-    }
-  };
 
   /* =========================
      RENDER - ALL MODALS
@@ -2464,6 +2496,8 @@ formData.append("contact_email", form.contact_email.value);
               <textarea 
                 name="description" 
                 required 
+                rows="4"
+                placeholder="Describe your services in detail..."
                 className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
               />
             </div>
@@ -2475,70 +2509,132 @@ formData.append("contact_email", form.contact_email.value);
               <textarea 
                 name="pricing" 
                 required 
+                rows="4"
+                placeholder="e.g., Basic Package: ₱50,000&#10;Premium Package: ₱100,000"
                 className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
               />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-xs font-semibold uppercase mb-1">
-                  Permits (PNG/JPG/PDF) <span className="text-red-600">*</span>
-                </label>
-                <input 
-                  name="permits" 
-                  type="file" 
-                  required
-                  accept=".png,.jpg,.jpeg,.pdf,image/png,image/jpeg,application/pdf"
-                  className="w-full rounded-md bg-gray-100 border border-gray-300 p-2 text-sm" 
-                />
+            {/* ✅ IMPROVED FILE UPLOADS WITH SIZE INFO */}
+            <div className="border-t border-gray-300 pt-4">
+              <h3 className="text-sm font-semibold uppercase text-[#7a5d47] mb-3">
+                Required Documents (Max 2MB each)
+              </h3>
+
+              <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+  <p className="text-xs text-amber-900 font-semibold flex items-center gap-2">
+    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"/>
+    </svg>
+    Files must be under 2MB each! Compress large files before uploading.
+  </p>
+</div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold uppercase mb-1">
+                    Permits (PNG/JPG/PDF) <span className="text-red-600">*</span>
+                  </label>
+                  <input 
+                    name="permits" 
+                    type="file" 
+                    required
+                    accept=".png,.jpg,.jpeg,.pdf,image/png,image/jpeg,application/pdf"
+                    onChange={(e) => {
+                      const file = e.target.files[0];
+                      if (file && file.size > 5 * 1024 * 1024) {
+                        toast.warning("Permits file is too large. Max 2MB.");
+                        e.target.value = '';
+                      }
+                    }}
+                    className="w-full rounded-md bg-gray-100 border border-gray-300 p-2 text-sm" 
+                  />
+                  <p className="text-xs text-gray-600 mt-1">Business permits/licenses</p>
+                </div>
+                
+                <div>
+                  <label className="block text-xs font-semibold uppercase mb-1">
+                    Gov ID (PNG/JPG/PDF) <span className="text-red-600">*</span>
+                  </label>
+                  <input 
+                    name="gov_id" 
+                    type="file" 
+                    required
+                    accept=".png,.jpg,.jpeg,.pdf,image/png,image/jpeg,application/pdf"
+                    onChange={(e) => {
+                      const file = e.target.files[0];
+                      if (file && file.size > 5 * 1024 * 1024) {
+                        toast.warning("Government ID is too large. Max 2MB.");
+                        e.target.value = '';
+                      }
+                    }}
+                    className="w-full rounded-md bg-gray-100 border border-gray-300 p-2 text-sm" 
+                  />
+                  <p className="text-xs text-gray-600 mt-1">Valid government-issued ID</p>
+                </div>
+                
+                <div>
+                  <label className="block text-xs font-semibold uppercase mb-1">
+                    Portfolio (PNG/JPG/PDF) <span className="text-red-600">*</span>
+                  </label>
+                  <input 
+                    name="portfolio" 
+                    type="file" 
+                    required
+                    accept=".png,.jpg,.jpeg,.pdf,image/png,image/jpeg,application/pdf"
+                    onChange={(e) => {
+                      const file = e.target.files[0];
+                      if (file && file.size > 5 * 1024 * 1024) {
+                        toast.warning("Portfolio file is too large. Max 2MB.");
+                        e.target.value = '';
+                      }
+                    }}
+                    className="w-full rounded-md bg-gray-100 border border-gray-300 p-2 text-sm" 
+                  />
+                  <p className="text-xs text-gray-600 mt-1">Sample work/portfolio</p>
+                </div>
               </div>
               
-              <div>
-                <label className="block text-xs font-semibold uppercase mb-1">
-                  Gov ID (PNG/JPG/PDF) <span className="text-red-600">*</span>
-                </label>
-                <input 
-                  name="gov_id" 
-                  type="file" 
-                  required
-                  accept=".png,.jpg,.jpeg,.pdf,image/png,image/jpeg,application/pdf"
-                  className="w-full rounded-md bg-gray-100 border border-gray-300 p-2 text-sm" 
-                />
-              </div>
-              
-              <div>
-                <label className="block text-xs font-semibold uppercase mb-1">
-                  Portfolio (PNG/JPG/PDF) <span className="text-red-600">*</span>
-                </label>
-                <input 
-                  name="portfolio" 
-                  type="file" 
-                  required
-                  accept=".png,.jpg,.jpeg,.pdf,image/png,image/jpeg,application/pdf"
-                  className="w-full rounded-md bg-gray-100 border border-gray-300 p-2 text-sm" 
-                />
+              {/* ✅ UPLOAD INFO */}
+              <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-xs text-blue-800">
+                  <strong>📌 Note:</strong> File uploads may take 10-30 seconds depending on your internet speed. 
+                  Please wait until you see the success message.
+                </p>
               </div>
             </div>
 
-            <div className="flex justify-between pt-4">
+            {/* ✅ IMPROVED SUBMIT BUTTONS WITH LOADING STATE */}
+            <div className="flex justify-between pt-4 border-t border-gray-300">
               <button 
                 type="button"
                 onClick={openVendorBackground}
-                className="px-5 py-2 bg-gray-200 hover:bg-gray-300 text-sm font-medium rounded"
+                disabled={vendorLoading}
+                className="px-5 py-2 bg-gray-200 hover:bg-gray-300 text-sm font-medium rounded disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Back
               </button>
               <button 
                 type="submit"
                 disabled={vendorLoading}
-                className="px-5 py-2 bg-[#e8ddae] hover:bg-[#dbcf9f] text-sm font-medium rounded disabled:opacity-50"
+                className="px-6 py-2.5 bg-[#e8ddae] hover:bg-[#dbcf9f] text-sm font-semibold rounded disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
-                {vendorLoading ? "Submitting..." : "Make Listing"}
+                {vendorLoading ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4 text-gray-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>Submitting Documents...</span>
+                  </>
+                ) : (
+                  "Submit Application"
+                )}
               </button>
             </div>
           </form>
         </div>
       </div>
+
 
       {/* ================= CREATE VENUE LISTING MODAL ================= */}
       <div
