@@ -8,7 +8,7 @@ import Footer from "./partials/Footer";
 import Modals from "./partials/Modals";
 
 // Pages
-import Landing from "./pages/Landing";
+
 import HomePage from "./pages/HomePage";
 import Venue from "./pages/Venue";
 import VenueDetail from "./pages/VenueDetail";
@@ -101,7 +101,6 @@ export default function App() {
   return (
     <Layout>
       <Routes>
-        <Route path="/landing" element={<Landing />} />
         <Route path="/" element={<HomePage />} />
         <Route path="/venue" element={<Venue />} />
         <Route path="/venue/:id" element={<VenueDetail />} />

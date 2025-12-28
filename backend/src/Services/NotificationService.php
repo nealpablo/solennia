@@ -1,5 +1,7 @@
 <?php
 
+namespace Src\Services;
+
 use Illuminate\Database\Capsule\Manager as DB;
 
 class NotificationService {
