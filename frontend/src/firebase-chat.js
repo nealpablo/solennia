@@ -3,6 +3,13 @@ import { getApp, getApps } from "firebase/app";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { getDatabase, ref, push, onChildAdded, onValue, query, orderByChild, get, set, child, update } from "firebase/database";
 
+const API_BASE = 
+  import.meta.env.VITE_API_BASE || 
+  import.meta.env.VITE_API_URL ||
+  (import.meta.env.PROD 
+    ? "https://solennia.up.railway.app" 
+    : "");
+
 let _db = null;
 let _auth = null;
 let _meUid = null;
@@ -139,7 +146,7 @@ export async function openThreadByOtherUid(otherUidOrId, callback) {
 
   if (/^\d+$/.test(String(otherUidOrId))) {
     try {
-      const res = await fetch(`/api/users/by-id/${encodeURIComponent(otherUidOrId)}`);
+      const res = await fetch(`${API_BASE}/api/users/by-id/${encodeURIComponent(otherUidOrId)}`);
       const json = await res.json();
       if (res.ok && json.user && json.user.firebase_uid) {
         otherUid = json.user.firebase_uid;

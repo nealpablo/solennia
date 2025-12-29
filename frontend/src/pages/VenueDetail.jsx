@@ -3,6 +3,13 @@ import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import toast from "../utils/toast";
 
+const API_BASE = 
+  import.meta.env.VITE_API_BASE || 
+  import.meta.env.VITE_API_URL ||
+  (import.meta.env.PROD 
+    ? "https://solennia.up.railway.app" 
+    : "");
+
 export default function VenueDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -17,7 +24,7 @@ export default function VenueDetail() {
   useEffect(() => {
     const fetchVenue = async () => {
       try {
-        const response = await fetch(`/api/venues/${id}`);
+        const response = await fetch(`${API_BASE}/api/venues/${id}`);
         const data = await response.json();
         
         console.log("Venue detail data:", data); // Debug
