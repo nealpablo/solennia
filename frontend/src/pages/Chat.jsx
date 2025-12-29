@@ -18,6 +18,42 @@ const API =
   (import.meta.env.PROD 
     ? "https://solennia.up.railway.app/api" : "/api");
 
+// ✅ Format message time in user's local timezone with context
+const formatMessageTime = (timestamp) => {
+  const msgDate = new Date(timestamp);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const msgDay = new Date(msgDate.getFullYear(), msgDate.getMonth(), msgDate.getDate());
+  
+  const diffDays = Math.floor((today - msgDay) / (1000 * 60 * 60 * 24));
+  
+  // Format time in 12-hour format with AM/PM (user's local timezone)
+  const timeStr = msgDate.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  });
+  
+  // Add date context if not today
+  if (diffDays === 0) {
+    return timeStr; // "2:30 PM"
+  } else if (diffDays === 1) {
+    return `Yesterday ${timeStr}`;
+  } else if (diffDays < 7) {
+    const dayName = msgDate.toLocaleDateString('en-US', { weekday: 'short' });
+    return `${dayName} ${timeStr}`;
+  } else {
+    return msgDate.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+  }
+};
+
+
 export default function Chat() {
   const [contacts, setContacts] = useState([]);
   const [active, setActive] = useState(null);
@@ -610,10 +646,7 @@ export default function Chat() {
                     <div key={msg.id} className={`chat-message ${isMe ? "me" : "them"}`}>
                       <div className="message-text">{msg.text}</div>
                       <div className="chat-meta">
-                        {new Date(msg.ts).toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
+                        {formatMessageTime(msg.ts)}
                       </div>
                     </div>
                   );

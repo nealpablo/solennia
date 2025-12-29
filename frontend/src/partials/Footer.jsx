@@ -94,7 +94,7 @@ export default function Footer() {
               onClick={openModal("privacyModal")}
               className="hover:underline hover:text-[#f2e7c6] transition-colors text-left"
             >
-              Privacy Policy
+              PRIVACY POLICY
             </button>
           </li>
 
@@ -103,7 +103,7 @@ export default function Footer() {
               onClick={openModal("termsModal")}
               className="hover:underline hover:text-[#f2e7c6] transition-colors text-left"
             >
-              Terms & Conditions
+              TERMS & CONDITIONS
             </button>
           </li>
 
@@ -112,7 +112,7 @@ export default function Footer() {
               onClick={openModal("feedbackModal")}
               className="hover:underline hover:text-[#f2e7c6] transition-colors text-left"
             >
-              Give Feedback
+              GIVE FEEDBACK
             </button>
           </li>
         </ul>
