@@ -15,7 +15,7 @@ class AuthMiddleware implements Middleware
     public function __construct()
     {
         // MUST MATCH AuthController
-        $this->secret = $_ENV['JWT_SECRET'] ?? 'solennia_super_secret_key_2025';
+        $this->secret = getenv('JWT_SECRET') ?: 'solennia_super_secret_key_2025';
     }
 
     public function process(Request $request, Handler $handler): Response

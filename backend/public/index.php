@@ -20,12 +20,13 @@ if (file_exists(BASE_PATH . '/.env')) {
     Dotenv::createImmutable(BASE_PATH)->safeLoad();
 }
 
-$env = $_ENV['APP_ENV'] ?? getenv('APP_ENV') ?? 'production';
+$env = getenv('APP_ENV') ?: 'production';
 if ($env !== 'production' && file_exists(BASE_PATH . '/.env')) {
     Dotenv::createImmutable(BASE_PATH)->load();
 } else {
     Dotenv::createImmutable(BASE_PATH)->safeLoad();
 }
+
 
 // -------------------------------------------------------------
 // Slim app & middleware
@@ -35,7 +36,7 @@ $app->addBodyParsingMiddleware();
 
 // CORS (use env or fallback to *)
 $app->add(function ($request, $handler) {
-    $allowed = $_ENV['CORS_ALLOWED_ORIGINS'] ?? '*';
+    $allowed = getenv('CORS_ALLOWED_ORIGINS') ?: '*';
 
     if ($request->getMethod() === 'OPTIONS') {
         $response = new \Slim\Psr7\Response(200);

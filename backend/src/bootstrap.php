@@ -8,10 +8,14 @@ require_once __DIR__ . '/../vendor/autoload.php';
  * Safe env reader (Railway + local)
  */
 function envx(string $k, $d = null) {
-    if (array_key_exists($k, $_ENV))    return $_ENV[$k];
-    if (array_key_exists($k, $_SERVER)) return $_SERVER[$k];
     $v = getenv($k);
-    return $v !== false ? $v : $d;
+    if ($v !== false) return $v;
+
+    if (array_key_exists($k, $_SERVER)) {
+        return $_SERVER[$k];
+    }
+
+    return $d;
 }
 
 $ROOT    = realpath(__DIR__ . '/..');

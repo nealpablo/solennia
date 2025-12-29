@@ -14,7 +14,6 @@ class AuthController
 
     public function __construct()
     {
-        // ✅ FIX: do NOT rely on $_ENV (unreliable in Slim/Apache)
         $this->secret = getenv('JWT_SECRET') ?: 'solennia_super_secret_key_2025';
     }
 
