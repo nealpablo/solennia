@@ -6,6 +6,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 use Illuminate\Database\Capsule\Manager as DB;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
+use Src\CloudinaryService;
 
 class AuthController
 {
@@ -13,86 +14,62 @@ class AuthController
 
     public function __construct()
     {
-        $this->secret = $_ENV['JWT_SECRET'] ?? 'solennia_super_secret_key_2025';
+        // ✅ FIX: do NOT rely on $_ENV (unreliable in Slim/Apache)
+        $this->secret = getenv('JWT_SECRET') ?: 'solennia_super_secret_key_2025';
     }
 
-    /**
-     * POST /api/auth/register
-     * Body: { first_name, last_name, email, username?, password }
-     * - If username provided, validate; otherwise generate from email local-part.
-     * - New users default to role 0 (client).
-     */
+    /* =========================================================
+       ✅ REGISTER (FIREBASE → MYSQL MIRROR)
+       MySQL no longer stores password. Firebase handles login.
+    ========================================================= */
     public function register(Request $request, Response $response): Response
     {
         try {
             $data = (array)$request->getParsedBody();
 
-            $first    = trim((string)($data['first_name'] ?? ''));
-            $last     = trim((string)($data['last_name'] ?? ''));
-            $email    = strtolower(trim((string)($data['email'] ?? '')));
-            $password = (string)($data['password'] ?? '');
-            $rawUser  = trim((string)($data['username'] ?? ''));
+            $first    = trim($data['first_name'] ?? '');
+            $last     = trim($data['last_name'] ?? '');
+            $email    = strtolower(trim($data['email'] ?? ''));
+            $username = strtolower(trim($data['username'] ?? ''));
+            $firebase = trim($data['firebase_uid'] ?? '');
 
-            if ($first === '' || $last === '' || $email === '' || $password === '') {
+            if (!$first || !$last || !$email || !$username || !$firebase) {
                 return $this->json($response, [
                     'success' => false,
-                    'message' => 'All fields are required.'
+                    'message' => 'All fields including firebase_uid are required.'
                 ], 400);
             }
 
             if (DB::table('credential')->where('email', $email)->exists()) {
                 return $this->json($response, [
                     'success' => false,
-                    'message' => 'Email already exists.'
-                ], 400);
+                    'message' => 'Email already registered.'
+                ], 409);
             }
 
-            // Username: validate or generate from email local-part
-            if ($rawUser !== '') {
-                $sanitized = strtolower(preg_replace('/[^a-z0-9._-]/i', '', $rawUser));
-                if ($sanitized === '' || strlen($sanitized) < 3 || strlen($sanitized) > 30) {
-                    return $this->json($response, [
-                        'success' => false,
-                        'message' => 'Invalid username. Use 3–30 characters: letters, numbers, dot, underscore, or dash.'
-                    ], 400);
-                }
-                $username = $sanitized;
-            } else {
-                $base = preg_replace('/[^a-z0-9_]+/i', '', explode('@', $email)[0]);
-                $username = strtolower($base ?: 'user');
+            if (DB::table('credential')->where('username', $username)->exists()) {
+                return $this->json($response, [
+                    'success' => false,
+                    'message' => 'Username already taken.'
+                ], 409);
             }
 
-            // Ensure username unique (auto-suffix if needed)
-            $finalUsername = $username;
-            $suffix = 1;
-            while (DB::table('credential')->where('username', $finalUsername)->exists()) {
-                $finalUsername = $username . $suffix;
-                $suffix++;
-            }
-
-            $hashed = password_hash($password, PASSWORD_BCRYPT);
-
-            // Default role = 0 (client)
-            $role = 0;
-
-            $id = DB::table('credential')->insertGetId([
-                'first_name' => $first,
-                'last_name'  => $last,
-                'email'      => $email,
-                'username'   => $finalUsername,
-                'password'   => $hashed,
-                'role'       => $role,
+            DB::table('credential')->insert([
+                'first_name'   => $first,
+                'last_name'    => $last,
+                'email'        => $email,
+                'username'     => $username,
+                'firebase_uid' => $firebase,
+                'role'         => 0,
+                'avatar'       => null,
+                'is_verified'  => 1
             ]);
-
-            $token = $this->makeToken($id, $finalUsername, $role);
 
             return $this->json($response, [
-                'success'  => true,
-                'message'  => 'Registration successful.',
-                'username' => $finalUsername,
-                'token'    => $token,
-                'role'     => $role,
+                'success' => true,
+                'message' => 'User mirrored in database.'
             ]);
+
         } catch (\Throwable $e) {
             error_log('REGISTER_ERROR: ' . $e->getMessage());
             return $this->json($response, [
@@ -102,48 +79,54 @@ class AuthController
         }
     }
 
-    /**
-     * POST /api/auth/login
-     * Accepts { username, password } OR { email, password }.
-     */
+    /* =========================================================
+       ✅ LOGIN (FIREBASE UID → MYSQL LOOKUP)
+    ========================================================= */
     public function login(Request $request, Response $response): Response
     {
         try {
             $data = (array)$request->getParsedBody();
 
-            $userOrEmail = trim((string)($data['username'] ?? $data['email'] ?? ''));
-            $password    = (string)($data['password'] ?? '');
+            $firebaseUid = trim($data['firebase_uid'] ?? '');
+            $email       = strtolower(trim($data['email'] ?? ''));
 
-            if ($userOrEmail === '' || $password === '') {
+            if (!$firebaseUid || !$email) {
                 return $this->json($response, [
                     'success' => false,
-                    'message' => 'Username (or email) and password are required.'
+                    'message' => 'firebase_uid and email are required.'
                 ], 400);
             }
 
-            // Lookup by email if it looks like an email, else username
-            if (strpos($userOrEmail, '@') !== false) {
-                $user = DB::table('credential')->where('email', strtolower($userOrEmail))->first();
-            } else {
-                $user = DB::table('credential')->where('username', $userOrEmail)->first();
-            }
+            $user = DB::table('credential')
+                ->where('firebase_uid', $firebaseUid)
+                ->orWhere('email', $email)
+                ->first();
 
-            if (!$user || !isset($user->password) || !password_verify($password, $user->password)) {
+            if (!$user) {
                 return $this->json($response, [
                     'success' => false,
-                    'message' => 'Invalid credentials.'
-                ], 401);
+                    'message' => 'Account not found. Register first.'
+                ], 404);
+            }
+
+            if (!$user->firebase_uid) {
+                DB::table('credential')
+                    ->where('id', $user->id)
+                    ->update(['firebase_uid' => $firebaseUid]);
             }
 
             $role = (int)($user->role ?? 0);
-            $token = $this->makeToken((int)$user->id, (string)$user->username, $role);
+
+            $token = $this->makeToken($firebaseUid, $user->id, $role);
 
             return $this->json($response, [
                 'success' => true,
                 'message' => 'Login successful.',
                 'token'   => $token,
                 'role'    => $role,
+                'user'    => $user
             ]);
+
         } catch (\Throwable $e) {
             error_log('LOGIN_ERROR: ' . $e->getMessage());
             return $this->json($response, [
@@ -153,74 +136,52 @@ class AuthController
         }
     }
 
-    /**
-     * GET /api/auth/me
-     * Returns current user profile (including role).
-     */
+    /* =========================================================
+       ✅ GET CURRENT USER
+    ========================================================= */
     public function me(Request $request, Response $response): Response
     {
-        try {
-            $auth = $request->getHeaderLine('Authorization');
-            if (!$auth || !str_starts_with($auth, 'Bearer ')) {
-                return $this->json($response, [
-                    'success' => false,
-                    'message' => 'Missing token'
-                ], 401);
-            }
+        $jwt = $request->getAttribute('user');
 
-            $token = trim(substr($auth, 7));
-            $decoded = JWT::decode($token, new Key($this->secret, 'HS256'));
-            $userId = (int)($decoded->sub ?? 0);
-
-            if (!$userId) {
-                return $this->json($response, [
-                    'success' => false,
-                    'message' => 'Invalid token'
-                ], 401);
-            }
-
-            $user = DB::table('credential')
-                ->select('id', 'first_name', 'last_name', 'username', 'email', 'role') // ✅ includes role
-                ->where('id', $userId)
-                ->first();
-
-            if (!$user) {
-                return $this->json($response, [
-                    'success' => false,
-                    'message' => 'User not found'
-                ], 404);
-            }
-
-            return $this->json($response, [
-                'success' => true,
-                'user' => $user
-            ]);
-        } catch (\Throwable $e) {
-            error_log('ME_ERROR: ' . $e->getMessage());
+        if (!$jwt || !isset($jwt->sub)) {
             return $this->json($response, [
                 'success' => false,
-                'message' => 'Invalid or expired token'
+                'message' => 'Unauthorized'
             ], 401);
         }
+
+        $firebaseUid = $jwt->sub;
+
+        $row = DB::table('credential')
+            ->where('firebase_uid', $firebaseUid)
+            ->first();
+
+        return $this->json($response, [
+            'success' => true,
+            'user'    => $row
+        ]);
     }
 
-    // -------------------- helpers --------------------
+    /* ======================= HELPERS ======================= */
 
-    private function makeToken(int $userId, string $username, int $role = 0): string
+    private function makeToken(string $firebaseUid, int $mysqlId, int $role = 0): string
     {
         $payload = [
-            'sub'      => $userId,
-            'username' => $username,
-            'role'     => $role,             // ✅ embed role for quick checks client-side
+            'sub'      => $firebaseUid,
+            'mysql_id' => $mysqlId,
+            'role'     => $role,
             'iat'      => time(),
-            'exp'      => time() + 60 * 60 * 24, // 24h
+            'exp'      => time() + (60 * 60 * 24 * 7),
         ];
+
         return JWT::encode($payload, $this->secret, 'HS256');
     }
 
     private function json(Response $response, array $data, int $status = 200): Response
     {
         $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE));
-        return $response->withHeader('Content-Type', 'application/json')->withStatus($status);
+        return $response
+            ->withHeader('Content-Type', 'application/json')
+            ->withStatus($status);
     }
 }

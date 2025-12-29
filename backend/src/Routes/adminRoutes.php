@@ -1,4 +1,5 @@
 <?php
+
 use Slim\App;
 use Illuminate\Database\Capsule\Manager as DB;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -7,187 +8,370 @@ use Src\Middleware\AuthMiddleware;
 
 return function (App $app) {
 
-    /** ---------------------------------------------------------
-     *  ADMIN: Vendor Applications
-     *  --------------------------------------------------------- */
+    // Helper function to send notifications
+    $sendNotification = function ($userId, $type, $title, $message) {
+        try {
+            DB::table('notifications')->insert([
+                'user_id' => $userId,
+                'type' => $type,
+                'title' => $title,
+                'message' => $message,
+                'read' => false,
+                'created_at' => DB::raw('NOW()')
+            ]);
+        } catch (\Exception $e) {
+            error_log("Failed to send notification: " . $e->getMessage());
+        }
+    };
 
-    // List vendor applications (Pending by default; add ?all=1 to see all)
+    // Admin: Get vendor applications
     $app->get('/api/admin/vendor-applications', function (Request $req, Response $res) {
+
         try {
             $all = ($req->getQueryParams()['all'] ?? '') === '1';
 
-            $q = DB::table('vendor_application as va')
+            $query = DB::table('vendor_application as va')
+                ->leftJoin('credential as c', 'va.user_id', '=', 'c.id')
                 ->select(
                     'va.id',
                     'va.user_id',
                     'va.business_name',
                     'va.category',
+                    'va.contact_email',
                     'va.address',
                     'va.description',
                     'va.pricing',
                     'va.created_at',
                     DB::raw('COALESCE(va.status, "Pending") as status'),
+                    'va.permits',
+                    'va.gov_id',
+                    'va.portfolio',
+                    'va.venue_subcategory',
+                    'va.venue_capacity',
+                    'va.venue_amenities',
+                    'va.venue_operating_hours',
+                    'va.venue_parking',
                     'c.first_name',
                     'c.last_name',
-                    'c.email',
-                    'c.username'
+                    'c.username',
+                    'c.email'
                 )
-                ->leftJoin('credential as c', 'va.user_id', '=', 'c.id')
                 ->orderBy('va.created_at', 'desc');
 
             if (!$all) {
-                $q->where(function($w){
-                    $w->whereNull('va.status')->orWhere('va.status','Pending');
+                $query->where(function ($w) {
+                    $w->whereNull('va.status')
+                      ->orWhere('va.status', 'Pending');
                 });
             }
 
-            $rows = $q->get();
+            $rows = $query->get();
 
             $res->getBody()->write(json_encode([
-                'success' => true,
+                'success'      => true,
                 'applications' => $rows
             ]));
+
             return $res->withHeader('Content-Type', 'application/json');
+
         } catch (\Throwable $e) {
             error_log('ADMIN_LIST_ERROR: ' . $e->getMessage());
-            $res->getBody()->write(json_encode(['success' => false, 'error' => 'Server error fetching vendor applications']));
-            return $res->withHeader('Content-Type', 'application/json')->withStatus(500);
+
+            $res->getBody()->write(json_encode([
+                'success' => false,
+                'error'   => 'Server error fetching vendor applications'
+            ]));
+
+            return $res
+                ->withHeader('Content-Type', 'application/json')
+                ->withStatus(500);
         }
+
     })->add(new AuthMiddleware());
 
-    // Approve / Deny vendor application
-    $app->post('/api/admin/vendor-application/decision', function (Request $req, Response $res) {
+    // Admin: Approve/deny vendor application
+    $app->post('/api/admin/vendor-application/decision', function (Request $req, Response $res) use ($sendNotification) {
+
         try {
-            $data = (array)$req->getParsedBody();
-            $appId  = (int)($data['id'] ?? 0);
+            $data   = (array) $req->getParsedBody();
+            $appId  = (int) ($data['id'] ?? 0);
             $action = strtolower(trim($data['action'] ?? ''));
 
-            if (!$appId || !in_array($action, ['approve','deny'], true)) {
-                $res->getBody()->write(json_encode(['success'=>false,'error'=>'Invalid request']));
-                return $res->withHeader('Content-Type','application/json')->withStatus(400);
+            if (!$appId || !in_array($action, ['approve', 'deny'], true)) {
+                $res->getBody()->write(json_encode([
+                    'success' => false,
+                    'error'   => 'Invalid request'
+                ]));
+                return $res->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
 
-            // fetch application + user
-            $appRow = DB::table('vendor_application')->where('id',$appId)->first();
+            $appRow = DB::table('vendor_application')->where('id', $appId)->first();
+
             if (!$appRow) {
-                $res->getBody()->write(json_encode(['success'=>false,'error'=>'Application not found']));
-                return $res->withHeader('Content-Type','application/json')->withStatus(404);
+                $res->getBody()->write(json_encode([
+                    'success' => false,
+                    'error'   => 'Application not found'
+                ]));
+                return $res->withHeader('Content-Type', 'application/json')->withStatus(404);
             }
 
             if ($action === 'deny') {
-                // remove from queue entirely
-                DB::table('vendor_application')->where('id',$appId)->delete();
-                $res->getBody()->write(json_encode(['success'=>true,'message'=>'Application denied and removed.']));
-                return $res->withHeader('Content-Type','application/json');
+                DB::table('vendor_application')
+                    ->where('id', $appId)
+                    ->update(['status' => 'Denied']);
+
+                // Send denial notification
+                $sendNotification(
+                    $appRow->user_id,
+                    'application_denied',
+                    'Application Update',
+                    'Thank you for your application. Unfortunately, we cannot approve it at this time. Please contact support for more information.'
+                );
+
+                $res->getBody()->write(json_encode([
+                    'success' => true,
+                    'message' => 'Application denied.'
+                ]));
+
+                return $res->withHeader('Content-Type', 'application/json');
             }
 
-            // APPROVE
-            DB::transaction(function () use ($appRow, $appId) {
-                // get applicant email (from credential)
-                $email = DB::table('credential')->where('id', $appRow->user_id)->value('email') ?: '';
+            // Approve application
+            DB::transaction(function () use ($appRow, $sendNotification) {
 
-                // insert approved provider (FK now points to credential.id per migration above)
-                DB::table('eventserviceprovider')->insert([
-                    'UserID'            => $appRow->user_id,             // credential.id
-                    'BusinessName'      => $appRow->business_name,
-                    'BusinessEmail'     => substr($email, 0, 50),       // column is VARCHAR(50)
-                    'BusinessAddress'   => $appRow->address,
-                    'ApplicationStatus' => 'Approved',
-                    'DateApplied'       => date('Y-m-d H:i:s'),
-                    'DateApproved'      => date('Y-m-d H:i:s'),
-                ]);
+                $businessEmail = $appRow->contact_email;
 
-                // promote role to supplier (1)
-                DB::table('credential')->where('id', $appRow->user_id)->update(['role' => 1]);
+                if (!$businessEmail) {
+                    $businessEmail = DB::table('credential')
+                        ->where('id', $appRow->user_id)
+                        ->value('email');
 
-                // mark approved or remove from queue (choose one)
-                // A) Keep history:
-                DB::table('vendor_application')->where('id',$appId)->update(['status'=>'Approved']);
-                // B) Or delete to keep the list clean:
-                // DB::table('vendor_application')->where('id',$appId)->delete();
+                    if ($businessEmail) {
+                        DB::table('vendor_application')
+                            ->where('id', $appRow->id)
+                            ->update(['contact_email' => $businessEmail]);
+                    }
+                }
+
+                if (!$businessEmail) {
+                    throw new \Exception('Business email missing');
+                }
+
+                // Update user role to supplier (role 1)
+                DB::table('credential')
+                    ->where('id', $appRow->user_id)
+                    ->update(['role' => 1]);
+
+                // Mark application as approved
+                DB::table('vendor_application')
+                    ->where('id', $appRow->id)
+                    ->update(['status' => 'Approved']);
+
+                // Send approval notification
+                $sendNotification(
+                    $appRow->user_id,
+                    'application_approved',
+                    'Application Approved! 🎉',
+                    'Congratulations! Your vendor application has been approved. You can now access your vendor dashboard and complete your profile setup.'
+                );
+
+                error_log("VENDOR_APPROVED: UserID={$appRow->user_id}, Category={$appRow->category}. User will complete profile setup.");
             });
 
-            $res->getBody()->write(json_encode(['success'=>true,'message'=>'Vendor approved and promoted to supplier.']));
-            return $res->withHeader('Content-Type','application/json');
+            $res->getBody()->write(json_encode([
+                'success' => true,
+                'message' => 'Vendor approved. They can now complete their profile setup.'
+            ]));
+
+            return $res->withHeader('Content-Type', 'application/json');
+
         } catch (\Throwable $e) {
-            error_log('ADMIN_DECISION_ERROR: '.$e->getMessage());
-            $res->getBody()->write(json_encode(['success'=>false,'error'=>'Server error making decision']));
-            return $res->withHeader('Content-Type','application/json')->withStatus(500);
+            error_log('ADMIN_DECISION_ERROR: ' . $e->getMessage());
+
+            $res->getBody()->write(json_encode([
+                'success' => false,
+                'error'   => 'Failed to process application: ' . $e->getMessage()
+            ]));
+
+            return $res
+                ->withHeader('Content-Type', 'application/json')
+                ->withStatus(500);
         }
+
     })->add(new AuthMiddleware());
 
-    /** ---------------------------------------------------------
-     *  ADMIN: Feedback Viewer
-     *  --------------------------------------------------------- */
+    // Admin: Get feedbacks
     $app->get('/api/admin/feedbacks', function (Request $req, Response $res) {
+
         try {
             $rows = DB::table('feedback as f')
+                ->leftJoin('credential as c', 'f.user_id', '=', 'c.id')
                 ->select(
                     'f.id',
-                    'f.user_id',
                     'f.message',
                     'f.created_at',
                     'c.first_name',
                     'c.last_name',
-                    'c.email',
                     'c.username'
                 )
-                ->leftJoin('credential as c', 'f.user_id', '=', 'c.id')
-                ->orderBy('f.created_at','desc')
+                ->orderBy('f.created_at', 'desc')
                 ->get();
 
-            $res->getBody()->write(json_encode(['success'=>true,'feedbacks'=>$rows]));
-            return $res->withHeader('Content-Type','application/json');
+            $res->getBody()->write(json_encode([
+                'success'   => true,
+                'feedbacks' => $rows
+            ]));
+
+            return $res->withHeader('Content-Type', 'application/json');
+
         } catch (\Throwable $e) {
-            error_log('ADMIN_FEEDBACK_LIST_ERROR: '.$e->getMessage());
-            $res->getBody()->write(json_encode(['success'=>false,'error'=>'Server error fetching feedback']));
-            return $res->withHeader('Content-Type','application/json')->withStatus(500);
+            error_log('ADMIN_FEEDBACKS_ERROR: ' . $e->getMessage());
+
+            $res->getBody()->write(json_encode([
+                'success' => false,
+                'error'   => 'Failed to fetch feedbacks'
+            ]));
+
+            return $res
+                ->withHeader('Content-Type', 'application/json')
+                ->withStatus(500);
         }
+
     })->add(new AuthMiddleware());
 
-    /** ---------------------------------------------------------
-     *  ADMIN: Users — list & promote/demote roles
-     *  --------------------------------------------------------- */
+    // Admin: Get all users
     $app->get('/api/admin/users', function (Request $req, Response $res) {
+
         try {
-            $rows = DB::table('credential')
-                ->select('id','first_name','last_name','email','username','role','created_at')
-                ->orderBy('created_at','desc')
+            $users = DB::table('credential')
+                ->select('id', 'first_name', 'last_name', 'username', 'email', 'role', 'is_verified', 'created_at')
+                ->orderByDesc('created_at')
                 ->get();
 
-            $res->getBody()->write(json_encode(['success'=>true,'users'=>$rows]));
-            return $res->withHeader('Content-Type','application/json');
+            $res->getBody()->write(json_encode([
+                'success' => true,
+                'users'   => $users
+            ]));
+
+            return $res->withHeader('Content-Type', 'application/json');
+
         } catch (\Throwable $e) {
-            error_log('ADMIN_USERS_LIST_ERROR: '.$e->getMessage());
-            $res->getBody()->write(json_encode(['success'=>false,'error'=>'Server error fetching users']));
-            return $res->withHeader('Content-Type','application/json')->withStatus(500);
+            error_log('ADMIN_USERS_ERROR: ' . $e->getMessage());
+
+            $res->getBody()->write(json_encode([
+                'success' => false,
+                'error'   => 'Failed to fetch users'
+            ]));
+
+            return $res
+                ->withHeader('Content-Type', 'application/json')
+                ->withStatus(500);
         }
+
     })->add(new AuthMiddleware());
 
+    // Admin: Update user role
     $app->post('/api/admin/users/role', function (Request $req, Response $res) {
+
         try {
-            $data = (array)$req->getParsedBody();
-            $userId = (int)($data['user_id'] ?? 0);
-            $role   = (int)($data['role'] ?? -1);
-            if (!$userId || !in_array($role, [0,1,2], true)) {
-                $res->getBody()->write(json_encode(['success'=>false,'error'=>'Invalid payload']));
-                return $res->withHeader('Content-Type','application/json')->withStatus(400);
+            $data = (array) $req->getParsedBody();
+            $userId = (int) ($data['user_id'] ?? 0);
+            $newRole = (int) ($data['role'] ?? -1);
+
+            if (!$userId || $newRole < 0 || $newRole > 2) {
+                $res->getBody()->write(json_encode([
+                    'success' => false,
+                    'error'   => 'Invalid user or role'
+                ]));
+                return $res->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
 
-            $exists = DB::table('credential')->where('id',$userId)->exists();
-            if (!$exists) {
-                $res->getBody()->write(json_encode(['success'=>false,'error'=>'User not found']));
-                return $res->withHeader('Content-Type','application/json')->withStatus(404);
+            $userExists = DB::table('credential')
+                ->where('id', $userId)
+                ->exists();
+
+            if (!$userExists) {
+                $res->getBody()->write(json_encode([
+                    'success' => false,
+                    'error'   => 'User not found'
+                ]));
+                return $res->withHeader('Content-Type', 'application/json')->withStatus(404);
             }
 
-            DB::table('credential')->where('id',$userId)->update(['role'=>$role]);
+            DB::table('credential')
+                ->where('id', $userId)
+                ->update(['role' => $newRole]);
 
-            $res->getBody()->write(json_encode(['success'=>true,'message'=>'User role updated']));
-            return $res->withHeader('Content-Type','application/json');
+            $res->getBody()->write(json_encode([
+                'success' => true,
+                'message' => 'User role updated'
+            ]));
+
+            return $res->withHeader('Content-Type', 'application/json');
+
         } catch (\Throwable $e) {
-            error_log('ADMIN_USER_ROLE_ERROR: '.$e->getMessage());
-            $res->getBody()->write(json_encode(['success'=>false,'error'=>'Server error updating role']));
-            return $res->withHeader('Content-Type','application/json')->withStatus(500);
+            error_log('ADMIN_UPDATE_ROLE_ERROR: ' . $e->getMessage());
+
+            $res->getBody()->write(json_encode([
+                'success' => false,
+                'error'   => 'Failed to update role'
+            ]));
+
+            return $res
+                ->withHeader('Content-Type', 'application/json')
+                ->withStatus(500);
         }
+
     })->add(new AuthMiddleware());
+
+    // Admin: Delete user
+    $app->delete('/api/admin/users/{userId}', function (Request $req, Response $res, array $args) {
+
+        try {
+            $userId = (int) ($args['userId'] ?? 0);
+
+            if (!$userId) {
+                $res->getBody()->write(json_encode([
+                    'success' => false,
+                    'error'   => 'Invalid user ID'
+                ]));
+                return $res->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+
+            $userExists = DB::table('credential')
+                ->where('id', $userId)
+                ->exists();
+
+            if (!$userExists) {
+                $res->getBody()->write(json_encode([
+                    'success' => false,
+                    'error'   => 'User not found'
+                ]));
+                return $res->withHeader('Content-Type', 'application/json')->withStatus(404);
+            }
+
+            DB::table('credential')->where('id', $userId)->delete();
+
+            $res->getBody()->write(json_encode([
+                'success' => true,
+                'message' => 'User deleted'
+            ]));
+
+            return $res->withHeader('Content-Type', 'application/json');
+
+        } catch (\Throwable $e) {
+            error_log('ADMIN_DELETE_USER_ERROR: ' . $e->getMessage());
+
+            $res->getBody()->write(json_encode([
+                'success' => false,
+                'error'   => 'Failed to delete user'
+            ]));
+
+            return $res
+                ->withHeader('Content-Type', 'application/json')
+                ->withStatus(500);
+        }
+
+    })->add(new AuthMiddleware());
+
 };

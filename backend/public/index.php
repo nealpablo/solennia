@@ -27,7 +27,6 @@ if ($env !== 'production' && file_exists(BASE_PATH . '/.env')) {
     Dotenv::createImmutable(BASE_PATH)->safeLoad();
 }
 
-
 // -------------------------------------------------------------
 // Slim app & middleware
 // -------------------------------------------------------------
@@ -75,8 +74,12 @@ $loadRoutes = function (string $rel) use ($app) {
 $loadRoutes('/src/Routes/authRoutes.php');
 $loadRoutes('/src/Routes/userRoutes.php');
 $loadRoutes('/src/Routes/vendorRoutes.php');
+$loadRoutes('/src/Routes/venueRoutes.php');
 $loadRoutes('/src/Routes/feedbackRoutes.php');
 $loadRoutes('/src/Routes/adminRoutes.php');
+$loadRoutes('/src/Routes/notificationRoutes.php');
+$loadRoutes('/src/Routes/chatRoutes.php');
+$loadRoutes('/src/Routes/usernameResolverRoutes.php');
 
 // -------------------------------------------------------------
 // Health / debug

@@ -1,14 +1,20 @@
+// tailwind.config.js
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
     "./index.html",
-    "./aboutus.html",
-    "./landing.html",
-    "./profile.html",
-    "./adminpanel.html",
-    "./src/**/*.{js,ts,jsx,tsx,html}",
-    "./src/partials/**/*.html",
+    "./src/**/*.{js,ts,jsx,tsx}",
   ],
-  theme: { extend: {} },
+  theme: {
+    extend: {
+      fontFamily: {
+        // Centaur for body text (elegant serif)
+        'centaur': ['Centaur', 'EB Garamond', 'Georgia', 'serif'],
+        
+        // Cinzel for headers (decorative serif)
+        'cinzel': ['Cinzel', 'serif'],
+      },
+    },
+  },
   plugins: [],
-};
+}

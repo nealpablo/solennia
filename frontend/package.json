@@ -9,7 +9,9 @@
     "preview": "vite preview --host --port 5174"
   },
   "devDependencies": {
+    "@vitejs/plugin-react": "^5.1.2",
     "autoprefixer": "^10.4.21",
+    "baseline-browser-mapping": "^2.9.9",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.18",
     "vite": "^7.1.9"
@@ -17,5 +19,10 @@
   "engines": {
     "node": ">=20.16.0",
     "npm": ">=10.8.1"
+  },
+  "dependencies": {
+    "chart.js": "^4.5.1",
+    "firebase": "^12.6.0",
+    "react-router-dom": "^7.11.0"
   }
 }

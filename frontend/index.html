@@ -1,53 +1,30 @@
 <!DOCTYPE html>
-<html lang="en" class="scroll-smooth">
+<html lang="en">
   <head>
-    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/src/style.css" />
-    <style>
-      #carousel { scrollbar-width: none; }
-      #carousel::-webkit-scrollbar { display: none; }
-    </style>
-    <style>
-      #profileBtn { border-width: 2px !important; border-color: #000 !important; background: transparent !important; border-radius: 9999px !important; }
-    </style>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Solennia</title>
+    <link rel="icon" type="image/png" href="/images/solennia.png" />
+
+
+    <!-- Fonts -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- ✅ Global styles (REQUIRED) -->
+    <link rel="stylesheet" href="/src/style.css" />
+
+    <!-- ✅ Firebase compat SDKs (required for existing auth/chat logic) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   </head>
-  <body class="min-h-screen flex flex-col font-[Cinzel] text-[#1c1b1a] bg-[#f6f0e8]">
-    <header></header>
 
-    <main class="flex-1">
-      <section id="gallery" class="mt-16 bg-[#7a5d47] py-10">
-        <div class="max-w-6xl mx-auto px-4">
-          <div id="carousel" class="relative overflow-x-auto rounded-xl bg-[#7a5d47]">
-            <ul id="carouselTrack" class="flex gap-8 py-2 list-none">
-              <li class="shrink-0 w-[420px]">
-                <img src="/images/gallery1.jpg" alt="Kids Party" class="w-full h-60 object-cover rounded-xl cursor-pointer" />
-              </li>
-              <li class="shrink-0 w-[420px]">
-                <img src="/images/gallery2.jpg" alt="Wedding" class="w-full h-60 object-cover rounded-xl cursor-pointer" />
-              </li>
-              <li class="shrink-0 w-[420px]">
-                <img src="/images/gallery3.jpg" alt="Clients" class="w-full h-60 object-cover rounded-xl cursor-pointer" />
-              </li>
-            </ul>
-          </div>
-        </div>
-      </section>
+  <body class="min-h-screen font-['Cormorant_Garamond'] text-[#1c1b1a] bg-[#f6f0e8]">
+    <div id="root"></div>
 
-      <section class="max-w-5xl mx-auto text-center mt-16 px-4">
-        <h2 class="text-2xl md:text-3xl font-semibold">Plan your dream Event Now</h2>
-        <p class="mt-2 text-gray-700">Let Solennia AI handle the stress — you enjoy the Yes!</p>
-        <div class="mt-6 max-w-md mx-auto">
-          <input type="text" placeholder="Type..." class="w-full border-b border-gray-500 bg-transparent focus:outline-none py-2 text-sm text-gray-800" />
-        </div>
-      </section>
-    </main>
-
-    <div id="modalsPartial"></div>
-    <footer></footer>
-
-    <script type="module" src="/src/partials-loader.js"></script>
-    <script type="module" src="/src/main.js"></script>
+    <!-- React entry -->
+    <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
