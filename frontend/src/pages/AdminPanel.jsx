@@ -3,11 +3,9 @@ import React from "react";
 import toast from "../utils/toast";
 import "../style.css";
 
-const API =
-  import.meta.env.VITE_API_BASE ||
-  (location.hostname.includes("vercel.app") || location.hostname.includes("railway.app")
-    ? "https://solennia.up.railway.app/api"
-    : "/api");
+const API_BASE =
+  import.meta.env.VITE_API_URL ||
+  (import.meta.env.PROD ? "https://solennia.up.railway.app" : "");
 
 const authHeaders = () => {
   const token = localStorage.getItem("solennia_token");
