@@ -106,8 +106,8 @@ export default function NotificationDropdown() {
     if (!ts) return "";
     
     // Handle MySQL datetime format (YYYY-MM-DD HH:MM:SS)
-    // Replace space with 'T' to make it ISO-compatible
-    const isoTimestamp = ts.replace(' ', 'T');
+    // Append Z to treat as UTC
+    const isoTimestamp = ts.replace(' ', 'T') + 'Z';
     const date = new Date(isoTimestamp);
     
     // Check if date is valid
