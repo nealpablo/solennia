@@ -3,6 +3,12 @@ import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import toast from "../utils/toast";
 
+const API_BASE = 
+  import.meta.env.VITE_API_BASE || 
+  import.meta.env.VITE_API_URL ||
+  (import.meta.env.PROD 
+    ? "https://solennia.up.railway.app" : "");
+
 export default function Venue() {
   const [venues, setVenues] = useState([]);
   const [loading, setLoading] = useState(true);

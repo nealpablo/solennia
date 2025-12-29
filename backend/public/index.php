@@ -27,23 +27,48 @@ $app = AppFactory::create();
 $app->addBodyParsingMiddleware();
 
 // -------------------------------------------------------------
-// GLOBAL OPTIONS handler (CRITICAL)
-// -------------------------------------------------------------
-$app->options('/{routes:.+}', function ($request, $response) {
-    return $response;
-});
-
-// -------------------------------------------------------------
-// CORS middleware
+// ✅ IMPROVED CORS MIDDLEWARE (RUNS FIRST)
 // -------------------------------------------------------------
 $app->add(function ($request, $handler) {
-    $allowed = getenv('CORS_ALLOWED_ORIGINS') ?: '*';
+    // ✅ Get origin from request
+    $origin = $request->getHeaderLine('Origin');
+    
+    // ✅ Remove trailing slashes from both origin and allowed origins
+    $origin = rtrim($origin, '/');
+    $allowedOrigins = getenv('CORS_ALLOWED_ORIGINS') ?: '*';
+    $allowedOrigins = rtrim($allowedOrigins, '/');
+    
+    // ✅ Determine allowed origin
+    $allowOrigin = '*';
+    if ($allowedOrigins !== '*') {
+        $allowedList = array_map('trim', explode(',', $allowedOrigins));
+        $allowedList = array_map(function($url) { return rtrim($url, '/'); }, $allowedList);
+        
+        if (in_array($origin, $allowedList, true)) {
+            $allowOrigin = $origin;
+        }
+    } else {
+        $allowOrigin = $origin ?: '*';
+    }
 
+    // ✅ Handle OPTIONS preflight
+    if (strtoupper($request->getMethod()) === 'OPTIONS') {
+        $response = new \Slim\Psr7\Response();
+        return $response
+            ->withHeader('Access-Control-Allow-Origin', $allowOrigin)
+            ->withHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With')
+            ->withHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
+            ->withHeader('Access-Control-Allow-Credentials', 'true')
+            ->withHeader('Access-Control-Max-Age', '86400')
+            ->withStatus(200);
+    }
+
+    // ✅ Process actual request
     $response = $handler->handle($request);
 
     return $response
-        ->withHeader('Access-Control-Allow-Origin', $allowed)
-        ->withHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+        ->withHeader('Access-Control-Allow-Origin', $allowOrigin)
+        ->withHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With')
         ->withHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
         ->withHeader('Access-Control-Allow-Credentials', 'true');
 });

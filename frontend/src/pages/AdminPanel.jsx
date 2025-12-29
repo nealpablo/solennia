@@ -4,6 +4,7 @@ import toast from "../utils/toast";
 import "../style.css";
 
 const API_BASE =
+  import.meta.env.VITE_API_BASE || 
   import.meta.env.VITE_API_URL ||
   (import.meta.env.PROD ? "https://solennia.up.railway.app" : "");
 
