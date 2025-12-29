@@ -4,7 +4,11 @@ import { Link } from "react-router-dom";
 import { listThreadsForCurrentUser, initChat, onAllThreadsUpdate } from "../firebase-chat";
 import "../chat.css";
 
-const API = "/api";
+const API = 
+  import.meta.env.VITE_API_BASE || 
+  import.meta.env.VITE_API_URL ||
+  (import.meta.env.PROD 
+    ? "https://solennia.up.railway.app/api" : "/api");
 
 export default function ChatDropdown() {
   const [isOpen, setIsOpen] = useState(false);

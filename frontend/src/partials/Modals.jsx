@@ -13,8 +13,7 @@ const API_BASE =
   import.meta.env.VITE_API_BASE || 
   import.meta.env.VITE_API_URL ||
   (import.meta.env.PROD 
-    ? "https://solennia.up.railway.app" 
-    : "");
+    ? "https://solennia.up.railway.app" : "");
 
 // Helper function to convert Firebase error codes to user-friendly messages
 const getFirebaseErrorMessage = (error) => {
@@ -338,7 +337,7 @@ export default function Modals() {
 
     try {
       const resolveRes = await fetch(
-          `${API_BASE}/api/auth/resolve-username?u=${encodeURIComponent(loginIdentifier)}`
+        `${API_BASE}/api/auth/resolve-username?u=${encodeURIComponent(loginIdentifier)}`
       );
       const resolveData = await resolveRes.json();
       if (!resolveRes.ok) throw new Error(resolveData.message);

@@ -5,7 +5,11 @@ import Chart from "chart.js/auto";
 import toast from "../utils/toast";
 import "../style.css";
 
-const API = "/api";
+const API = 
+  import.meta.env.VITE_API_BASE || 
+  import.meta.env.VITE_API_URL ||
+  (import.meta.env.PROD 
+    ? "https://solennia.up.railway.app/api" : "/api");
 
 export default function VendorDashboard() {
   const token = localStorage.getItem("solennia_token");
