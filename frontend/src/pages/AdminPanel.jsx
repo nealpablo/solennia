@@ -71,7 +71,7 @@ export default function AdminPanel() {
 
   async function loadVendorApplications() {
     try {
-      const res = await fetch(`${API}/admin/vendor-applications`, {
+      const res = await fetch(`${API_BASE}/admin/vendor-applications`, {
         headers: authHeaders(),
       });
       const json = await res.json();
@@ -83,7 +83,7 @@ export default function AdminPanel() {
 
   async function loadUsers() {
     try {
-      const res = await fetch(`${API}/admin/users`, {
+      const res = await fetch(`${API_BASE}/admin/users`, {
         headers: authHeaders(),
       });
       const json = await res.json();
@@ -95,7 +95,7 @@ export default function AdminPanel() {
 
   async function loadFeedbacks() {
     try {
-      const res = await fetch(`${API}/admin/feedbacks`, {
+      const res = await fetch(`${API_BASE}/admin/feedbacks`, {
         headers: authHeaders(),
       });
       const json = await res.json();
@@ -122,7 +122,7 @@ export default function AdminPanel() {
     if (!ok) return;
 
     try {
-      const res = await fetch(`${API}/admin/vendor-application/decision`, {
+      const res = await fetch(`${API_BASE}/admin/vendor-application/decision`, {
         method: "POST",
         headers: authHeaders(),
         body: JSON.stringify({ id, action }),
@@ -149,7 +149,7 @@ export default function AdminPanel() {
     if (!ok) return;
 
     try {
-      const res = await fetch(`${API}/admin/users/role`, {
+      const res = await fetch(`${API_BASE}/admin/users/role`, {
         method: "POST",
         headers: authHeaders(),
         body: JSON.stringify({ user_id: userId, role: newRole }),

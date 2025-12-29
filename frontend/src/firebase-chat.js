@@ -56,7 +56,7 @@ function threadIdFromPair(a, b) {
   return (a < b) ? `${a}__${b}` : `${b}__${a}`;
 }
 
-// ✅ FIXED: Correct thread structure handling
+// ✅ FIXED: Correct thread structure handling + otherUid validation
 export async function listThreadsForCurrentUser() {
   if (!_db) throw new Error('Init chat first');
   if (!_meUid) return [];
@@ -80,13 +80,16 @@ export async function listThreadsForCurrentUser() {
     if (participants[_meUid]) {
       const otherUid = Object.keys(participants).find(x => x !== _meUid);
       
-      res.push({
-        threadId: tid,
-        otherUid,
-        otherName: null,
-        lastMessageSnippet: meta.lastMessage ? String(meta.lastMessage).slice(0, 60) : '',
-        lastTs: meta.lastTs || 0
-      });
+      // ✅ FIX: Only add thread if otherUid exists (skip malformed threads)
+      if (otherUid) {
+        res.push({
+          threadId: tid,
+          otherUid,
+          otherName: null,
+          lastMessageSnippet: meta.lastMessage ? String(meta.lastMessage).slice(0, 60) : '',
+          lastTs: meta.lastTs || 0
+        });
+      }
     }
   }
 
@@ -94,7 +97,7 @@ export async function listThreadsForCurrentUser() {
   return res;
 }
 
-// ✅ NEW: Listen for real-time updates to all threads
+// ✅ FIXED: Listen for real-time updates to all threads + otherUid validation
 export function onAllThreadsUpdate(callback) {
   if (!_db) throw new Error('Init chat first');
   if (!_meUid) return () => {};
@@ -117,13 +120,16 @@ export function onAllThreadsUpdate(callback) {
       if (participants[_meUid]) {
         const otherUid = Object.keys(participants).find(x => x !== _meUid);
         
-        res.push({
-          threadId: tid,
-          otherUid,
-          otherName: null,
-          lastMessageSnippet: meta.lastMessage ? String(meta.lastMessage).slice(0, 60) : '',
-          lastTs: meta.lastTs || 0
-        });
+        // ✅ FIX: Only add thread if otherUid exists (skip malformed threads)
+        if (otherUid) {
+          res.push({
+            threadId: tid,
+            otherUid,
+            otherName: null,
+            lastMessageSnippet: meta.lastMessage ? String(meta.lastMessage).slice(0, 60) : '',
+            lastTs: meta.lastTs || 0
+          });
+        }
       }
     }
 
