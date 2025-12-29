@@ -29,7 +29,7 @@ export default function Venue() {
 
   const fetchVenues = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/venues`);
+      const res = await fetch(`${API_BASE}/venues`);
       const data = await res.json();
       
       if (res.ok) {
@@ -55,7 +55,7 @@ export default function Venue() {
     }
 
     try {
-      const res = await fetch(`${API_BASE}/api/vendor/status`, {
+      const res = await fetch(`${API_BASE}/vendor/status`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       

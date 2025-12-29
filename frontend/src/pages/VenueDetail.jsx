@@ -23,7 +23,7 @@ export default function VenueDetail() {
   useEffect(() => {
     const fetchVenue = async () => {
       try {
-        const response = await fetch(`${API_BASE}/api/venues/${id}`);
+        const response = await fetch(`${API_BASE}/venues/${id}`);
         const data = await response.json();
         
         console.log("Venue detail data:", data); // Debug

@@ -337,7 +337,7 @@ export default function Modals() {
 
     try {
       const resolveRes = await fetch(
-        `${API_BASE}/api/auth/resolve-username?u=${encodeURIComponent(loginIdentifier)}`
+        `${API_BASE}/auth/resolve-username?u=${encodeURIComponent(loginIdentifier)}`
       );
       const resolveData = await resolveRes.json();
       if (!resolveRes.ok) throw new Error(resolveData.message);
@@ -355,7 +355,7 @@ export default function Modals() {
         return;
       }
 
-      const backendRes = await fetch(`${API_BASE}/api/auth/login`, {
+      const backendRes = await fetch(`${API_BASE}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -417,7 +417,7 @@ export default function Modals() {
       await sendEmailVerification(cred.user);
 
       // Register in backend
-      const res = await fetch(`${API_BASE}/api/auth/register`, {
+      const res = await fetch(`${API_BASE}/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -520,7 +520,7 @@ export default function Modals() {
     }
 
     try {
-      const res = await fetch(`${API_BASE}/api/feedback`, {
+      const res = await fetch(`${API_BASE}/feedback`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -557,7 +557,7 @@ export default function Modals() {
     setInquiryLoading(true);
 
     try {
-      const res = await fetch(`${API_BASE}/api/venue/inquiry`, {
+      const res = await fetch(`${API_BASE}/venue/inquiry`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -595,7 +595,7 @@ export default function Modals() {
     setScheduleLoading(true);
 
     try {
-      const res = await fetch(`${API_BASE}/api/venue/schedule-visit`, {
+      const res = await fetch(`${API_BASE}/venue/schedule-visit`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -664,7 +664,7 @@ formData.append("contact_email", form.contact_email.value);
         formData.append('portfolio', imageFiles[0]);
       }
 
-      const res = await fetch(`${API_BASE}/api/venue/listings`, {
+      const res = await fetch(`${API_BASE}/venue/listings`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -803,7 +803,7 @@ formData.append("contact_email", form.contact_email.value);
     // ✅ Clear progress message
     toast.info("Uploading documents... (5-15 seconds)");
 
-    const res = await fetch(`${API_BASE}/api/vendor/apply`, {
+    const res = await fetch(`${API_BASE}/vendor/apply`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
