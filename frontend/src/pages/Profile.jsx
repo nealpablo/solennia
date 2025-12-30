@@ -332,13 +332,13 @@ useEffect(() => {
   return (
     <>
       <main className="pb-24 bg-[#f6f0e8] text-[#1c1b1a] min-h-screen">
-        <div className="max-w-7xl mx-auto px-4 py-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
           {/* ================= PAGE HEADER ================= */}
           <div className="mb-6">
           </div>
 
           {/* ================= TWO COLUMN LAYOUT (40/60) ================= */}
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6">
             
             {/* ================= LEFT COLUMN - PROFILE INFO (40%) ================= */}
             <div className="lg:col-span-2">
@@ -347,7 +347,7 @@ useEffect(() => {
                 <div className="relative mb-6">
                   <div
                     onClick={() => token && setShowAvatarModal(true)}
-                    className="w-64 h-64 rounded-full border-8 border-white overflow-hidden bg-white flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity shadow-2xl"
+                    className="w-48 h-48 sm:w-56 sm:h-56 lg:w-64 lg:h-64 rounded-full border-6 sm:border-8 border-white overflow-hidden bg-white flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity shadow-2xl"
                   >
                     {profile?.avatar ? (
                       <img
@@ -367,7 +367,7 @@ useEffect(() => {
                   </div>
                   <button
                     onClick={() => token && setShowAvatarModal(true)}
-                    className="absolute bottom-4 right-4 bg-[#7a5d47] text-white rounded-full p-4 hover:opacity-90 shadow-xl border-4 border-white"
+                    className="absolute bottom-2 right-2 sm:bottom-4 sm:right-4 bg-[#7a5d47] text-white rounded-full p-3 sm:p-4 hover:opacity-90 shadow-xl border-4 border-white"
                     title="Change profile picture"
                   >
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -378,7 +378,7 @@ useEffect(() => {
                 </div>
 
                 {/* Name */}
-                <h1 className="text-2xl font-bold text-gray-900 mb-2">{name}</h1>
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">{name}</h1>
                 
                 {/* Username */}
                 {profile?.username && (
@@ -430,11 +430,11 @@ useEffect(() => {
             </div>
 
             {/* ================= RIGHT COLUMN - FAVORITES (60%) ================= */}
-            <div className="lg:col-span-3">
+            <div className="lg:col-span-3 mt-4 lg:mt-0">
               <div className="bg-white rounded-2xl shadow-lg border border-[#c9bda4] overflow-hidden flex flex-col" style={{ height: 'calc(100vh - 180px)' }}>
                 {/* Header */}
                 <div className="flex justify-between items-center px-4 py-3 border-b border-gray-200 flex-shrink-0">
-                  <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                  <h2 className="text-base sm:text-lg font-bold text-gray-900 flex items-center gap-2">
                     <svg className="w-5 h-5 text-[#7a5d47]" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
                     </svg>
@@ -529,8 +529,8 @@ useEffect(() => {
 
       {/* ================= AVATAR MODAL ================= */}
       {showAvatarModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[9999] p-4">
-          <div className="bg-[#f6f0e8] p-6 rounded-2xl w-full max-w-md border border-[#c9bda4] shadow-lg">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[9999] p-4 sm:p-6">
+          <div className="bg-[#f6f0e8] p-4 sm:p-6 rounded-2xl w-full max-w-md border border-[#c9bda4] shadow-lg">
             <h2 className="text-lg font-semibold mb-4">
               Update Profile Picture
             </h2>
@@ -582,7 +582,7 @@ useEffect(() => {
 
       {/* ================= EDIT PROFILE MODAL ================= */}
       {showEditModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[9999] p-4">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[9999] p-4 sm:p-6">
           <div className="bg-[#f6f0e8] rounded-2xl w-full max-w-2xl border border-[#c9bda4] shadow-lg max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-[#e8ddae] p-6 border-b border-gray-300 flex justify-between items-center z-10">
               <h2 className="text-lg font-semibold">Edit Profile</h2>

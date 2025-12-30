@@ -61,6 +61,7 @@ export default function Chat() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(true);
   const [myRole, setMyRole] = useState(0);
+  const [showMobileChat, setShowMobileChat] = useState(false);
   
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();

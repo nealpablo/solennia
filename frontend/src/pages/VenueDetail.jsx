@@ -200,7 +200,7 @@ export default function VenueDetail() {
           {/* Header */}
           <div className="mb-6">
             <div className="flex items-center gap-2 mb-3">
-              <h1 className="text-3xl font-bold text-gray-800">{venue.name}</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">{venue.name}</h1>
               {venue.venue_type && (
                 <span className="px-3 py-1 bg-[#e8ddae] text-sm font-medium rounded-full">
                   {venue.venue_type}

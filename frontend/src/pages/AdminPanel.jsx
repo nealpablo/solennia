@@ -242,7 +242,7 @@ export default function AdminPanel() {
       )}
 
       <main className="admin-panel max-w-7xl mx-auto w-full p-6">
-        <h1 className="text-3xl font-bold mb-6">Admin Panel</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold mb-4 sm:mb-6">Admin Panel</h1>
 
         <div className="tab-buttons">
           <button className={`tab-btn ${activeTab === "vendors" ? "active" : ""}`} onClick={() => setActiveTab("vendors")}>

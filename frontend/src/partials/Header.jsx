@@ -10,6 +10,17 @@ export default function Header() {
   const [email, setEmail] = useState(null);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // ✅ NEW: Mobile menu state
+
+  // ✅ NEW: Toggle mobile menu
+  const toggleMobileMenu = () => {
+    setIsMobileMenuOpen(!isMobileMenuOpen);
+  };
+
+  // ✅ NEW: Close mobile menu when clicking on a link
+  const closeMobileMenu = () => {
+    setIsMobileMenuOpen(false);
+  };
 
   // Toggle profile dropdown
   const toggleProfileDropdown = () => {
@@ -127,34 +138,45 @@ export default function Header() {
           <span>SOLENNIA</span>
         </Link>
 
-        {/* MOBILE MENU */}
+        {/* MOBILE MENU TOGGLE */}
         <button
-          id="mobileToggle"
-          className="md:hidden p-2 rounded hover:bg-black/5"
-          aria-label="Open menu"
+          onClick={toggleMobileMenu}
+          className="md:hidden p-2 rounded hover:bg-black/5 z-50"
+          aria-label="Toggle menu"
         >
-          <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
-            <path
-              d="M4 7h16M4 12h16M4 17h16"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-            />
-          </svg>
+          {isMobileMenuOpen ? (
+            // Close icon
+            <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M6 18L18 6M6 6l12 12"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          ) : (
+            // Hamburger icon
+            <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M4 7h16M4 12h16M4 17h16"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+            </svg>
+          )}
         </button>
 
-        {/* NAV LINKS */}
-        <ul
-          id="mobileMenu"
-          className="md:flex items-center gap-6 text-sm font-medium hidden"
-        >
+        {/* NAV LINKS - Desktop */}
+        <ul className="hidden md:flex items-center gap-6 text-sm font-medium">
           <li><Link to="/venue" className="hover:underline">VENUE</Link></li>
           <li><Link to="/vendors" className="hover:underline">VENDORS</Link></li>
           <li><Link to="/about" className="hover:underline">ABOUT US</Link></li>
         </ul>
 
-        {/* RIGHT SIDE */}
-        <div className="flex items-center gap-2">
+        {/* RIGHT SIDE - Desktop */}
+        <div className="hidden md:flex items-center gap-2">
 
           {/* SEARCH */}
           <button
@@ -276,6 +298,144 @@ export default function Header() {
           </div>
 
         </div>
+
+        {/* ✅ MOBILE MENU - Slides from right */}
+        <div
+          className={`fixed inset-y-0 right-0 w-64 bg-[#f6f0e8] shadow-2xl transform transition-transform duration-300 ease-in-out z-40 md:hidden ${
+            isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'
+          }`}
+        >
+          <div className="flex flex-col h-full">
+            {/* Mobile Menu Header */}
+            <div className="p-4 bg-[#e8ddae] border-b border-gray-300">
+              <h2 className="text-lg font-semibold">Menu</h2>
+            </div>
+
+            {/* Navigation Links */}
+            <nav className="flex-1 overflow-y-auto py-4">
+              <ul className="space-y-1 px-2">
+                <li>
+                  <Link
+                    to="/venue"
+                    onClick={closeMobileMenu}
+                    className="block px-4 py-3 rounded-lg hover:bg-[#e8ddae] transition-colors"
+                  >
+                    VENUE
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/vendors"
+                    onClick={closeMobileMenu}
+                    className="block px-4 py-3 rounded-lg hover:bg-[#e8ddae] transition-colors"
+                  >
+                    VENDORS
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/about"
+                    onClick={closeMobileMenu}
+                    className="block px-4 py-3 rounded-lg hover:bg-[#e8ddae] transition-colors"
+                  >
+                    ABOUT US
+                  </Link>
+                </li>
+
+                <div className="my-4 border-t border-gray-300" />
+
+                {isLoggedIn && username ? (
+                  <>
+                    <li>
+                      <Link
+                        to="/profile"
+                        onClick={closeMobileMenu}
+                        className="block px-4 py-3 rounded-lg hover:bg-[#e8ddae] transition-colors"
+                      >
+                        Profile
+                      </Link>
+                    </li>
+                    <li>
+                      <Link
+                        to="/chat"
+                        onClick={closeMobileMenu}
+                        className="block px-4 py-3 rounded-lg hover:bg-[#e8ddae] transition-colors"
+                      >
+                        Messages
+                      </Link>
+                    </li>
+                    <li>
+                      <button
+                        onClick={() => {
+                          closeMobileMenu();
+                          window.solenniaLogout && window.solenniaLogout();
+                        }}
+                        className="w-full text-left px-4 py-3 rounded-lg hover:bg-[#e8ddae] transition-colors"
+                      >
+                        Logout
+                      </button>
+                    </li>
+                  </>
+                ) : (
+                  <>
+                    <li>
+                      <button
+                        onClick={() => {
+                          closeMobileMenu();
+                          openLoginModal();
+                        }}
+                        className="w-full text-left px-4 py-3 rounded-lg hover:bg-[#e8ddae] transition-colors"
+                      >
+                        Login
+                      </button>
+                    </li>
+                    <li>
+                      <button
+                        onClick={() => {
+                          closeMobileMenu();
+                          openRegisterModal();
+                        }}
+                        className="w-full text-left px-4 py-3 rounded-lg hover:bg-[#e8ddae] transition-colors"
+                      >
+                        Register
+                      </button>
+                    </li>
+                  </>
+                )}
+              </ul>
+            </nav>
+
+            {/* User Info Footer (if logged in) */}
+            {isLoggedIn && username && (
+              <div className="p-4 bg-[#e8ddae] border-t border-gray-300">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full border-2 border-gray-700 overflow-hidden flex items-center justify-center flex-shrink-0">
+                    {avatar ? (
+                      <img src={avatar} alt="Profile" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#7a5d47] to-[#5d4436] text-white font-semibold text-xs">
+                        {getInitials()}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-gray-900 truncate">{username}</p>
+                    {email && <p className="text-xs text-gray-600 truncate">{email}</p>}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ✅ OVERLAY for mobile menu */}
+        {isMobileMenuOpen && (
+          <div
+            className="fixed inset-0 bg-black/50 z-30 md:hidden"
+            onClick={closeMobileMenu}
+          />
+        )}
+
       </nav>
     </header>
   );
