@@ -1496,15 +1496,15 @@ formData.append("contact_email", form.contact_email.value);
       {/* ================= FEEDBACK MODAL - REDESIGNED ================= */}
       <div
         id="feedbackModal"
-        className="fixed inset-0 hidden z-[200] grid place-items-center bg-black/50 backdrop-blur-sm p-4"
+        className="fixed inset-0 hidden z-[200] grid place-items-center bg-black/50 backdrop-blur-sm p-3 sm:p-4 md:p-6"
         onClick={closeFeedback}
       >
         <div 
-          className="bg-[#f6f0e8] w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+          className="bg-[#f6f0e8] w-full max-w-2xl rounded-xl sm:rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header with Icon */}
-          <div className="bg-gradient-to-r from-[#7a5d47] to-[#5d4436] px-6 py-5 flex items-center justify-between">
+          <div className="bg-gradient-to-r from-[#7a5d47] to-[#5d4436] px-4 sm:px-6 py-4 sm:py-5 flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="w-12 h-12 bg-white/10 backdrop-blur-sm rounded-xl flex items-center justify-center border border-white/20">
                 <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -1512,7 +1512,7 @@ formData.append("contact_email", form.contact_email.value);
                 </svg>
               </div>
               <div>
-                <h2 className="text-2xl font-bold text-white tracking-wide">Send Feedback</h2>
+                <h2 className="text-xl sm:text-2xl font-bold text-white tracking-wide">Send Feedback</h2>
                 <p className="text-sm text-white/80">We'd love to hear from you!</p>
               </div>
             </div>
@@ -1526,7 +1526,7 @@ formData.append("contact_email", form.contact_email.value);
           </div>
 
           {/* Content */}
-          <div className="p-6">
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6">
             {/* Introduction Card */}
             <div className="bg-[#e8ddae] border-l-4 border-[#7a5d47] rounded-lg p-4 mb-6 flex items-start space-x-3">
               <svg className="w-6 h-6 text-[#7a5d47] flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 24 24">
@@ -1603,17 +1603,17 @@ formData.append("contact_email", form.contact_email.value);
               </div>
 
               {/* Submit Button */}
-              <div className="flex justify-end gap-3 pt-2">
+              <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 pt-2">
                 <button
                   type="button"
                   onClick={closeFeedback}
-                  className="px-6 py-2.5 bg-gray-200 hover:bg-gray-300 text-sm font-medium rounded-lg transition-colors"
+                  className="w-full sm:w-auto px-4 sm:px-6 py-2.5 bg-gray-200 hover:bg-gray-300 text-sm font-medium rounded-lg transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 bg-[#7a5d47] hover:bg-[#5d4436] text-white font-semibold text-sm rounded-lg transition-colors"
+                  className="w-full sm:w-auto px-4 sm:px-6 py-2.5 bg-[#7a5d47] hover:bg-[#5d4436] text-white font-semibold text-sm rounded-lg transition-colors"
                 >
                   Submit Feedback
                 </button>
