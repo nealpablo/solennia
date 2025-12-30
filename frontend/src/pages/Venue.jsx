@@ -112,7 +112,7 @@ export default function Venue() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-4 py-6 sm:py-8">
+    <div className="max-w-7xl mx-auto px-4 py-8">
       {/* Page Header - Centered like Vendors.jsx */}
       <div className="mb-8">
         <h1 className="text-3xl md:text-4xl tracking-[0.25em] text-center mb-2">
@@ -236,14 +236,22 @@ function VenueCard({ venue, navigate }) {
       return;
     }
 
-    const firebaseUid = venue.firebase_uid || venue.user_firebase_uid;
+    // Check multiple possible firebase_uid fields
+    const firebaseUid = venue.firebase_uid 
+                     || venue.user_firebase_uid 
+                     || venue.owner_firebase_uid;
+    
+    // Debug logging
+    console.log("🔍 Chat Debug - Venue object:", venue);
+    console.log("🔍 Firebase UID found:", firebaseUid);
     
     if (!firebaseUid) {
-      console.error("Venue vendor missing firebase_uid:", venue);
-      toast.error("Unable to start chat with this venue");
+      console.error("❌ Venue vendor missing firebase_uid. Available fields:", Object.keys(venue));
+      toast.error("This venue's contact information is incomplete. Please try again later or contact support.");
       return;
     }
 
+    console.log("✅ Navigating to chat with UID:", firebaseUid);
     navigate(`/chat?to=${encodeURIComponent(firebaseUid)}`);
   };
 
@@ -269,7 +277,7 @@ function VenueCard({ venue, navigate }) {
       className="group bg-white rounded-lg overflow-hidden shadow-md hover:shadow-xl transition-all duration-300"
     >
       {/* Image Container */}
-      <div className="relative h-48 sm:h-52 md:h-56 overflow-hidden bg-gray-200">
+      <div className="relative h-48 overflow-hidden bg-gray-200">
         <img
           src={venueImage}
           alt={venue.venue_name || venue.business_name}
@@ -333,7 +341,7 @@ function VenueCard({ venue, navigate }) {
       )}
 
       {/* Card Content */}
-      <div className="p-3 sm:p-4">
+      <div className="p-4">
         <h3 className="font-semibold text-gray-800 mb-1 line-clamp-2 group-hover:text-[#7a5d47] transition-colors">
           {venue.venue_name || venue.business_name}
         </h3>
@@ -371,7 +379,7 @@ function VenueCard({ venue, navigate }) {
 
         <button
           onClick={handleChatClick}
-          className="mt-3 w-full px-3 sm:px-4 py-2 bg-[#7a5d47] hover:bg-[#654a38] text-white text-xs sm:text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+          className="mt-3 w-full px-4 py-2 bg-[#7a5d47] hover:bg-[#654a38] text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
