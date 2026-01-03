@@ -209,16 +209,13 @@ return function (App $app) {
                     'user_id' => $vendor->user_id,
                     'business_name' => $vendor->business_name,
                     'category' => $vendor->category,
-                    'address' => $vendor->address,
                     'description' => $vendor->description,
                     'bio' => $vendor->bio,
                     'pricing' => $vendor->pricing,
                     'hero_image_url' => $vendor->hero_image_url,
                     'vendor_logo' => $vendor->vendor_logo,
-                    'services' => $vendor->services ? json_decode($vendor->services, true) : [],
-                    'service_areas' => $vendor->service_areas ? json_decode($vendor->service_areas, true) : [],
-                    'firebase_uid' => $vendor->firebase_uid,
-                    'user_avatar' => $vendor->user_avatar,
+                    'address' => $vendor->address,
+                    'firebase_uid' => $vendor->firebase_uid
                 ];
             }
 
@@ -237,7 +234,7 @@ return function (App $app) {
         }
     });
 
-    // Get single vendor (public)
+    // 🔧 FIXED: Get single vendor (public)
     $app->get('/api/vendor/public/{userId}', function (Request $req, Response $res, array $args) use ($json) {
         try {
             $userId = (int) $args['userId'];
@@ -267,6 +264,32 @@ return function (App $app) {
                 $gallery = json_decode($vendor->gallery, true) ?: [];
             }
 
+            // 🔧 FIX: Handle both JSON and plain text for services
+            $services = $vendor->services;
+            if ($services) {
+                // Try to decode as JSON
+                $decoded = @json_decode($services, true);
+                // If it's valid JSON and returns an array, use it
+                // Otherwise, keep it as plain text string
+                if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                    $services = $decoded;
+                }
+                // else: $services remains as the plain text string
+            }
+
+            // 🔧 FIX: Handle both JSON and plain text for service_areas
+            $service_areas = $vendor->service_areas;
+            if ($service_areas) {
+                // Try to decode as JSON
+                $decoded = @json_decode($service_areas, true);
+                // If it's valid JSON and returns an array, use it
+                // Otherwise, keep it as plain text string
+                if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                    $service_areas = $decoded;
+                }
+                // else: $service_areas remains as the plain text string
+            }
+
             $vendorData = [
                 'id' => $vendor->ID,
                 'user_id' => $vendor->UserID,
@@ -277,8 +300,8 @@ return function (App $app) {
                 'description' => $vendor->Description,
                 'bio' => $vendor->bio,
                 'pricing' => $vendor->Pricing,
-                'services' => $vendor->services ? json_decode($vendor->services, true) : [],
-                'service_areas' => $vendor->service_areas ? json_decode($vendor->service_areas, true) : [],
+                'services' => $services ?: null,  // 🔧 Now handles both string and array
+                'service_areas' => $service_areas ?: null,  // 🔧 Now handles both string and array
                 'business_email' => $vendor->BusinessEmail,
                 'business_address' => $vendor->BusinessAddress,
                 'hero_image_url' => $vendor->HeroImageUrl,
