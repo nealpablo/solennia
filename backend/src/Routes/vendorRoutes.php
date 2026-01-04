@@ -106,7 +106,7 @@ return function (App $app) {
         $userId = (int) $auth->mysql_id;
 
         try {
-            $vendor = DB::table('eventserviceprovider')
+            $vendor = DB::table('event_service_provider')
                 ->where('UserID', $userId)
                 ->where('ApplicationStatus', 'Approved')
                 ->first();
@@ -179,7 +179,7 @@ return function (App $app) {
     // Get all vendors (public)
     $app->get('/api/vendors/public', function (Request $req, Response $res) use ($json) {
         try {
-            $vendors = DB::table('eventserviceprovider as esp')
+            $vendors = DB::table('event_service_provider as esp')
                 ->leftJoin('credential as c', 'esp.UserID', '=', 'c.id')
                 ->where('esp.ApplicationStatus', 'Approved')
                 ->whereNotNull('esp.avatar')
@@ -239,7 +239,7 @@ return function (App $app) {
         try {
             $userId = (int) $args['userId'];
 
-            $vendor = DB::table('eventserviceprovider as esp')
+            $vendor = DB::table('event_service_provider as esp')
                 ->leftJoin('credential as c', 'esp.UserID', '=', 'c.id')
                 ->where('esp.UserID', $userId)
                 ->where('esp.ApplicationStatus', 'Approved')

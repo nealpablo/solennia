@@ -46,7 +46,7 @@ class VendorController
             }
 
             // Check if profile already exists
-            $existingProfile = DB::table('eventserviceprovider')
+            $existingProfile = DB::table('event_service_provider')
                 ->where('UserID', $userId)
                 ->first();
 
@@ -110,7 +110,7 @@ class VendorController
             }
 
             // Create vendor profile
-            DB::table('eventserviceprovider')->insert([
+            DB::table('event_service_provider')->insert([
                 'UserID' => $userId,
                 'BusinessName' => $businessName,
                 'Category' => $application->category,
@@ -160,7 +160,7 @@ class VendorController
             ->first();
 
         // Check if profile exists
-        $profile = DB::table('eventserviceprovider')
+        $profile = DB::table('event_service_provider')
             ->where('UserID', $userId)
             ->where('ApplicationStatus', 'Approved')
             ->first();
@@ -199,7 +199,7 @@ class VendorController
             return $this->json($response, false, "User ID required", 400);
         }
 
-        $vendor = DB::table('eventserviceprovider')
+        $vendor = DB::table('event_service_provider')
             ->where('UserID', $userId)
             ->where('ApplicationStatus', 'Approved')
             ->first();
@@ -326,7 +326,7 @@ class VendorController
 
             $url = $upload['secure_url'];
 
-            DB::table("eventserviceprovider")
+            DB::table("event_service_provider")
                 ->where("UserID", $userId)
                 ->update(["avatar" => $url]);
 
@@ -376,7 +376,7 @@ class VendorController
 
             $url = $upload['secure_url'];
 
-            DB::table("eventserviceprovider")
+            DB::table("event_service_provider")
                 ->where("UserID", $userId)
                 ->update(["HeroImageUrl" => $url]);
 
@@ -488,7 +488,7 @@ class VendorController
         }
 
         try {
-            DB::table("eventserviceprovider")
+            DB::table("event_service_provider")
                 ->where("UserID", $userId)
                 ->update($updateData);
 
