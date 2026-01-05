@@ -76,9 +76,28 @@ if (!$host || !$db || !$user) {
 }
 
 /**
- * ✅ Boot Eloquent with OPTIMIZED CONNECTION POOLING
+ * ✅ Boot Eloquent with OPTIMIZED CONNECTION POOLING (Compatible Version)
  */
 $capsule = new Capsule();
+
+// ✅ Build PDO options - only use constants that exist
+$pdoOptions = [
+    PDO::ATTR_PERSISTENT => true, // Reuse connections
+    PDO::ATTR_EMULATE_PREPARES => false, // Use native prepared statements
+    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_OBJ,
+    PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci",
+    PDO::ATTR_TIMEOUT => 5, // 5 second connection timeout
+];
+
+// ✅ Only add MySQL-specific timeouts if they're available
+if (defined('PDO::MYSQL_ATTR_READ_TIMEOUT')) {
+    $pdoOptions[PDO::MYSQL_ATTR_READ_TIMEOUT] = 10;
+}
+if (defined('PDO::MYSQL_ATTR_WRITE_TIMEOUT')) {
+    $pdoOptions[PDO::MYSQL_ATTR_WRITE_TIMEOUT] = 10;
+}
+
 $capsule->addConnection([
     'driver'    => $driver,
     'host'      => $host,
@@ -90,20 +109,8 @@ $capsule->addConnection([
     'collation' => 'utf8mb4_unicode_ci',
     'prefix'    => '',
     
-    // ✅ PERFORMANCE OPTIMIZATIONS
-    'options' => [
-        // Connection pooling
-        PDO::ATTR_PERSISTENT => true, // Reuse connections
-        PDO::ATTR_EMULATE_PREPARES => false, // Use native prepared statements
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_OBJ,
-        PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci",
-        
-        // ✅ Connection timeout optimizations
-        PDO::ATTR_TIMEOUT => 5, // 5 second connection timeout
-        PDO::MYSQL_ATTR_READ_TIMEOUT => 10, // 10 second read timeout
-        PDO::MYSQL_ATTR_WRITE_TIMEOUT => 10, // 10 second write timeout
-    ],
+    // ✅ PERFORMANCE OPTIMIZATIONS (Compatible)
+    'options' => $pdoOptions,
     
     // ✅ Connection pool settings
     'pool' => [
@@ -149,7 +156,7 @@ ini_set('memory_limit', '256M');
 // Set max execution time
 ini_set('max_execution_time', '30');
 
-// Enable OPcache in production
+// Enable OPcache in production (if available)
 if ($APP_ENV === 'production' && function_exists('opcache_reset')) {
     ini_set('opcache.enable', '1');
     ini_set('opcache.memory_consumption', '128');
