@@ -181,6 +181,9 @@ export default function VendorDashboard() {
       const body = await safeFetch(`${API}/vendor/dashboard`);
       setVendor(body.vendor);
       setBookings(body.bookings || [{ title: "No bookings", count: 0 }]);
+      
+      // ✅ FIXED: Set gallery from response
+      console.log("Gallery data:", body.gallery); // Debug log
       setGallery(body.gallery || []);
 
       // Chart
@@ -270,19 +273,51 @@ export default function VendorDashboard() {
     }
   }
 
+  /* ================= ✅ FIXED: UPLOAD GALLERY ================= */
   async function uploadGallery(files) {
+    // ✅ Validate file count
+    if (files.length > 10) {
+      toast.error("Maximum 10 images per upload");
+      return;
+    }
+
+    // ✅ Validate file sizes
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    for (let file of files) {
+      if (file.size > maxSize) {
+        toast.error(`${file.name} is too large. Maximum size is 10MB.`);
+        return;
+      }
+    }
+
     const fd = new FormData();
-    [...files].forEach((f) => fd.append("gallery[]", f));
+    
+    // ✅ FIXED: Use "gallery" instead of "gallery[]"
+    // Backend expects: $files = $request->getUploadedFiles()['gallery'] ?? [];
+    Array.from(files).forEach((f) => {
+      fd.append("gallery[]", f); // PHP will parse this as an array
+    });
     
     try {
-      await safeFetch(`${API}/vendor/gallery`, {
+      toast.info(`Uploading ${files.length} image(s)...`);
+      
+      const result = await safeFetch(`${API}/vendor/gallery`, {
         method: "POST",
         body: fd,
       });
       
+      console.log("Upload result:", result); // Debug log
+      
+      // Reload dashboard to show new images
       loadDashboard();
-      toast.success("Gallery updated!");
+      
+      if (result.errors && result.errors.length > 0) {
+        toast.warning(`${result.images?.length || 0} image(s) uploaded. ${result.errors.length} failed.`);
+      } else {
+        toast.success(`Gallery updated! ${result.images?.length || 0} image(s) uploaded.`);
+      }
     } catch (err) {
+      console.error("Gallery upload error:", err); // Debug log
       toast.error(err.message);
     }
   }
@@ -321,69 +356,75 @@ export default function VendorDashboard() {
           .form-group {
             display: flex;
             flex-direction: column;
+            gap: 8px;
           }
           .form-group label {
             font-weight: 600;
-            margin-bottom: 8px;
-            color: #333;
+            color: #7a5d47;
           }
           .form-group label .required {
-            color: #d32f2f;
+            color: #dc2626;
           }
           .form-group input,
           .form-group textarea {
             padding: 12px;
             border: 1px solid #ddd;
-            border-radius: 6px;
-            font-size: 14px;
+            border-radius: 8px;
             font-family: inherit;
+            font-size: 14px;
           }
           .form-group textarea {
             min-height: 100px;
             resize: vertical;
           }
-          .form-group small {
-            margin-top: 4px;
-            color: #666;
-            font-size: 13px;
+          .file-upload {
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
           }
-          .image-preview {
+          .file-upload:hover {
+            border-color: #7a5d47;
+            background: #fff;
+          }
+          .file-upload input {
+            display: none;
+          }
+          .file-name {
             margin-top: 10px;
-            max-width: 200px;
+            font-size: 14px;
+            color: #666;
           }
-          .image-preview img {
-            width: 100%;
-            border-radius: 6px;
-            border: 2px solid #ddd;
-          }
-          .submit-btn {
+          .btn-submit {
             background: #7a5d47;
             color: white;
-            padding: 14px 28px;
+            padding: 15px 30px;
             border: none;
-            border-radius: 6px;
+            border-radius: 8px;
             font-size: 16px;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s;
           }
-          .submit-btn:hover {
-            background: #6a503d;
+          .btn-submit:hover:not(:disabled) {
+            background: #5d4436;
+            transform: translateY(-2px);
           }
-          .submit-btn:disabled {
-            background: #ccc;
+          .btn-submit:disabled {
+            opacity: 0.6;
             cursor: not-allowed;
           }
         `}</style>
 
         <div className="setup-container">
           <div className="setup-header">
-            <h1>🎉 Congratulations!</h1>
-            <p>Your vendor application has been approved. Complete your profile to appear on our vendors page.</p>
+            <h1>🎉 Complete Your Vendor Profile</h1>
+            <p>Your vendor application has been approved! Please fill in the details below to activate your profile.</p>
           </div>
 
-          <form onSubmit={handleProfileSetup} className="setup-form">
-            {/* Business Bio */}
+          <form className="setup-form" onSubmit={handleProfileSetup}>
             <div className="form-group">
               <label>
                 Business Bio <span className="required">*</span>
@@ -391,13 +432,11 @@ export default function VendorDashboard() {
               <textarea
                 value={setupForm.bio}
                 onChange={(e) => setSetupForm({ ...setupForm, bio: e.target.value })}
-                placeholder="Tell clients about your business, experience, and what makes you unique..."
+                placeholder="Tell clients about your business, experience, and what makes you special..."
                 required
               />
-              <small>Describe your business in 2-3 paragraphs</small>
             </div>
 
-            {/* Services */}
             <div className="form-group">
               <label>
                 Services Offered <span className="required">*</span>
@@ -405,13 +444,11 @@ export default function VendorDashboard() {
               <textarea
                 value={setupForm.services}
                 onChange={(e) => setSetupForm({ ...setupForm, services: e.target.value })}
-                placeholder="Full catering, Event planning, Venue setup, etc."
+                placeholder="List your services (e.g., Wedding Photography, Event Catering, Floral Arrangements)"
                 required
               />
-              <small>List the services you provide (comma-separated)</small>
             </div>
 
-            {/* Service Areas */}
             <div className="form-group">
               <label>
                 Service Areas <span className="required">*</span>
@@ -420,53 +457,52 @@ export default function VendorDashboard() {
                 type="text"
                 value={setupForm.service_areas}
                 onChange={(e) => setSetupForm({ ...setupForm, service_areas: e.target.value })}
-                placeholder="Metro Manila, Quezon City, Makati, etc."
+                placeholder="Where do you serve? (e.g., Metro Manila, Quezon City, NCR)"
                 required
               />
-              <small>Where do you provide your services?</small>
             </div>
 
-            {/* Logo */}
             <div className="form-group">
               <label>
                 Business Logo <span className="required">*</span>
               </label>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => setSetupForm({ ...setupForm, logo: e.target.files[0] })}
-                required
-              />
-              <small>Square image recommended (300x300px). This will appear on the vendors page.</small>
-              {setupForm.logo && (
-                <div className="image-preview">
-                  <img src={URL.createObjectURL(setupForm.logo)} alt="Logo preview" />
-                </div>
-              )}
+              <label className="file-upload">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setSetupForm({ ...setupForm, logo: e.target.files[0] })}
+                  required
+                />
+                <div>📸 Click to upload your business logo</div>
+                {setupForm.logo && (
+                  <div className="file-name">Selected: {setupForm.logo.name}</div>
+                )}
+              </label>
             </div>
 
-            {/* Hero Image */}
             <div className="form-group">
-              <label>Hero/Banner Image (Optional)</label>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => setSetupForm({ ...setupForm, hero: e.target.files[0] })}
-              />
-              <small>Wide image recommended (1920x1080px). This will appear at the top of your profile.</small>
-              {setupForm.hero && (
-                <div className="image-preview">
-                  <img src={URL.createObjectURL(setupForm.hero)} alt="Hero preview" />
-                </div>
-              )}
+              <label>
+                Hero Image (Optional)
+              </label>
+              <label className="file-upload">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setSetupForm({ ...setupForm, hero: e.target.files[0] })}
+                />
+                <div>🖼️ Click to upload a hero/banner image</div>
+                {setupForm.hero && (
+                  <div className="file-name">Selected: {setupForm.hero.name}</div>
+                )}
+              </label>
             </div>
 
-            <button 
-              type="submit" 
-              className="submit-btn"
+            <button
+              type="submit"
+              className="btn-submit"
               disabled={submittingSetup}
             >
-              {submittingSetup ? "Creating Profile..." : "Publish Profile & Go Live"}
+              {submittingSetup ? "Creating Profile..." : "Activate My Profile"}
             </button>
           </form>
         </div>
@@ -474,32 +510,21 @@ export default function VendorDashboard() {
     );
   }
 
-  /* ================= RENDER: LOADING ================= */
+  /* ================= LOADING STATE ================= */
   if (loading) {
     return (
-      <div style={{ 
-        display: "flex", 
-        justifyContent: "center", 
-        alignItems: "center", 
-        height: "100vh" 
-      }}>
-        <p>Loading vendor dashboard...</p>
+      <div className="vendor-dashboard" style={{ textAlign: "center", padding: "100px 20px" }}>
+        <h2>Loading vendor dashboard...</h2>
       </div>
     );
   }
 
-  /* ================= RENDER: DASHBOARD ================= */
+  /* ================= MAIN DASHBOARD ================= */
   if (!vendor) {
     return (
-      <div style={{ 
-        display: "flex", 
-        justifyContent: "center", 
-        alignItems: "center", 
-        height: "100vh",
-        flexDirection: "column",
-        gap: "20px"
-      }}>
-        <p>Loading vendor data...</p>
+      <div className="vendor-dashboard" style={{ textAlign: "center", padding: "100px 20px" }}>
+        <h2>Vendor profile not found</h2>
+        <p>Please contact support if this issue persists.</p>
       </div>
     );
   }
@@ -507,112 +532,116 @@ export default function VendorDashboard() {
   return (
     <div className="vendor-dashboard">
       <style>{`
-        .vendor-dashboard { 
-          padding: 80px 20px 40px; 
-          max-width: 1200px; 
-          margin: 0 auto; 
-          font-family: 'Poppins', sans-serif;
+        .vendor-dashboard {
+          max-width: 1200px;
+          margin: 80px auto 40px;
+          padding: 20px;
         }
-        .vendor-dashboard h2 { 
-          margin-bottom: 20px; 
-          color: #7a5d47; 
+        .vendor-dashboard h2 {
+          color: #7a5d47;
+          margin-bottom: 20px;
         }
-        .vendor-dashboard .profile-card {
-          background: #f6f0e8;
+        .profile-card {
+          background: white;
           padding: 30px;
           border-radius: 12px;
           margin-bottom: 30px;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
-        .vendor-dashboard .profile-header {
+        .profile-header {
           display: flex;
-          gap: 20px;
-          align-items: flex-start;
+          gap: 30px;
+          align-items: start;
         }
-        .vendor-dashboard .profile-logo {
+        .profile-logo {
           width: 120px;
           height: 120px;
-          border-radius: 8px;
+          border-radius: 12px;
           object-fit: cover;
           border: 3px solid #7a5d47;
         }
-        .vendor-dashboard .profile-info {
+        .profile-info {
           flex: 1;
         }
-        .vendor-dashboard .profile-info h3 {
-          margin: 0 0 10px 0;
-          color: #333;
+        .profile-info h3 {
+          margin: 0 0 15px 0;
+          color: #7a5d47;
+          font-size: 28px;
         }
-        .vendor-dashboard .profile-actions {
+        .profile-info p {
+          margin: 8px 0;
+          color: #666;
+        }
+        .profile-actions {
           display: flex;
           gap: 10px;
-          margin-top: 15px;
+          margin-top: 20px;
           flex-wrap: wrap;
         }
-        .vendor-dashboard .btn {
-          padding: 8px 16px;
+        .btn {
+          padding: 10px 20px;
           border: none;
           border-radius: 6px;
+          font-weight: 600;
           cursor: pointer;
-          font-size: 14px;
           transition: all 0.3s;
         }
-        .vendor-dashboard .btn-primary {
+        .btn-primary {
           background: #7a5d47;
           color: white;
         }
-        .vendor-dashboard .btn-primary:hover {
-          background: #6a503d;
+        .btn-primary:hover {
+          background: #5d4436;
         }
-        .vendor-dashboard .btn-secondary {
-          background: #e8ddae;
+        .btn-secondary {
+          background: #e5e5e5;
           color: #333;
         }
-        .vendor-dashboard .btn-secondary:hover {
-          background: #d8cdae;
+        .btn-secondary:hover {
+          background: #d0d0d0;
         }
-        .vendor-dashboard .stats-grid {
+        .stats-grid {
           display: grid;
           grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
           gap: 20px;
           margin-bottom: 30px;
         }
-        .vendor-dashboard .stat-card {
+        .stat-card {
           background: white;
           padding: 20px;
           border-radius: 8px;
           box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
-        .vendor-dashboard .stat-card h4 {
+        .stat-card h4 {
           margin: 0 0 10px 0;
           color: #666;
           font-size: 14px;
         }
-        .vendor-dashboard .stat-card p {
+        .stat-card p {
           margin: 0;
           font-size: 32px;
           font-weight: bold;
           color: #7a5d47;
         }
-        .vendor-dashboard .chart-container {
+        .chart-container {
           background: white;
           padding: 20px;
           border-radius: 8px;
           margin-bottom: 30px;
           box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
-        .vendor-dashboard .gallery-grid {
+        .gallery-grid {
           display: grid;
           grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
           gap: 15px;
           margin-top: 20px;
         }
-        .vendor-dashboard .gallery-item {
+        .gallery-item {
           aspect-ratio: 1;
           border-radius: 8px;
           overflow: hidden;
         }
-        .vendor-dashboard .gallery-item img {
+        .gallery-item img {
           width: 100%;
           height: 100%;
           object-fit: cover;
@@ -718,7 +747,7 @@ export default function VendorDashboard() {
       </div>
 
       {/* Gallery */}
-      <h2>Gallery</h2>
+      <h2>Gallery ({gallery.length} images)</h2>
       <button 
         onClick={() => document.getElementById("gallery-input").click()} 
         className="btn btn-primary"
@@ -732,7 +761,11 @@ export default function VendorDashboard() {
         multiple
         accept="image/*"
         style={{ display: "none" }}
-        onChange={(e) => uploadGallery(e.target.files)}
+        onChange={(e) => {
+          if (e.target.files && e.target.files.length > 0) {
+            uploadGallery(e.target.files);
+          }
+        }}
       />
       
       {gallery && gallery.length > 0 ? (

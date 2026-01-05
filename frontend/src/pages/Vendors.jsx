@@ -211,7 +211,7 @@ function VendorCard({ vendor, navigate }) {
           }}
         />
         
-        {/* Overlay Icons */}
+        {/* ✅ FIXED: Only heart icon remains in top right - chat icon removed */}
         <div className="absolute top-3 right-3 flex gap-2">
           <button
             onClick={toggleFavorite}
@@ -226,21 +226,6 @@ function VendorCard({ vendor, navigate }) {
               strokeWidth="2"
             >
               <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-            </svg>
-          </button>
-
-          <button
-            onClick={handleChatClick}
-            className="w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center hover:bg-white transition-colors"
-            title="Chat with vendor"
-          >
-            <svg
-              className="w-5 h-5 stroke-gray-700"
-              viewBox="0 0 24 24"
-              fill="none"
-              strokeWidth="2"
-            >
-              <path d="M21 15a4 4 0 0 1-4 4H7l-4 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
             </svg>
           </button>
         </div>
@@ -272,6 +257,7 @@ function VendorCard({ vendor, navigate }) {
           {description}
         </p>
 
+        {/* ✅ Bottom chat button remains unchanged */}
         <div className="flex gap-2">
           <button
             onClick={handleViewProfile}

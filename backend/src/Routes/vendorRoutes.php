@@ -139,10 +139,12 @@ return function (App $app) {
                 'user_avatar' => $user->avatar ?? null
             ];
 
-            $gallery = [];
-            if ($vendor->gallery) {
-                $gallery = json_decode($vendor->gallery, true) ?: [];
-            }
+            // ✅ GALLERY FIX: Fetch from vendor_gallery table instead of event_service_provider.gallery
+            $gallery = DB::table('vendor_gallery')
+                ->where('user_id', $userId)
+                ->orderBy('created_at', 'desc')
+                ->pluck('image_url')
+                ->toArray();
 
             $bookings = [
                 ['title' => 'Total Bookings', 'count' => 0],
@@ -259,10 +261,12 @@ return function (App $app) {
                 ], 404);
             }
 
-            $gallery = [];
-            if ($vendor->gallery) {
-                $gallery = json_decode($vendor->gallery, true) ?: [];
-            }
+            // ✅ GALLERY FIX: Fetch from vendor_gallery table instead of event_service_provider.gallery
+            $gallery = DB::table('vendor_gallery')
+                ->where('user_id', $userId)
+                ->orderBy('created_at', 'desc')
+                ->pluck('image_url')
+                ->toArray();
 
             // 🔧 FIX: Handle both JSON and plain text for services
             $services = $vendor->services;
