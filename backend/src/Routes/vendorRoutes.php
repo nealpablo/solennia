@@ -29,52 +29,51 @@ return function (App $app) {
     };
 
     // ✅ NEW: Generate signed upload URL for direct client uploads
-    $app->post('/api/vendor/get-upload-signature', function (Request $req, Response $res) use ($json, $cloudinary) {
-        try {
-            $auth = $req->getAttribute('user');
-            if (!$auth || !isset($auth->mysql_id)) {
-                return $json($res, ['success' => false, 'error' => 'Unauthorized'], 401);
-            }
-
-            $userId = (int) $auth->mysql_id;
-            $data = (array) $req->getParsedBody();
-            $fileType = $data['file_type'] ?? 'permits'; // permits, gov_id, or portfolio
-
-            // Generate upload parameters
-            $timestamp = time();
-            $folder = "solennia/vendor/{$userId}";
-            $publicId = "{$fileType}_" . $timestamp . "_" . bin2hex(random_bytes(4));
-
-            // Parameters to sign
-            $params = [
-                'timestamp' => $timestamp,
-                'folder' => $folder,
-                'public_id' => $publicId,
-                'transformation' => 'c_limit,w_800,q_auto:eco',
-                'resource_type' => 'auto'
-            ];
-
-            // Generate signature
-            $signature = $cloudinary->signRequest($params);
-
-            // Return everything needed for upload
-            return $json($res, [
-                'success' => true,
-                'upload_url' => "https://api.cloudinary.com/v1_1/" . getenv('CLOUDINARY_CLOUD') . "/auto/upload",
-                'params' => array_merge($params, [
-                    'signature' => $signature,
-                    'api_key' => getenv('CLOUDINARY_KEY')
-                ])
-            ]);
-
-        } catch (\Throwable $e) {
-            error_log('UPLOAD_SIGNATURE_ERROR: ' . $e->getMessage());
-            return $json($res, [
-                'success' => false,
-                'error' => 'Failed to generate upload signature'
-            ], 500);
+    $app->post('/api/vendor/get-upload-signature', function (Request $req, Response $res) use ($json) {
+    try {
+        $auth = $req->getAttribute('user');
+        if (!$auth || !isset($auth->mysql_id)) {
+            return $json($res, ['success' => false, 'error' => 'Unauthorized'], 401);
         }
-    })->add(new AuthMiddleware());
+
+        $userId = (int) $auth->mysql_id;
+        $data = (array) $req->getParsedBody();
+        $fileType = $data['file_type'] ?? 'document';
+
+        $timestamp = time();
+        $folder = "solennia/vendor/{$userId}";
+        $publicId = "{$fileType}_" . $timestamp . "_" . bin2hex(random_bytes(4));
+
+        $params = [
+            'timestamp'     => $timestamp,
+            'folder'        => $folder,
+            'public_id'     => $publicId,
+            'resource_type' => 'auto'
+        ];
+
+        // ✅ CORRECT SIGNING METHOD
+        $signature = \Cloudinary\Api\ApiUtils::signRequest(
+            $params,
+            getenv('CLOUDINARY_SECRET')
+        );
+
+        return $json($res, [
+            'success'    => true,
+            'upload_url' => "https://api.cloudinary.com/v1_1/" . getenv('CLOUDINARY_CLOUD') . "/auto/upload",
+            'params'     => array_merge($params, [
+                'api_key'   => getenv('CLOUDINARY_KEY'),
+                'signature' => $signature
+            ])
+        ]);
+
+    } catch (\Throwable $e) {
+        error_log('UPLOAD_SIGNATURE_ERROR: ' . $e->getMessage());
+        return $json($res, [
+            'success' => false,
+            'error'   => 'Failed to generate upload signature'
+        ], 500);
+    }
+})->add(new AuthMiddleware());
 
     // Helper function to send notifications
     $sendNotification = function ($userId, $type, $title, $message) {
