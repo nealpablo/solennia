@@ -41,41 +41,38 @@ return function (App $app) {
         $apiSecret = getenv('CLOUDINARY_SECRET');
 
         if (!$cloudName || !$apiKey || !$apiSecret) {
-            error_log('CLOUDINARY_ENV_MISSING');
-            return $json($res, [
-                'success' => false,
-                'error'   => 'Cloudinary configuration missing'
-            ], 500);
+            return $json($res, ['success' => false, 'error' => 'Cloudinary config missing'], 500);
         }
 
-        $userId   = (int) $auth->mysql_id;
         $data     = (array) $req->getParsedBody();
         $fileType = $data['file_type'] ?? 'document';
 
+        // 🔥 PDFs → RAW
+        $isRaw = in_array($fileType, ['permits', 'gov_id', 'portfolio'], true);
+        $resourceType = $isRaw ? 'raw' : 'image';
+
         $timestamp = time();
-        $folder    = "solennia/vendor/{$userId}";
+        $folder    = "solennia/vendor/{$auth->mysql_id}";
         $publicId  = "{$fileType}_{$timestamp}_" . bin2hex(random_bytes(4));
 
         $params = [
             'folder'        => $folder,
             'public_id'     => $publicId,
-            'resource_type' => 'auto',
+            'resource_type' => $resourceType,
             'timestamp'     => $timestamp
         ];
 
-        /**
-         * ✅ MANUAL CLOUDINARY SIGNATURE (SDK-INDEPENDENT)
-         */
         ksort($params);
         $toSign = [];
         foreach ($params as $k => $v) {
             $toSign[] = "{$k}={$v}";
         }
+
         $signature = sha1(implode('&', $toSign) . $apiSecret);
 
         return $json($res, [
             'success'    => true,
-            'upload_url' => "https://api.cloudinary.com/v1_1/{$cloudName}/auto/upload",
+            'upload_url' => "https://api.cloudinary.com/v1_1/{$cloudName}/{$resourceType}/upload",
             'params'     => array_merge($params, [
                 'api_key'   => $apiKey,
                 'signature' => $signature
@@ -84,12 +81,10 @@ return function (App $app) {
 
     } catch (\Throwable $e) {
         error_log('UPLOAD_SIGNATURE_FATAL: ' . $e->getMessage());
-        return $json($res, [
-            'success' => false,
-            'error'   => 'Failed to generate upload signature'
-        ], 500);
+        return $json($res, ['success' => false, 'error' => 'Upload signature failed'], 500);
     }
 })->add(new AuthMiddleware());
+
 
 
     // Helper function to send notifications
