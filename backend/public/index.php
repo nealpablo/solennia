@@ -105,7 +105,7 @@ $app->add(function ($request, $handler) {
 // -------------------------------------------------------------
 // DB bootstrap (use optimized version)
 // -------------------------------------------------------------
-require BASE_PATH . '/src/bootstrap_optimized.php';
+require BASE_PATH . '/src/bootstrap.php';
 
 // -------------------------------------------------------------
 // Routes
