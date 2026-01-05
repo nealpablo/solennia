@@ -156,10 +156,3 @@ ini_set('memory_limit', '256M');
 // Set max execution time
 ini_set('max_execution_time', '30');
 
-// Enable OPcache in production (if available)
-if ($APP_ENV === 'production' && function_exists('opcache_reset')) {
-    ini_set('opcache.enable', '1');
-    ini_set('opcache.memory_consumption', '128');
-    ini_set('opcache.interned_strings_buffer', '8');
-    ini_set('opcache.max_accelerated_files', '10000');
-}

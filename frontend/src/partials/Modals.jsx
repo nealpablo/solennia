@@ -8,7 +8,7 @@ import {
   sendPasswordResetEmail,
 } from "firebase/auth";
 import toast from "../utils/toast";
-import axios from 'axios';
+
 
 const API_BASE = 
   import.meta.env.VITE_API_BASE || 
