@@ -47,19 +47,22 @@ return function (App $app) {
         $data     = (array) $req->getParsedBody();
         $fileType = $data['file_type'] ?? 'document';
 
-        // 🔥 PDFs → RAW
+        // PDFs & documents → RAW
         $isRaw = in_array($fileType, ['permits', 'gov_id', 'portfolio'], true);
-        $resourceType = $isRaw ? 'raw' : 'image';
+        $uploadType = $isRaw ? 'raw' : 'image';
 
         $timestamp = time();
         $folder    = "solennia/vendor/{$auth->mysql_id}";
         $publicId  = "{$fileType}_{$timestamp}_" . bin2hex(random_bytes(4));
 
+        /**
+         * ✅ SIGN ONLY WHAT CLOUDINARY EXPECTS
+         * ❌ DO NOT SIGN resource_type
+         */
         $params = [
-            'folder'        => $folder,
-            'public_id'     => $publicId,
-            'resource_type' => $resourceType,
-            'timestamp'     => $timestamp
+            'folder'    => $folder,
+            'public_id' => $publicId,
+            'timestamp' => $timestamp
         ];
 
         ksort($params);
@@ -72,7 +75,7 @@ return function (App $app) {
 
         return $json($res, [
             'success'    => true,
-            'upload_url' => "https://api.cloudinary.com/v1_1/{$cloudName}/{$resourceType}/upload",
+            'upload_url' => "https://api.cloudinary.com/v1_1/{$cloudName}/{$uploadType}/upload",
             'params'     => array_merge($params, [
                 'api_key'   => $apiKey,
                 'signature' => $signature
@@ -84,8 +87,6 @@ return function (App $app) {
         return $json($res, ['success' => false, 'error' => 'Upload signature failed'], 500);
     }
 })->add(new AuthMiddleware());
-
-
 
     // Helper function to send notifications
     $sendNotification = function ($userId, $type, $title, $message) {
