@@ -6,7 +6,7 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Illuminate\Database\Capsule\Manager as DB;
 
-class VendorControllerOptimized
+class VendorController
 {
     private Cloudinary $cloud;
     private const MAX_FILE_SIZE = 10485760; // 10MB
