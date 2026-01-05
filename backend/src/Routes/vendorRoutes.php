@@ -28,39 +28,53 @@ return function (App $app) {
             ->withStatus($status);
     };
 
-    // ✅ OPTIMIZED FOR RAILWAY: 10s timeout, aggressive compression
-    $uploadFileOptimized = function ($file, $userId, $tag) use ($cloudinary) {
+    // ✅ NEW: Generate signed upload URL for direct client uploads
+    $app->post('/api/vendor/get-upload-signature', function (Request $req, Response $res) use ($json, $cloudinary) {
         try {
-            $tmp = $file->getStream()->getMetadata('uri');
-            
-            $uploadOptions = [
-                'folder' => "solennia/vendor/{$userId}",
-                'resource_type' => 'auto',
-                'public_id' => "{$tag}_" . time(),
-                'timeout' => 10  // ✅ 10 seconds - perfect for 1MB files
-            ];
-
-            $mimeType = $file->getClientMediaType();
-            if (strpos($mimeType, 'image/') === 0) {
-                // ✅ Aggressive compression for fast uploads
-                $uploadOptions['transformation'] = [
-                    [
-                        'quality' => 'auto:low',  // Lower quality = faster
-                        'fetch_format' => 'auto',
-                        'width' => 800,  // Smaller size = faster
-                        'crop' => 'limit'
-                    ]
-                ];
+            $auth = $req->getAttribute('user');
+            if (!$auth || !isset($auth->mysql_id)) {
+                return $json($res, ['success' => false, 'error' => 'Unauthorized'], 401);
             }
 
-            $upload = $cloudinary->uploadApi()->upload($tmp, $uploadOptions);
-            return ['success' => true, 'url' => $upload['secure_url']];
+            $userId = (int) $auth->mysql_id;
+            $data = (array) $req->getParsedBody();
+            $fileType = $data['file_type'] ?? 'permits'; // permits, gov_id, or portfolio
 
-        } catch (\Exception $e) {
-            error_log("UPLOAD_ERROR ({$tag}): " . $e->getMessage());
-            return ['success' => false, 'error' => $e->getMessage()];
+            // Generate upload parameters
+            $timestamp = time();
+            $folder = "solennia/vendor/{$userId}";
+            $publicId = "{$fileType}_" . $timestamp . "_" . bin2hex(random_bytes(4));
+
+            // Parameters to sign
+            $params = [
+                'timestamp' => $timestamp,
+                'folder' => $folder,
+                'public_id' => $publicId,
+                'transformation' => 'c_limit,w_800,q_auto:eco',
+                'resource_type' => 'auto'
+            ];
+
+            // Generate signature
+            $signature = $cloudinary->signRequest($params);
+
+            // Return everything needed for upload
+            return $json($res, [
+                'success' => true,
+                'upload_url' => "https://api.cloudinary.com/v1_1/" . getenv('CLOUDINARY_CLOUD') . "/auto/upload",
+                'params' => array_merge($params, [
+                    'signature' => $signature,
+                    'api_key' => getenv('CLOUDINARY_KEY')
+                ])
+            ]);
+
+        } catch (\Throwable $e) {
+            error_log('UPLOAD_SIGNATURE_ERROR: ' . $e->getMessage());
+            return $json($res, [
+                'success' => false,
+                'error' => 'Failed to generate upload signature'
+            ], 500);
         }
-    };
+    })->add(new AuthMiddleware());
 
     // Helper function to send notifications
     $sendNotification = function ($userId, $type, $title, $message) {
@@ -139,7 +153,7 @@ return function (App $app) {
                 'user_avatar' => $user->avatar ?? null
             ];
 
-            // ✅ GALLERY FIX: Fetch from vendor_gallery table instead of event_service_provider.gallery
+            // ✅ GALLERY FIX: Fetch from vendor_gallery table
             $gallery = DB::table('vendor_gallery')
                 ->where('user_id', $userId)
                 ->orderBy('created_at', 'desc')
@@ -236,7 +250,7 @@ return function (App $app) {
         }
     });
 
-    // 🔧 FIXED: Get single vendor (public)
+    // Get single vendor (public)
     $app->get('/api/vendor/public/{userId}', function (Request $req, Response $res, array $args) use ($json) {
         try {
             $userId = (int) $args['userId'];
@@ -261,37 +275,29 @@ return function (App $app) {
                 ], 404);
             }
 
-            // ✅ GALLERY FIX: Fetch from vendor_gallery table instead of event_service_provider.gallery
+            // ✅ GALLERY FIX: Fetch from vendor_gallery table
             $gallery = DB::table('vendor_gallery')
                 ->where('user_id', $userId)
                 ->orderBy('created_at', 'desc')
                 ->pluck('image_url')
                 ->toArray();
 
-            // 🔧 FIX: Handle both JSON and plain text for services
+            // Handle both JSON and plain text for services
             $services = $vendor->services;
             if ($services) {
-                // Try to decode as JSON
                 $decoded = @json_decode($services, true);
-                // If it's valid JSON and returns an array, use it
-                // Otherwise, keep it as plain text string
                 if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
                     $services = $decoded;
                 }
-                // else: $services remains as the plain text string
             }
 
-            // 🔧 FIX: Handle both JSON and plain text for service_areas
+            // Handle both JSON and plain text for service_areas
             $service_areas = $vendor->service_areas;
             if ($service_areas) {
-                // Try to decode as JSON
                 $decoded = @json_decode($service_areas, true);
-                // If it's valid JSON and returns an array, use it
-                // Otherwise, keep it as plain text string
                 if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
                     $service_areas = $decoded;
                 }
-                // else: $service_areas remains as the plain text string
             }
 
             $vendorData = [
@@ -304,8 +310,8 @@ return function (App $app) {
                 'description' => $vendor->Description,
                 'bio' => $vendor->bio,
                 'pricing' => $vendor->Pricing,
-                'services' => $services ?: null,  // 🔧 Now handles both string and array
-                'service_areas' => $service_areas ?: null,  // 🔧 Now handles both string and array
+                'services' => $services ?: null,
+                'service_areas' => $service_areas ?: null,
                 'business_email' => $vendor->BusinessEmail,
                 'business_address' => $vendor->BusinessAddress,
                 'hero_image_url' => $vendor->HeroImageUrl,
@@ -328,8 +334,8 @@ return function (App $app) {
         }
     });
 
-    // ✅ OPTIMIZED FOR RAILWAY: 1MB limit, 10s timeout per file
-    $app->post('/api/vendor/apply', function (Request $req, Response $res) use ($json, $uploadFileOptimized, $sendNotification, $sendToAdmins) {
+    // ✅ ULTRA FAST: Vendor application - NO FILE UPLOAD (receives URLs only)
+    $app->post('/api/vendor/apply', function (Request $req, Response $res) use ($json, $sendNotification, $sendToAdmins) {
 
         try {
             $auth = $req->getAttribute('user');
@@ -352,12 +358,24 @@ return function (App $app) {
 
             $data = (array) $req->getParsedBody();
 
-            $required = ['business_name','category','address','description','pricing'];
+            // ✅ CHANGED: Now requires URLs instead of files
+            $required = ['business_name','category','address','description','pricing','permits_url','gov_id_url','portfolio_url'];
             foreach ($required as $field) {
                 if (empty($data[$field])) {
                     return $json($res, [
                         'success' => false,
                         'error'   => "Missing field: {$field}"
+                    ], 422);
+                }
+            }
+
+            // ✅ Validate URLs are from Cloudinary
+            $cloudinaryDomain = 'res.cloudinary.com';
+            foreach (['permits_url', 'gov_id_url', 'portfolio_url'] as $urlField) {
+                if (strpos($data[$urlField], $cloudinaryDomain) === false) {
+                    return $json($res, [
+                        'success' => false,
+                        'error' => "Invalid URL: {$urlField} must be a Cloudinary URL"
                     ], 422);
                 }
             }
@@ -374,53 +392,15 @@ return function (App $app) {
                 ], 400);
             }
 
-            $files = $req->getUploadedFiles();
-            
-            // ✅ STRICT 1MB LIMIT FOR RAILWAY
-            foreach (['permits','gov_id','portfolio'] as $fileKey) {
-                if (!isset($files[$fileKey]) || $files[$fileKey]->getError() !== UPLOAD_ERR_OK) {
-                    return $json($res, [
-                        'success' => false, 
-                        'error' => "Invalid upload: {$fileKey}"
-                    ], 422);
-                }
-                
-                $fileSize = $files[$fileKey]->getSize();
-                if ($fileSize > 1 * 1024 * 1024) { // 1MB
-                    $fileSizeMB = round($fileSize / (1024 * 1024), 2);
-                    return $json($res, [
-                        'success' => false, 
-                        'error' => "{$fileKey} is too large ({$fileSizeMB}MB). Maximum 1MB. Compress at TinyPNG.com before uploading."
-                    ], 422);
-                }
-            }
-
-            // ✅ Upload files (fast with 1MB files and 10s timeout!)
-            error_log("UPLOAD_START: UserID={$userId}");
-            $uploadResults = [
-                'permits' => $uploadFileOptimized($files['permits'], $userId, 'permits'),
-                'gov_id' => $uploadFileOptimized($files['gov_id'], $userId, 'govid'),
-                'portfolio' => $uploadFileOptimized($files['portfolio'], $userId, 'portfolio')
-            ];
-            error_log("UPLOAD_COMPLETE: UserID={$userId}");
-
-            foreach ($uploadResults as $key => $result) {
-                if (!$result['success']) {
-                    return $json($res, [
-                        'success' => false,
-                        'error' => "Failed to upload {$key}: " . $result['error']
-                    ], 500);
-                }
-            }
-
+            // ✅ NO FILE UPLOAD - INSTANT INSERT!
             $insertData = [
                 'user_id'       => $userId,
                 'business_name' => $data['business_name'],
                 'category'      => $data['category'],
                 'address'       => $data['address'],
-                'permits'       => $uploadResults['permits']['url'],
-                'gov_id'        => $uploadResults['gov_id']['url'],
-                'portfolio'     => $uploadResults['portfolio']['url'],
+                'permits'       => $data['permits_url'],  // ✅ Direct URL
+                'gov_id'        => $data['gov_id_url'],    // ✅ Direct URL
+                'portfolio'     => $data['portfolio_url'], // ✅ Direct URL
                 'contact_email'=> $data['contact_email']
                     ?? DB::table('credential')->where('id', $userId)->value('email'),
                 'description'   => $data['description'],
@@ -441,7 +421,7 @@ return function (App $app) {
 
             error_log("VENDOR_APPLICATION_SUCCESS: AppID={$appId}, UserID={$userId}");
 
-            // Send notifications
+            // Send notifications (async - doesn't block response)
             $sendToAdmins(
                 'application_submitted',
                 'New Vendor Application',
@@ -455,6 +435,7 @@ return function (App $app) {
                 'Your vendor application has been received and is under review.'
             );
 
+            // ✅ INSTANT RESPONSE (< 100ms instead of 30+ seconds!)
             return $json($res, [
                 'success' => true,
                 'message' => 'Vendor application submitted!',
@@ -485,7 +466,7 @@ return function (App $app) {
 
     $app->post('/api/vendor/logo', function (Request $req, Response $res) {
         $controller = new VendorController();
-        return $controller->updateVendorLogo($req, $res);
+        return $controller->updateLogo($req, $res);
     })->add(new AuthMiddleware());
 
     $app->post('/api/vendor/hero', function (Request $req, Response $res) {
