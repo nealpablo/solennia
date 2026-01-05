@@ -361,18 +361,21 @@ export default function Modals() {
 
   // Upload single file directly to Cloudinary (RETURNS URL)
 const uploadToCloudinary = async (file, fileType) => {
-  try {
-    if (!file) {
-      throw new Error(`No file provided for ${fileType}`);
-    }
+  const token = localStorage.getItem("solennia_token");
+  if (!token) {
+    throw new Error("User not authenticated");
+  }
 
-    // 1️⃣ Get signed upload params from backend
+  try {
+    // 1️⃣ Request signature (AUTHORIZED)
     const signatureRes = await fetch(`${API_BASE}/vendor/get-upload-signature`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
       body: JSON.stringify({
-        folder: "vendor_documents",
-        resource_type: file.type.includes("pdf") ? "raw" : "image",
+        file_type: fileType,
       }),
     });
 
@@ -380,22 +383,17 @@ const uploadToCloudinary = async (file, fileType) => {
       throw new Error(`Signature request failed: ${signatureRes.status}`);
     }
 
-    const {
-      uploadUrl,
-      apiKey,
-      timestamp,
-      signature,
-    } = await signatureRes.json();
+    const { upload_url, params } = await signatureRes.json();
 
     // 2️⃣ Upload to Cloudinary
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("api_key", apiKey);
-    formData.append("timestamp", timestamp);
-    formData.append("signature", signature);
-    formData.append("folder", "vendor_documents");
 
-    const uploadRes = await fetch(uploadUrl, {
+    Object.entries(params).forEach(([key, value]) => {
+      formData.append(key, value);
+    });
+
+    const uploadRes = await fetch(upload_url, {
       method: "POST",
       body: formData,
     });
@@ -405,19 +403,14 @@ const uploadToCloudinary = async (file, fileType) => {
     }
 
     const uploadData = await uploadRes.json();
-
-    // 3️⃣ Update progress + RETURN URL (NO STATE DEPENDENCY)
-    setUploadProgress(prev => ({ ...prev, [fileType]: 100 }));
-
     return uploadData.secure_url;
 
-  } catch (error) {
-    console.error(`Upload failed for ${fileType}`, error);
-    toast.error(`Upload failed for ${fileType}`);
-    setUploadProgress(prev => ({ ...prev, [fileType]: 0 }));
-    throw error;
+  } catch (err) {
+    console.error(`Upload failed for ${fileType}`, err);
+    throw err;
   }
 };
+
 
 // Upload all vendor files in parallel and RETURN URLs
 const uploadAllVendorFiles = async () => {
@@ -2406,7 +2399,7 @@ const handleVendorFileChange = (e, fileType) => {
                 type="email"
                 name="contact_email"
                 required
-                pattern="^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.com$"
+                pattern="[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
                 title="Email must end with .com"
                 className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
               />
