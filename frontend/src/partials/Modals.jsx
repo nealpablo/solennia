@@ -359,47 +359,45 @@ export default function Modals() {
    ✅ ULTRA FAST CLOUDINARY UPLOAD FUNCTIONS
   ========================= */
 
-  // Upload single file directly to Cloudinary
+  // Upload single file directly to Cloudinary (RETURNS URL)
 const uploadToCloudinary = async (file, fileType) => {
   try {
-    const token = localStorage.getItem("solennia_token");
-    if (!token) throw new Error("Not authenticated");
+    if (!file) {
+      throw new Error(`No file provided for ${fileType}`);
+    }
 
-    // STEP 1: get signed upload params (AUTH REQUIRED)
-    const sigRes = await fetch(`${API_BASE}/vendor/get-upload-signature`, {
+    // 1️⃣ Get signed upload params from backend
+    const signatureRes = await fetch(`${API_BASE}/vendor/get-upload-signature`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        file_type: fileType //
-      })
+        folder: "vendor_documents",
+        resource_type: file.type.includes("pdf") ? "raw" : "image",
+      }),
     });
 
-    if (!sigRes.ok) {
-      throw new Error(`Signature request failed: ${sigRes.status}`);
+    if (!signatureRes.ok) {
+      throw new Error(`Signature request failed: ${signatureRes.status}`);
     }
 
-    const sigData = await sigRes.json();
+    const {
+      uploadUrl,
+      apiKey,
+      timestamp,
+      signature,
+    } = await signatureRes.json();
 
-    if (!sigData.success) {
-      throw new Error("Failed to get upload signature");
-    }
-
-    const { upload_url, params } = sigData;
-
-    // STEP 2: upload directly to Cloudinary
+    // 2️⃣ Upload to Cloudinary
     const formData = new FormData();
     formData.append("file", file);
+    formData.append("api_key", apiKey);
+    formData.append("timestamp", timestamp);
+    formData.append("signature", signature);
+    formData.append("folder", "vendor_documents");
 
-    Object.entries(params).forEach(([k, v]) => {
-      formData.append(k, v);
-    });
-
-    const uploadRes = await fetch(upload_url, {
+    const uploadRes = await fetch(uploadUrl, {
       method: "POST",
-      body: formData
+      body: formData,
     });
 
     if (!uploadRes.ok) {
@@ -408,50 +406,40 @@ const uploadToCloudinary = async (file, fileType) => {
 
     const uploadData = await uploadRes.json();
 
-    // STEP 3: save uploaded URL
-    setUploadedUrls(prev => ({
-      ...prev,
-      [`${fileType}_url`]: uploadData.secure_url
-    }));
-
+    // 3️⃣ Update progress + RETURN URL (NO STATE DEPENDENCY)
     setUploadProgress(prev => ({ ...prev, [fileType]: 100 }));
-    return true;
 
-  } catch (err) {
-    console.error(`Upload failed for ${fileType}`, err);
+    return uploadData.secure_url;
+
+  } catch (error) {
+    console.error(`Upload failed for ${fileType}`, error);
     toast.error(`Upload failed for ${fileType}`);
     setUploadProgress(prev => ({ ...prev, [fileType]: 0 }));
-    return false;
+    throw error;
   }
 };
 
-// ✅ FIXED: Upload all 3 files in parallel
+// Upload all vendor files in parallel and RETURN URLs
 const uploadAllVendorFiles = async () => {
-  try {
-    console.log("Starting parallel uploads...");
-    
-    const results = await Promise.all([
-      uploadToCloudinary(selectedFiles.permits, 'permits'),
-      uploadToCloudinary(selectedFiles.gov_id, 'gov_id'),
-      uploadToCloudinary(selectedFiles.portfolio, 'portfolio')
-    ]);
+  const permitsFile   = selectedFiles.permits;
+  const govIdFile     = selectedFiles.gov_id;
+  const portfolioFile = selectedFiles.portfolio;
 
-    const allSuccess = results.every(result => result === true);
-    
-    if (allSuccess) {
-      console.log("All uploads successful!");
-      toast.success("Files uploaded successfully!");
-    } else {
-      throw new Error("Some uploads failed");
-    }
-
-    return allSuccess;
-
-  } catch (error) {
-    console.error("Upload error:", error);
-    toast.error("Failed to upload files. Please try again.");
-    return false;
+  if (!permitsFile || !govIdFile || !portfolioFile) {
+    throw new Error("Missing required files");
   }
+
+  const [permitsUrl, govIdUrl, portfolioUrl] = await Promise.all([
+    uploadToCloudinary(permitsFile, "permits"),
+    uploadToCloudinary(govIdFile, "gov_id"),
+    uploadToCloudinary(portfolioFile, "portfolio"),
+  ]);
+
+  return {
+    permits_url: permitsUrl,
+    gov_id_url: govIdUrl,
+    portfolio_url: portfolioUrl,
+  };
 };
 
 // ✅ File validation (keep this as is)
@@ -904,92 +892,71 @@ const handleVendorFileChange = (e, fileType) => {
   };
 
   const submitVendorApplication = async (e) => {
-    e.preventDefault();
+  e.preventDefault();
+  setVendorLoading(true);
 
-    const token = localStorage.getItem("solennia_token");
-    if (!token) {
-      toast.warning("Please login to apply as a vendor.");
-      return;
+  const token = localStorage.getItem("solennia_token");
+  if (!token) {
+    toast.warning("Please login to apply as a vendor.");
+    setVendorLoading(false);
+    return;
+  }
+
+  try {
+    // 1️⃣ Upload files and GET URLs (guaranteed)
+    const {
+      permits_url,
+      gov_id_url,
+      portfolio_url,
+    } = await uploadAllVendorFiles();
+
+    // 2️⃣ Submit vendor application
+    const res = await fetch(`${API_BASE}/vendor/apply`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        business_name: vendorForm.business_name,
+        full_name: vendorForm.full_name,
+        contact_email: vendorForm.contact_email,
+        category: vendorForm.category,
+        category_other: vendorForm.category_other,
+        address: vendorForm.address,
+        description: e.target.description.value,
+        pricing: e.target.pricing.value,
+        venue_subcategory: vendorForm.venue_subcategory,
+        venue_capacity: vendorForm.venue_capacity,
+        venue_amenities: vendorForm.venue_amenities,
+        venue_operating_hours: vendorForm.venue_operating_hours,
+        venue_parking: vendorForm.venue_parking,
+
+        // 🔥 GUARANTEED NON-EMPTY
+        permits_url,
+        gov_id_url,
+        portfolio_url,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data.error || data.message || "Application failed");
     }
 
-    // Validate files are selected
-    if (!selectedFiles.permits || !selectedFiles.gov_id || !selectedFiles.portfolio) {
-      toast.error("Please select all required documents");
-      return;
-    }
+    toast.success("Vendor application submitted successfully!");
+    closeAllVendorModals();
 
-    const form = e.target;
-    const formData = new FormData(form);
+    setTimeout(() => window.location.reload(), 1500);
 
-    try {
-      // Step 1: Upload files to Cloudinary (parallel, super fast!)
-      const uploaded = await uploadAllVendorFiles();
-      if (!uploaded) return;
-
-      toast.success("Files uploaded! Submitting application...");
-
-      // Step 2: Submit application with URLs (instant!)
-      const res = await fetch(`${API_BASE}/vendor/apply`, {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  },
-  body: JSON.stringify({
-    business_name: vendorForm.business_name,
-    full_name: vendorForm.full_name,
-    contact_email: vendorForm.contact_email,
-    category: vendorForm.category,
-    category_other: vendorForm.category_other,
-    address: vendorForm.address,
-    description: formData.get("description"),
-    pricing: formData.get("pricing"),
-    venue_subcategory: vendorForm.venue_subcategory,
-    venue_capacity: vendorForm.venue_capacity,
-    venue_amenities: vendorForm.venue_amenities,
-    venue_operating_hours: vendorForm.venue_operating_hours,
-    venue_parking: vendorForm.venue_parking,
-    permits_url: uploadedUrls.permits_url,
-    gov_id_url: uploadedUrls.gov_id_url,
-    portfolio_url: uploadedUrls.portfolio_url,
-  }),
-});
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Application failed");
-
-      toast.success("Application submitted successfully! We'll review it soon.");
-      closeAllVendorModals();
-      
-      // Reset form
-      setVendorForm({
-        business_name: "",
-        full_name: "",
-        category: "",
-        category_other: "",
-        address: "",
-        description: "",
-        pricing: "",
-        contact_email: "",
-        permits: null,
-        gov_id: null,
-        portfolio: null,
-        venue_subcategory: "",
-        venue_capacity: "",
-        venue_amenities: "",
-        venue_operating_hours: "",
-        venue_parking: "",
-      });
-      
-      setTimeout(() => window.location.reload(), 1500);
-      
-    } catch (err) {
-      console.error("Vendor application error:", err);
-      toast.error(err.message || "An error occurred");
-    } finally {
-      setVendorLoading(false);
-    }
-  };
+  } catch (err) {
+    console.error("Vendor application error:", err);
+    toast.error(err.message || "Vendor application failed");
+  } finally {
+    setVendorLoading(false);
+  }
+};
 
 
 
