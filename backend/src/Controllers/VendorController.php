@@ -171,60 +171,58 @@ class VendorController
     }
 
     /* ===========================================================
-     *  ✅ CACHED: Check Profile Setup Status
+     *  Check Profile Setup Status
      * =========================================================== */
     public function getVendorStatus(Request $request, Response $response)
-    {
-        $u = $request->getAttribute('user');
-        if (!$u || !isset($u->mysql_id)) {
-            return $this->json($response, false, "Unauthorized", 401);
-        }
-        $userId = $u->mysql_id;
-
-        // ✅ Use single query with join for better performance
-        $result = DB::table('vendor_application as va')
-            ->leftJoin('event_service_provider as esp', function($join) {
-                $join->on('va.user_id', '=', 'esp.UserID')
-                     ->where('esp.ApplicationStatus', '=', 'Approved');
-            })
-            ->where('va.user_id', $userId)
-            ->orderBy('va.created_at', 'desc')
-            ->select(
-                'va.status as application_status',
-                'va.category',
-                'esp.ServiceType',
-                'esp.Category',
-                'esp.BusinessName',
-                'esp.bio',
-                'esp.services',
-                'esp.avatar',
-                'esp.HeroImageUrl',
-                'esp.UserID as profile_exists'
-            )
-            ->first();
-
-        $needsSetup = false;
-        if ($result && $result->application_status === 'Approved' && !$result->profile_exists) {
-            $needsSetup = true;
-        }
-
-        return $this->json($response, true, "Status retrieved", 200, [
-            'status' => strtolower($result->application_status ?? 'none'),
-            'category' => $result->category ?? null,
-            'has_profile' => $result->profile_exists !== null,
-            'needs_setup' => $needsSetup,
-            'vendor' => $result->profile_exists ? [
-                'ServiceType' => $result->Category,
-                'Category' => $result->Category,
-                'VerificationStatus' => 'approved',
-                'BusinessName' => $result->BusinessName,
-                'bio' => $result->bio,
-                'services' => $result->services,
-                'avatar' => $result->avatar,
-                'HeroImageUrl' => $result->HeroImageUrl
-            ] : null
-        ]);
+{
+    $u = $request->getAttribute('user');
+    if (!$u || !isset($u->mysql_id)) {
+        return $this->json($response, false, "Unauthorized", 401);
     }
+    $userId = $u->mysql_id;
+
+    // ✅ FIXED: Removed non-existent 'esp.ServiceType' column
+    $result = DB::table('vendor_application as va')
+        ->leftJoin('event_service_provider as esp', function($join) {
+            $join->on('va.user_id', '=', 'esp.UserID')
+                 ->where('esp.ApplicationStatus', '=', 'Approved');
+        })
+        ->where('va.user_id', $userId)
+        ->orderBy('va.created_at', 'desc')
+        ->select(
+            'va.status as application_status',
+            'va.category',
+            'esp.Category',
+            'esp.BusinessName',
+            'esp.bio',
+            'esp.services',
+            'esp.avatar',
+            'esp.HeroImageUrl',
+            'esp.UserID as profile_exists'
+        )
+        ->first();
+
+    $needsSetup = false;
+    if ($result && $result->application_status === 'Approved' && !$result->profile_exists) {
+        $needsSetup = true;
+    }
+
+    return $this->json($response, true, "Status retrieved", 200, [
+        'status' => strtolower($result->application_status ?? 'none'),
+        'category' => $result->category ?? null,
+        'has_profile' => $result->profile_exists !== null,
+        'needs_setup' => $needsSetup,
+        'vendor' => $result->profile_exists ? [
+            'Category' => $result->Category,
+            'VerificationStatus' => 'approved',
+            'BusinessName' => $result->BusinessName,
+            'bio' => $result->bio,
+            'services' => $result->services,
+            'avatar' => $result->avatar,
+            'HeroImageUrl' => $result->HeroImageUrl
+        ] : null
+    ]);
+}
 
     /* ===========================================================
      *  ✅ OPTIMIZED: GET VENDOR PUBLIC DATA with caching
