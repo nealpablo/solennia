@@ -14,7 +14,7 @@ const API_BASE =
   import.meta.env.VITE_API_BASE || 
   import.meta.env.VITE_API_URL ||
   (import.meta.env.PROD 
-    ? "https://solennia.up.railway.app" : "");
+    ? "https://solennia.up.railway.app/api" : "");
 
 // Helper function to convert Firebase error codes to user-friendly messages
 const getFirebaseErrorMessage = (error) => {
@@ -365,7 +365,7 @@ const uploadToCloudinary = async (file, fileType) => {
     console.log(`Starting upload for ${fileType}:`, file.name);
     
     // Step 1: Get signed upload URL from backend
-    const signatureRes = await fetch(`${API_BASE}/api/vendor/get-upload-signature`, {
+    const signatureRes = await fetch(`${API_BASE}/vendor/get-upload-signature`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
