@@ -179,11 +179,11 @@ class VendorController
     if (!$u || !isset($u->mysql_id)) {
         return $this->json($response, false, "Unauthorized", 401);
     }
+
     $userId = $u->mysql_id;
 
-    // ✅ FIXED: Removed non-existent 'esp.ServiceType' column
     $result = DB::table('vendor_application as va')
-        ->leftJoin('event_service_provider as esp', function($join) {
+        ->leftJoin('event_service_provider as esp', function ($join) {
             $join->on('va.user_id', '=', 'esp.UserID')
                  ->where('esp.ApplicationStatus', '=', 'Approved');
         })
@@ -202,30 +202,41 @@ class VendorController
         )
         ->first();
 
-    $needsSetup = false;
-    if ($result && $result->application_status === 'Approved' && !$result->profile_exists) {
-        $needsSetup = true;
+    if (!$result) {
+        return $this->json($response, true, "No vendor application found", 200, [
+            'status'        => 'none',
+            'category'      => null,
+            'has_profile'   => false,
+            'needs_setup'   => false,
+            'vendor'        => null
+        ]);
     }
 
+    $hasProfile = $result->profile_exists !== null;
+    $needsSetup = (
+        $result->application_status === 'Approved'
+        && !$hasProfile
+    );
+
     return $this->json($response, true, "Status retrieved", 200, [
-        'status' => strtolower($result->application_status ?? 'none'),
-        'category' => $result->category ?? null,
-        'has_profile' => $result->profile_exists !== null,
-        'needs_setup' => $needsSetup,
-        'vendor' => $result->profile_exists ? [
-            'Category' => $result->Category,
-            'VerificationStatus' => 'approved',
-            'BusinessName' => $result->BusinessName,
-            'bio' => $result->bio,
-            'services' => $result->services,
-            'avatar' => $result->avatar,
-            'HeroImageUrl' => $result->HeroImageUrl
+        'status'        => strtolower($result->application_status ?? 'none'),
+        'category'      => $result->category ?? null,
+        'has_profile'   => $hasProfile,
+        'needs_setup'   => $needsSetup,
+        'vendor'        => $hasProfile ? [
+            'Category'            => $result->Category,
+            'VerificationStatus'  => 'approved',
+            'BusinessName'        => $result->BusinessName,
+            'bio'                 => $result->bio,
+            'services'            => $result->services,
+            'avatar'              => $result->avatar,
+            'HeroImageUrl'        => $result->HeroImageUrl
         ] : null
     ]);
 }
 
     /* ===========================================================
-     *  ✅ OPTIMIZED: GET VENDOR PUBLIC DATA with caching
+     *  GET VENDOR PUBLIC DATA with caching
      * =========================================================== */
     public function getPublicVendorData(Request $request, Response $response, $args)
     {
