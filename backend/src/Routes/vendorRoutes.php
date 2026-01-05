@@ -57,14 +57,21 @@ return function (App $app) {
         $publicId  = "{$fileType}_{$timestamp}_" . bin2hex(random_bytes(4));
 
         $params = [
-            'timestamp'     => $timestamp,
             'folder'        => $folder,
             'public_id'     => $publicId,
-            'resource_type' => 'auto'
+            'resource_type' => 'auto',
+            'timestamp'     => $timestamp
         ];
 
-        // ✅ THIS EXISTS IN ALL CLOUDINARY SDK VERSIONS
-        $signature = \Cloudinary\Utils::signRequest($params, $apiSecret);
+        /**
+         * ✅ MANUAL CLOUDINARY SIGNATURE (SDK-INDEPENDENT)
+         */
+        ksort($params);
+        $toSign = [];
+        foreach ($params as $k => $v) {
+            $toSign[] = "{$k}={$v}";
+        }
+        $signature = sha1(implode('&', $toSign) . $apiSecret);
 
         return $json($res, [
             'success'    => true,
@@ -83,6 +90,7 @@ return function (App $app) {
         ], 500);
     }
 })->add(new AuthMiddleware());
+
 
     // Helper function to send notifications
     $sendNotification = function ($userId, $type, $title, $message) {
