@@ -36,42 +36,35 @@ return function (App $app) {
             return $json($res, ['success' => false, 'error' => 'Unauthorized'], 401);
         }
 
-        // 🔍 Load env vars explicitly
         $cloudName = getenv('CLOUDINARY_CLOUD');
         $apiKey    = getenv('CLOUDINARY_KEY');
         $apiSecret = getenv('CLOUDINARY_SECRET');
 
-        // 🚨 HARD FAIL WITH LOGGING (NO SILENT 500)
         if (!$cloudName || !$apiKey || !$apiSecret) {
-            error_log('CLOUDINARY_ENV_MISSING: ' . json_encode([
-                'CLOUDINARY_CLOUD'  => (bool) $cloudName,
-                'CLOUDINARY_KEY'    => (bool) $apiKey,
-                'CLOUDINARY_SECRET' => (bool) $apiSecret,
-            ]));
-
+            error_log('CLOUDINARY_ENV_MISSING');
             return $json($res, [
                 'success' => false,
-                'error'   => 'Cloudinary configuration missing on server'
+                'error'   => 'Cloudinary configuration missing'
             ], 500);
         }
 
-        $userId = (int) $auth->mysql_id;
-        $data = (array) $req->getParsedBody();
+        $userId   = (int) $auth->mysql_id;
+        $data     = (array) $req->getParsedBody();
         $fileType = $data['file_type'] ?? 'document';
 
         $timestamp = time();
-        $folder = "solennia/vendor/{$userId}";
-        $publicId = "{$fileType}_{$timestamp}_" . bin2hex(random_bytes(4));
+        $folder    = "solennia/vendor/{$userId}";
+        $publicId  = "{$fileType}_{$timestamp}_" . bin2hex(random_bytes(4));
 
         $params = [
             'timestamp'     => $timestamp,
             'folder'        => $folder,
             'public_id'     => $publicId,
-            'resource_type' => 'auto',
+            'resource_type' => 'auto'
         ];
 
-        // ✅ Correct Cloudinary signing
-        $signature = ApiUtils::signRequest($params, $apiSecret);
+        // ✅ THIS EXISTS IN ALL CLOUDINARY SDK VERSIONS
+        $signature = \Cloudinary\Utils::signRequest($params, $apiSecret);
 
         return $json($res, [
             'success'    => true,
