@@ -362,36 +362,44 @@ export default function Modals() {
   // Upload single file directly to Cloudinary
 const uploadToCloudinary = async (file, fileType) => {
   try {
-    console.log(`Starting upload for ${fileType}:`, file.name);
-    
-    // Step 1: Get signed upload URL from backend
-    const signatureRes = await fetch(`${API_BASE}/vendor/get-upload-signature`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        folder: 'vendor_documents',
-        resource_type: file.type.includes('pdf') ? 'raw' : 'image'
+    const token = localStorage.getItem("solennia_token");
+    if (!token) throw new Error("Not authenticated");
+
+    // STEP 1: get signed upload params (AUTH REQUIRED)
+    const sigRes = await fetch(`${API_BASE}/vendor/get-upload-signature`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        file_type: fileType //
       })
     });
 
-    if (!signatureRes.ok) {
-      throw new Error(`Failed to get upload signature: ${signatureRes.status}`);
+    if (!sigRes.ok) {
+      throw new Error(`Signature request failed: ${sigRes.status}`);
     }
 
-    const signatureData = await signatureRes.json();
-    console.log(`Got signature for ${fileType}`);
+    const sigData = await sigRes.json();
 
-    // Step 2: Upload directly to Cloudinary with progress tracking
+    if (!sigData.success) {
+      throw new Error("Failed to get upload signature");
+    }
+
+    const { upload_url, params } = sigData;
+
+    // STEP 2: upload directly to Cloudinary
     const formData = new FormData();
-    formData.append('file', file);
-    formData.append('api_key', signatureData.apiKey);
-    formData.append('timestamp', signatureData.timestamp);
-    formData.append('signature', signatureData.signature);
-    formData.append('folder', 'vendor_documents');
+    formData.append("file", file);
 
-    const uploadRes = await fetch(signatureData.uploadUrl, {
-      method: 'POST',
-      body: formData,
+    Object.entries(params).forEach(([k, v]) => {
+      formData.append(k, v);
+    });
+
+    const uploadRes = await fetch(upload_url, {
+      method: "POST",
+      body: formData
     });
 
     if (!uploadRes.ok) {
@@ -399,21 +407,19 @@ const uploadToCloudinary = async (file, fileType) => {
     }
 
     const uploadData = await uploadRes.json();
-    console.log(`Upload complete for ${fileType}:`, uploadData.secure_url);
 
-    // Step 3: Update state with the secure URL
+    // STEP 3: save uploaded URL
     setUploadedUrls(prev => ({
       ...prev,
       [`${fileType}_url`]: uploadData.secure_url
     }));
 
     setUploadProgress(prev => ({ ...prev, [fileType]: 100 }));
-    
     return true;
 
-  } catch (error) {
-    console.error(`Upload error for ${fileType}:`, error);
-    toast.error(`Failed to upload ${fileType}: ${error.message}`);
+  } catch (err) {
+    console.error(`Upload failed for ${fileType}`, err);
+    toast.error(`Upload failed for ${fileType}`);
     setUploadProgress(prev => ({ ...prev, [fileType]: 0 }));
     return false;
   }
@@ -923,32 +929,31 @@ const handleVendorFileChange = (e, fileType) => {
       toast.success("Files uploaded! Submitting application...");
 
       // Step 2: Submit application with URLs (instant!)
-      const res = await fetch(`${API_BASE}/api/vendor/apply`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          business_name: vendorForm.business_name,
-          full_name: vendorForm.full_name,
-          contact_email: vendorForm.contact_email,
-          category: vendorForm.category,
-          category_other: vendorForm.category_other,
-          address: vendorForm.address,
-          description: formData.get("description"),
-          pricing: formData.get("pricing"),
-          venue_subcategory: vendorForm.venue_subcategory,
-          venue_capacity: vendorForm.venue_capacity,
-          venue_amenities: vendorForm.venue_amenities,
-          venue_operating_hours: vendorForm.venue_operating_hours,
-          venue_parking: vendorForm.venue_parking,
-          // URLs from Cloudinary (not files!)
-          permits_url: uploadedUrls.permits_url,
-          gov_id_url: uploadedUrls.gov_id_url,
-          portfolio_url: uploadedUrls.portfolio_url,
-        }),
-      });
+      const res = await fetch(`${API_BASE}/vendor/apply`, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  },
+  body: JSON.stringify({
+    business_name: vendorForm.business_name,
+    full_name: vendorForm.full_name,
+    contact_email: vendorForm.contact_email,
+    category: vendorForm.category,
+    category_other: vendorForm.category_other,
+    address: vendorForm.address,
+    description: formData.get("description"),
+    pricing: formData.get("pricing"),
+    venue_subcategory: vendorForm.venue_subcategory,
+    venue_capacity: vendorForm.venue_capacity,
+    venue_amenities: vendorForm.venue_amenities,
+    venue_operating_hours: vendorForm.venue_operating_hours,
+    venue_parking: vendorForm.venue_parking,
+    permits_url: uploadedUrls.permits_url,
+    gov_id_url: uploadedUrls.gov_id_url,
+    portfolio_url: uploadedUrls.portfolio_url,
+  }),
+});
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Application failed");
