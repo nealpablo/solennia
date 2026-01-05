@@ -360,106 +360,119 @@ export default function Modals() {
   ========================= */
 
   // Upload single file directly to Cloudinary
-  const uploadToCloudinary = async (file, fileType) => {
-    try {
-      const token = localStorage.getItem("solennia_token");
-      
-      // Step 1: Get signed upload parameters from backend (fast - no file transfer)
-      const signatureResponse = await axios.post(
-        `${API_BASE}/api/vendor/get-upload-signature`,
-        { file_type: fileType },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      if (!signatureResponse.data.success) {
-        throw new Error('Failed to get upload signature');
-      }
-
-      const { upload_url, params } = signatureResponse.data;
-
-      // Step 2: Upload DIRECTLY to Cloudinary (super fast!)
-      const formData = new FormData();
-      formData.append('file', file);
-      Object.keys(params).forEach(key => {
-        formData.append(key, params[key]);
-      });
-
-      const uploadResponse = await axios.post(upload_url, formData, {
-        onUploadProgress: (progressEvent) => {
-          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-          setUploadProgress(prev => ({ ...prev, [fileType]: percentCompleted }));
-        }
-      });
-
-      return uploadResponse.data.secure_url;
-
-    } catch (error) {
-      console.error(`Upload error for ${fileType}:`, error);
-      throw new Error(`Failed to upload ${fileType}`);
-    }
-  };
-
-  // Upload all 3 files IN PARALLEL (3x faster!)
-  const uploadAllVendorFiles = async () => {
-    if (!selectedFiles.permits || !selectedFiles.gov_id || !selectedFiles.portfolio) {
-      toast.error('Please select all required files');
-      return false;
-    }
-
-    setVendorLoading(true);
-    setUploadProgress({ permits: 0, gov_id: 0, portfolio: 0 });
-
-    try {
-      toast.info('Uploading documents...');
-
-      // ✅ PARALLEL UPLOADS - All 3 files upload at the same time!
-      const [permitsUrl, govIdUrl, portfolioUrl] = await Promise.all([
-        uploadToCloudinary(selectedFiles.permits, 'permits'),
-        uploadToCloudinary(selectedFiles.gov_id, 'gov_id'),
-        uploadToCloudinary(selectedFiles.portfolio, 'portfolio')
-      ]);
-
-      setUploadedUrls({
-        permits_url: permitsUrl,
-        gov_id_url: govIdUrl,
-        portfolio_url: portfolioUrl
-      });
-
-      return true;
-
-    } catch (error) {
-      console.error('Upload error:', error);
-      toast.error(error.message || 'Failed to upload files. Please try again.');
-      setVendorLoading(false);
-      return false;
-    }
-  };
-
-  // Handle file selection with validation
-  const handleVendorFileChange = (e, fileType) => {
-    const file = e.target.files[0];
+const uploadToCloudinary = async (file, fileType) => {
+  try {
+    console.log(`Starting upload for ${fileType}:`, file.name);
     
-    if (!file) return;
+    // Step 1: Get signed upload URL from backend
+    const signatureRes = await fetch(`${API_BASE}/api/vendor/get-upload-signature`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        folder: 'vendor_documents',
+        resource_type: file.type.includes('pdf') ? 'raw' : 'image'
+      })
+    });
 
-    // Validate file size (5MB max)
-    const maxSize = 5 * 1024 * 1024;
-    if (file.size > maxSize) {
-      const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
-      toast.error(`${fileType.replace('_', ' ').toUpperCase()} is too large (${sizeMB}MB). Maximum 5MB. Compress at tinypng.com`);
-      e.target.value = '';
-      return;
+    if (!signatureRes.ok) {
+      throw new Error(`Failed to get upload signature: ${signatureRes.status}`);
     }
 
-    // Validate file type
-    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'application/pdf'];
-    if (!validTypes.includes(file.type)) {
-      toast.error(`${fileType.replace('_', ' ').toUpperCase()} must be an image (JPG, PNG, WEBP) or PDF`);
-      e.target.value = '';
-      return;
+    const signatureData = await signatureRes.json();
+    console.log(`Got signature for ${fileType}`);
+
+    // Step 2: Upload directly to Cloudinary with progress tracking
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('api_key', signatureData.apiKey);
+    formData.append('timestamp', signatureData.timestamp);
+    formData.append('signature', signatureData.signature);
+    formData.append('folder', 'vendor_documents');
+
+    const uploadRes = await fetch(signatureData.uploadUrl, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!uploadRes.ok) {
+      throw new Error(`Upload failed: ${uploadRes.status}`);
     }
 
-    setSelectedFiles(prev => ({ ...prev, [fileType]: file }));
-  };
+    const uploadData = await uploadRes.json();
+    console.log(`Upload complete for ${fileType}:`, uploadData.secure_url);
+
+    // Step 3: Update state with the secure URL
+    setUploadedUrls(prev => ({
+      ...prev,
+      [`${fileType}_url`]: uploadData.secure_url
+    }));
+
+    setUploadProgress(prev => ({ ...prev, [fileType]: 100 }));
+    
+    return true;
+
+  } catch (error) {
+    console.error(`Upload error for ${fileType}:`, error);
+    toast.error(`Failed to upload ${fileType}: ${error.message}`);
+    setUploadProgress(prev => ({ ...prev, [fileType]: 0 }));
+    return false;
+  }
+};
+
+// ✅ FIXED: Upload all 3 files in parallel
+const uploadAllVendorFiles = async () => {
+  try {
+    console.log("Starting parallel uploads...");
+    
+    const results = await Promise.all([
+      uploadToCloudinary(selectedFiles.permits, 'permits'),
+      uploadToCloudinary(selectedFiles.gov_id, 'gov_id'),
+      uploadToCloudinary(selectedFiles.portfolio, 'portfolio')
+    ]);
+
+    const allSuccess = results.every(result => result === true);
+    
+    if (allSuccess) {
+      console.log("All uploads successful!");
+      toast.success("Files uploaded successfully!");
+    } else {
+      throw new Error("Some uploads failed");
+    }
+
+    return allSuccess;
+
+  } catch (error) {
+    console.error("Upload error:", error);
+    toast.error("Failed to upload files. Please try again.");
+    return false;
+  }
+};
+
+// ✅ File validation (keep this as is)
+const handleVendorFileChange = (e, fileType) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+
+  // Validate file size (5MB limit)
+  const maxSize = 5 * 1024 * 1024;
+  if (file.size > maxSize) {
+    toast.error(`${fileType} file must be under 5MB`);
+    e.target.value = '';
+    return;
+  }
+
+  // Validate file type
+  const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'application/pdf'];
+  if (!validTypes.includes(file.type)) {
+    toast.error(`${fileType} must be PNG, JPG, or PDF`);
+    e.target.value = '';
+    return;
+  }
+
+  // Store file in state
+  setSelectedFiles(prev => ({ ...prev, [fileType]: file }));
+  console.log(`File selected for ${fileType}:`, file.name);
+};
 
   /* =========================
      LOGIN
