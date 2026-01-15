@@ -215,7 +215,7 @@ class VenueController
             $listings = DB::table('venue_listings')
                 ->where('user_id', $userId)
                 ->orderBy('created_at', 'desc')
-                ->offset($offset)
+                ->offset($offset) 
                 ->limit($perPage)
                 ->get();
 
