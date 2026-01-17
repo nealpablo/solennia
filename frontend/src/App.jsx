@@ -8,7 +8,6 @@ import Footer from "./partials/Footer";
 import Modals from "./partials/Modals";
 
 // Pages
-
 import HomePage from "./pages/HomePage";
 import Venue from "./pages/Venue";
 import VenueDetail from "./pages/VenueDetail";
@@ -20,6 +19,10 @@ import AdminPanel from "./pages/AdminPanel";
 import VendorDashboard from "./pages/VendorDashboard";
 import VenueDashboard from "./pages/VenueDashboard";
 import AboutUs from "./pages/AboutUs";
+
+// ✅ BOOKING PAGES - ADDED FOR UC05
+import CreateBooking from "./pages/CreateBooking";
+import MyBookings from "./pages/MyBookings";
 
 /* =========================
    LAYOUT WRAPPER
@@ -80,7 +83,6 @@ function Layout({ children }) {
       profileBtn?.removeEventListener("click", openProfileMenu);
       menuSignIn?.removeEventListener("click", openLogin);
       menuSignUp?.removeEventListener("click", openRegister);
-
       document.removeEventListener("click", closeProfileMenu);
     };
   }, [location.pathname]);
@@ -112,6 +114,10 @@ export default function App() {
         <Route path="/vendor-dashboard" element={<VendorDashboard />} />
         <Route path="/venue-dashboard" element={<VenueDashboard />} />
         <Route path="/about" element={<AboutUs />} />
+        
+        {/* ✅ BOOKING ROUTES - ADDED FOR UC05 */}
+        <Route path="/create-booking" element={<CreateBooking />} />
+        <Route path="/my-bookings" element={<MyBookings />} />
       </Routes>
     </Layout>
   );

@@ -78,24 +78,15 @@ $app->add(function ($request, $handler) {
         ->withHeader('Access-Control-Allow-Credentials', 'true');
 });
 
-// NOW add body parsing middleware AFTER CORS
+// -------------------------------------------------------------
+// ✅ BODY PARSING MIDDLEWARE (MUST BE AFTER CORS, BEFORE ROUTES)
+// -------------------------------------------------------------
 $app->addBodyParsingMiddleware();
 
 // -------------------------------------------------------------
-// ✅ PERFORMANCE MIDDLEWARE - Response Time Tracking
+// ✅ ROUTING MIDDLEWARE
 // -------------------------------------------------------------
-$app->add(function ($request, $handler) {
-    $start = microtime(true);
-    $response = $handler->handle($request);
-    $time = round((microtime(true) - $start) * 1000, 2);
-    
-    // Log slow requests
-    if ($time > 2000) { // > 2 seconds
-        error_log("SLOW_REQUEST: {$request->getMethod()} {$request->getUri()->getPath()} took {$time}ms");
-    }
-    
-    return $response->withHeader('X-Response-Time', "{$time}ms");
-});
+$app->addRoutingMiddleware();
 
 // -------------------------------------------------------------
 // ✅ REQUEST TIMEOUT MIDDLEWARE
@@ -135,6 +126,9 @@ $loadRoutes('/src/Routes/adminRoutes.php');
 $loadRoutes('/src/Routes/notificationRoutes.php');
 $loadRoutes('/src/Routes/chatRoutes.php');
 $loadRoutes('/src/Routes/usernameResolverRoutes.php');
+
+// ✅ BOOKING ROUTES - ADDED FOR UC05
+$loadRoutes('/src/Routes/bookingRoutes.php');
 
 // -------------------------------------------------------------
 // ✅ IMPROVED Error middleware with better logging
@@ -203,50 +197,5 @@ $app->get('/api/dbtest', function ($req, $res) {
     return $res->withHeader('Content-Type', 'application/json');
 });
 
-$app->get('/api/dbdiag', function ($req, $res) {
-    $seen = [
-        'APP_ENV'       => getenv('APP_ENV'),
-        'MYSQLHOST'     => getenv('MYSQLHOST'),
-        'MYSQLDATABASE' => getenv('MYSQLDATABASE'),
-        'MYSQLPORT'     => getenv('MYSQLPORT'),
-        'DATABASE_URL'  => getenv('DATABASE_URL'),
-    ];
-
-    try {
-        \Illuminate\Database\Capsule\Manager::connection()->getPdo();
-        $result = 'connected';
-    } catch (Throwable $e) {
-        $result = 'error: ' . $e->getMessage();
-    }
-
-    $res->getBody()->write(json_encode([
-        'seen'   => $seen,
-        'result' => $result
-    ]));
-
-    return $res->withHeader('Content-Type', 'application/json');
-});
-
-$app->get('/routes', function ($request, $response) use ($app) {
-    $routes = [];
-    foreach ($app->getRouteCollector()->getRoutes() as $route) {
-        $routes[] = [
-            'pattern' => $route->getPattern(),
-            'methods' => $route->getMethods()
-        ];
-    }
-    $response->getBody()->write(json_encode($routes, JSON_PRETTY_PRINT));
-    return $response->withHeader('Content-Type', 'application/json');
-});
-
-// Add CORS test endpoint
-$app->get('/api/cors-test', function ($req, $res) {
-    $res->getBody()->write(json_encode([
-        'success' => true,
-        'message' => 'CORS is working!',
-        'origin' => $req->getHeaderLine('Origin')
-    ]));
-    return $res->withHeader('Content-Type', 'application/json');
-});
-
+// Run app
 $app->run();
