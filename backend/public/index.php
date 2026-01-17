@@ -104,31 +104,52 @@ $app->add(function ($request, $handler) {
 require BASE_PATH . '/src/bootstrap.php';
 
 // -------------------------------------------------------------
-// Routes
+// Routes with Enhanced Logging
 // -------------------------------------------------------------
 $loadRoutes = function (string $rel) use ($app) {
     $file = BASE_PATH . $rel;
+    
+    // Log the attempt
+    error_log("Attempting to load route file: {$file}");
+    
     if (!is_file($file)) {
+        error_log("ERROR: Route file not found: {$file}");
+        error_log("Base path is: " . BASE_PATH);
+        error_log("Current directory contents: " . print_r(scandir(BASE_PATH . '/src/Routes'), true));
         throw new RuntimeException("Route file not found: {$file}");
     }
+    
+    error_log("Successfully found route file: {$file}");
+    
     $ret = require $file;
     if (is_callable($ret)) {
         $ret($app);
+        error_log("Route file loaded successfully: {$file}");
+    } else {
+        error_log("WARNING: Route file did not return a callable: {$file}");
     }
 };
 
-$loadRoutes('/src/Routes/authRoutes.php');
-$loadRoutes('/src/Routes/userRoutes.php');
-$loadRoutes('/src/Routes/vendorRoutes.php');
-$loadRoutes('/src/Routes/venueRoutes.php');
-$loadRoutes('/src/Routes/feedbackRoutes.php');
-$loadRoutes('/src/Routes/adminRoutes.php');
-$loadRoutes('/src/Routes/notificationRoutes.php');
-$loadRoutes('/src/Routes/chatRoutes.php');
-$loadRoutes('/src/Routes/usernameResolverRoutes.php');
-
-// ✅ BOOKING ROUTES - ADDED FOR UC05
-$loadRoutes('/src/Routes/bookingRoutes.php');
+try {
+    $loadRoutes('/src/Routes/authRoutes.php');
+    $loadRoutes('/src/Routes/userRoutes.php');
+    $loadRoutes('/src/Routes/vendorRoutes.php');
+    $loadRoutes('/src/Routes/venueRoutes.php');
+    $loadRoutes('/src/Routes/feedbackRoutes.php');
+    $loadRoutes('/src/Routes/adminRoutes.php');
+    $loadRoutes('/src/Routes/notificationRoutes.php');
+    $loadRoutes('/src/Routes/chatRoutes.php');
+    $loadRoutes('/src/Routes/usernameResolverRoutes.php');
+    
+    // ✅ BOOKING ROUTES - ADDED FOR UC05
+    $loadRoutes('/src/Routes/bookingRoutes.php');
+    
+    error_log("All route files loaded successfully");
+} catch (Throwable $e) {
+    error_log("FATAL ERROR loading routes: " . $e->getMessage());
+    error_log("Stack trace: " . $e->getTraceAsString());
+    throw $e;
+}
 
 // -------------------------------------------------------------
 // ✅ IMPROVED Error middleware with better logging
@@ -194,6 +215,41 @@ $app->get('/api/dbtest', function ($req, $res) {
     } catch (Throwable $e) {
         $res->getBody()->write(json_encode(['error' => $e->getMessage()]));
     }
+    return $res->withHeader('Content-Type', 'application/json');
+});
+
+// ✅ DEBUG: List all registered routes
+$app->get('/api/debug/routes', function ($req, $res) use ($app) {
+    $routes = [];
+    $routeCollector = $app->getRouteCollector();
+    foreach ($routeCollector->getRoutes() as $route) {
+        $routes[] = [
+            'methods' => implode('|', $route->getMethods()),
+            'pattern' => $route->getPattern(),
+            'name' => $route->getName()
+        ];
+    }
+    $res->getBody()->write(json_encode([
+        'total' => count($routes),
+        'routes' => $routes
+    ], JSON_PRETTY_PRINT));
+    return $res->withHeader('Content-Type', 'application/json');
+});
+
+// ✅ DEBUG: Check if booking routes file exists
+$app->get('/api/debug/files', function ($req, $res) {
+    $basePath = realpath(__DIR__ . '/..');
+    $routesPath = $basePath . '/src/Routes';
+    
+    $files = is_dir($routesPath) ? scandir($routesPath) : [];
+    
+    $res->getBody()->write(json_encode([
+        'base_path' => $basePath,
+        'routes_path' => $routesPath,
+        'routes_dir_exists' => is_dir($routesPath),
+        'booking_file_exists' => is_file($routesPath . '/bookingRoutes.php'),
+        'files_in_routes' => $files
+    ], JSON_PRETTY_PRINT));
     return $res->withHeader('Content-Type', 'application/json');
 });
 

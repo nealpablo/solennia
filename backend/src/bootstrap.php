@@ -30,7 +30,7 @@ if ($APP_ENV !== 'production' && is_file($ROOT . '/.env')) {
 
 /**
  * -------------------------------------------------------
- * DATABASE CONFIG (Railway-first) WITH CONNECTION POOLING
+ * DATABASE CONFIG (Railway-first)
  * -------------------------------------------------------
  */
 $driver = 'mysql';
@@ -76,29 +76,36 @@ if (!$host || !$db || !$user) {
 }
 
 /**
- * ✅ Boot Eloquent with OPTIMIZED CONNECTION POOLING (Compatible Version)
+ * -------------------------------------------------------
+ * BOOT ELOQUENT (OPTIMIZED CONFIG)
+ * -------------------------------------------------------
  */
 $capsule = new Capsule();
 
-// ✅ Build PDO options - only use constants that exist
+// ✅ FIXED: PDO options (removed persistent connection for local dev)
 $pdoOptions = [
-    PDO::ATTR_PERSISTENT => true, // Reuse connections
-    PDO::ATTR_EMULATE_PREPARES => false, // Use native prepared statements
+    // ✅ CHANGED: Disable persistent connections locally (prevents connection exhaustion)
+    PDO::ATTR_PERSISTENT => ($APP_ENV === 'production'),
+    
+    PDO::ATTR_EMULATE_PREPARES => false,
     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_OBJ,
     PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci",
-    PDO::ATTR_TIMEOUT => 5, // 5 second connection timeout
+    
+    // ✅ IMPROVED: Timeout settings
+    PDO::ATTR_TIMEOUT => 10, // Increased from 5 to 10 seconds
 ];
 
-// ✅ Only add MySQL-specific timeouts if they're available
+// ✅ IMPROVED: Conditional timeout settings
 if (defined('PDO::MYSQL_ATTR_READ_TIMEOUT')) {
-    $pdoOptions[PDO::MYSQL_ATTR_READ_TIMEOUT] = 10;
+    $pdoOptions[PDO::MYSQL_ATTR_READ_TIMEOUT] = 15; // Increased from 10 to 15
 }
 if (defined('PDO::MYSQL_ATTR_WRITE_TIMEOUT')) {
-    $pdoOptions[PDO::MYSQL_ATTR_WRITE_TIMEOUT] = 10;
+    $pdoOptions[PDO::MYSQL_ATTR_WRITE_TIMEOUT] = 15; // Increased from 10 to 15
 }
 
-$capsule->addConnection([
+// ✅ IMPROVED: Connection pooling settings
+$connectionConfig = [
     'driver'    => $driver,
     'host'      => $host,
     'port'      => (int)$port,
@@ -108,51 +115,120 @@ $capsule->addConnection([
     'charset'   => 'utf8mb4',
     'collation' => 'utf8mb4_unicode_ci',
     'prefix'    => '',
+    'options'   => $pdoOptions,
     
-    // ✅ PERFORMANCE OPTIMIZATIONS (Compatible)
-    'options' => $pdoOptions,
-    
-    // ✅ Connection pool settings
-    'pool' => [
-        'min' => 2,  // Minimum connections
-        'max' => 10, // Maximum connections
-    ],
-    
-    // ✅ Query performance
-    'sticky' => true, // Sticky connections for write/read
-    'read' => [ // Read replicas (if available)
-        'host' => [$host],
-    ],
-    'write' => [ // Write primary
-        'host' => [$host],
-    ],
-]);
+    // ✅ IMPROVED: Connection management
+    'sticky' => true,
+    'read' => ['host' => [$host]],
+    'write' => ['host' => [$host]],
+];
+
+// ✅ NEW: Add connection pooling for production
+if ($APP_ENV === 'production') {
+    $connectionConfig['pool'] = [
+        'min' => 2,
+        'max' => 10,
+    ];
+}
+
+$capsule->addConnection($connectionConfig);
 
 $capsule->setAsGlobal();
 $capsule->bootEloquent();
 
-// ✅ Enable query log only in development
+// ✅ IMPROVED: Query logging only in development
 if ($APP_ENV !== 'production') {
     $capsule->getConnection()->enableQueryLog();
 }
 
 /**
- * Timezone
+ * ✅ NEW: Test database connection on boot
  */
-date_default_timezone_set(envx('APP_TIMEZONE', 'Asia/Singapore'));
+try {
+    $capsule->getConnection()->getPdo();
+    if ($APP_ENV !== 'production') {
+        error_log('✅ Database connected successfully');
+    }
+} catch (\Exception $e) {
+    error_log('❌ Database connection failed: ' . $e->getMessage());
+    throw new RuntimeException('Could not connect to database: ' . $e->getMessage());
+}
 
 /**
- * Firebase config
+ * ✅ IMPROVED: Timezone with validation
  */
-define('FIREBASE_API_KEY', envx('FIREBASE_API_KEY'));
-define('FIREBASE_PROJECT_ID', envx('FIREBASE_PROJECT_ID'));
+$timezone = envx('APP_TIMEZONE', 'Asia/Manila'); // Changed default to match your .env
+try {
+    date_default_timezone_set($timezone);
+} catch (\Exception $e) {
+    error_log("⚠️ Invalid timezone '{$timezone}', falling back to UTC");
+    date_default_timezone_set('UTC');
+}
 
 /**
- * ✅ PERFORMANCE SETTINGS
+ * ✅ IMPROVED: Firebase config with validation
  */
-// Increase memory limit for image processing
-ini_set('memory_limit', '256M');
+$firebaseApiKey = envx('FIREBASE_API_KEY');
+$firebaseProjectId = envx('FIREBASE_PROJECT_ID');
 
-// Set max execution time
-ini_set('max_execution_time', '30');
+if ($firebaseApiKey && $firebaseProjectId) {
+    define('FIREBASE_API_KEY', $firebaseApiKey);
+    define('FIREBASE_PROJECT_ID', $firebaseProjectId);
+} else {
+    if ($APP_ENV !== 'production') {
+        error_log('⚠️ Firebase credentials missing');
+    }
+    define('FIREBASE_API_KEY', '');
+    define('FIREBASE_PROJECT_ID', '');
+}
 
+/**
+ * ✅ IMPROVED: Environment-based performance settings
+ */
+if ($APP_ENV === 'production') {
+    ini_set('memory_limit', '512M'); // Increased for production
+    ini_set('max_execution_time', '60'); // Increased for complex operations
+    ini_set('display_errors', '0'); // Hide errors in production
+    ini_set('log_errors', '1'); // Log errors instead
+} else {
+    ini_set('memory_limit', '256M');
+    ini_set('max_execution_time', '30');
+    ini_set('display_errors', '1'); // Show errors in development
+    ini_set('log_errors', '1');
+}
+
+/**
+ * ✅ NEW: Error reporting based on environment
+ */
+if ($APP_ENV === 'production') {
+    error_reporting(E_ALL & ~E_NOTICE & ~E_DEPRECATED & ~E_STRICT);
+} else {
+    error_reporting(E_ALL);
+}
+
+/**
+ * ✅ NEW: Output buffering for better performance
+ */
+if ($APP_ENV === 'production') {
+    ob_start('ob_gzhandler'); // Enable gzip compression
+}
+
+/**
+ * ✅ NEW: Session configuration (if using sessions)
+ */
+if (session_status() === PHP_SESSION_NONE) {
+    ini_set('session.cookie_httponly', '1');
+    ini_set('session.cookie_secure', ($APP_ENV === 'production') ? '1' : '0');
+    ini_set('session.use_strict_mode', '1');
+    ini_set('session.cookie_samesite', 'Lax');
+}
+
+/**
+ * ✅ NEW: Security headers helper (optional)
+ */
+if ($APP_ENV === 'production') {
+    header('X-Frame-Options: DENY');
+    header('X-Content-Type-Options: nosniff');
+    header('X-XSS-Protection: 1; mode=block');
+    header('Referrer-Policy: strict-origin-when-cross-origin');
+}

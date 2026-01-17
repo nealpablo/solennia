@@ -192,6 +192,39 @@ function VendorCard({ vendor, navigate }) {
     navigate(`/vendor-profile?id=${encodeURIComponent(vendor.user_id || vendor.id)}`);
   };
 
+  // ✅ FIXED: Book Now Handler
+  const handleBookNow = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const token = localStorage.getItem("solennia_token");
+    if (!token) {
+      toast.warning("Please login to book this vendor");
+      return;
+    }
+
+    // ✅ Get the UserID - try multiple field names (case-sensitive)
+    const vendorUserId = vendor.UserID || vendor.user_id || vendor.id;
+    const vendorName = vendor.business_name || vendor.BusinessName || "Vendor";
+    const serviceName = vendor.category || vendor.Category || "";
+
+    console.log("Booking vendor - UserID:", vendorUserId, "Name:", vendorName); // Debug log
+
+    if (!vendorUserId) {
+      toast.error("Unable to identify vendor. Please try again.");
+      console.error("Vendor missing UserID:", vendor);
+      return;
+    }
+
+    navigate('/create-booking', {
+      state: {
+        vendorUserId: vendorUserId,  // ✅ Changed from vendorId to vendorUserId
+        vendorName: vendorName,
+        serviceName: serviceName
+      }
+    });
+  };
+
   // Get vendor image
   const vendorImage = vendor.vendor_logo || vendor.hero_image_url || vendor.user_avatar || "https://via.placeholder.com/400x300?text=Vendor+Image";
 
@@ -211,7 +244,7 @@ function VendorCard({ vendor, navigate }) {
           }}
         />
         
-        {/* ✅ FIXED: Only heart icon remains in top right - chat icon removed */}
+        {/* Heart icon in top right */}
         <div className="absolute top-3 right-3 flex gap-2">
           <button
             onClick={toggleFavorite}
@@ -257,25 +290,33 @@ function VendorCard({ vendor, navigate }) {
           {description}
         </p>
 
-        {/* ✅ Bottom chat button remains unchanged */}
-        <div className="flex gap-2">
+        {/* Three buttons - View Profile, Book Now, Chat */}
+        <div className="flex gap-2 mb-2">
           <button
             onClick={handleViewProfile}
-            className="flex-1 px-4 py-2 bg-[#7a5d47] hover:bg-[#654a38] text-white text-sm font-medium rounded-lg transition-colors"
+            className="flex-1 px-3 py-2 bg-[#7a5d47] hover:bg-[#654a38] text-white text-xs font-medium rounded-lg transition-colors"
           >
             View Profile
           </button>
           
           <button
-            onClick={handleChatClick}
-            className="w-10 h-10 flex items-center justify-center bg-[#e8ddae] hover:bg-[#dbcf9f] rounded-lg transition-colors"
-            title="Chat"
+            onClick={handleBookNow}
+            className="flex-1 px-3 py-2 bg-[#8B4513] hover:bg-[#704010] text-white text-xs font-medium rounded-lg transition-colors"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-            </svg>
+            Book Now
           </button>
         </div>
+
+        {/* Chat button - full width below */}
+        <button
+          onClick={handleChatClick}
+          className="w-full px-3 py-2 bg-[#e8ddae] hover:bg-[#dbcf9f] text-gray-800 text-xs font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          </svg>
+          Chat Vendor
+        </button>
       </div>
     </div>
   );

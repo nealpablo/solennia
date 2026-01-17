@@ -37,6 +37,7 @@ export default function VendorProfile() {
 
         if (!res.ok || !json.vendor) throw new Error("Vendor not found");
 
+        console.log("Vendor data loaded:", json.vendor); // Debug log
         setVendor(json.vendor);
       } catch (err) {
         toast.error("Unable to load vendor.");
@@ -54,9 +55,50 @@ export default function VendorProfile() {
   ========================= */
   function openChat() {
     if (!vendor) return;
-    const uid = vendor.firebase_uid || vendor.user_id;
+    
+    const token = localStorage.getItem("solennia_token");
+    if (!token) {
+      toast.warning("Please log in to chat with vendors");
+      return;
+    }
+    
+    const uid = vendor.firebase_uid || vendor.user_id || vendor.UserID;
     if (!uid) return;
     navigate(`/chat?to=${encodeURIComponent(uid)}`);
+  }
+
+  /* =========================
+     BOOK NOW - FIXED
+  ========================= */
+  function handleBookNow() {
+    if (!vendor) return;
+    
+    const token = localStorage.getItem("solennia_token");
+    if (!token) {
+      toast.warning("Please log in to book this vendor");
+      return;
+    }
+
+    // ✅ FIX: Get the correct UserID from the vendor object
+    // Try multiple possible field names (case-sensitive)
+    const vendorUserId = vendor.UserID || vendor.user_id || vendor.id;
+    
+    console.log("Booking with vendor UserID:", vendorUserId); // Debug log
+    console.log("Full vendor object:", vendor); // Debug log
+
+    if (!vendorUserId) {
+      toast.error("Unable to identify vendor. Please try again.");
+      console.error("Vendor object is missing UserID:", vendor);
+      return;
+    }
+
+    navigate('/create-booking', {
+      state: {
+        vendorUserId: vendorUserId,  // ✅ This should be UserID from credential table
+        vendorName: vendor.business_name || vendor.BusinessName,
+        serviceName: vendor.category || vendor.Category
+      }
+    });
   }
 
   /* =========================
@@ -111,23 +153,38 @@ export default function VendorProfile() {
 
   const {
     business_name,
+    BusinessName,
     category,
+    Category,
     address,
+    BusinessAddress,
     bio,
     description,
+    Description,
     services,
     service_areas,
     hero_image_url,
+    HeroImageUrl,
     vendor_logo,
+    avatar,
     gallery = [],
     firebase_uid,
-    user_id
+    user_id,
+    UserID
   } = vendor;
 
-  const chatEnabled = firebase_uid || user_id;
+  // Handle case variations
+  const displayName = business_name || BusinessName || "Vendor";
+  const displayCategory = category || Category || "";
+  const displayAddress = address || BusinessAddress || "";
+  const displayBio = bio || description || Description || "This vendor has not provided a full description yet.";
+  const displayHero = hero_image_url || HeroImageUrl || "/images/default-hero.jpg";
+  const displayLogo = vendor_logo || avatar || "/images/default-avatar.png";
+
+  const chatEnabled = firebase_uid || user_id || UserID;
   const chatTitle = firebase_uid 
     ? "Open chat with vendor" 
-    : user_id 
+    : (user_id || UserID)
     ? "Open chat (vendor may need Firebase link)" 
     : "Vendor has not linked a chat account";
 
@@ -141,7 +198,7 @@ export default function VendorProfile() {
       {/* HERO */}
       <div className="hero-container">
         <img
-          src={hero_image_url || "/images/default-hero.jpg"}
+          src={displayHero}
           alt="Vendor hero"
         />
       </div>
@@ -152,22 +209,22 @@ export default function VendorProfile() {
           {/* LOGO */}
           <div className="vendor-logo">
             <img
-              src={vendor_logo || "/images/default-avatar.png"}
+              src={displayLogo}
               alt="Vendor logo"
             />
           </div>
 
           <div className="vendor-header">
             <h1 className="vendor-name">
-              {business_name || "Vendor"}
+              {displayName}
             </h1>
             <p className="vendor-meta">
-              {category || ""} • {address || ""}
+              {displayCategory} • {displayAddress}
             </p>
           </div>
 
           <p className="vendor-bio">
-            {bio || description || "This vendor has not provided a full description yet."}
+            {displayBio}
           </p>
 
           {/* SERVICES */}
@@ -205,15 +262,24 @@ export default function VendorProfile() {
             )}
           </div>
 
-          {/* CHAT */}
-          <button
-            className="chat-btn"
-            disabled={!chatEnabled}
-            onClick={openChat}
-            title={chatTitle}
-          >
-            Chat Vendor
-          </button>
+          {/* ACTION BUTTONS */}
+          <div className="action-buttons">
+            <button
+              className="book-btn"
+              onClick={handleBookNow}
+            >
+              Book This Vendor
+            </button>
+            
+            <button
+              className="chat-btn"
+              disabled={!chatEnabled}
+              onClick={openChat}
+              title={chatTitle}
+            >
+              Chat Vendor
+            </button>
+          </div>
 
         </section>
       </main>
@@ -348,16 +414,49 @@ const styles = `
     transform: scale(1.02);
   }
 
+  /* ACTION BUTTONS CONTAINER */
+  .action-buttons {
+    margin-top: 2rem;
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  /* BOOK BUTTON */
+  .book-btn {
+    flex: 1;
+    min-width: 200px;
+    padding: 0.75rem 2rem;
+    border-radius: 9999px;
+    background: #8B4513;
+    color: white;
+    border: none;
+    cursor: pointer;
+    font-size: 0.9rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    transition: 0.2s;
+    font-family: "Cinzel", serif;
+    font-weight: 600;
+  }
+
+  .book-btn:hover {
+    background: #704010;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(139, 69, 19, 0.3);
+  }
+
   /* CHAT BUTTON */
   .chat-btn {
-    margin-top: 1.5rem;
-    padding: 0.5rem 1.8rem;
+    flex: 1;
+    min-width: 200px;
+    padding: 0.75rem 2rem;
     border-radius: 9999px;
     background: #7a5d47;
     color: white;
     border: none;
     cursor: pointer;
-    font-size: 0.85rem;
+    font-size: 0.9rem;
     letter-spacing: 0.15em;
     text-transform: uppercase;
     transition: 0.2s;
@@ -372,6 +471,8 @@ const styles = `
 
   .chat-btn:hover:not([disabled]) {
     background: #6a4f3a;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(122, 93, 71, 0.3);
   }
 
   /* LIGHTBOX */
@@ -416,5 +517,18 @@ const styles = `
 
   .lb-close:hover {
     transform: scale(1.1);
+  }
+
+  /* RESPONSIVE */
+  @media (max-width: 640px) {
+    .action-buttons {
+      flex-direction: column;
+    }
+
+    .book-btn,
+    .chat-btn {
+      width: 100%;
+      min-width: unset;
+    }
   }
 `;

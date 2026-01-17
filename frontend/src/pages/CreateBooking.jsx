@@ -1,12 +1,3 @@
-/**
- * ============================================
- * CREATE BOOKING PAGE (UC05)
- * ============================================
- * Allows clients to book services from vendors
- * Developer: Ryan (01-17_Ryan_Manual-Booking)
- * ============================================
- */
-
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import toast from "../utils/toast";
@@ -23,7 +14,8 @@ export default function CreateBooking() {
   const location = useLocation();
   
   // Get vendor info passed from VendorProfile
-  const { vendorId, vendorName, serviceName } = location.state || {};
+  // IMPORTANT: We need the UserID, not the ESP ID
+  const { vendorUserId, vendorName, serviceName } = location.state || {};
 
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -47,11 +39,11 @@ export default function CreateBooking() {
     }
 
     // Check if vendor info is provided
-    if (!vendorId || !vendorName) {
+    if (!vendorUserId || !vendorName) {
       toast.error("Vendor information missing");
       navigate("/vendors");
     }
-  }, [vendorId, vendorName, navigate]);
+  }, [vendorUserId, vendorName, navigate]);
 
   // Event types
   const eventTypes = [
@@ -123,6 +115,8 @@ export default function CreateBooking() {
       // Combine date and time
       const eventDateTime = `${formData.event_date} ${formData.event_time}:00`;
 
+      console.log("Submitting booking with vendor_id:", vendorUserId);
+
       const response = await fetch(`${API}/bookings/create`, {
         method: "POST",
         headers: {
@@ -130,7 +124,7 @@ export default function CreateBooking() {
           "Authorization": `Bearer ${token}`
         },
         body: JSON.stringify({
-          vendor_id: vendorId,
+          vendor_id: vendorUserId, // This should be the UserID from credential table
           service_name: formData.service_name,
           event_date: eventDateTime,
           event_location: formData.event_location,
@@ -141,10 +135,21 @@ export default function CreateBooking() {
         })
       });
 
-      const data = await response.json();
+      // Better error handling for non-JSON responses
+      const contentType = response.headers.get("content-type");
+      let data;
+      
+      if (contentType && contentType.includes("application/json")) {
+        const text = await response.text();
+        data = text ? JSON.parse(text) : {};
+      } else {
+        const text = await response.text();
+        console.error("Non-JSON response:", text);
+        throw new Error("Server returned an invalid response. Please try again.");
+      }
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to create booking");
+        throw new Error(data.error || `Server error: ${response.status}`);
       }
 
       toast.success(data.message || "Booking request sent successfully!");
