@@ -24,57 +24,62 @@ if ($env !== 'production' && file_exists(BASE_PATH . '/.env')) {
 // Slim app
 // -------------------------------------------------------------
 $app = AppFactory::create();
-$app->addBodyParsingMiddleware();
 
 // -------------------------------------------------------------
-// ✅ OPTIMIZED CORS MIDDLEWARE with Caching
+// ✅ CORS MIDDLEWARE - MUST BE FIRST, BEFORE BODY PARSING
 // -------------------------------------------------------------
 $app->add(function ($request, $handler) {
-    $method = strtoupper($request->getMethod());
-    
-    // ✅ Get origin from request
+    $method = $request->getMethod();
     $origin = $request->getHeaderLine('Origin');
-    $origin = rtrim($origin, '/');
     
-    $allowedOrigins = getenv('CORS_ALLOWED_ORIGINS') ?: '*';
-    $allowedOrigins = rtrim($allowedOrigins, '/');
+    // Get allowed origins from env
+    $allowedOriginsEnv = getenv('CORS_ALLOWED_ORIGINS');
     
-    // ✅ Determine allowed origin
+    // Determine which origin to allow
     $allowOrigin = '*';
-    if ($allowedOrigins !== '*') {
-        $allowedList = array_map('trim', explode(',', $allowedOrigins));
-        $allowedList = array_map(function($url) { return rtrim($url, '/'); }, $allowedList);
+    
+    if ($allowedOriginsEnv && $allowedOriginsEnv !== '*') {
+        // Parse allowed origins
+        $allowedOrigins = array_map('trim', explode(',', $allowedOriginsEnv));
         
-        if (in_array($origin, $allowedList, true)) {
+        // Check if request origin is in allowed list
+        if ($origin && in_array($origin, $allowedOrigins)) {
             $allowOrigin = $origin;
+        } elseif ($origin) {
+            // Origin not allowed, but we need to set something
+            $allowOrigin = $allowedOrigins[0]; // Use first allowed origin
         }
-    } else {
-        $allowOrigin = $origin ?: '*';
+    } elseif ($origin) {
+        // If no specific origins configured, reflect the request origin
+        $allowOrigin = $origin;
     }
-
-    // ✅ Fast path for OPTIONS - respond immediately without processing
-    if ($method === 'OPTIONS') {
+    
+    // Handle preflight OPTIONS requests immediately
+    if (strtoupper($method) === 'OPTIONS') {
         $response = new \Slim\Psr7\Response();
         return $response
+            ->withStatus(200)
             ->withHeader('Access-Control-Allow-Origin', $allowOrigin)
-            ->withHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With')
             ->withHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
+            ->withHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept')
             ->withHeader('Access-Control-Allow-Credentials', 'true')
-            ->withHeader('Access-Control-Max-Age', '86400') // Cache for 24 hours
-            ->withHeader('Vary', 'Origin') // Prevent cache issues
-            ->withStatus(204); // 204 No Content is faster than 200
+            ->withHeader('Access-Control-Max-Age', '86400')
+            ->withHeader('Content-Length', '0');
     }
-
-    // ✅ Process actual request
+    
+    // Process the request
     $response = $handler->handle($request);
-
+    
+    // Add CORS headers to response
     return $response
         ->withHeader('Access-Control-Allow-Origin', $allowOrigin)
-        ->withHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With')
         ->withHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
-        ->withHeader('Access-Control-Allow-Credentials', 'true')
-        ->withHeader('Vary', 'Origin');
+        ->withHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept')
+        ->withHeader('Access-Control-Allow-Credentials', 'true');
 });
+
+// NOW add body parsing middleware AFTER CORS
+$app->addBodyParsingMiddleware();
 
 // -------------------------------------------------------------
 // ✅ PERFORMANCE MIDDLEWARE - Response Time Tracking
@@ -232,6 +237,16 @@ $app->get('/routes', function ($request, $response) use ($app) {
     }
     $response->getBody()->write(json_encode($routes, JSON_PRETTY_PRINT));
     return $response->withHeader('Content-Type', 'application/json');
+});
+
+// Add CORS test endpoint
+$app->get('/api/cors-test', function ($req, $res) {
+    $res->getBody()->write(json_encode([
+        'success' => true,
+        'message' => 'CORS is working!',
+        'origin' => $req->getHeaderLine('Origin')
+    ]));
+    return $res->withHeader('Content-Type', 'application/json');
 });
 
 $app->run();
