@@ -1,7 +1,8 @@
-// src/pages/MyBookings.jsx
+// src/pages/MyBookings.jsx - ENHANCED VERSION WITH DETAILS MODAL
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "../utils/toast";
+import BookingDetailsModal from "../components/BookingDetailsModal";
 
 const API =
   import.meta.env.VITE_API_BASE ||
@@ -15,6 +16,8 @@ export default function MyBookings() {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
+  const [selectedBooking, setSelectedBooking] = useState(null);
+  const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
     loadBookings();
@@ -52,9 +55,35 @@ export default function MyBookings() {
     }
   };
 
+  /**
+   * Load complete details for a specific booking
+   */
+  const loadBookingDetails = async (bookingId) => {
+    try {
+      const token = localStorage.getItem("solennia_token");
+      const response = await fetch(`${API}/bookings/${bookingId}`, {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setSelectedBooking(data.booking);
+      } else {
+        toast.error(data.error || "Failed to load booking details");
+      }
+    } catch (error) {
+      console.error("Error loading booking details:", error);
+      toast.error("Failed to load booking details");
+    }
+  };
+
   const handleCancel = async (bookingId) => {
     if (!confirm("Are you sure you want to cancel this booking?")) return;
 
+    setProcessing(true);
     try {
       const token = localStorage.getItem("solennia_token");
       
@@ -74,9 +103,12 @@ export default function MyBookings() {
 
       toast.success("Booking cancelled successfully");
       loadBookings();
+      setSelectedBooking(null); // Close modal if open
     } catch (error) {
       console.error("Error cancelling booking:", error);
       toast.error(error.message || "Failed to cancel booking");
+    } finally {
+      setProcessing(false);
     }
   };
 
@@ -90,7 +122,8 @@ export default function MyBookings() {
       Pending: { bg: "#fef3c7", text: "#92400e", border: "#fbbf24" },
       Confirmed: { bg: "#d1fae5", text: "#065f46", border: "#34d399" },
       Cancelled: { bg: "#fee2e2", text: "#991b1b", border: "#f87171" },
-      Declined: { bg: "#fee2e2", text: "#991b1b", border: "#f87171" }
+      Rejected: { bg: "#fee2e2", text: "#991b1b", border: "#f87171" },
+      Completed: { bg: "#e0e7ff", text: "#3730a3", border: "#818cf8" }
     };
     return styles[status] || styles.Pending;
   };
@@ -119,7 +152,7 @@ export default function MyBookings() {
       </div>
 
       <div style={styles.filterContainer}>
-        {["all", "Pending", "Confirmed", "Cancelled"].map((f) => (
+        {["all", "Pending", "Confirmed", "Rejected", "Cancelled", "Completed"].map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}
@@ -213,16 +246,24 @@ export default function MyBookings() {
                   )}
                 </div>
 
-                {canCancel && (
-                  <div style={styles.cardActions}>
+                <div style={styles.cardActions}>
+                  <button
+                    onClick={() => loadBookingDetails(booking.ID)}
+                    style={styles.detailsButton}
+                  >
+                    View Full Details
+                  </button>
+                  
+                  {canCancel && (
                     <button
                       onClick={() => handleCancel(booking.ID)}
+                      disabled={processing}
                       style={styles.cancelButton}
                     >
-                      Cancel Booking
+                      {processing ? 'Processing...' : 'Cancel Booking'}
                     </button>
-                  </div>
-                )}
+                  )}
+                </div>
 
                 <div style={styles.cardFooter}>
                   <small style={styles.timestamp}>
@@ -234,6 +275,16 @@ export default function MyBookings() {
           })}
         </div>
       )}
+
+      {/* Booking Details Modal */}
+      <BookingDetailsModal
+        booking={selectedBooking}
+        isOpen={!!selectedBooking}
+        onClose={() => setSelectedBooking(null)}
+        userRole={0} // Client role
+        onCancel={handleCancel}
+        processing={processing}
+      />
     </div>
   );
 }
@@ -397,11 +448,29 @@ const styles = {
     flexShrink: 0
   },
   cardActions: {
+    display: "flex",
+    gap: "0.75rem",
     marginTop: "1.5rem",
     paddingTop: "1.5rem",
-    borderTop: "1px solid #e5e5e5"
+    borderTop: "1px solid #e5e5e5",
+    flexWrap: "wrap"
+  },
+  detailsButton: {
+    flex: "1",
+    minWidth: "150px",
+    padding: "0.75rem 1.5rem",
+    background: "#7a5d47",
+    color: "white",
+    border: "none",
+    borderRadius: "8px",
+    fontSize: "0.9rem",
+    fontWeight: "600",
+    cursor: "pointer",
+    transition: "all 0.2s"
   },
   cancelButton: {
+    flex: "1",
+    minWidth: "150px",
     padding: "0.75rem 1.5rem",
     border: "1px solid #dc2626",
     borderRadius: "8px",

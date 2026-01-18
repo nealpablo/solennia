@@ -1,7 +1,7 @@
-// src/pages/MyBookings.jsx - FIXED VERSION
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "../utils/toast";
+import BookingDetailsModal from "../components/BookingDetailsModal";
 
 const API =
   import.meta.env.VITE_API_BASE ||
@@ -10,28 +10,46 @@ const API =
     ? "https://solennia.up.railway.app/api"
     : "/api");
 
-export default function MyBookings() {
+/**
+ * VendorBookingRequests Component
+ * Displays all booking requests for the logged-in vendor
+ * Allows vendors to view details and accept/reject bookings
+ */
+export default function VendorBookingRequests() {
   const navigate = useNavigate();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
+  const [selectedBooking, setSelectedBooking] = useState(null);
+  const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
+    // Check if user is a vendor
+    const role = Number(localStorage.getItem("solennia_role") || 0);
+    if (role !== 1) {
+      toast.error("Access denied. Vendors only.");
+      navigate("/");
+      return;
+    }
+    
     loadBookings();
-  }, []);
+  }, [navigate]);
 
+  /**
+   * Load all booking requests for the vendor
+   */
   const loadBookings = async () => {
     try {
       setLoading(true);
       const token = localStorage.getItem("solennia_token");
       
       if (!token) {
-        toast.error("Please log in to view bookings");
+        toast.error("Please log in to view booking requests");
         navigate("/login");
         return;
       }
 
-      const response = await fetch(`${API}/bookings/user`, {
+      const response = await fetch(`${API}/bookings/vendor`, {
         headers: {
           "Authorization": `Bearer ${token}`
         }
@@ -40,89 +58,168 @@ export default function MyBookings() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to load bookings");
+        throw new Error(data.error || "Failed to load booking requests");
       }
 
       setBookings(data.bookings || []);
     } catch (error) {
       console.error("Error loading bookings:", error);
-      toast.error(error.message || "Failed to load your bookings");
+      toast.error(error.message || "Failed to load booking requests");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCancel = async (bookingId) => {
-    if (!confirm("Are you sure you want to cancel this booking?")) return;
-
+  /**
+   * Load complete details for a specific booking
+   */
+  const loadBookingDetails = async (bookingId) => {
     try {
       const token = localStorage.getItem("solennia_token");
-      
-      const response = await fetch(`${API}/bookings/${bookingId}/cancel`, {
-        method: "PATCH",
+      const response = await fetch(`${API}/bookings/${bookingId}`, {
         headers: {
-          "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         }
       });
 
       const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to cancel booking");
+      if (data.success) {
+        setSelectedBooking(data.booking);
+      } else {
+        toast.error(data.error || "Failed to load booking details");
       }
-
-      toast.success("Booking cancelled successfully");
-      loadBookings();
     } catch (error) {
-      console.error("Error cancelling booking:", error);
-      toast.error(error.message || "Failed to cancel booking");
+      console.error("Error loading booking details:", error);
+      toast.error("Failed to load booking details");
     }
   };
 
+  /**
+   * Accept a booking request
+   */
+  const handleAccept = async (bookingId) => {
+    setProcessing(true);
+    try {
+      const token = localStorage.getItem("solennia_token");
+      
+      const response = await fetch(`${API}/bookings/${bookingId}/status`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ status: "Confirmed" })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to accept booking");
+      }
+
+      toast.success("Booking accepted successfully!");
+      loadBookings(); // Reload bookings
+      setSelectedBooking(null); // Close modal
+    } catch (error) {
+      console.error("Error accepting booking:", error);
+      toast.error(error.message || "Failed to accept booking");
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  /**
+   * Reject a booking request
+   */
+  const handleReject = async (bookingId) => {
+    setProcessing(true);
+    try {
+      const token = localStorage.getItem("solennia_token");
+      
+      const response = await fetch(`${API}/bookings/${bookingId}/status`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ status: "Rejected" })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to reject booking");
+      }
+
+      toast.success("Booking rejected");
+      loadBookings(); // Reload bookings
+      setSelectedBooking(null); // Close modal
+    } catch (error) {
+      console.error("Error rejecting booking:", error);
+      toast.error(error.message || "Failed to reject booking");
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  /**
+   * Filter bookings by status
+   */
   const filteredBookings = bookings.filter(booking => {
     if (filter === "all") return true;
     return booking.BookingStatus === filter;
   });
 
-  // ✅ FIX: Updated getStatusStyle to use 'Rejected' instead of 'Declined'
+  /**
+   * Get status badge styling
+   */
   const getStatusStyle = (status) => {
     const styles = {
       Pending: { bg: "#fef3c7", text: "#92400e", border: "#fbbf24" },
       Confirmed: { bg: "#d1fae5", text: "#065f46", border: "#34d399" },
       Cancelled: { bg: "#fee2e2", text: "#991b1b", border: "#f87171" },
-      Rejected: { bg: "#fee2e2", text: "#991b1b", border: "#f87171" }, // ✅ Changed from Declined
+      Rejected: { bg: "#fee2e2", text: "#991b1b", border: "#f87171" },
       Completed: { bg: "#e0e7ff", text: "#3730a3", border: "#818cf8" }
     };
     return styles[status] || styles.Pending;
   };
 
+  /**
+   * Loading state
+   */
   if (loading) {
     return (
       <div style={styles.container}>
         <div style={styles.loadingContainer}>
           <div style={styles.spinner} />
-          <p style={styles.loadingText}>Loading your bookings...</p>
+          <p style={styles.loadingText}>Loading booking requests...</p>
         </div>
       </div>
     );
   }
 
+  /**
+   * Main render
+   */
   return (
     <div style={styles.container}>
+      {/* Header */}
       <div style={styles.header}>
-        <h1 style={styles.title}>My Bookings</h1>
-        <button
-          onClick={() => navigate("/vendors")}
-          style={styles.newBookingButton}
-        >
-          + New Booking
-        </button>
+        <h1 style={styles.title}>Booking Requests</h1>
+        <div style={styles.stats}>
+          <span style={styles.statBadge}>
+            Total: {bookings.length}
+          </span>
+          <span style={{...styles.statBadge, ...styles.pendingBadge}}>
+            Pending: {bookings.filter(b => b.BookingStatus === 'Pending').length}
+          </span>
+        </div>
       </div>
 
-      {/* ✅ FIX: Updated filter options to include 'Rejected' instead of 'Declined' */}
+      {/* Filter Tabs */}
       <div style={styles.filterContainer}>
-        {["all", "Pending", "Confirmed", "Rejected", "Cancelled"].map((f) => (
+        {["all", "Pending", "Confirmed", "Rejected", "Cancelled", "Completed"].map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}
@@ -132,42 +229,47 @@ export default function MyBookings() {
             }}
           >
             {f === "all" ? "All" : f}
+            {f !== "all" && (
+              <span style={styles.filterCount}>
+                {bookings.filter(b => b.BookingStatus === f).length}
+              </span>
+            )}
           </button>
         ))}
       </div>
 
+      {/* Bookings List */}
       {filteredBookings.length === 0 ? (
         <div style={styles.emptyState}>
           <svg style={styles.emptyIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
           </svg>
-          <h3 style={styles.emptyTitle}>No Bookings Found</h3>
+          <h3 style={styles.emptyTitle}>No Booking Requests</h3>
           <p style={styles.emptyText}>
             {filter === "all" 
-              ? "You haven't made any bookings yet."
+              ? "You haven't received any booking requests yet."
               : `No ${filter.toLowerCase()} bookings found.`}
           </p>
-          <button
-            onClick={() => navigate("/vendors")}
-            style={styles.browseButton}
-          >
-            Browse Vendors
-          </button>
         </div>
       ) : (
         <div style={styles.bookingsList}>
           {filteredBookings.map((booking) => {
             const statusColors = getStatusStyle(booking.BookingStatus);
-            const canCancel = booking.BookingStatus === "Pending";
+            const isPending = booking.BookingStatus === "Pending";
 
             return (
               <div key={booking.ID} style={styles.card}>
+                
+                {/* Card Header */}
                 <div style={styles.cardHeader}>
                   <div>
                     <h3 style={styles.cardTitle}>{booking.ServiceName}</h3>
-                    <p style={styles.cardVendor}>
-                      Vendor: <strong>{booking.vendor_name || "Unknown"}</strong>
+                    <p style={styles.cardClient}>
+                      Client: <strong>{booking.client_name || "Unknown"}</strong>
                     </p>
+                    {booking.client_email && (
+                      <p style={styles.cardEmail}>{booking.client_email}</p>
+                    )}
                   </div>
                   <span
                     style={{
@@ -181,55 +283,102 @@ export default function MyBookings() {
                   </span>
                 </div>
 
+                {/* Card Body */}
                 <div style={styles.cardBody}>
-                  <div style={styles.infoRow}>
-                    <svg style={styles.icon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    <span>{new Date(booking.EventDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
-                  </div>
-
-                  <div style={styles.infoRow}>
-                    <svg style={styles.icon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    <span>{booking.EventLocation}</span>
-                  </div>
-
-                  {booking.EventType && (
-                    <div style={styles.infoRow}>
+                  <div style={styles.infoGrid}>
+                    <div style={styles.infoItem}>
                       <svg style={styles.icon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                       </svg>
-                      <span>Type: {booking.EventType}</span>
+                      <div>
+                        <label style={styles.infoLabel}>Event Date</label>
+                        <span style={styles.infoValue}>
+                          {new Date(booking.EventDate).toLocaleDateString('en-US', { 
+                            year: 'numeric', 
+                            month: 'long', 
+                            day: 'numeric' 
+                          })}
+                        </span>
+                      </div>
                     </div>
-                  )}
 
-                  {booking.TotalAmount && (
-                    <div style={styles.infoRow}>
+                    <div style={styles.infoItem}>
                       <svg style={styles.icon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                       </svg>
-                      <span>₱{parseFloat(booking.TotalAmount).toLocaleString()}</span>
+                      <div>
+                        <label style={styles.infoLabel}>Location</label>
+                        <span style={styles.infoValue}>{booking.EventLocation}</span>
+                      </div>
+                    </div>
+
+                    {booking.TotalAmount && (
+                      <div style={styles.infoItem}>
+                        <svg style={styles.icon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <div>
+                          <label style={styles.infoLabel}>Amount</label>
+                          <span style={styles.infoValue}>
+                            ₱{parseFloat(booking.TotalAmount).toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {booking.AdditionalNotes && (
+                    <div style={styles.notesSection}>
+                      <label style={styles.notesLabel}>Additional Notes:</label>
+                      <p style={styles.notesText}>{booking.AdditionalNotes}</p>
                     </div>
                   )}
                 </div>
 
-                {canCancel && (
-                  <div style={styles.cardActions}>
+                {/* Card Actions */}
+                <div style={styles.cardActions}>
+                  {isPending && (
+                    <>
+                      <button
+                        onClick={() => {
+                          loadBookingDetails(booking.ID);
+                        }}
+                        style={styles.viewBtn}
+                      >
+                        View Full Details
+                      </button>
+                      <button
+                        onClick={() => handleAccept(booking.ID)}
+                        disabled={processing}
+                        style={styles.acceptBtn}
+                      >
+                        {processing ? 'Processing...' : 'Accept'}
+                      </button>
+                      <button
+                        onClick={() => handleReject(booking.ID)}
+                        disabled={processing}
+                        style={styles.rejectBtn}
+                      >
+                        {processing ? 'Processing...' : 'Reject'}
+                      </button>
+                    </>
+                  )}
+                  
+                  {!isPending && (
                     <button
-                      onClick={() => handleCancel(booking.ID)}
-                      style={styles.cancelButton}
+                      onClick={() => loadBookingDetails(booking.ID)}
+                      style={styles.viewBtn}
                     >
-                      Cancel Booking
+                      View Details
                     </button>
-                  </div>
-                )}
+                  )}
+                </div>
 
+                {/* Card Footer */}
                 <div style={styles.cardFooter}>
                   <small style={styles.timestamp}>
-                    Booked on: {new Date(booking.CreatedAt).toLocaleDateString()}
+                    Requested on: {new Date(booking.CreatedAt).toLocaleDateString()}
                   </small>
                 </div>
               </div>
@@ -237,15 +386,30 @@ export default function MyBookings() {
           })}
         </div>
       )}
+
+      {/* Booking Details Modal */}
+      <BookingDetailsModal
+        booking={selectedBooking}
+        isOpen={!!selectedBooking}
+        onClose={() => setSelectedBooking(null)}
+        userRole={1} // Vendor role
+        onAccept={handleAccept}
+        onReject={handleReject}
+        processing={processing}
+      />
     </div>
   );
 }
 
+/**
+ * Styles
+ */
 const styles = {
   container: {
     maxWidth: "1200px",
     margin: "0 auto",
-    padding: "2rem 1rem"
+    padding: "2rem 1rem",
+    minHeight: "100vh"
   },
   loadingContainer: {
     display: "flex",
@@ -272,8 +436,8 @@ const styles = {
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: "2rem",
-    gap: "1rem",
-    flexWrap: "wrap"
+    flexWrap: "wrap",
+    gap: "1rem"
   },
   title: {
     fontSize: "2rem",
@@ -281,16 +445,22 @@ const styles = {
     color: "#1c1b1a",
     margin: 0
   },
-  newBookingButton: {
-    padding: "0.75rem 1.5rem",
-    background: "#8B4513",
-    color: "white",
-    border: "none",
-    borderRadius: "8px",
-    fontSize: "1rem",
+  stats: {
+    display: "flex",
+    gap: "0.75rem",
+    flexWrap: "wrap"
+  },
+  statBadge: {
+    padding: "0.5rem 1rem",
+    backgroundColor: "#f6f0e8",
+    borderRadius: "9999px",
+    fontSize: "0.875rem",
     fontWeight: "600",
-    cursor: "pointer",
-    transition: "all 0.2s"
+    color: "#1c1b1a"
+  },
+  pendingBadge: {
+    backgroundColor: "#fef3c7",
+    color: "#92400e"
   },
   filterContainer: {
     display: "flex",
@@ -307,12 +477,21 @@ const styles = {
     fontSize: "0.875rem",
     fontWeight: "500",
     cursor: "pointer",
-    transition: "all 0.2s"
+    transition: "all 0.2s",
+    display: "flex",
+    alignItems: "center",
+    gap: "0.5rem"
   },
   filterButtonActive: {
     background: "#7a5d47",
     color: "#fff",
     borderColor: "#7a5d47"
+  },
+  filterCount: {
+    fontSize: "0.75rem",
+    backgroundColor: "rgba(255,255,255,0.3)",
+    padding: "0.125rem 0.5rem",
+    borderRadius: "9999px"
   },
   emptyState: {
     textAlign: "center",
@@ -335,17 +514,6 @@ const styles = {
     fontSize: "1rem",
     marginBottom: "1.5rem"
   },
-  browseButton: {
-    padding: "0.75rem 2rem",
-    background: "#8B4513",
-    color: "white",
-    border: "none",
-    borderRadius: "8px",
-    fontSize: "1rem",
-    fontWeight: "600",
-    cursor: "pointer",
-    transition: "all 0.2s"
-  },
   bookingsList: {
     display: "grid",
     gap: "1.5rem"
@@ -355,14 +523,17 @@ const styles = {
     borderRadius: "12px",
     padding: "1.5rem",
     boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-    border: "1px solid #e5e5e5"
+    border: "1px solid #e5e5e5",
+    transition: "box-shadow 0.2s"
   },
   cardHeader: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: "1rem",
-    gap: "1rem"
+    marginBottom: "1.25rem",
+    gap: "1rem",
+    paddingBottom: "1rem",
+    borderBottom: "1px solid #f0f0f0"
   },
   cardTitle: {
     fontSize: "1.25rem",
@@ -370,46 +541,122 @@ const styles = {
     color: "#1c1b1a",
     marginBottom: "0.25rem"
   },
-  cardVendor: {
+  cardClient: {
     color: "#666",
-    fontSize: "0.9rem"
+    fontSize: "0.95rem",
+    marginTop: "0.25rem"
+  },
+  cardEmail: {
+    color: "#888",
+    fontSize: "0.85rem",
+    marginTop: "0.125rem"
   },
   statusBadge: {
-    padding: "0.25rem 0.75rem",
+    padding: "0.4rem 1rem",
     borderRadius: "9999px",
-    fontSize: "0.75rem",
+    fontSize: "0.8rem",
     fontWeight: "600",
-    border: "1px solid",
-    whiteSpace: "nowrap"
+    border: "2px solid",
+    whiteSpace: "nowrap",
+    alignSelf: "flex-start"
   },
   cardBody: {
+    marginBottom: "1.25rem"
+  },
+  infoGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+    gap: "1rem",
     marginBottom: "1rem"
   },
-  infoRow: {
+  infoItem: {
     display: "flex",
-    alignItems: "center",
-    gap: "0.5rem",
-    marginBottom: "0.75rem",
-    color: "#444",
-    fontSize: "0.9rem"
+    alignItems: "flex-start",
+    gap: "0.75rem"
   },
   icon: {
     width: "1.25rem",
     height: "1.25rem",
     color: "#7a5d47",
-    flexShrink: 0
+    flexShrink: 0,
+    marginTop: "0.25rem"
+  },
+  infoLabel: {
+    display: "block",
+    fontSize: "0.75rem",
+    fontWeight: "600",
+    color: "#888",
+    textTransform: "uppercase",
+    letterSpacing: "0.05em",
+    marginBottom: "0.25rem"
+  },
+  infoValue: {
+    fontSize: "0.95rem",
+    color: "#1c1b1a",
+    fontWeight: "500"
+  },
+  notesSection: {
+    marginTop: "1rem",
+    padding: "1rem",
+    backgroundColor: "#f9f9f9",
+    borderRadius: "8px",
+    border: "1px solid #e5e5e5"
+  },
+  notesLabel: {
+    fontSize: "0.75rem",
+    fontWeight: "600",
+    color: "#666",
+    textTransform: "uppercase",
+    letterSpacing: "0.05em"
+  },
+  notesText: {
+    fontSize: "0.9rem",
+    color: "#333",
+    marginTop: "0.5rem",
+    lineHeight: "1.6",
+    margin: "0.5rem 0 0 0"
   },
   cardActions: {
-    marginTop: "1.5rem",
-    paddingTop: "1.5rem",
-    borderTop: "1px solid #e5e5e5"
+    display: "flex",
+    gap: "0.75rem",
+    paddingTop: "1.25rem",
+    borderTop: "1px solid #e5e5e5",
+    flexWrap: "wrap"
   },
-  cancelButton: {
-    padding: "0.75rem 1.5rem",
-    border: "1px solid #dc2626",
+  viewBtn: {
+    flex: "1",
+    minWidth: "120px",
+    padding: "0.75rem 1.25rem",
+    backgroundColor: "#7a5d47",
+    color: "white",
+    border: "none",
     borderRadius: "8px",
-    background: "#fff",
-    color: "#dc2626",
+    fontSize: "0.9rem",
+    fontWeight: "600",
+    cursor: "pointer",
+    transition: "all 0.2s"
+  },
+  acceptBtn: {
+    flex: "1",
+    minWidth: "100px",
+    padding: "0.75rem 1.25rem",
+    backgroundColor: "#16a34a",
+    color: "white",
+    border: "none",
+    borderRadius: "8px",
+    fontSize: "0.9rem",
+    fontWeight: "600",
+    cursor: "pointer",
+    transition: "all 0.2s"
+  },
+  rejectBtn: {
+    flex: "1",
+    minWidth: "100px",
+    padding: "0.75rem 1.25rem",
+    backgroundColor: "#dc2626",
+    color: "white",
+    border: "none",
+    borderRadius: "8px",
     fontSize: "0.9rem",
     fontWeight: "600",
     cursor: "pointer",

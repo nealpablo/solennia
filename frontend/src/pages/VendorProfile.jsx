@@ -58,7 +58,7 @@ export default function VendorProfile() {
     
     const token = localStorage.getItem("solennia_token");
     if (!token) {
-      toast.warning("Please log in to chat with vendors");
+      toast.warning("Please log in to chat with suppliers");
       return;
     }
     
@@ -75,7 +75,7 @@ export default function VendorProfile() {
     
     const token = localStorage.getItem("solennia_token");
     if (!token) {
-      toast.warning("Please log in to book this vendor");
+      toast.warning("Please log in to book this supplier");
       return;
     }
 
@@ -268,7 +268,7 @@ export default function VendorProfile() {
               className="book-btn"
               onClick={handleBookNow}
             >
-              Book This Vendor
+              Book This Supplier
             </button>
             
             <button
@@ -277,7 +277,7 @@ export default function VendorProfile() {
               onClick={openChat}
               title={chatTitle}
             >
-              Chat Vendor
+              Chat Supplier
             </button>
           </div>
 

@@ -1,11 +1,4 @@
 <?php
-/**
- * ============================================
- * BOOKING CONTROLLER - CORRECTED VERSION
- * ============================================
- * Fixed to use event_service_provider table (not vendor_application)
- * ============================================
- */
 
 namespace Src\Controllers;
 
@@ -47,7 +40,7 @@ class BookingController
 
     /**
      * ============================================
-     * CREATE BOOKING (UC05) - CORRECTED
+     * CREATE BOOKING (UC05)
      * ============================================
      * POST /api/bookings/create
      * ============================================
@@ -91,12 +84,12 @@ class BookingController
                 ], 400);
             }
 
-            // ✅ FIX: Get the event_service_provider record for this vendor
+            // Get the event_service_provider record for this vendor
             $vendorUserId = $data['vendor_id'];
             
             error_log("CREATE_BOOKING: Looking for event_service_provider with UserID: {$vendorUserId}");
             
-            // ✅ FIX: Use event_service_provider table (this is what the FK points to!)
+            // Use event_service_provider table (this is what the FK points to!)
             $eventServiceProvider = DB::table('event_service_provider')
                 ->where('UserID', $vendorUserId)
                 ->where('ApplicationStatus', 'Approved')
@@ -112,10 +105,10 @@ class BookingController
 
             error_log("CREATE_BOOKING: Found Event Service Provider ID: {$eventServiceProvider->ID}");
 
-            // ✅ FIX: Create booking with correct EventServiceProviderID
+            // Create booking with correct EventServiceProviderID
             $bookingId = DB::table('booking')->insertGetId([
                 'UserID' => $userId,
-                'EventServiceProviderID' => $eventServiceProvider->ID, // ✅ This matches the FK constraint
+                'EventServiceProviderID' => $eventServiceProvider->ID,
                 'ServiceName' => $data['service_name'],
                 'EventDate' => $eventDate,
                 'EventLocation' => $data['event_location'],
@@ -148,7 +141,7 @@ class BookingController
                 "{$clientName} has requested to book {$data['service_name']} for {$eventDate}"
             );
 
-            // ✅ FIX: Get the created booking with vendor details from event_service_provider
+            // Get the created booking with vendor details from event_service_provider
             $booking = DB::table('booking as b')
                 ->select([
                     'b.*',
@@ -180,7 +173,7 @@ class BookingController
 
     /**
      * ============================================
-     * GET USER'S BOOKINGS - CORRECTED
+     * GET USER'S BOOKINGS
      * ============================================
      * GET /api/bookings/user
      * ============================================
@@ -203,15 +196,15 @@ class BookingController
             $params = $req->getQueryParams();
             $status = $params['status'] ?? null;
 
-            // ✅ FIX: Build query with event_service_provider
+            // Build query with event_service_provider
             $query = DB::table('booking as b')
                 ->select([
                     'b.*',
                     'esp.BusinessName as vendor_business_name',
+                    'esp.BusinessEmail as vendor_email',
                     'esp.avatar as vendor_avatar',
                     'c.first_name as vendor_first_name',
                     'c.last_name as vendor_last_name',
-                    'c.email as vendor_email',
                 ])
                 ->leftJoin('event_service_provider as esp', 'b.EventServiceProviderID', '=', 'esp.ID')
                 ->leftJoin('credential as c', 'esp.UserID', '=', 'c.id')
@@ -246,9 +239,10 @@ class BookingController
 
     /**
      * ============================================
-     * GET VENDOR'S BOOKING REQUESTS - CORRECTED
+     * GET VENDOR'S BOOKING REQUESTS - ENHANCED
      * ============================================
      * GET /api/bookings/vendor
+     * Now includes client phone number
      * ============================================
      */
     public function getVendorBookings(Request $req, Response $res): Response
@@ -265,7 +259,7 @@ class BookingController
 
             $vendorUserId = $user->mysql_id;
 
-            // ✅ FIX: Get vendor's event_service_provider ID
+            // Get vendor's event_service_provider ID
             $esp = DB::table('event_service_provider')
                 ->where('UserID', $vendorUserId)
                 ->where('ApplicationStatus', 'Approved')
@@ -282,22 +276,14 @@ class BookingController
             $params = $req->getQueryParams();
             $status = $params['status'] ?? null;
 
-            // ✅ FIX: Build query with event_service_provider
+            // ✅ ENHANCED: Include all booking fields and client phone
             $query = DB::table('booking as b')
                 ->select([
-                    'b.ID as id',
-                    'b.ServiceName as service_name',
-                    'b.EventDate as event_date',
-                    'b.EventLocation as event_location',
-                    'b.EventType as event_type',
-                    'b.PackageSelected as package_selected',
-                    'b.AdditionalNotes as additional_notes',
-                    'b.TotalAmount as total_amount',
-                    'b.BookingStatus as status',
-                    'b.CreatedAt as created_at',
+                    'b.*',
                     'c.first_name as client_first_name',
                     'c.last_name as client_last_name',
                     'c.email as client_email',
+                    'c.phone as client_phone', // ✅ Added phone number
                 ])
                 ->leftJoin('credential as c', 'b.UserID', '=', 'c.id')
                 ->where('b.EventServiceProviderID', $esp->ID);
@@ -311,7 +297,7 @@ class BookingController
 
             // Add computed client name
             foreach ($bookings as $booking) {
-                $booking->client_name = ($booking->client_first_name ?? '') . ' ' . ($booking->client_last_name ?? '');
+                $booking->client_name = trim(($booking->client_first_name ?? '') . ' ' . ($booking->client_last_name ?? ''));
             }
 
             return $this->json($res, [
@@ -330,9 +316,10 @@ class BookingController
 
     /**
      * ============================================
-     * GET BOOKING DETAILS - CORRECTED
+     * GET BOOKING DETAILS - ENHANCED
      * ============================================
      * GET /api/bookings/{id}
+     * Now includes client phone number
      * ============================================
      */
     public function getBookingDetails(Request $req, Response $res, array $args): Response
@@ -357,7 +344,7 @@ class BookingController
                 ], 400);
             }
 
-            // ✅ FIX: Get booking with event_service_provider
+            // ✅ ENHANCED: Include client phone number
             $booking = DB::table('booking as b')
                 ->select([
                     'b.*',
@@ -369,6 +356,7 @@ class BookingController
                     'client_cred.first_name as client_first_name',
                     'client_cred.last_name as client_last_name',
                     'client_cred.email as client_email',
+                    'client_cred.phone as client_phone', // ✅ Added phone number
                 ])
                 ->leftJoin('event_service_provider as esp', 'b.EventServiceProviderID', '=', 'esp.ID')
                 ->leftJoin('credential as vendor_cred', 'esp.UserID', '=', 'vendor_cred.id')
@@ -386,7 +374,7 @@ class BookingController
             // Check if user has permission to view this booking
             $isClient = $booking->UserID == $userId;
             
-            // ✅ FIX: Check vendor permission using event_service_provider
+            // Check vendor permission using event_service_provider
             $isVendor = DB::table('event_service_provider')
                 ->where('ID', $booking->EventServiceProviderID)
                 ->where('UserID', $userId)
@@ -400,9 +388,9 @@ class BookingController
             }
 
             // Add computed fields
-            $booking->client_name = (($booking->client_first_name ?? '') . ' ' . ($booking->client_last_name ?? ''));
+            $booking->client_name = trim(($booking->client_first_name ?? '') . ' ' . ($booking->client_last_name ?? ''));
             $booking->vendor_name = $booking->vendor_business_name ?? 
-                (($booking->vendor_first_name ?? '') . ' ' . ($booking->vendor_last_name ?? ''));
+                trim(($booking->vendor_first_name ?? '') . ' ' . ($booking->vendor_last_name ?? ''));
 
             return $this->json($res, [
                 'success' => true,
@@ -420,7 +408,7 @@ class BookingController
 
     /**
      * ============================================
-     * UPDATE BOOKING STATUS (VENDOR) - CORRECTED
+     * UPDATE BOOKING STATUS (VENDOR)
      * ============================================
      * PATCH /api/bookings/{id}/status
      * ============================================
@@ -457,7 +445,7 @@ class BookingController
 
             $newStatus = $data['status'];
 
-            // ✅ Validate status matches enum
+            // Validate status matches enum
             if (!in_array($newStatus, ['Confirmed', 'Rejected'])) {
                 return $this->json($res, [
                     'success' => false,
@@ -465,7 +453,7 @@ class BookingController
                 ], 400);
             }
 
-            // ✅ FIX: Get booking with event_service_provider
+            // Get booking with event_service_provider
             $booking = DB::table('booking as b')
                 ->leftJoin('event_service_provider as esp', 'b.EventServiceProviderID', '=', 'esp.ID')
                 ->where('b.ID', $bookingId)
@@ -520,7 +508,7 @@ class BookingController
 
     /**
      * ============================================
-     * CANCEL BOOKING (CLIENT) - CORRECTED
+     * CANCEL BOOKING (CLIENT)
      * ============================================
      * PATCH /api/bookings/{id}/cancel
      * ============================================
@@ -547,7 +535,7 @@ class BookingController
                 ], 400);
             }
 
-            // ✅ FIX: Get booking with event_service_provider
+            // Get booking with event_service_provider
             $booking = DB::table('booking as b')
                 ->leftJoin('event_service_provider as esp', 'b.EventServiceProviderID', '=', 'esp.ID')
                 ->where('b.ID', $bookingId)

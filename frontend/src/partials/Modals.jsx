@@ -2271,7 +2271,7 @@ const handleVendorFileChange = (e, fileType) => {
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex justify-between items-center p-6 border-b border-gray-300 bg-[#e8ddae]">
-            <h2 className="text-lg font-semibold">Become a Vendor</h2>
+            <h2 className="text-lg font-semibold">Become a Supplier</h2>
             <button 
               onClick={closeAllVendorModals}
               className="text-2xl font-light hover:text-gray-600" 
@@ -2283,12 +2283,12 @@ const handleVendorFileChange = (e, fileType) => {
 
           <div className="p-6 space-y-4">
             <h3 className="font-semibold text-base uppercase">
-              Vendor Terms & Conditions
+              Supplier Terms & Conditions
             </h3>
 
             <div className="text-sm space-y-3 leading-relaxed max-h-64 overflow-y-auto bg-gray-50 p-4 rounded">
               <p>
-                By applying to become a vendor on Solennia, you acknowledge and agree
+                By applying to become a supplier on Solennia, you acknowledge and agree
                 to the following:
               </p>
 
@@ -2310,7 +2310,7 @@ const handleVendorFileChange = (e, fileType) => {
                   related to your services.
                 </li>
                 <li>
-                  Acknowledge that vendor application submission does not guarantee
+                  Acknowledge that supplier application submission does not guarantee
                   approval or listing on the platform.
                 </li>
               </ul>
@@ -2357,7 +2357,7 @@ const handleVendorFileChange = (e, fileType) => {
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex justify-between items-center p-6 border-b border-gray-300 bg-[#e8ddae]">
-            <h2 className="text-lg font-semibold">Become a Vendor!</h2>
+            <h2 className="text-lg font-semibold">Become a Supplier!</h2>
             <button 
               onClick={closeAllVendorModals}
               className="text-2xl font-light hover:text-gray-600" 

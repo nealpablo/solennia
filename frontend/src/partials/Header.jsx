@@ -171,7 +171,7 @@ export default function Header() {
         {/* NAV LINKS - Desktop */}
         <ul className="hidden md:flex items-center gap-6 text-sm font-medium">
           <li><Link to="/venue" className="hover:underline">VENUE</Link></li>
-          <li><Link to="/vendors" className="hover:underline">VENDORS</Link></li>
+          <li><Link to="/vendors" className="hover:underline">SUPPLIERS</Link></li>
           <li><Link to="/about" className="hover:underline">ABOUT US</Link></li>
         </ul>
 

@@ -79,7 +79,7 @@ export default function Vendors() {
       {/* Page Header - Centered */}
       <div className="mb-8">
         <h1 className="text-3xl md:text-4xl tracking-[0.25em] text-center mb-2">
-          MEET OUR VENDORS
+          MEET OUR SUPPLIERS
         </h1>
       </div>
 
@@ -172,7 +172,7 @@ function VendorCard({ vendor, navigate }) {
     
     const token = localStorage.getItem("solennia_token");
     if (!token) {
-      toast.warning("Please login to chat with vendors");
+      toast.warning("Please login to chat with suppliers");
       return;
     }
 
@@ -199,7 +199,7 @@ function VendorCard({ vendor, navigate }) {
     
     const token = localStorage.getItem("solennia_token");
     if (!token) {
-      toast.warning("Please login to book this vendor");
+      toast.warning("Please login to book this supplier");
       return;
     }
 

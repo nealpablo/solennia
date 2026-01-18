@@ -166,7 +166,7 @@ export default function Profile() {
     
     setProcessingBooking(true);
     try {
-      const res = await fetch(`${API}/api/bookings/${bookingId}/status`, {
+      const res = await fetch(`${API}/bookings/${bookingId}/status`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -198,7 +198,7 @@ export default function Profile() {
     
     setProcessingBooking(true);
     try {
-      const res = await fetch(`${API}/api/bookings/${bookingId}/status`, {
+      const res = await fetch(`${API}/bookings/${bookingId}/status`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -230,7 +230,7 @@ export default function Profile() {
     
     setProcessingBooking(true);
     try {
-      const res = await fetch(`${API}/api/bookings/${bookingId}/cancel`, {
+      const res = await fetch(`${API}/bookings/${bookingId}/cancel`, {
         method: 'PATCH',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -604,7 +604,7 @@ export default function Profile() {
                         vendorStatus === "pending" ? "opacity-50 cursor-not-allowed" : ""
                       }`}
                     >
-                      {vendorStatus === "pending" ? "Application Pending" : "Join as Vendor"}
+                      {vendorStatus === "pending" ? "Application Pending" : "Join as Supplier"}
                     </button>
                   )}
                 </div>
