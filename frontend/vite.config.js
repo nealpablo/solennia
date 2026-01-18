@@ -1,8 +1,10 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-// ✅ Backend URL - default to Railway
-const BACKEND = process.env.VITE_BACKEND_URL || "https://solennia.up.railway.app";
+// ✅ Use local backend in development, Railway in production
+const BACKEND = process.env.NODE_ENV === 'production' 
+  ? "https://solennia.up.railway.app"
+  : "http://localhost:8000"; // Your local PHP server
 
 export default defineConfig({
   plugins: [react()],
@@ -14,12 +16,10 @@ export default defineConfig({
         target: BACKEND,
         changeOrigin: true,
         secure: false,
-        // Add timeout to handle slow Railway responses
         timeout: 30000,
       },
     },
   },
-  // Optimize for Railway connection
   optimizeDeps: {
     exclude: []
   }

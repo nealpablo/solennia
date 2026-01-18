@@ -1,11 +1,9 @@
 <?php
 /**
  * ============================================
- * BOOKING CONTROLLER
+ * BOOKING CONTROLLER - CORRECTED VERSION
  * ============================================
- * Handles all booking-related operations
- * Developer: Ryan (01-17_Ryan_Manual-Booking)
- * Date: January 2026
+ * Fixed to use event_service_provider table (not vendor_application)
  * ============================================
  */
 
@@ -49,7 +47,7 @@ class BookingController
 
     /**
      * ============================================
-     * CREATE BOOKING (UC05)
+     * CREATE BOOKING (UC05) - CORRECTED
      * ============================================
      * POST /api/bookings/create
      * ============================================
@@ -68,6 +66,10 @@ class BookingController
 
             $userId = $user->mysql_id;
             $data = (array) $req->getParsedBody();
+
+            // Log incoming request for debugging
+            error_log("CREATE_BOOKING: User ID: {$userId}");
+            error_log("CREATE_BOOKING: Request data: " . json_encode($data));
 
             // Validate required fields
             $required = ['vendor_id', 'service_name', 'event_date', 'event_location'];
@@ -89,25 +91,31 @@ class BookingController
                 ], 400);
             }
 
-            // Get the event_service_provider record for this vendor
+            // ✅ FIX: Get the event_service_provider record for this vendor
             $vendorUserId = $data['vendor_id'];
             
+            error_log("CREATE_BOOKING: Looking for event_service_provider with UserID: {$vendorUserId}");
+            
+            // ✅ FIX: Use event_service_provider table (this is what the FK points to!)
             $eventServiceProvider = DB::table('event_service_provider')
                 ->where('UserID', $vendorUserId)
                 ->where('ApplicationStatus', 'Approved')
                 ->first();
 
             if (!$eventServiceProvider) {
+                error_log("CREATE_BOOKING: Event Service Provider not found or not approved for UserID: {$vendorUserId}");
                 return $this->json($res, [
                     'success' => false,
                     'error' => 'Vendor not found or not verified'
                 ], 404);
             }
 
-            // Create booking
+            error_log("CREATE_BOOKING: Found Event Service Provider ID: {$eventServiceProvider->ID}");
+
+            // ✅ FIX: Create booking with correct EventServiceProviderID
             $bookingId = DB::table('booking')->insertGetId([
                 'UserID' => $userId,
-                'EventServiceProviderID' => $eventServiceProvider->ID,
+                'EventServiceProviderID' => $eventServiceProvider->ID, // ✅ This matches the FK constraint
                 'ServiceName' => $data['service_name'],
                 'EventDate' => $eventDate,
                 'EventLocation' => $data['event_location'],
@@ -121,6 +129,8 @@ class BookingController
                 'CreatedAt' => DB::raw('NOW()'),
                 'CreatedBy' => $userId
             ]);
+
+            error_log("CREATE_BOOKING: Created booking ID: {$bookingId}");
 
             // Get client name for notification
             $client = DB::table('credential')
@@ -138,14 +148,14 @@ class BookingController
                 "{$clientName} has requested to book {$data['service_name']} for {$eventDate}"
             );
 
-            // Get the created booking with vendor details
+            // ✅ FIX: Get the created booking with vendor details from event_service_provider
             $booking = DB::table('booking as b')
                 ->select([
                     'b.*',
                     'esp.BusinessName as vendor_business_name',
+                    'esp.BusinessEmail as vendor_email',
                     'c.first_name as vendor_first_name',
-                    'c.last_name as vendor_last_name',
-                    'c.email as vendor_email'
+                    'c.last_name as vendor_last_name'
                 ])
                 ->leftJoin('event_service_provider as esp', 'b.EventServiceProviderID', '=', 'esp.ID')
                 ->leftJoin('credential as c', 'esp.UserID', '=', 'c.id')
@@ -170,7 +180,7 @@ class BookingController
 
     /**
      * ============================================
-     * GET USER'S BOOKINGS
+     * GET USER'S BOOKINGS - CORRECTED
      * ============================================
      * GET /api/bookings/user
      * ============================================
@@ -193,7 +203,7 @@ class BookingController
             $params = $req->getQueryParams();
             $status = $params['status'] ?? null;
 
-            // Build query
+            // ✅ FIX: Build query with event_service_provider
             $query = DB::table('booking as b')
                 ->select([
                     'b.*',
@@ -202,29 +212,23 @@ class BookingController
                     'c.first_name as vendor_first_name',
                     'c.last_name as vendor_last_name',
                     'c.email as vendor_email',
-                    'c.phone as vendor_phone',
-                    'c.firebase_uid as vendor_firebase_uid'
                 ])
                 ->leftJoin('event_service_provider as esp', 'b.EventServiceProviderID', '=', 'esp.ID')
                 ->leftJoin('credential as c', 'esp.UserID', '=', 'c.id')
                 ->where('b.UserID', $userId);
 
-            // Filter by status if provided
-            if ($status && in_array($status, ['Pending', 'Confirmed', 'Cancelled', 'Completed', 'Rejected'])) {
+            // Apply status filter if provided
+            if ($status) {
                 $query->where('b.BookingStatus', $status);
             }
 
-            // Order by most recent first
             $bookings = $query->orderBy('b.CreatedAt', 'desc')->get();
 
-            // Add computed fields
-            $bookings = $bookings->map(function($booking) {
+            // Add computed vendor name
+            foreach ($bookings as $booking) {
                 $booking->vendor_name = $booking->vendor_business_name ?? 
                     (($booking->vendor_first_name ?? '') . ' ' . ($booking->vendor_last_name ?? ''));
-                $booking->vendor_name = trim($booking->vendor_name) ?: 'Unknown Vendor';
-                
-                return $booking;
-            });
+            }
 
             return $this->json($res, [
                 'success' => true,
@@ -235,14 +239,14 @@ class BookingController
             error_log("GET_USER_BOOKINGS_ERROR: " . $e->getMessage());
             return $this->json($res, [
                 'success' => false,
-                'error' => 'Failed to load bookings'
+                'error' => 'Failed to load your bookings'
             ], 500);
         }
     }
 
     /**
      * ============================================
-     * GET VENDOR'S BOOKINGS
+     * GET VENDOR'S BOOKING REQUESTS - CORRECTED
      * ============================================
      * GET /api/bookings/vendor
      * ============================================
@@ -261,20 +265,7 @@ class BookingController
 
             $vendorUserId = $user->mysql_id;
 
-            // Check if user is a vendor (role = 1)
-            $isVendor = DB::table('credential')
-                ->where('id', $vendorUserId)
-                ->where('role', 1)
-                ->exists();
-
-            if (!$isVendor) {
-                return $this->json($res, [
-                    'success' => false,
-                    'error' => 'Only vendors can access this endpoint'
-                ], 403);
-            }
-
-            // Get vendor's event_service_provider record
+            // ✅ FIX: Get vendor's event_service_provider ID
             $esp = DB::table('event_service_provider')
                 ->where('UserID', $vendorUserId)
                 ->where('ApplicationStatus', 'Approved')
@@ -283,40 +274,45 @@ class BookingController
             if (!$esp) {
                 return $this->json($res, [
                     'success' => false,
-                    'error' => 'Vendor profile not found'
-                ], 404);
+                    'error' => 'You are not a registered vendor'
+                ], 403);
             }
 
-            // Get query parameters
+            // Get query parameters for filtering
             $params = $req->getQueryParams();
             $status = $params['status'] ?? null;
 
-            // Build query
+            // ✅ FIX: Build query with event_service_provider
             $query = DB::table('booking as b')
                 ->select([
-                    'b.*',
+                    'b.ID as id',
+                    'b.ServiceName as service_name',
+                    'b.EventDate as event_date',
+                    'b.EventLocation as event_location',
+                    'b.EventType as event_type',
+                    'b.PackageSelected as package_selected',
+                    'b.AdditionalNotes as additional_notes',
+                    'b.TotalAmount as total_amount',
+                    'b.BookingStatus as status',
+                    'b.CreatedAt as created_at',
                     'c.first_name as client_first_name',
                     'c.last_name as client_last_name',
                     'c.email as client_email',
-                    'c.phone as client_phone'
                 ])
                 ->leftJoin('credential as c', 'b.UserID', '=', 'c.id')
                 ->where('b.EventServiceProviderID', $esp->ID);
 
-            // Filter by status if provided
+            // Apply status filter if provided
             if ($status) {
                 $query->where('b.BookingStatus', $status);
             }
 
-            // Order by most recent first
             $bookings = $query->orderBy('b.CreatedAt', 'desc')->get();
 
-            // Add computed field
-            $bookings = $bookings->map(function($booking) {
-                $booking->client_name = (($booking->client_first_name ?? '') . ' ' . ($booking->client_last_name ?? ''));
-                $booking->client_name = trim($booking->client_name) ?: 'Unknown Client';
-                return $booking;
-            });
+            // Add computed client name
+            foreach ($bookings as $booking) {
+                $booking->client_name = ($booking->client_first_name ?? '') . ' ' . ($booking->client_last_name ?? '');
+            }
 
             return $this->json($res, [
                 'success' => true,
@@ -327,14 +323,14 @@ class BookingController
             error_log("GET_VENDOR_BOOKINGS_ERROR: " . $e->getMessage());
             return $this->json($res, [
                 'success' => false,
-                'error' => 'Failed to load bookings'
+                'error' => 'Failed to load booking requests'
             ], 500);
         }
     }
 
     /**
      * ============================================
-     * GET SINGLE BOOKING DETAILS
+     * GET BOOKING DETAILS - CORRECTED
      * ============================================
      * GET /api/bookings/{id}
      * ============================================
@@ -361,25 +357,22 @@ class BookingController
                 ], 400);
             }
 
-            // Get booking with complete details
+            // ✅ FIX: Get booking with event_service_provider
             $booking = DB::table('booking as b')
                 ->select([
                     'b.*',
-                    'client.first_name as client_first_name',
-                    'client.last_name as client_last_name',
-                    'client.email as client_email',
-                    'client.phone as client_phone',
                     'esp.BusinessName as vendor_business_name',
-                    'esp.avatar as vendor_avatar',
-                    'vendor.first_name as vendor_first_name',
-                    'vendor.last_name as vendor_last_name',
-                    'vendor.email as vendor_email',
-                    'vendor.phone as vendor_phone',
-                    'vendor.firebase_uid as vendor_firebase_uid'
+                    'esp.BusinessEmail as vendor_contact_email',
+                    'vendor_cred.first_name as vendor_first_name',
+                    'vendor_cred.last_name as vendor_last_name',
+                    'vendor_cred.email as vendor_email',
+                    'client_cred.first_name as client_first_name',
+                    'client_cred.last_name as client_last_name',
+                    'client_cred.email as client_email',
                 ])
-                ->leftJoin('credential as client', 'b.UserID', '=', 'client.id')
                 ->leftJoin('event_service_provider as esp', 'b.EventServiceProviderID', '=', 'esp.ID')
-                ->leftJoin('credential as vendor', 'esp.UserID', '=', 'vendor.id')
+                ->leftJoin('credential as vendor_cred', 'esp.UserID', '=', 'vendor_cred.id')
+                ->leftJoin('credential as client_cred', 'b.UserID', '=', 'client_cred.id')
                 ->where('b.ID', $bookingId)
                 ->first();
 
@@ -390,9 +383,10 @@ class BookingController
                 ], 404);
             }
 
-            // Check if user has access
-            $isClient = ($booking->UserID == $userId);
+            // Check if user has permission to view this booking
+            $isClient = $booking->UserID == $userId;
             
+            // ✅ FIX: Check vendor permission using event_service_provider
             $isVendor = DB::table('event_service_provider')
                 ->where('ID', $booking->EventServiceProviderID)
                 ->where('UserID', $userId)
@@ -420,6 +414,187 @@ class BookingController
             return $this->json($res, [
                 'success' => false,
                 'error' => 'Failed to load booking details'
+            ], 500);
+        }
+    }
+
+    /**
+     * ============================================
+     * UPDATE BOOKING STATUS (VENDOR) - CORRECTED
+     * ============================================
+     * PATCH /api/bookings/{id}/status
+     * ============================================
+     */
+    public function updateBookingStatus(Request $req, Response $res, array $args): Response
+    {
+        try {
+            // Get authenticated user
+            $user = $req->getAttribute('user');
+            if (!$user || !isset($user->mysql_id)) {
+                return $this->json($res, [
+                    'success' => false,
+                    'error' => 'Unauthorized'
+                ], 401);
+            }
+
+            $vendorUserId = $user->mysql_id;
+            $bookingId = $args['id'] ?? null;
+            $data = (array) $req->getParsedBody();
+
+            if (!$bookingId) {
+                return $this->json($res, [
+                    'success' => false,
+                    'error' => 'Booking ID is required'
+                ], 400);
+            }
+
+            if (empty($data['status'])) {
+                return $this->json($res, [
+                    'success' => false,
+                    'error' => 'Status is required'
+                ], 400);
+            }
+
+            $newStatus = $data['status'];
+
+            // ✅ Validate status matches enum
+            if (!in_array($newStatus, ['Confirmed', 'Rejected'])) {
+                return $this->json($res, [
+                    'success' => false,
+                    'error' => 'Invalid status. Must be Confirmed or Rejected'
+                ], 400);
+            }
+
+            // ✅ FIX: Get booking with event_service_provider
+            $booking = DB::table('booking as b')
+                ->leftJoin('event_service_provider as esp', 'b.EventServiceProviderID', '=', 'esp.ID')
+                ->where('b.ID', $bookingId)
+                ->select('b.*', 'esp.UserID as vendor_user_id')
+                ->first();
+
+            if (!$booking) {
+                return $this->json($res, [
+                    'success' => false,
+                    'error' => 'Booking not found'
+                ], 404);
+            }
+
+            // Check if vendor owns this booking
+            if ($booking->vendor_user_id != $vendorUserId) {
+                return $this->json($res, [
+                    'success' => false,
+                    'error' => 'You do not have permission to update this booking'
+                ], 403);
+            }
+
+            // Update status
+            DB::table('booking')
+                ->where('ID', $bookingId)
+                ->update([
+                    'BookingStatus' => $newStatus,
+                    'UpdatedAt' => DB::raw('NOW()')
+                ]);
+
+            // Send notification to client
+            $statusText = $newStatus === 'Confirmed' ? 'accepted' : 'rejected';
+            $this->sendNotification(
+                $booking->UserID,
+                'booking_update',
+                'Booking ' . ucfirst($statusText),
+                "Your booking request for {$booking->ServiceName} has been {$statusText} by the vendor."
+            );
+
+            return $this->json($res, [
+                'success' => true,
+                'message' => 'Booking status updated successfully'
+            ]);
+
+        } catch (\Throwable $e) {
+            error_log("UPDATE_BOOKING_STATUS_ERROR: " . $e->getMessage());
+            return $this->json($res, [
+                'success' => false,
+                'error' => 'Failed to update booking status'
+            ], 500);
+        }
+    }
+
+    /**
+     * ============================================
+     * CANCEL BOOKING (CLIENT) - CORRECTED
+     * ============================================
+     * PATCH /api/bookings/{id}/cancel
+     * ============================================
+     */
+    public function cancelBooking(Request $req, Response $res, array $args): Response
+    {
+        try {
+            // Get authenticated user
+            $user = $req->getAttribute('user');
+            if (!$user || !isset($user->mysql_id)) {
+                return $this->json($res, [
+                    'success' => false,
+                    'error' => 'Unauthorized'
+                ], 401);
+            }
+
+            $userId = $user->mysql_id;
+            $bookingId = $args['id'] ?? null;
+
+            if (!$bookingId) {
+                return $this->json($res, [
+                    'success' => false,
+                    'error' => 'Booking ID is required'
+                ], 400);
+            }
+
+            // ✅ FIX: Get booking with event_service_provider
+            $booking = DB::table('booking as b')
+                ->leftJoin('event_service_provider as esp', 'b.EventServiceProviderID', '=', 'esp.ID')
+                ->where('b.ID', $bookingId)
+                ->select('b.*', 'esp.UserID as vendor_user_id')
+                ->first();
+
+            if (!$booking) {
+                return $this->json($res, [
+                    'success' => false,
+                    'error' => 'Booking not found'
+                ], 404);
+            }
+
+            // Check if user owns this booking
+            if ($booking->UserID != $userId) {
+                return $this->json($res, [
+                    'success' => false,
+                    'error' => 'You do not have permission to cancel this booking'
+                ], 403);
+            }
+
+            // Update status to Cancelled
+            DB::table('booking')
+                ->where('ID', $bookingId)
+                ->update([
+                    'BookingStatus' => 'Cancelled',
+                    'UpdatedAt' => DB::raw('NOW()')
+                ]);
+
+            // Send notification to vendor
+            $this->sendNotification(
+                $booking->vendor_user_id,
+                'booking_cancelled',
+                'Booking Cancelled',
+                "A client has cancelled their booking for {$booking->ServiceName}."
+            );
+
+            return $this->json($res, [
+                'success' => true,
+                'message' => 'Booking cancelled successfully'
+            ]);
+
+        } catch (\Throwable $e) {
+            error_log("CANCEL_BOOKING_ERROR: " . $e->getMessage());
+            return $this->json($res, [
+                'success' => false,
+                'error' => 'Failed to cancel booking'
             ], 500);
         }
     }

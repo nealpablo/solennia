@@ -48,6 +48,38 @@ return function (App $app) {
     };
 
     /* ===========================================================
+     * SEND NOTIFICATION HELPER
+     * =========================================================== */
+    $sendNotification = function ($userId, $type, $title, $message) {
+        try {
+            DB::table('notifications')->insert([
+                'user_id' => $userId,
+                'type' => $type,
+                'title' => $title,
+                'message' => $message,
+                'read' => false,
+                'created_at' => date('Y-m-d H:i:s')
+            ]);
+        } catch (\Throwable $e) {
+            error_log("NOTIFICATION_ERROR: " . $e->getMessage());
+        }
+    };
+
+    /* ===========================================================
+     * SEND TO ADMINS HELPER
+     * =========================================================== */
+    $sendToAdmins = function ($type, $title, $message) use ($sendNotification) {
+        try {
+            $admins = DB::table('credential')->where('role', 1)->pluck('id');
+            foreach ($admins as $adminId) {
+                $sendNotification($adminId, $type, $title, $message);
+            }
+        } catch (\Throwable $e) {
+            error_log("SEND_TO_ADMINS_ERROR: " . $e->getMessage());
+        }
+    };
+
+    /* ===========================================================
      * CORS MIDDLEWARE - HANDLES ALL PREFLIGHT REQUESTS
      * =========================================================== */
     $app->add(function ($request, $handler) {
@@ -167,9 +199,10 @@ return function (App $app) {
         $userId = (int)$auth->mysql_id;
 
         try {
-            $vendor = DB::table('event_service_provider')
-                ->where('UserID', $userId)
-                ->where('ApplicationStatus', 'Approved')
+            // ✅ FIX: Use vendor_application instead of event_service_provider
+            $vendor = DB::table('vendor_application')
+                ->where('user_id', $userId)
+                ->where('status', 'Approved')
                 ->first();
 
             if (!$vendor) {
@@ -197,15 +230,22 @@ return function (App $app) {
     })->add(new AuthMiddleware());
 
     /* ===========================================================
-     * PUBLIC VENDORS (CORS FIXED)
+     * PUBLIC VENDORS (✅ FIXED FOR vendor_application TABLE)
      * =========================================================== */
     $app->get('/api/vendors/public', function (Request $req, Response $res) use ($json) {
         try {
-            $vendors = DB::table('event_service_provider as esp')
-                ->leftJoin('credential as c', 'esp.UserID', '=', 'c.id')
-                ->where('esp.ApplicationStatus', 'Approved')
-                ->whereNotNull('esp.avatar')
-                ->orderByDesc('esp.DateApplied')
+            // ✅ FIX: Use vendor_application instead of event_service_provider
+            $vendors = DB::table('vendor_application as va')
+                ->leftJoin('credential as c', 'va.user_id', '=', 'c.id')
+                ->where('va.status', 'Approved')
+                ->orderByDesc('va.created_at')
+                ->select(
+                    'va.*',
+                    'c.first_name',
+                    'c.last_name',
+                    'c.email',
+                    'c.avatar as user_avatar'
+                )
                 ->get();
 
             return $json($res, [
@@ -215,23 +255,25 @@ return function (App $app) {
 
         } catch (\Throwable $e) {
             error_log('VENDORS_PUBLIC_ERROR: ' . $e->getMessage());
+            error_log('Stack trace: ' . $e->getTraceAsString());
             return $json($res, ['success' => false, 'error' => 'Failed to load vendors'], 500);
         }
     });
 
     /* ===========================================================
-     * GET SINGLE VENDOR (PUBLIC)
+     * GET SINGLE VENDOR (PUBLIC) - ✅ FIXED
      * =========================================================== */
     $app->get('/api/vendor/public/{userId}', function (Request $req, Response $res, array $args) use ($json) {
         try {
             $userId = (int) $args['userId'];
 
-            $vendor = DB::table('event_service_provider as esp')
-                ->leftJoin('credential as c', 'esp.UserID', '=', 'c.id')
-                ->where('esp.UserID', $userId)
-                ->where('esp.ApplicationStatus', 'Approved')
+            // ✅ FIX: Use vendor_application instead of event_service_provider
+            $vendor = DB::table('vendor_application as va')
+                ->leftJoin('credential as c', 'va.user_id', '=', 'c.id')
+                ->where('va.user_id', $userId)
+                ->where('va.status', 'Approved')
                 ->select(
-                    'esp.*',
+                    'va.*',
                     'c.firebase_uid',
                     'c.first_name',
                     'c.last_name',
@@ -253,42 +295,21 @@ return function (App $app) {
                 ->pluck('image_url')
                 ->toArray();
 
-            // Handle both JSON and plain text for services
-            $services = $vendor->services;
-            if ($services) {
-                $decoded = @json_decode($services, true);
-                if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
-                    $services = $decoded;
-                }
-            }
-
-            // Handle both JSON and plain text for service_areas
-            $service_areas = $vendor->service_areas;
-            if ($service_areas) {
-                $decoded = @json_decode($service_areas, true);
-                if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
-                    $service_areas = $decoded;
-                }
-            }
-
             $vendorData = [
-                'id' => $vendor->ID,
-                'user_id' => $vendor->UserID,
+                'id' => $vendor->id,
+                'user_id' => $vendor->user_id,
                 'firebase_uid' => $vendor->firebase_uid,
-                'owner_name' => trim($vendor->first_name . ' ' . $vendor->last_name),
-                'business_name' => $vendor->BusinessName,
-                'category' => $vendor->Category,
-                'description' => $vendor->Description,
-                'bio' => $vendor->bio,
-                'pricing' => $vendor->Pricing,
-                'services' => $services ?: null,
-                'service_areas' => $service_areas ?: null,
-                'business_email' => $vendor->BusinessEmail,
-                'business_address' => $vendor->BusinessAddress,
-                'hero_image_url' => $vendor->HeroImageUrl,
-                'vendor_logo' => $vendor->avatar,
+                'owner_name' => trim(($vendor->first_name ?? '') . ' ' . ($vendor->last_name ?? '')),
+                'business_name' => $vendor->business_name,
+                'category' => $vendor->category,
+                'description' => $vendor->description,
+                'pricing' => $vendor->pricing,
+                'contact_email' => $vendor->contact_email,
+                'address' => $vendor->address,
+                'portfolio' => $vendor->portfolio,
                 'user_avatar' => $vendor->user_avatar,
-                'gallery' => $gallery
+                'gallery' => $gallery,
+                'status' => $vendor->status
             ];
 
             return $json($res, [

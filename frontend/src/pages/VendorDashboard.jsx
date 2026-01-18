@@ -16,9 +16,7 @@ export default function VendorDashboard() {
   const navigate = useNavigate();
 
   // Status tracking
-  const [vendorStatus, setVendorStatus] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [needsSetup, setNeedsSetup] = useState(false);
 
   // Dashboard data
   const [vendor, setVendor] = useState(null);
@@ -30,19 +28,8 @@ export default function VendorDashboard() {
   const [showHero, setShowHero] = useState(false);
   const [showLogo, setShowLogo] = useState(false);
 
-  // Profile setup form
-  const [setupForm, setSetupForm] = useState({
-    bio: "",
-    services: "",
-    service_areas: "",
-    logo: null,
-    hero: null,
-  });
-  const [submittingSetup, setSubmittingSetup] = useState(false);
-
   // Edit form
   const [form, setForm] = useState({
-    business_name: "",
     bio: "",
     services: "",
     service_areas: "",
@@ -68,138 +55,62 @@ export default function VendorDashboard() {
     return data;
   }
 
-  /* ================= ✅ NEW: CHECK VENDOR STATUS ================= */
+  /* ================= ✅ FIXED: LOAD DASHBOARD DIRECTLY ================= */
   useEffect(() => {
-    async function checkStatus() {
+    async function init() {
+      if (!token) {
+        navigate("/");
+        return;
+      }
+
       try {
-        const data = await safeFetch(`${API}/vendor/status`);
-        
-        setVendorStatus(data);
-
-        // Check if this is a venue vendor
-        if (data.category && data.category.toLowerCase() === "venue") {
-          navigate("/venue-dashboard");
-          return;
-        }
-
-        // ✅ NEW: Check if needs profile setup
-        if (data.needs_setup) {
-          setNeedsSetup(true);
-          setLoading(false);
-          return;
-        }
-
-        // ✅ Check if has profile
-        if (data.has_profile) {
-          setNeedsSetup(false);
-          setLoading(false);
-          loadDashboard();
-          return;
-        }
-
-        // Not approved yet
-        if (data.status === "pending") {
-          toast.warning("Your vendor application is pending approval.");
-          navigate("/profile");
-          return;
-        }
-
-        // No application
-        if (data.status === "none") {
-          toast.warning("Please apply as a vendor first.");
-          navigate("/profile");
-          return;
-        }
-
+        await loadDashboard();
+        setLoading(false);
       } catch (err) {
-        console.error("Failed to check vendor status:", err);
-        toast.error(err.message);
-        navigate("/profile");
+        console.error("Failed to load vendor dashboard:", err);
+        toast.error("Failed to load dashboard");
+        setLoading(false);
       }
     }
 
-    if (token) {
-      checkStatus();
-    } else {
-      navigate("/");
-    }
+    init();
 
     return () => chartInstance.current?.destroy();
   }, [token, navigate]);
 
-  /* ================= ✅ NEW: CREATE VENDOR PROFILE ================= */
-  async function handleProfileSetup(e) {
-    e.preventDefault();
-    setSubmittingSetup(true);
-
-    try {
-      // Validate
-      if (!setupForm.bio || !setupForm.services || !setupForm.service_areas) {
-        toast.warning("Please fill in all required fields");
-        setSubmittingSetup(false);
-        return;
-      }
-
-      if (!setupForm.logo) {
-        toast.warning("Please upload a business logo");
-        setSubmittingSetup(false);
-        return;
-      }
-
-      // Create FormData
-      const fd = new FormData();
-      fd.append("bio", setupForm.bio);
-      fd.append("services", setupForm.services);
-      fd.append("service_areas", setupForm.service_areas);
-      fd.append("logo", setupForm.logo);
-      if (setupForm.hero) {
-        fd.append("hero", setupForm.hero);
-      }
-
-      // Submit
-      const data = await safeFetch(`${API}/vendor/profile/create`, {
-        method: "POST",
-        body: fd,
-      });
-
-      toast.success("Profile created successfully! You're now visible to clients.");
-      
-      // Reload page to show dashboard
-      setNeedsSetup(false);
-      loadDashboard();
-
-    } catch (err) {
-      toast.error(err.message);
-    } finally {
-      setSubmittingSetup(false);
-    }
-  }
-
-  /* ================= LOAD DASHBOARD ================= */
+  /* ================= ✅ FIXED: LOAD DASHBOARD & BOOKINGS ================= */
   async function loadDashboard() {
     try {
-      const body = await safeFetch(`${API}/vendor/dashboard`);
-      setVendor(body.vendor);
-      setBookings(body.bookings || [{ title: "No bookings", count: 0 }]);
+      // Load vendor dashboard
+      const dashData = await safeFetch(`${API}/vendor/dashboard`);
+      console.log("Dashboard data:", dashData);
       
-      // ✅ FIXED: Set gallery from response
-      console.log("Gallery data:", body.gallery); // Debug log
-      setGallery(body.gallery || []);
+      setVendor(dashData.vendor);
+      setGallery(dashData.gallery || []);
 
-      // Chart
-      if (body.insights && chartRef.current) {
+      // ✅ NEW: Load vendor bookings
+      const bookingsData = await safeFetch(`${API}/bookings/vendor`);
+      console.log("Bookings data:", bookingsData);
+      
+      if (bookingsData.success && bookingsData.bookings) {
+        setBookings(bookingsData.bookings);
+      }
+
+      // Chart (if available)
+      if (dashData.insights && chartRef.current) {
         chartInstance.current?.destroy();
         
         try {
           chartInstance.current = new Chart(chartRef.current, {
             type: "line",
-            data: body.insights || { labels: [], datasets: [] },
+            data: dashData.insights || { labels: [], datasets: [] },
           });
         } catch (e) {
           console.error("Chart error:", e);
         }
       }
     } catch (err) {
+      console.error("Load dashboard error:", err);
       toast.error(err.message);
     }
   }
@@ -207,7 +118,6 @@ export default function VendorDashboard() {
   /* ================= EDIT PROFILE ================= */
   function openEdit() {
     setForm({
-      business_name: vendor.business_name || "",
       bio: vendor.bio || "",
       services: Array.isArray(vendor.services)
         ? vendor.services.join(", ")
@@ -260,7 +170,7 @@ export default function VendorDashboard() {
     fd.append("logo", file);
     
     try {
-      const body = await safeFetch(`${API}/vendor/logo`, { 
+      await safeFetch(`${API}/vendor/logo`, { 
         method: "POST", 
         body: fd 
       });
@@ -273,15 +183,13 @@ export default function VendorDashboard() {
     }
   }
 
-  /* ================= ✅ FIXED: UPLOAD GALLERY ================= */
+  /* ================= UPLOAD GALLERY ================= */
   async function uploadGallery(files) {
-    // ✅ Validate file count
     if (files.length > 10) {
       toast.error("Maximum 10 images per upload");
       return;
     }
 
-    // ✅ Validate file sizes
     const maxSize = 10 * 1024 * 1024; // 10MB
     for (let file of files) {
       if (file.size > maxSize) {
@@ -291,11 +199,8 @@ export default function VendorDashboard() {
     }
 
     const fd = new FormData();
-    
-    // ✅ FIXED: Use "gallery" instead of "gallery[]"
-    // Backend expects: $files = $request->getUploadedFiles()['gallery'] ?? [];
     Array.from(files).forEach((f) => {
-      fd.append("gallery[]", f); // PHP will parse this as an array
+      fd.append("gallery[]", f);
     });
     
     try {
@@ -306,9 +211,6 @@ export default function VendorDashboard() {
         body: fd,
       });
       
-      console.log("Upload result:", result); // Debug log
-      
-      // Reload dashboard to show new images
       loadDashboard();
       
       if (result.errors && result.errors.length > 0) {
@@ -317,204 +219,35 @@ export default function VendorDashboard() {
         toast.success(`Gallery updated! ${result.images?.length || 0} image(s) uploaded.`);
       }
     } catch (err) {
-      console.error("Gallery upload error:", err); // Debug log
       toast.error(err.message);
     }
   }
 
-  /* ================= ✅ RENDER: PROFILE SETUP FORM ================= */
-  if (needsSetup) {
-    return (
-      <div className="vendor-dashboard">
-        <style>{`
-          .setup-container {
-            max-width: 800px;
-            margin: 80px auto 40px;
-            padding: 40px;
-            background: #f6f0e8;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-          }
-          .setup-header {
-            text-align: center;
-            margin-bottom: 30px;
-          }
-          .setup-header h1 {
-            color: #7a5d47;
-            font-size: 32px;
-            margin-bottom: 10px;
-          }
-          .setup-header p {
-            color: #666;
-            font-size: 16px;
-          }
-          .setup-form {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-          }
-          .form-group {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-          }
-          .form-group label {
-            font-weight: 600;
-            color: #7a5d47;
-          }
-          .form-group label .required {
-            color: #dc2626;
-          }
-          .form-group input,
-          .form-group textarea {
-            padding: 12px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            font-family: inherit;
-            font-size: 14px;
-          }
-          .form-group textarea {
-            min-height: 100px;
-            resize: vertical;
-          }
-          .file-upload {
-            border: 2px dashed #ddd;
-            border-radius: 8px;
-            padding: 20px;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s;
-          }
-          .file-upload:hover {
-            border-color: #7a5d47;
-            background: #fff;
-          }
-          .file-upload input {
-            display: none;
-          }
-          .file-name {
-            margin-top: 10px;
-            font-size: 14px;
-            color: #666;
-          }
-          .btn-submit {
-            background: #7a5d47;
-            color: white;
-            padding: 15px 30px;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-          }
-          .btn-submit:hover:not(:disabled) {
-            background: #5d4436;
-            transform: translateY(-2px);
-          }
-          .btn-submit:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-          }
-        `}</style>
-
-        <div className="setup-container">
-          <div className="setup-header">
-            <h1>🎉 Complete Your Vendor Profile</h1>
-            <p>Your vendor application has been approved! Please fill in the details below to activate your profile.</p>
-          </div>
-
-          <form className="setup-form" onSubmit={handleProfileSetup}>
-            <div className="form-group">
-              <label>
-                Business Bio <span className="required">*</span>
-              </label>
-              <textarea
-                value={setupForm.bio}
-                onChange={(e) => setSetupForm({ ...setupForm, bio: e.target.value })}
-                placeholder="Tell clients about your business, experience, and what makes you special..."
-                required
-              />
-            </div>
-
-            <div className="form-group">
-              <label>
-                Services Offered <span className="required">*</span>
-              </label>
-              <textarea
-                value={setupForm.services}
-                onChange={(e) => setSetupForm({ ...setupForm, services: e.target.value })}
-                placeholder="List your services (e.g., Wedding Photography, Event Catering, Floral Arrangements)"
-                required
-              />
-            </div>
-
-            <div className="form-group">
-              <label>
-                Service Areas <span className="required">*</span>
-              </label>
-              <input
-                type="text"
-                value={setupForm.service_areas}
-                onChange={(e) => setSetupForm({ ...setupForm, service_areas: e.target.value })}
-                placeholder="Where do you serve? (e.g., Metro Manila, Quezon City, NCR)"
-                required
-              />
-            </div>
-
-            <div className="form-group">
-              <label>
-                Business Logo <span className="required">*</span>
-              </label>
-              <label className="file-upload">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => setSetupForm({ ...setupForm, logo: e.target.files[0] })}
-                  required
-                />
-                <div>📸 Click to upload your business logo</div>
-                {setupForm.logo && (
-                  <div className="file-name">Selected: {setupForm.logo.name}</div>
-                )}
-              </label>
-            </div>
-
-            <div className="form-group">
-              <label>
-                Hero Image (Optional)
-              </label>
-              <label className="file-upload">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => setSetupForm({ ...setupForm, hero: e.target.files[0] })}
-                />
-                <div>🖼️ Click to upload a hero/banner image</div>
-                {setupForm.hero && (
-                  <div className="file-name">Selected: {setupForm.hero.name}</div>
-                )}
-              </label>
-            </div>
-
-            <button
-              type="submit"
-              className="btn-submit"
-              disabled={submittingSetup}
-            >
-              {submittingSetup ? "Creating Profile..." : "Activate My Profile"}
-            </button>
-          </form>
-        </div>
-      </div>
-    );
-  }
+  /* ================= ✅ NEW: BOOKING STATUS BADGE ================= */
+  const getStatusBadge = (status) => {
+    const statusMap = {
+      'Pending': 'background: #fef3c7; color: #92400e; border: 1px solid #fbbf24',
+      'Confirmed': 'background: #d1fae5; color: #065f46; border: 1px solid #10b981',
+      'Rejected': 'background: #fee2e2; color: #991b1b; border: 1px solid #ef4444',
+      'Cancelled': 'background: #f3f4f6; color: #374151; border: 1px solid #9ca3af',
+      'Completed': 'background: #dbeafe; color: #1e40af; border: 1px solid #3b82f6',
+    };
+    
+    return statusMap[status] || statusMap['Pending'];
+  };
 
   /* ================= LOADING STATE ================= */
   if (loading) {
     return (
       <div className="vendor-dashboard" style={{ textAlign: "center", padding: "100px 20px" }}>
-        <h2>Loading vendor dashboard...</h2>
+        <div style={{ display: "inline-block", width: "50px", height: "50px", border: "5px solid #f3f3f3", borderTop: "5px solid #7a5d47", borderRadius: "50%", animation: "spin 1s linear infinite" }}></div>
+        <style>{`
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}</style>
+        <h2 style={{ marginTop: "20px", color: "#7a5d47" }}>Loading dashboard...</h2>
       </div>
     );
   }
@@ -524,7 +257,21 @@ export default function VendorDashboard() {
     return (
       <div className="vendor-dashboard" style={{ textAlign: "center", padding: "100px 20px" }}>
         <h2>Vendor profile not found</h2>
-        <p>Please contact support if this issue persists.</p>
+        <p>Please make sure you're logged in as an approved vendor.</p>
+        <button 
+          onClick={() => navigate("/profile")}
+          style={{
+            marginTop: "20px",
+            padding: "10px 20px",
+            background: "#7a5d47",
+            color: "white",
+            border: "none",
+            borderRadius: "6px",
+            cursor: "pointer"
+          }}
+        >
+          Go to Profile
+        </button>
       </div>
     );
   }
@@ -600,35 +347,60 @@ export default function VendorDashboard() {
         .btn-secondary:hover {
           background: #d0d0d0;
         }
-        .stats-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-          gap: 20px;
-          margin-bottom: 30px;
-        }
-        .stat-card {
+        .bookings-section {
           background: white;
-          padding: 20px;
-          border-radius: 8px;
+          padding: 30px;
+          border-radius: 12px;
+          margin-bottom: 30px;
           box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
-        .stat-card h4 {
-          margin: 0 0 10px 0;
-          color: #666;
+        .booking-card {
+          background: #f9fafb;
+          padding: 20px;
+          border-radius: 8px;
+          margin-bottom: 15px;
+          border: 1px solid #e5e7eb;
+        }
+        .booking-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: start;
+          margin-bottom: 15px;
+        }
+        .booking-title {
+          font-size: 18px;
+          font-weight: 600;
+          color: #1f2937;
+          margin: 0 0 5px 0;
+        }
+        .booking-client {
+          font-size: 14px;
+          color: #6b7280;
+        }
+        .status-badge {
+          padding: 6px 12px;
+          border-radius: 20px;
+          font-size: 12px;
+          font-weight: 600;
+        }
+        .booking-details {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+          gap: 15px;
           font-size: 14px;
         }
-        .stat-card p {
-          margin: 0;
-          font-size: 32px;
-          font-weight: bold;
-          color: #7a5d47;
+        .booking-detail {
+          display: flex;
+          flex-direction: column;
         }
-        .chart-container {
-          background: white;
-          padding: 20px;
-          border-radius: 8px;
-          margin-bottom: 30px;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        .booking-label {
+          color: #6b7280;
+          font-size: 12px;
+          margin-bottom: 4px;
+        }
+        .booking-value {
+          color: #1f2937;
+          font-weight: 500;
         }
         .gallery-grid {
           display: grid;
@@ -704,15 +476,15 @@ export default function VendorDashboard() {
       <div className="profile-card">
         <div className="profile-header">
           <img 
-            src={vendor.vendor_logo || "/default-logo.png"} 
+            src={vendor.portfolio || "/default-logo.png"} 
             alt="Business Logo"
             className="profile-logo"
           />
           <div className="profile-info">
             <h3>{vendor.business_name}</h3>
             <p><strong>Category:</strong> {vendor.category}</p>
-            <p><strong>Email:</strong> {vendor.business_email}</p>
-            <p><strong>Address:</strong> {vendor.business_address}</p>
+            <p><strong>Email:</strong> {vendor.contact_email}</p>
+            <p><strong>Address:</strong> {vendor.address}</p>
             
             <div className="profile-actions">
               <button onClick={openEdit} className="btn btn-primary">
@@ -729,21 +501,62 @@ export default function VendorDashboard() {
         </div>
       </div>
 
-      {/* Stats */}
-      <h2>Dashboard Overview</h2>
-      <div className="stats-grid">
-        {bookings.map((b, i) => (
-          <div key={i} className="stat-card">
-            <h4>{b.title}</h4>
-            <p>{b.count}</p>
-          </div>
-        ))}
-      </div>
+      {/* ✅ NEW: Bookings Section */}
+      <div className="bookings-section">
+        <h2>Booking Requests ({bookings.length})</h2>
+        
+        {bookings.length === 0 ? (
+          <p style={{ color: "#6b7280", textAlign: "center", padding: "40px 0" }}>
+            No booking requests yet. Bookings will appear here when clients book your services.
+          </p>
+        ) : (
+          <>
+            {bookings.map((booking) => (
+              <div key={booking.ID} className="booking-card">
+                <div className="booking-header">
+                  <div>
+                    <h3 className="booking-title">{booking.ServiceName}</h3>
+                    <p className="booking-client">Client: {booking.client_name}</p>
+                  </div>
+                  <span 
+                    className="status-badge" 
+                    style={getStatusBadge(booking.BookingStatus)}
+                  >
+                    {booking.BookingStatus}
+                  </span>
+                </div>
+                
+                <div className="booking-details">
+                  <div className="booking-detail">
+                    <span className="booking-label">Event Date</span>
+                    <span className="booking-value">
+                      {new Date(booking.EventDate).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <div className="booking-detail">
+                    <span className="booking-label">Event Type</span>
+                    <span className="booking-value">{booking.EventType}</span>
+                  </div>
+                  <div className="booking-detail">
+                    <span className="booking-label">Venue</span>
+                    <span className="booking-value">{booking.Venue}</span>
+                  </div>
+                  <div className="booking-detail">
+                    <span className="booking-label">Guests</span>
+                    <span className="booking-value">{booking.NumberOfGuests}</span>
+                  </div>
+                </div>
 
-      {/* Chart */}
-      <div className="chart-container">
-        <h3>Profile Analytics</h3>
-        <canvas ref={chartRef}></canvas>
+                {booking.SpecialRequests && (
+                  <div style={{ marginTop: "15px", paddingTop: "15px", borderTop: "1px solid #e5e7eb" }}>
+                    <span className="booking-label">Special Requests:</span>
+                    <p style={{ margin: "5px 0 0 0", color: "#374151" }}>{booking.SpecialRequests}</p>
+                  </div>
+                )}
+              </div>
+            ))}
+          </>
+        )}
       </div>
 
       {/* Gallery */}
@@ -786,15 +599,6 @@ export default function VendorDashboard() {
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h3>Edit Profile Information</h3>
             <form onSubmit={submitEdit}>
-              <label>
-                Business Name
-                <input
-                  type="text"
-                  value={form.business_name}
-                  onChange={(e) => setForm({ ...form, business_name: e.target.value })}
-                />
-              </label>
-              
               <label>
                 Bio
                 <textarea

@@ -1,4 +1,11 @@
 <?php
+// ============================================================
+// SUPPRESS ALL PHP ERRORS FROM DISPLAYING
+// ============================================================
+ini_set('display_errors', '0');
+ini_set('display_startup_errors', '0');
+error_reporting(0);
+
 use Slim\Factory\AppFactory;
 use Dotenv\Dotenv;
 
@@ -101,7 +108,12 @@ $app->add(function ($request, $handler) {
 // -------------------------------------------------------------
 // DB bootstrap (use optimized version)
 // -------------------------------------------------------------
-require BASE_PATH . '/src/bootstrap.php';
+try {
+    require BASE_PATH . '/src/bootstrap.php';
+} catch (Throwable $e) {
+    error_log("BOOTSTRAP ERROR: " . $e->getMessage());
+    // Continue - we'll handle this in routes
+}
 
 // -------------------------------------------------------------
 // Routes with Enhanced Logging
@@ -114,42 +126,37 @@ $loadRoutes = function (string $rel) use ($app) {
     
     if (!is_file($file)) {
         error_log("ERROR: Route file not found: {$file}");
-        error_log("Base path is: " . BASE_PATH);
-        error_log("Current directory contents: " . print_r(scandir(BASE_PATH . '/src/Routes'), true));
-        throw new RuntimeException("Route file not found: {$file}");
+        return; // Don't throw, just skip
     }
     
     error_log("Successfully found route file: {$file}");
     
-    $ret = require $file;
-    if (is_callable($ret)) {
-        $ret($app);
-        error_log("Route file loaded successfully: {$file}");
-    } else {
-        error_log("WARNING: Route file did not return a callable: {$file}");
+    try {
+        $ret = require $file;
+        if (is_callable($ret)) {
+            $ret($app);
+            error_log("Route file loaded successfully: {$file}");
+        } else {
+            error_log("WARNING: Route file did not return a callable: {$file}");
+        }
+    } catch (Throwable $e) {
+        error_log("ERROR loading route file {$file}: " . $e->getMessage());
     }
 };
 
-try {
-    $loadRoutes('/src/Routes/authRoutes.php');
-    $loadRoutes('/src/Routes/userRoutes.php');
-    $loadRoutes('/src/Routes/vendorRoutes.php');
-    $loadRoutes('/src/Routes/venueRoutes.php');
-    $loadRoutes('/src/Routes/feedbackRoutes.php');
-    $loadRoutes('/src/Routes/adminRoutes.php');
-    $loadRoutes('/src/Routes/notificationRoutes.php');
-    $loadRoutes('/src/Routes/chatRoutes.php');
-    $loadRoutes('/src/Routes/usernameResolverRoutes.php');
-    
-    // ✅ BOOKING ROUTES - ADDED FOR UC05
-    $loadRoutes('/src/Routes/bookingRoutes.php');
-    
-    error_log("All route files loaded successfully");
-} catch (Throwable $e) {
-    error_log("FATAL ERROR loading routes: " . $e->getMessage());
-    error_log("Stack trace: " . $e->getTraceAsString());
-    throw $e;
-}
+// Load all routes (don't let one fail all others)
+$loadRoutes('/src/Routes/authRoutes.php');
+$loadRoutes('/src/Routes/userRoutes.php');
+$loadRoutes('/src/Routes/vendorRoutes.php');
+$loadRoutes('/src/Routes/venueRoutes.php');
+$loadRoutes('/src/Routes/feedbackRoutes.php');
+$loadRoutes('/src/Routes/adminRoutes.php');
+$loadRoutes('/src/Routes/notificationRoutes.php');
+$loadRoutes('/src/Routes/chatRoutes.php');
+$loadRoutes('/src/Routes/usernameResolverRoutes.php');
+$loadRoutes('/src/Routes/bookingRoutes.php');
+
+error_log("All route files loaded");
 
 // -------------------------------------------------------------
 // ✅ IMPROVED Error middleware with better logging
@@ -178,7 +185,9 @@ $errorMiddleware->setDefaultErrorHandler(function (
     $response->getBody()->write(json_encode([
         'success' => false,
         'error' => $displayErrorDetails ? $exception->getMessage() : 'Internal server error',
-        'code' => $statusCode
+        'code' => $statusCode,
+        'file' => $displayErrorDetails ? $exception->getFile() : null,
+        'line' => $displayErrorDetails ? $exception->getLine() : null
     ]));
     
     return $response->withHeader('Content-Type', 'application/json');
@@ -196,24 +205,39 @@ $app->get('/api/health', function ($req, $res) {
     try {
         $pdo = \Illuminate\Database\Capsule\Manager::connection()->getPdo();
         $dbStatus = 'connected';
+        $dbMessage = 'OK';
     } catch (Throwable $e) {
         $dbStatus = 'error';
+        $dbMessage = $e->getMessage();
     }
     
     $res->getBody()->write(json_encode([
         'status' => 'ok',
         'database' => $dbStatus,
-        'timestamp' => date('Y-m-d H:i:s')
+        'db_message' => $dbMessage,
+        'timestamp' => date('Y-m-d H:i:s'),
+        'php_version' => phpversion()
     ]));
     return $res->withHeader('Content-Type', 'application/json');
 });
 
 $app->get('/api/dbtest', function ($req, $res) {
     try {
-        \Illuminate\Database\Capsule\Manager::connection()->getPdo();
-        $res->getBody()->write(json_encode(['ok' => true]));
+        $pdo = \Illuminate\Database\Capsule\Manager::connection()->getPdo();
+        
+        // Try to query vendor_application table
+        $stmt = $pdo->query("SELECT COUNT(*) as count FROM vendor_application");
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        $res->getBody()->write(json_encode([
+            'success' => true,
+            'vendor_count' => $result['count']
+        ]));
     } catch (Throwable $e) {
-        $res->getBody()->write(json_encode(['error' => $e->getMessage()]));
+        $res->getBody()->write(json_encode([
+            'success' => false,
+            'error' => $e->getMessage()
+        ]));
     }
     return $res->withHeader('Content-Type', 'application/json');
 });
@@ -232,6 +256,19 @@ $app->get('/api/debug/routes', function ($req, $res) use ($app) {
     $res->getBody()->write(json_encode([
         'total' => count($routes),
         'routes' => $routes
+    ], JSON_PRETTY_PRINT));
+    return $res->withHeader('Content-Type', 'application/json');
+});
+
+// ✅ DEBUG: Environment check
+$app->get('/api/debug/env', function ($req, $res) {
+    $res->getBody()->write(json_encode([
+        'DB_HOST' => getenv('DB_HOST'),
+        'DB_DATABASE' => getenv('DB_DATABASE'),
+        'DB_USERNAME' => getenv('DB_USERNAME'),
+        'DB_PASSWORD' => getenv('DB_PASSWORD') ? 'SET' : 'NOT SET',
+        'env_file_exists' => file_exists(BASE_PATH . '/.env'),
+        'base_path' => BASE_PATH
     ], JSON_PRETTY_PRINT));
     return $res->withHeader('Content-Type', 'application/json');
 });

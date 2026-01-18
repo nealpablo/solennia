@@ -25,6 +25,13 @@ export default function Profile() {
   const [avatarPreview, setAvatarPreview] = useState(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
+  // ✅ NEW: Booking Modal States
+  const [showBookingsModal, setShowBookingsModal] = useState(false);
+  const [bookings, setBookings] = useState([]);
+  const [loadingBookings, setLoadingBookings] = useState(false);
+  const [selectedBooking, setSelectedBooking] = useState(null);
+  const [processingBooking, setProcessingBooking] = useState(false);
+
   // Edit profile state
   const [editForm, setEditForm] = useState({
     username: "",
@@ -102,31 +109,163 @@ export default function Profile() {
         localStorage.setItem("solennia_role", j.user.role ?? 0);
         setRole(j.user.role ?? 0);
         
-        // ✅ FIX: Save profile to localStorage for header
         localStorage.setItem("solennia_profile", JSON.stringify(j.user));
       });
   }, [token]);
 
   
   /* ================= VENDOR STATUS ================= */
-useEffect(() => {
-  if (!token || role !== 0) return;
+  useEffect(() => {
+    if (!token || role !== 0) return;
 
-  fetch(`${API}/vendor/status`, {
-    headers: { Authorization: `Bearer ${token}` },
-  })
-    .then((r) => r.json())
-    .then((j) => {
-      setVendorStatus(j.status);
-      
-      // ✅ SHOW STATUS NOTIFICATION
-      if (j.status === 'pending') {
-        // Optional: Show a subtle notification that application is pending
-        console.log('Vendor application is pending review');
-      }
+    fetch(`${API}/vendor/status`, {
+      headers: { Authorization: `Bearer ${token}` },
     })
-    .catch(() => {});
-}, [token, role]);
+      .then((r) => r.json())
+      .then((j) => {
+        setVendorStatus(j.status);
+        
+        if (j.status === 'pending') {
+          console.log('Vendor application is pending review');
+        }
+      })
+      .catch(() => {});
+  }, [token, role]);
+
+  /* ================= ✅ NEW: LOAD BOOKINGS ================= */
+  const loadBookings = async () => {
+    if (!token) return;
+    
+    setLoadingBookings(true);
+    try {
+      // Clients see their bookings, Vendors see booking requests
+      const endpoint = role === 1 ? '/bookings/vendor' : '/bookings/user';
+      
+      const res = await fetch(`${API}${endpoint}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const data = await res.json();
+      
+      if (data.success) {
+        setBookings(data.bookings || []);
+      } else {
+        toast.error(data.error || 'Failed to load bookings');
+      }
+    } catch (err) {
+      console.error('Load bookings error:', err);
+      toast.error('Failed to load bookings');
+    } finally {
+      setLoadingBookings(false);
+    }
+  };
+
+  /* ================= ✅ NEW: ACCEPT BOOKING (VENDOR) ================= */
+  const acceptBooking = async (bookingId) => {
+    if (!confirm('Accept this booking request?')) return;
+    
+    setProcessingBooking(true);
+    try {
+      const res = await fetch(`${API}/api/bookings/${bookingId}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status: 'Confirmed' }),
+      });
+
+      const data = await res.json();
+      
+      if (data.success) {
+        toast.success('Booking accepted!');
+        loadBookings(); // Reload bookings
+        setSelectedBooking(null);
+      } else {
+        toast.error(data.error || 'Failed to accept booking');
+      }
+    } catch (err) {
+      console.error('Accept booking error:', err);
+      toast.error('Failed to accept booking');
+    } finally {
+      setProcessingBooking(false);
+    }
+  };
+
+  /* ================= ✅ NEW: REJECT BOOKING (VENDOR) ================= */
+  const rejectBooking = async (bookingId) => {
+    if (!confirm('Reject this booking request?')) return;
+    
+    setProcessingBooking(true);
+    try {
+      const res = await fetch(`${API}/api/bookings/${bookingId}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status: 'Rejected' }),
+      });
+
+      const data = await res.json();
+      
+      if (data.success) {
+        toast.success('Booking rejected');
+        loadBookings(); // Reload bookings
+        setSelectedBooking(null);
+      } else {
+        toast.error(data.error || 'Failed to reject booking');
+      }
+    } catch (err) {
+      console.error('Reject booking error:', err);
+      toast.error('Failed to reject booking');
+    } finally {
+      setProcessingBooking(false);
+    }
+  };
+
+  /* ================= ✅ NEW: CANCEL BOOKING (CLIENT) ================= */
+  const cancelBooking = async (bookingId) => {
+    if (!confirm('Cancel this booking?')) return;
+    
+    setProcessingBooking(true);
+    try {
+      const res = await fetch(`${API}/api/bookings/${bookingId}/cancel`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await res.json();
+      
+      if (data.success) {
+        toast.success('Booking cancelled');
+        loadBookings(); // Reload bookings
+        setSelectedBooking(null);
+      } else {
+        toast.error(data.error || 'Failed to cancel booking');
+      }
+    } catch (err) {
+      console.error('Cancel booking error:', err);
+      toast.error('Failed to cancel booking');
+    } finally {
+      setProcessingBooking(false);
+    }
+  };
+
+  /* ================= ✅ NEW: GET STATUS BADGE COLOR ================= */
+  const getStatusBadge = (status) => {
+    const statusMap = {
+      'Pending': 'bg-yellow-100 text-yellow-800 border-yellow-300',
+      'Confirmed': 'bg-green-100 text-green-800 border-green-300',
+      'Rejected': 'bg-red-100 text-red-800 border-red-300',
+      'Cancelled': 'bg-gray-100 text-gray-800 border-gray-300',
+      'Completed': 'bg-blue-100 text-blue-800 border-blue-300',
+    };
+    
+    return statusMap[status] || 'bg-gray-100 text-gray-800 border-gray-300';
+  };
 
   /* ================= AVATAR PREVIEW ================= */
   useEffect(() => {
@@ -141,7 +280,7 @@ useEffect(() => {
     return () => URL.revokeObjectURL(objectUrl);
   }, [avatarFile]);
 
-  /* ================= AVATAR UPLOAD (✅ FIXED) ================= */
+  /* ================= AVATAR UPLOAD ================= */
   async function uploadAvatar(e) {
     e.preventDefault();
     if (!avatarFile) {
@@ -164,11 +303,9 @@ useEffect(() => {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Upload failed");
 
-      // ✅ FIX: Extract avatar from response
       const newAvatar = json.avatar;
       setProfile((p) => ({ ...p, avatar: newAvatar }));
 
-      // ✅ FIX: Update localStorage with new avatar
       const existingProfile = JSON.parse(localStorage.getItem("solennia_profile") || "{}");
       localStorage.setItem(
         "solennia_profile",
@@ -178,7 +315,6 @@ useEffect(() => {
         })
       );
 
-      // ✅ FIX: Dispatch event to notify header
       window.dispatchEvent(new CustomEvent("profileUpdated", { 
         detail: { avatar: newAvatar } 
       }));
@@ -199,7 +335,7 @@ useEffect(() => {
     toast.info("To change your username, please contact support at solenniainquires@gmail.com with your current username and desired new username.");
   }
 
-  /* ================= EDIT PROFILE (✅ FIXED - NO DESIGN CHANGES) ================= */
+  /* ================= EDIT PROFILE ================= */
   async function saveProfileChanges(e) {
     e.preventDefault();
     setSavingChanges(true);
@@ -226,7 +362,7 @@ useEffect(() => {
         toast.success("Phone number updated!");
       }
 
-      // 2. Change Password (Firebase) - ✅ FIXED ERROR HANDLING
+      // 2. Change Password (Firebase)
       if (editForm.newPassword.trim()) {
         if (!editForm.currentPassword.trim()) {
           throw new Error("Current password is required to change password");
@@ -240,34 +376,28 @@ useEffect(() => {
           throw new Error("New passwords do not match");
         }
 
-        // ✅ FIX: Check if user is authenticated
         const user = auth.currentUser;
         if (!user) {
           throw new Error("Firebase authentication session expired. Please log out and log in again.");
         }
 
-        // ✅ FIX: Get email from Firebase user or fallback to profile
         const userEmail = user.email || profile?.email;
         if (!userEmail) {
           throw new Error("Cannot verify account email. Please contact support.");
         }
 
         try {
-          // Reauthenticate user with current password
           const credential = EmailAuthProvider.credential(
             userEmail,
             editForm.currentPassword
           );
 
           await reauthenticateWithCredential(user, credential);
-
-          // Update password
           await updatePassword(user, editForm.newPassword);
           
           passwordChanged = true;
           toast.success("Password changed successfully!");
 
-          // Clear password fields
           setEditForm(prev => ({
             ...prev,
             currentPassword: "",
@@ -275,7 +405,6 @@ useEffect(() => {
             confirmPassword: "",
           }));
         } catch (firebaseError) {
-          // ✅ FIX: Handle specific Firebase error codes
           console.error("Firebase password change error:", firebaseError);
           
           if (firebaseError.code === 'auth/invalid-credential' || firebaseError.code === 'auth/wrong-password') {
@@ -284,23 +413,15 @@ useEffect(() => {
             throw new Error("New password is too weak. Please use a stronger password.");
           } else if (firebaseError.code === 'auth/requires-recent-login') {
             throw new Error("For security, please log out and log back in before changing your password.");
-          } else if (firebaseError.code === 'auth/user-mismatch') {
-            throw new Error("Authentication mismatch. Please log out and log in again.");
-          } else if (firebaseError.code === 'auth/user-not-found') {
-            throw new Error("User account not found. Please contact support.");
-          } else if (firebaseError.code === 'auth/invalid-email') {
-            throw new Error("Invalid email address. Please contact support.");
           } else {
             throw new Error(firebaseError.message || "Failed to change password. Please try again.");
           }
         }
       }
 
-      // ✅ FIX: Update local profile and localStorage
       if (Object.keys(updatedFields).length > 0) {
         setProfile(prev => ({ ...prev, ...updatedFields }));
         
-        // Update localStorage
         const existingProfile = JSON.parse(localStorage.getItem("solennia_profile") || "{}");
         localStorage.setItem(
           "solennia_profile",
@@ -310,7 +431,6 @@ useEffect(() => {
           })
         );
 
-        // Dispatch event
         window.dispatchEvent(new Event("profileUpdated"));
       }
 
@@ -431,6 +551,38 @@ useEffect(() => {
                     </svg>
                     Edit Profile
                   </button>
+
+                  {/* ✅ NEW: MY BOOKINGS BUTTON (CLIENT) */}
+                  {role === 0 && (
+                    <button
+                      onClick={() => {
+                        setShowBookingsModal(true);
+                        loadBookings();
+                      }}
+                      className="w-full bg-[#e8ddae] text-[#3b2f25] px-4 py-3 rounded-lg text-sm font-semibold hover:opacity-90 flex items-center justify-center gap-2 shadow-md"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                      </svg>
+                      My Bookings
+                    </button>
+                  )}
+
+                  {/* ✅ NEW: BOOKING REQUESTS BUTTON (VENDOR) */}
+                  {role === 1 && (
+                    <button
+                      onClick={() => {
+                        setShowBookingsModal(true);
+                        loadBookings();
+                      }}
+                      className="w-full bg-[#e8ddae] text-[#3b2f25] px-4 py-3 rounded-lg text-sm font-semibold hover:opacity-90 flex items-center justify-center gap-2 shadow-md"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                      </svg>
+                      Booking Requests
+                    </button>
+                  )}
 
                   {dashboardHref() && dashboardLabel() && (
                     <a
@@ -556,6 +708,272 @@ useEffect(() => {
           </div>
         </div>
       </main>
+
+      {/* ================= ✅ NEW: BOOKINGS MODAL ================= */}
+      {showBookingsModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[9999] p-4">
+          <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
+            {/* Header */}
+            <div className="bg-[#7a5d47] text-white p-6 flex justify-between items-center">
+              <h2 className="text-xl font-bold">
+                {role === 1 ? 'Booking Requests' : 'My Bookings'}
+              </h2>
+              <button
+                onClick={() => {
+                  setShowBookingsModal(false);
+                  setSelectedBooking(null);
+                }}
+                className="text-white hover:text-gray-200 text-3xl font-light"
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {loadingBookings ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#7a5d47]"></div>
+                </div>
+              ) : bookings.length === 0 ? (
+                <div className="text-center py-12">
+                  <svg className="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
+                  <p className="text-gray-500">
+                    {role === 1 ? 'No booking requests yet' : 'No bookings yet'}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {bookings.map((booking) => (
+                    <div
+                      key={booking.ID}
+                      className="bg-gray-50 rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow"
+                    >
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
+                          <h3 className="font-semibold text-lg">{booking.ServiceName}</h3>
+                          <p className="text-sm text-gray-600">
+                            {role === 1 ? `Client: ${booking.client_name}` : `Vendor: ${booking.vendor_name}`}
+                          </p>
+                        </div>
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusBadge(booking.BookingStatus)}`}>
+                          {booking.BookingStatus}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 text-sm mb-3">
+                        <div>
+                          <span className="text-gray-600">Event Date:</span>
+                          <p className="font-medium">{new Date(booking.EventDate).toLocaleDateString()}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Event Type:</span>
+                          <p className="font-medium">{booking.EventType}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Venue:</span>
+                          <p className="font-medium">{booking.Venue}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Guests:</span>
+                          <p className="font-medium">{booking.NumberOfGuests}</p>
+                        </div>
+                      </div>
+
+                      {booking.SpecialRequests && (
+                        <div className="mb-3">
+                          <span className="text-sm text-gray-600">Special Requests:</span>
+                          <p className="text-sm mt-1">{booking.SpecialRequests}</p>
+                        </div>
+                      )}
+
+                      {/* Action Buttons */}
+                      <div className="flex gap-2 mt-3">
+                        {/* CLIENT ACTIONS */}
+                        {role === 0 && booking.BookingStatus === 'Pending' && (
+                          <button
+                            onClick={() => cancelBooking(booking.ID)}
+                            disabled={processingBooking}
+                            className="flex-1 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 disabled:opacity-50 text-sm font-semibold"
+                          >
+                            {processingBooking ? 'Processing...' : 'Cancel Booking'}
+                          </button>
+                        )}
+
+                        {/* VENDOR ACTIONS */}
+                        {role === 1 && booking.BookingStatus === 'Pending' && (
+                          <>
+                            <button
+                              onClick={() => acceptBooking(booking.ID)}
+                              disabled={processingBooking}
+                              className="flex-1 bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 disabled:opacity-50 text-sm font-semibold"
+                            >
+                              {processingBooking ? 'Processing...' : 'Accept'}
+                            </button>
+                            <button
+                              onClick={() => rejectBooking(booking.ID)}
+                              disabled={processingBooking}
+                              className="flex-1 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 disabled:opacity-50 text-sm font-semibold"
+                            >
+                              {processingBooking ? 'Processing...' : 'Reject'}
+                            </button>
+                          </>
+                        )}
+
+                        {/* VIEW DETAILS FOR ALL */}
+                        <button
+                          onClick={() => setSelectedBooking(booking)}
+                          className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 text-sm font-semibold"
+                        >
+                          View Details
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="border-t border-gray-200 p-4 bg-gray-50">
+              <button
+                onClick={() => {
+                  setShowBookingsModal(false);
+                  setSelectedBooking(null);
+                }}
+                className="w-full bg-gray-200 text-gray-800 px-6 py-2 rounded-lg hover:bg-gray-300 font-semibold"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= ✅ NEW: BOOKING DETAILS MODAL ================= */}
+      {selectedBooking && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[10000] p-4">
+          <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
+            <div className="bg-[#7a5d47] text-white p-6 flex justify-between items-center">
+              <h2 className="text-xl font-bold">Booking Details</h2>
+              <button
+                onClick={() => setSelectedBooking(null)}
+                className="text-white hover:text-gray-200 text-3xl font-light"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-semibold text-gray-600">Service Name</label>
+                  <p className="text-lg font-semibold">{selectedBooking.ServiceName}</p>
+                </div>
+
+                <div>
+                  <label className="text-sm font-semibold text-gray-600">Status</label>
+                  <p>
+                    <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold border ${getStatusBadge(selectedBooking.BookingStatus)}`}>
+                      {selectedBooking.BookingStatus}
+                    </span>
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-semibold text-gray-600">Event Date</label>
+                    <p>{new Date(selectedBooking.EventDate).toLocaleDateString()}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-gray-600">Event Type</label>
+                    <p>{selectedBooking.EventType}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-gray-600">Venue</label>
+                    <p>{selectedBooking.Venue}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-gray-600">Number of Guests</label>
+                    <p>{selectedBooking.NumberOfGuests}</p>
+                  </div>
+                </div>
+
+                {role === 1 && (
+                  <div>
+                    <label className="text-sm font-semibold text-gray-600">Client</label>
+                    <p>{selectedBooking.client_name}</p>
+                  </div>
+                )}
+
+                {role === 0 && (
+                  <div>
+                    <label className="text-sm font-semibold text-gray-600">Vendor</label>
+                    <p>{selectedBooking.vendor_name}</p>
+                  </div>
+                )}
+
+                {selectedBooking.SpecialRequests && (
+                  <div>
+                    <label className="text-sm font-semibold text-gray-600">Special Requests</label>
+                    <p className="text-sm bg-gray-50 p-3 rounded-lg">{selectedBooking.SpecialRequests}</p>
+                  </div>
+                )}
+
+                <div>
+                  <label className="text-sm font-semibold text-gray-600">Created At</label>
+                  <p className="text-sm">{new Date(selectedBooking.CreatedAt).toLocaleString()}</p>
+                </div>
+              </div>
+
+              {/* Actions */}
+              {selectedBooking.BookingStatus === 'Pending' && (
+                <div className="flex gap-2 mt-6 pt-6 border-t">
+                  {role === 0 && (
+                    <button
+                      onClick={() => cancelBooking(selectedBooking.ID)}
+                      disabled={processingBooking}
+                      className="flex-1 bg-red-500 text-white px-6 py-3 rounded-lg hover:bg-red-600 disabled:opacity-50 font-semibold"
+                    >
+                      {processingBooking ? 'Processing...' : 'Cancel Booking'}
+                    </button>
+                  )}
+
+                  {role === 1 && (
+                    <>
+                      <button
+                        onClick={() => acceptBooking(selectedBooking.ID)}
+                        disabled={processingBooking}
+                        className="flex-1 bg-green-500 text-white px-6 py-3 rounded-lg hover:bg-green-600 disabled:opacity-50 font-semibold"
+                      >
+                        {processingBooking ? 'Processing...' : 'Accept'}
+                      </button>
+                      <button
+                        onClick={() => rejectBooking(selectedBooking.ID)}
+                        disabled={processingBooking}
+                        className="flex-1 bg-red-500 text-white px-6 py-3 rounded-lg hover:bg-red-600 disabled:opacity-50 font-semibold"
+                      >
+                        {processingBooking ? 'Processing...' : 'Reject'}
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="border-t border-gray-200 p-4 bg-gray-50">
+              <button
+                onClick={() => setSelectedBooking(null)}
+                className="w-full bg-gray-200 text-gray-800 px-6 py-2 rounded-lg hover:bg-gray-300 font-semibold"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ================= AVATAR MODAL ================= */}
       {showAvatarModal && (
