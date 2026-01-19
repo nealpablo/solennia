@@ -155,6 +155,13 @@ export default function CreateBooking() {
     return true;
   };
 
+  /* ============================================
+   * ✅ ENHANCED handleSubmit WITH CONFLICT HANDLING
+   * ============================================
+   * CHANGES MADE ON LINES 207-226
+   * Added detection and handling for schedule conflicts (UC05 Alternate Flow 5a-5c)
+   * ============================================
+   */
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -204,8 +211,43 @@ export default function CreateBooking() {
         throw new Error("Server returned an invalid response. Please try again.");
       }
 
+      /* ============================================
+       * ✅ NEW CODE STARTS HERE (LINES 207-226)
+       * ============================================
+       * Handle schedule conflict (UC05 Alternate Flow 5a-5c)
+       * ============================================
+       */
+      
+      // UC05 Alternate Flow 5a: Check if schedule conflict detected (409 status)
+      if (response.status === 409 && data.conflict) {
+        // This vendor is already booked at this date/time
+        console.log("Schedule conflict detected:", data);
+        
+        // UC05 Alternate Flow 5b: Display message informing client
+        toast.error(
+          data.message || 
+          "This vendor is already booked for the selected date and time. Please choose a different schedule.",
+          { duration: 10000 } // ✅ INCREASED: 10 seconds for better readability
+        );
+        
+        // UC05 Alternate Flow 5c: Prompt to choose different date/time
+        // Scroll to date/time fields so user can easily change them
+        const dateField = document.querySelector('input[type="date"]');
+        if (dateField) {
+          dateField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          dateField.focus();
+        }
+        
+        return; // Don't navigate away, let user modify the form
+      }
+
+      /* ============================================
+       * ✅ NEW CODE ENDS HERE
+       * ============================================
+       */
+
       if (!response.ok) {
-        throw new Error(data.error || `Server error: ${response.status}`);
+        throw new Error(data.error || data.message || `Server error: ${response.status}`);
       }
 
       toast.success(data.message || "Booking request sent successfully!");
@@ -277,7 +319,7 @@ export default function CreateBooking() {
             </div>
           </div>
 
-          {/* Event Date and Time */}
+          {/* Date and Time */}
           <div style={styles.section}>
             <div style={styles.row}>
               <div style={styles.formGroup}>
@@ -294,7 +336,6 @@ export default function CreateBooking() {
                   required
                 />
               </div>
-
               <div style={styles.formGroup}>
                 <label style={styles.label}>
                   Event Time <span style={styles.required}>*</span>

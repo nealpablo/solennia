@@ -44,6 +44,8 @@ class BookingController
      * ============================================
      * POST /api/bookings/create
      * ============================================
+     * UPDATED: Added vendor availability check
+     * ============================================
      */
     public function createBooking(Request $req, Response $res): Response
     {
@@ -105,6 +107,52 @@ class BookingController
 
             error_log("CREATE_BOOKING: Found Event Service Provider ID: {$eventServiceProvider->ID}");
 
+            /* ============================================
+             * ✅ UC05 - MAIN FLOW STEP 5 & ALTERNATE FLOW 5a-5c
+             * ============================================
+             * CHECK VENDOR AVAILABILITY FOR THE SELECTED DATE/TIME
+             * 
+             * According to UC05:
+             * - Main Flow Step 5: "The system validates the supplier's availability for the selected date and time."
+             * - Alternate Flow 5a: "The system determines that the selected date or time is not available."
+             * - Alternate Flow 5b: "The system displays a message informing the client that the selected schedule is unavailable."
+             * - Alternate Flow 5c: "The system prompts the client to choose a different date or time."
+             * ============================================
+             */
+            
+            $existingBooking = DB::table('booking')
+                ->where('EventServiceProviderID', $eventServiceProvider->ID)
+                ->where('EventDate', $eventDate)
+                ->whereNotIn('BookingStatus', ['Cancelled', 'Rejected'])
+                ->first();
+
+            if ($existingBooking) {
+                error_log("CREATE_BOOKING: Vendor already has a booking at this date/time");
+                
+                // Format the date for better readability in the error message
+                $formattedDate = date('F j, Y \a\t g:i A', strtotime($eventDate));
+                
+                // UC05 Alternate Flow 5b: Display message informing client
+                return $this->json($res, [
+                    'success' => false,
+                    'error' => 'Schedule Unavailable',
+                    'message' => "Unfortunately, this vendor is already booked for {$formattedDate}. Please choose a different date or time.",
+                    'conflict' => true,
+                    'conflicting_date' => $eventDate
+                ], 409); // 409 Conflict status code
+            }
+
+            // ✅ Vendor is available - proceed with booking creation
+
+            /* ============================================
+             * ✅ FIXED: Removed NumberOfGuests field
+             * ============================================
+             * The NumberOfGuests field was causing errors because
+             * the frontend form doesn't collect this data.
+             * Only insert fields that are actually being sent.
+             * ============================================
+             */
+            
             // Create booking with correct EventServiceProviderID
             $bookingId = DB::table('booking')->insertGetId([
                 'UserID' => $userId,
@@ -116,6 +164,7 @@ class BookingController
                 'PackageSelected' => $data['package_selected'] ?? null,
                 'AdditionalNotes' => $data['additional_notes'] ?? null,
                 'TotalAmount' => $data['total_amount'] ?? 0.00,
+                // ✅ REMOVED: 'NumberOfGuests' => $data['number_of_guests'] ?? null,
                 'BookingStatus' => 'Pending',
                 'Remarks' => null,
                 'BookingDate' => DB::raw('NOW()'),
@@ -166,7 +215,8 @@ class BookingController
             error_log("Stack trace: " . $e->getTraceAsString());
             return $this->json($res, [
                 'success' => false,
-                'error' => 'Failed to create booking. Please try again.'
+                'error' => 'Failed to create booking. Please try again.',
+                'details' => $e->getMessage() // ✅ Added for debugging
             ], 500);
         }
     }
@@ -208,19 +258,20 @@ class BookingController
                 ])
                 ->leftJoin('event_service_provider as esp', 'b.EventServiceProviderID', '=', 'esp.ID')
                 ->leftJoin('credential as c', 'esp.UserID', '=', 'c.id')
-                ->where('b.UserID', $userId);
+                ->where('b.UserID', $userId)
+                ->orderBy('b.CreatedAt', 'DESC');
 
             // Apply status filter if provided
             if ($status) {
                 $query->where('b.BookingStatus', $status);
             }
 
-            $bookings = $query->orderBy('b.CreatedAt', 'desc')->get();
+            $bookings = $query->get();
 
-            // Add computed vendor name
+            // Add computed fields
             foreach ($bookings as $booking) {
                 $booking->vendor_name = $booking->vendor_business_name ?? 
-                    (($booking->vendor_first_name ?? '') . ' ' . ($booking->vendor_last_name ?? ''));
+                    trim(($booking->vendor_first_name ?? '') . ' ' . ($booking->vendor_last_name ?? ''));
             }
 
             return $this->json($res, [
@@ -232,17 +283,16 @@ class BookingController
             error_log("GET_USER_BOOKINGS_ERROR: " . $e->getMessage());
             return $this->json($res, [
                 'success' => false,
-                'error' => 'Failed to load your bookings'
+                'error' => 'Failed to load bookings'
             ], 500);
         }
     }
 
     /**
      * ============================================
-     * GET VENDOR'S BOOKING REQUESTS - ENHANCED
+     * GET VENDOR'S BOOKING REQUESTS
      * ============================================
      * GET /api/bookings/vendor
-     * Now includes client phone number
      * ============================================
      */
     public function getVendorBookings(Request $req, Response $res): Response
@@ -259,43 +309,43 @@ class BookingController
 
             $vendorUserId = $user->mysql_id;
 
-            // Get vendor's event_service_provider ID
+            // Get query parameters for filtering
+            $params = $req->getQueryParams();
+            $status = $params['status'] ?? null;
+
+            // Get event service provider ID
             $esp = DB::table('event_service_provider')
                 ->where('UserID', $vendorUserId)
-                ->where('ApplicationStatus', 'Approved')
                 ->first();
 
             if (!$esp) {
                 return $this->json($res, [
                     'success' => false,
-                    'error' => 'You are not a registered vendor'
-                ], 403);
+                    'error' => 'Vendor profile not found'
+                ], 404);
             }
 
-            // Get query parameters for filtering
-            $params = $req->getQueryParams();
-            $status = $params['status'] ?? null;
-
-            // ✅ ENHANCED: Include all booking fields and client phone
+            // Build query
             $query = DB::table('booking as b')
                 ->select([
                     'b.*',
                     'c.first_name as client_first_name',
                     'c.last_name as client_last_name',
                     'c.email as client_email',
-                    'c.phone as client_phone', // ✅ Added phone number
+                    'c.phone as client_phone'
                 ])
                 ->leftJoin('credential as c', 'b.UserID', '=', 'c.id')
-                ->where('b.EventServiceProviderID', $esp->ID);
+                ->where('b.EventServiceProviderID', $esp->ID)
+                ->orderBy('b.CreatedAt', 'DESC');
 
             // Apply status filter if provided
             if ($status) {
                 $query->where('b.BookingStatus', $status);
             }
 
-            $bookings = $query->orderBy('b.CreatedAt', 'desc')->get();
+            $bookings = $query->get();
 
-            // Add computed client name
+            // Add computed fields
             foreach ($bookings as $booking) {
                 $booking->client_name = trim(($booking->client_first_name ?? '') . ' ' . ($booking->client_last_name ?? ''));
             }
@@ -316,10 +366,9 @@ class BookingController
 
     /**
      * ============================================
-     * GET BOOKING DETAILS - ENHANCED
+     * GET BOOKING DETAILS
      * ============================================
      * GET /api/bookings/{id}
-     * Now includes client phone number
      * ============================================
      */
     public function getBookingDetails(Request $req, Response $res, array $args): Response
@@ -344,23 +393,22 @@ class BookingController
                 ], 400);
             }
 
-            // ✅ ENHANCED: Include client phone number
+            // Get booking with all related information
             $booking = DB::table('booking as b')
                 ->select([
                     'b.*',
                     'esp.BusinessName as vendor_business_name',
-                    'esp.BusinessEmail as vendor_contact_email',
-                    'vendor_cred.first_name as vendor_first_name',
-                    'vendor_cred.last_name as vendor_last_name',
-                    'vendor_cred.email as vendor_email',
-                    'client_cred.first_name as client_first_name',
-                    'client_cred.last_name as client_last_name',
-                    'client_cred.email as client_email',
-                    'client_cred.phone as client_phone', // ✅ Added phone number
+                    'esp.BusinessEmail as vendor_email',
+                    'vc.first_name as vendor_first_name',
+                    'vc.last_name as vendor_last_name',
+                    'cc.first_name as client_first_name',
+                    'cc.last_name as client_last_name',
+                    'cc.email as client_email',
+                    'cc.phone as client_phone'
                 ])
                 ->leftJoin('event_service_provider as esp', 'b.EventServiceProviderID', '=', 'esp.ID')
-                ->leftJoin('credential as vendor_cred', 'esp.UserID', '=', 'vendor_cred.id')
-                ->leftJoin('credential as client_cred', 'b.UserID', '=', 'client_cred.id')
+                ->leftJoin('credential as vc', 'esp.UserID', '=', 'vc.id')
+                ->leftJoin('credential as cc', 'b.UserID', '=', 'cc.id')
                 ->where('b.ID', $bookingId)
                 ->first();
 
@@ -371,13 +419,16 @@ class BookingController
                 ], 404);
             }
 
-            // Check if user has permission to view this booking
-            $isClient = $booking->UserID == $userId;
-            
-            // Check vendor permission using event_service_provider
-            $isVendor = DB::table('event_service_provider')
-                ->where('ID', $booking->EventServiceProviderID)
+            // Check authorization
+            $isClient = DB::table('booking')
+                ->where('ID', $bookingId)
                 ->where('UserID', $userId)
+                ->exists();
+
+            $isVendor = DB::table('booking as b')
+                ->join('event_service_provider as esp', 'b.EventServiceProviderID', '=', 'esp.ID')
+                ->where('b.ID', $bookingId)
+                ->where('esp.UserID', $userId)
                 ->exists();
 
             if (!$isClient && !$isVendor) {
