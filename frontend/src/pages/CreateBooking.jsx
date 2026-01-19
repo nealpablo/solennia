@@ -14,23 +14,20 @@ export default function CreateBooking() {
   const location = useLocation();
   
   // Get vendor info passed from VendorProfile
-  // IMPORTANT: We need the UserID, not the ESP ID
   const { vendorUserId, vendorName, serviceName } = location.state || {};
 
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    service_name: serviceName || "",
+    event_type: "",
     event_date: "",
     event_time: "14:00",
     event_location: "",
-    event_type: "",
     package_selected: "",
     additional_notes: "",
-    total_amount: ""
+    budget_amount: ""
   });
 
   useEffect(() => {
-    // Check if user is logged in
     const token = localStorage.getItem("solennia_token");
     if (!token) {
       toast.error("Please log in to make a booking");
@@ -38,28 +35,85 @@ export default function CreateBooking() {
       return;
     }
 
-    // Check if vendor info is provided
     if (!vendorUserId || !vendorName) {
       toast.error("Vendor information missing");
       navigate("/vendors");
     }
   }, [vendorUserId, vendorName, navigate]);
 
-  // Event types
+  // Event types with original icon size (32px)
   const eventTypes = [
-    "Wedding",
-    "Birthday",
-    "Corporate Event",
-    "Conference",
-    "Product Launch",
-    "Anniversary",
-    "Debut",
-    "Baptism",
-    "Graduation",
-    "Other"
+    { 
+      value: "Wedding", 
+      icon: (
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+        </svg>
+      )
+    },
+    { 
+      value: "Birthday", 
+      icon: (
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <path d="M12 6v6m0 0l-3-3m3 3l3-3"/>
+          <rect x="2" y="12" width="20" height="10" rx="1"/>
+          <path d="M7 12v-2a2 2 0 012-2h6a2 2 0 012 2v2"/>
+          <circle cx="7" cy="17" r="1"/>
+          <circle cx="12" cy="17" r="1"/>
+          <circle cx="17" cy="17" r="1"/>
+        </svg>
+      )
+    },
+    { 
+      value: "Corporate Event", 
+      icon: (
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <rect x="3" y="7" width="18" height="13" rx="2"/>
+          <path d="M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2"/>
+          <path d="M12 12v4"/>
+          <path d="M3 13h18"/>
+        </svg>
+      )
+    },
+    { 
+      value: "Anniversary", 
+      icon: (
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+        </svg>
+      )
+    },
+    { 
+      value: "Debut", 
+      icon: (
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <path d="M12 20v-6m0 0V8m0 6h6m-6 0H6"/>
+          <circle cx="12" cy="12" r="10"/>
+        </svg>
+      )
+    },
+    { 
+      value: "Graduation", 
+      icon: (
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <path d="M12 14L2 9l10-5 10 5-10 5z"/>
+          <path d="M12 14v7"/>
+          <path d="M7 11.5v5.5a2 2 0 002 2h6a2 2 0 002-2v-5.5"/>
+        </svg>
+      )
+    },
+    { 
+      value: "Other", 
+      icon: (
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/>
+          <circle cx="12" cy="17" r="0.5" fill="currentColor"/>
+        </svg>
+      )
+    }
   ];
 
-  // Handle form input changes
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
@@ -68,10 +122,16 @@ export default function CreateBooking() {
     }));
   };
 
-  // Validate form
+  const handleEventTypeSelect = (eventType) => {
+    setFormData(prev => ({
+      ...prev,
+      event_type: eventType
+    }));
+  };
+
   const validateForm = () => {
-    if (!formData.service_name.trim()) {
-      toast.error("Please enter a service name");
+    if (!formData.event_type) {
+      toast.error("Please select an event type");
       return false;
     }
 
@@ -80,7 +140,6 @@ export default function CreateBooking() {
       return false;
     }
 
-    // Check if date is in the future
     const selectedDate = new Date(`${formData.event_date}T${formData.event_time}`);
     const now = new Date();
     if (selectedDate <= now) {
@@ -96,7 +155,6 @@ export default function CreateBooking() {
     return true;
   };
 
-  // Submit booking
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -112,7 +170,6 @@ export default function CreateBooking() {
         return;
       }
 
-      // Combine date and time
       const eventDateTime = `${formData.event_date} ${formData.event_time}:00`;
 
       console.log("Submitting booking with vendor_id:", vendorUserId);
@@ -124,18 +181,17 @@ export default function CreateBooking() {
           "Authorization": `Bearer ${token}`
         },
         body: JSON.stringify({
-          vendor_id: vendorUserId, // This should be the UserID from credential table
-          service_name: formData.service_name,
+          vendor_id: vendorUserId,
+          service_name: serviceName || formData.event_type,
           event_date: eventDateTime,
           event_location: formData.event_location,
-          event_type: formData.event_type || null,
+          event_type: formData.event_type,
           package_selected: formData.package_selected || null,
           additional_notes: formData.additional_notes || null,
-          total_amount: formData.total_amount ? parseFloat(formData.total_amount) : null
+          total_amount: formData.budget_amount ? parseFloat(formData.budget_amount) : null
         })
       });
 
-      // Better error handling for non-JSON responses
       const contentType = response.headers.get("content-type");
       let data;
       
@@ -154,7 +210,6 @@ export default function CreateBooking() {
 
       toast.success(data.message || "Booking request sent successfully!");
       
-      // Redirect to My Bookings after a short delay
       setTimeout(() => {
         navigate("/my-bookings");
       }, 1500);
@@ -167,75 +222,97 @@ export default function CreateBooking() {
     }
   };
 
-  // Cancel and go back
   const handleCancel = () => {
     navigate(-1);
   };
 
   return (
-    <div style={styles.container}>
-      <div style={styles.card}>
-        {/* Header */}
-        <div style={styles.header}>
+    <div style={styles.wrapper}>
+      {/* Header - Transparent, Left Aligned */}
+      <div style={styles.headerContainer}>
+        <div style={styles.headerContent}>
           <h1 style={styles.title}>Book a Service</h1>
           <p style={styles.subtitle}>
-            Booking with: <strong>{vendorName}</strong>
+            with <strong>{vendorName}</strong>
+          </p>
+          <p style={{ margin: "0.75rem 0 0 0", fontSize: "0.95rem", color: "#666", lineHeight: "1.5" }}>
+            Before we send a booking request to your supplier, let's get organized. You can edit the details until you submit your booking.
           </p>
         </div>
+      </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} style={styles.form}>
+      {/* Form Container */}
+      <div style={styles.formContainer}>
+        <form onSubmit={handleSubmit}>
           
-          {/* Service Name */}
-          <div style={styles.formGroup}>
-            <label style={styles.label}>
-              Service Name <span style={styles.required}>*</span>
+          {/* Event Type Selection - SMALLER CONTAINERS */}
+          <div style={styles.section}>
+            <label style={styles.sectionLabel}>
+              Select Event Type <span style={styles.required}>*</span>
             </label>
-            <input
-              type="text"
-              name="service_name"
-              value={formData.service_name}
-              onChange={handleChange}
-              placeholder="e.g., Wedding Photography, Catering Service"
-              style={styles.input}
-              required
-            />
+            <div style={styles.eventTypeGrid}>
+              {eventTypes.map((type) => (
+                <div
+                  key={type.value}
+                  onClick={() => handleEventTypeSelect(type.value)}
+                  style={{
+                    ...styles.eventBox,
+                    ...(formData.event_type === type.value ? styles.selectedEventBox : {})
+                  }}
+                >
+                  <div style={{
+                    ...styles.iconContainer,
+                    ...(formData.event_type === type.value ? { color: '#fff' } : { color: '#666' })
+                  }}>
+                    {type.icon}
+                  </div>
+                  <div style={{
+                    ...styles.boxLabel,
+                    ...(formData.event_type === type.value ? { color: '#fff' } : {})
+                  }}>
+                    {type.value}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* Event Date and Time */}
-          <div style={styles.row}>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>
-                Event Date <span style={styles.required}>*</span>
-              </label>
-              <input
-                type="date"
-                name="event_date"
-                value={formData.event_date}
-                onChange={handleChange}
-                min={new Date().toISOString().split('T')[0]}
-                style={styles.input}
-                required
-              />
-            </div>
+          <div style={styles.section}>
+            <div style={styles.row}>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>
+                  Event Date <span style={styles.required}>*</span>
+                </label>
+                <input
+                  type="date"
+                  name="event_date"
+                  value={formData.event_date}
+                  onChange={handleChange}
+                  min={new Date().toISOString().split('T')[0]}
+                  style={styles.input}
+                  required
+                />
+              </div>
 
-            <div style={styles.formGroup}>
-              <label style={styles.label}>
-                Event Time <span style={styles.required}>*</span>
-              </label>
-              <input
-                type="time"
-                name="event_time"
-                value={formData.event_time}
-                onChange={handleChange}
-                style={styles.input}
-                required
-              />
+              <div style={styles.formGroup}>
+                <label style={styles.label}>
+                  Event Time <span style={styles.required}>*</span>
+                </label>
+                <input
+                  type="time"
+                  name="event_time"
+                  value={formData.event_time}
+                  onChange={handleChange}
+                  style={styles.input}
+                  required
+                />
+              </div>
             </div>
           </div>
 
           {/* Event Location */}
-          <div style={styles.formGroup}>
+          <div style={styles.section}>
             <label style={styles.label}>
               Event Location <span style={styles.required}>*</span>
             </label>
@@ -250,52 +327,38 @@ export default function CreateBooking() {
             />
           </div>
 
-          {/* Event Type */}
-          <div style={styles.formGroup}>
-            <label style={styles.label}>Event Type</label>
-            <select
-              name="event_type"
-              value={formData.event_type}
+          {/* Estimated Amount of Budget */}
+          <div style={styles.section}>
+            <label style={styles.label}>
+              ₱ Estimated Amount of Budget
+            </label>
+            <input
+              type="number"
+              name="budget_amount"
+              value={formData.budget_amount}
               onChange={handleChange}
-              style={styles.select}
-            >
-              <option value="">Select event type (optional)</option>
-              {eventTypes.map(type => (
-                <option key={type} value={type}>{type}</option>
-              ))}
-            </select>
+              placeholder="Enter your budget amount"
+              min="0"
+              step="1000"
+              style={styles.input}
+            />
           </div>
 
-          {/* Package Selected */}
-          <div style={styles.formGroup}>
-            <label style={styles.label}>Package/Tier</label>
+          {/* Package/Tier */}
+          <div style={styles.section}>
+            <label style={styles.label}>Package/Tier (Optional)</label>
             <input
               type="text"
               name="package_selected"
               value={formData.package_selected}
               onChange={handleChange}
-              placeholder="e.g., Premium Package, Basic Package (optional)"
-              style={styles.input}
-            />
-          </div>
-
-          {/* Total Amount */}
-          <div style={styles.formGroup}>
-            <label style={styles.label}>Estimated Amount (₱)</label>
-            <input
-              type="number"
-              name="total_amount"
-              value={formData.total_amount}
-              onChange={handleChange}
-              placeholder="e.g., 50000 (optional)"
-              min="0"
-              step="0.01"
+              placeholder="e.g., Premium Package, Basic Package"
               style={styles.input}
             />
           </div>
 
           {/* Additional Notes */}
-          <div style={styles.formGroup}>
+          <div style={styles.section}>
             <label style={styles.label}>Additional Notes</label>
             <textarea
               name="additional_notes"
@@ -309,8 +372,11 @@ export default function CreateBooking() {
 
           {/* Info Box */}
           <div style={styles.infoBox}>
+            <svg style={styles.infoIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
             <p style={styles.infoText}>
-              ℹ️ Your booking request will be sent to the vendor for review. 
+              Your booking request will be sent to the vendor for review. 
               You will be notified once they respond.
             </p>
           </div>
@@ -342,43 +408,103 @@ export default function CreateBooking() {
 
 // Styles
 const styles = {
-  container: {
-    maxWidth: "800px",
-    margin: "2rem auto",
-    padding: "0 1rem"
+  wrapper: {
+    maxWidth: "1200px",
+    margin: "0 auto",
+    padding: "1.5rem 0.5rem"
   },
-  card: {
-    backgroundColor: "#fff",
-    borderRadius: "12px",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-    overflow: "hidden"
+  
+  headerContainer: {
+    backgroundColor: "transparent",
+    marginBottom: "1.5rem"
   },
-  header: {
-    backgroundColor: "#8B4513",
-    color: "#fff",
-    padding: "2rem",
-    textAlign: "center"
+  headerContent: {
+    textAlign: "left",
+    paddingLeft: "2rem"
   },
   title: {
     margin: "0 0 0.5rem 0",
-    fontSize: "2rem",
-    fontWeight: "600"
+    fontSize: "2.5rem",
+    fontWeight: "700",
+    color: "#1c1b1a",
+    letterSpacing: "-0.02em"
   },
   subtitle: {
     margin: 0,
+    fontSize: "1.2rem",
+    color: "#666",
+    fontWeight: "400"
+  },
+  
+  formContainer: {
+    backgroundColor: "#fff",
+    borderRadius: "16px",
+    padding: "2rem",
+    boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
+    border: "1px solid #e5e5e5"
+  },
+  
+  section: {
+    marginBottom: "2rem"
+  },
+  sectionLabel: {
+    display: "block",
+    marginBottom: "1rem",
     fontSize: "1.1rem",
-    opacity: 0.95
+    fontWeight: "600",
+    color: "#1c1b1a"
   },
-  form: {
-    padding: "2rem"
+  
+  // Event Type Grid - SMALLER MAX-WIDTH + MORE COLUMNS
+  eventTypeGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(4, 1fr)", // 4 columns to make boxes smaller
+    gap: "0.5rem",
+    maxWidth: "1200px" // Constrain the total width to make boxes smaller
   },
+  
+  // Event Box - REDUCED PADDING (smaller container, same content)
+  eventBox: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "0.75rem 0.5rem", // Smaller padding = smaller box
+    backgroundColor: "#f9f9f9",
+    border: "2px solid #e5e5e5",
+    borderRadius: "8px",
+    cursor: "pointer",
+    transition: "all 0.2s ease",
+    minHeight: "95px", // Slightly reduced
+    aspectRatio: "1"
+  },
+  selectedEventBox: {
+    backgroundColor: "#74583E",
+    borderColor: "#74583E",
+    transform: "scale(1.02)",
+    boxShadow: "0 4px 12px rgba(116, 88, 62, 0.2)"
+  },
+  iconContainer: {
+    marginBottom: "0.5rem",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    transition: "color 0.2s ease"
+  },
+  boxLabel: {
+    fontSize: "0.8rem", // Keep text readable
+    fontWeight: "500",
+    textAlign: "center",
+    lineHeight: "1.2",
+    color: "#333"
+  },
+  
   formGroup: {
-    marginBottom: "1.5rem",
     flex: 1
   },
   row: {
     display: "flex",
-    gap: "1rem",
+    gap: "1.5rem",
     flexWrap: "wrap"
   },
   label: {
@@ -391,76 +517,82 @@ const styles = {
   required: {
     color: "#dc2626"
   },
+  
   input: {
     width: "100%",
-    padding: "0.75rem",
+    padding: "0.875rem",
     fontSize: "1rem",
-    border: "1px solid #ddd",
-    borderRadius: "6px",
+    border: "2px solid #e5e5e5",
+    borderRadius: "10px",
     outline: "none",
-    transition: "border-color 0.2s",
-    boxSizing: "border-box"
-  },
-  select: {
-    width: "100%",
-    padding: "0.75rem",
-    fontSize: "1rem",
-    border: "1px solid #ddd",
-    borderRadius: "6px",
-    outline: "none",
-    backgroundColor: "#fff",
-    cursor: "pointer",
-    boxSizing: "border-box"
+    transition: "all 0.2s",
+    boxSizing: "border-box",
+    backgroundColor: "#fff"
   },
   textarea: {
     width: "100%",
-    padding: "0.75rem",
+    padding: "0.875rem",
     fontSize: "1rem",
-    border: "1px solid #ddd",
-    borderRadius: "6px",
+    border: "2px solid #e5e5e5",
+    borderRadius: "10px",
     outline: "none",
     resize: "vertical",
     fontFamily: "inherit",
-    boxSizing: "border-box"
+    boxSizing: "border-box",
+    backgroundColor: "#fff"
   },
+  
   infoBox: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: "0.75rem",
     backgroundColor: "#eff6ff",
-    border: "1px solid #93c5fd",
-    borderRadius: "6px",
+    border: "1px solid #bfdbfe",
+    borderRadius: "10px",
     padding: "1rem",
     marginBottom: "1.5rem"
+  },
+  infoIcon: {
+    width: "1.5rem",
+    height: "1.5rem",
+    color: "#3b82f6",
+    flexShrink: 0,
+    marginTop: "0.125rem"
   },
   infoText: {
     margin: 0,
     fontSize: "0.95rem",
     color: "#1e40af",
-    lineHeight: "1.5"
+    lineHeight: "1.6"
   },
+  
   buttonGroup: {
     display: "flex",
     gap: "1rem",
-    justifyContent: "flex-end"
+    justifyContent: "flex-end",
+    paddingTop: "1rem"
   },
   cancelButton: {
-    padding: "0.75rem 1.5rem",
+    padding: "0.875rem 2rem",
     fontSize: "1rem",
-    fontWeight: "500",
-    border: "1px solid #ddd",
-    borderRadius: "6px",
+    fontWeight: "600",
+    border: "2px solid #e5e5e5",
+    borderRadius: "10px",
     backgroundColor: "#fff",
     color: "#666",
     cursor: "pointer",
     transition: "all 0.2s"
   },
   submitButton: {
-    padding: "0.75rem 2rem",
+    padding: "0.875rem 2.5rem",
     fontSize: "1rem",
-    fontWeight: "500",
+    fontWeight: "600",
     border: "none",
-    borderRadius: "6px",
-    backgroundColor: "#8B4513",
+    borderRadius: "10px",
+    backgroundColor: "#74583E",
     color: "#fff",
     cursor: "pointer",
-    transition: "all 0.2s"
+    transition: "all 0.2s",
+    boxShadow: "0 2px 8px rgba(116, 88, 62, 0.2)"
   }
 };
