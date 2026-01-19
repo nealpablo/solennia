@@ -25,7 +25,7 @@ export default function Profile() {
   const [avatarPreview, setAvatarPreview] = useState(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
-  // ✅ NEW: Booking Modal States
+  // ✅ Booking Modal States
   const [showBookingsModal, setShowBookingsModal] = useState(false);
   const [bookings, setBookings] = useState([]);
   const [loadingBookings, setLoadingBookings] = useState(false);
@@ -132,7 +132,26 @@ export default function Profile() {
       .catch(() => {});
   }, [token, role]);
 
-  /* ================= ✅ NEW: LOAD BOOKINGS ================= */
+  /* ================= ✅ HELPER: FORMAT DATE AND TIME ================= */
+  const formatDateTime = (dateString) => {
+    if (!dateString) return { date: 'N/A', time: 'N/A' };
+    
+    const date = new Date(dateString);
+    const dateFormatted = date.toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+    const timeFormatted = date.toLocaleTimeString('en-US', { 
+      hour: '2-digit', 
+      minute: '2-digit',
+      hour12: true 
+    });
+    
+    return { date: dateFormatted, time: timeFormatted };
+  };
+
+  /* ================= LOAD BOOKINGS ================= */
   const loadBookings = async () => {
     if (!token) return;
     
@@ -160,7 +179,7 @@ export default function Profile() {
     }
   };
 
-  /* ================= ✅ NEW: ACCEPT BOOKING (VENDOR) ================= */
+  /* ================= ACCEPT BOOKING (VENDOR) ================= */
   const acceptBooking = async (bookingId) => {
     if (!confirm('Accept this booking request?')) return;
     
@@ -192,7 +211,7 @@ export default function Profile() {
     }
   };
 
-  /* ================= ✅ NEW: REJECT BOOKING (VENDOR) ================= */
+  /* ================= REJECT BOOKING (VENDOR) ================= */
   const rejectBooking = async (bookingId) => {
     if (!confirm('Reject this booking request?')) return;
     
@@ -224,7 +243,7 @@ export default function Profile() {
     }
   };
 
-  /* ================= ✅ NEW: CANCEL BOOKING (CLIENT) ================= */
+  /* ================= CANCEL BOOKING (CLIENT) ================= */
   const cancelBooking = async (bookingId) => {
     if (!confirm('Cancel this booking?')) return;
     
@@ -254,7 +273,7 @@ export default function Profile() {
     }
   };
 
-  /* ================= ✅ NEW: GET STATUS BADGE COLOR ================= */
+  /* ================= GET STATUS BADGE COLOR ================= */
   const getStatusBadge = (status) => {
     const statusMap = {
       'Pending': 'bg-yellow-100 text-yellow-800 border-yellow-300',
@@ -552,7 +571,7 @@ export default function Profile() {
                     Edit Profile
                   </button>
 
-                  {/* ✅ NEW: MY BOOKINGS BUTTON (CLIENT) */}
+                  {/* ✅ MY BOOKINGS BUTTON (CLIENT) */}
                   {role === 0 && (
                     <button
                       onClick={() => {
@@ -568,7 +587,7 @@ export default function Profile() {
                     </button>
                   )}
 
-                  {/* ✅ NEW: BOOKING REQUESTS BUTTON (VENDOR) */}
+                  {/* ✅ BOOKING REQUESTS BUTTON (VENDOR) */}
                   {role === 1 && (
                     <button
                       onClick={() => {
@@ -709,10 +728,10 @@ export default function Profile() {
         </div>
       </main>
 
-      {/* ================= ✅ NEW: BOOKINGS MODAL ================= */}
+      {/* ================= ✅ UPDATED: BOOKINGS MODAL WITH NEW FIELDS ================= */}
       {showBookingsModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[9999] p-4">
-          <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
+          <div className="bg-white rounded-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
             {/* Header */}
             <div className="bg-[#7a5d47] text-white p-6 flex justify-between items-center">
               <h2 className="text-xl font-bold">
@@ -746,92 +765,106 @@ export default function Profile() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {bookings.map((booking) => (
-                    <div
-                      key={booking.ID}
-                      className="bg-gray-50 rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow"
-                    >
-                      <div className="flex justify-between items-start mb-3">
-                        <div>
-                          <h3 className="font-semibold text-lg">{booking.ServiceName}</h3>
-                          <p className="text-sm text-gray-600">
-                            {role === 1 ? `Client: ${booking.client_name}` : `Vendor: ${booking.vendor_name}`}
-                          </p>
+                  {bookings.map((booking) => {
+                    const { date, time } = formatDateTime(booking.EventDate);
+                    
+                    return (
+                      <div
+                        key={booking.ID}
+                        className="bg-gray-50 rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow"
+                      >
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <h3 className="font-semibold text-lg">{booking.ServiceName}</h3>
+                            <p className="text-sm text-gray-600">
+                              {role === 1 ? `Client: ${booking.client_name}` : `Vendor: ${booking.vendor_name}`}
+                            </p>
+                          </div>
+                          <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusBadge(booking.BookingStatus)}`}>
+                            {booking.BookingStatus}
+                          </span>
                         </div>
-                        <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusBadge(booking.BookingStatus)}`}>
-                          {booking.BookingStatus}
-                        </span>
-                      </div>
 
-                      <div className="grid grid-cols-2 gap-3 text-sm mb-3">
-                        <div>
-                          <span className="text-gray-600">Event Date:</span>
-                          <p className="font-medium">{new Date(booking.EventDate).toLocaleDateString()}</p>
+                        {/* ✅ UPDATED: Display ALL booking information including time, location, budget */}
+                        <div className="grid grid-cols-2 gap-3 text-sm mb-3">
+                          <div>
+                            <span className="text-gray-600">Event Date:</span>
+                            <p className="font-medium">{date}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Event Time:</span>
+                            <p className="font-medium">{time}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Event Location:</span>
+                            <p className="font-medium">{booking.EventLocation || 'Not specified'}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Event Type:</span>
+                            <p className="font-medium">{booking.EventType || 'Not specified'}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Estimated Budget:</span>
+                            <p className="font-medium">₱{parseFloat(booking.TotalAmount || 0).toLocaleString()}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Number of Guests:</span>
+                            <p className="font-medium">{booking.NumberOfGuests || 'Not specified'}</p>
+                          </div>
                         </div>
-                        <div>
-                          <span className="text-gray-600">Event Type:</span>
-                          <p className="font-medium">{booking.EventType}</p>
-                        </div>
-                        <div>
-                          <span className="text-gray-600">Venue:</span>
-                          <p className="font-medium">{booking.Venue}</p>
-                        </div>
-                        <div>
-                          <span className="text-gray-600">Guests:</span>
-                          <p className="font-medium">{booking.NumberOfGuests}</p>
-                        </div>
-                      </div>
 
-                      {booking.SpecialRequests && (
-                        <div className="mb-3">
-                          <span className="text-sm text-gray-600">Special Requests:</span>
-                          <p className="text-sm mt-1">{booking.SpecialRequests}</p>
-                        </div>
-                      )}
-
-                      {/* Action Buttons */}
-                      <div className="flex gap-2 mt-3">
-                        {/* CLIENT ACTIONS */}
-                        {role === 0 && booking.BookingStatus === 'Pending' && (
-                          <button
-                            onClick={() => cancelBooking(booking.ID)}
-                            disabled={processingBooking}
-                            className="flex-1 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 disabled:opacity-50 text-sm font-semibold"
-                          >
-                            {processingBooking ? 'Processing...' : 'Cancel Booking'}
-                          </button>
+                        {/* ✅ Additional Notes */}
+                        {booking.AdditionalNotes && (
+                          <div className="mb-3 bg-blue-50 border border-blue-200 rounded p-3">
+                            <span className="text-sm font-semibold text-blue-900">Additional Notes:</span>
+                            <p className="text-sm mt-1 text-blue-800">{booking.AdditionalNotes}</p>
+                          </div>
                         )}
 
-                        {/* VENDOR ACTIONS */}
-                        {role === 1 && booking.BookingStatus === 'Pending' && (
-                          <>
+                        {/* Action Buttons */}
+                        <div className="flex gap-2 mt-3">
+                          {/* CLIENT ACTIONS */}
+                          {role === 0 && booking.BookingStatus === 'Pending' && (
                             <button
-                              onClick={() => acceptBooking(booking.ID)}
-                              disabled={processingBooking}
-                              className="flex-1 bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 disabled:opacity-50 text-sm font-semibold"
-                            >
-                              {processingBooking ? 'Processing...' : 'Accept'}
-                            </button>
-                            <button
-                              onClick={() => rejectBooking(booking.ID)}
+                              onClick={() => cancelBooking(booking.ID)}
                               disabled={processingBooking}
                               className="flex-1 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 disabled:opacity-50 text-sm font-semibold"
                             >
-                              {processingBooking ? 'Processing...' : 'Reject'}
+                              {processingBooking ? 'Processing...' : 'Cancel Booking'}
                             </button>
-                          </>
-                        )}
+                          )}
 
-                        {/* VIEW DETAILS FOR ALL */}
-                        <button
-                          onClick={() => setSelectedBooking(booking)}
-                          className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 text-sm font-semibold"
-                        >
-                          View Details
-                        </button>
+                          {/* VENDOR ACTIONS */}
+                          {role === 1 && booking.BookingStatus === 'Pending' && (
+                            <>
+                              <button
+                                onClick={() => acceptBooking(booking.ID)}
+                                disabled={processingBooking}
+                                className="flex-1 bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 disabled:opacity-50 text-sm font-semibold"
+                              >
+                                {processingBooking ? 'Processing...' : 'Accept'}
+                              </button>
+                              <button
+                                onClick={() => rejectBooking(booking.ID)}
+                                disabled={processingBooking}
+                                className="flex-1 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 disabled:opacity-50 text-sm font-semibold"
+                              >
+                                {processingBooking ? 'Processing...' : 'Reject'}
+                              </button>
+                            </>
+                          )}
+
+                          {/* VIEW DETAILS FOR ALL */}
+                          <button
+                            onClick={() => setSelectedBooking(booking)}
+                            className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 text-sm font-semibold"
+                          >
+                            View Details
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -852,10 +885,10 @@ export default function Profile() {
         </div>
       )}
 
-      {/* ================= ✅ NEW: BOOKING DETAILS MODAL ================= */}
+      {/* ================= ✅ UPDATED: BOOKING DETAILS MODAL WITH NEW FIELDS ================= */}
       {selectedBooking && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[10000] p-4">
-          <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
+          <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
             <div className="bg-[#7a5d47] text-white p-6 flex justify-between items-center">
               <h2 className="text-xl font-bold">Booking Details</h2>
               <button
@@ -882,22 +915,39 @@ export default function Profile() {
                   </p>
                 </div>
 
+                {/* ✅ UPDATED: Show date AND time separately */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-sm font-semibold text-gray-600">Event Date</label>
-                    <p>{new Date(selectedBooking.EventDate).toLocaleDateString()}</p>
+                    <p className="text-base">{formatDateTime(selectedBooking.EventDate).date}</p>
                   </div>
+                  <div>
+                    <label className="text-sm font-semibold text-gray-600">Event Time</label>
+                    <p className="text-base">{formatDateTime(selectedBooking.EventDate).time}</p>
+                  </div>
+                  
+                  {/* ✅ Event Location */}
+                  <div>
+                    <label className="text-sm font-semibold text-gray-600">Event Location</label>
+                    <p className="text-base">{selectedBooking.EventLocation || 'Not specified'}</p>
+                  </div>
+                  
                   <div>
                     <label className="text-sm font-semibold text-gray-600">Event Type</label>
-                    <p>{selectedBooking.EventType}</p>
+                    <p className="text-base">{selectedBooking.EventType || 'Not specified'}</p>
                   </div>
+                  
+                  {/* ✅ Estimated Budget */}
                   <div>
-                    <label className="text-sm font-semibold text-gray-600">Venue</label>
-                    <p>{selectedBooking.Venue}</p>
+                    <label className="text-sm font-semibold text-gray-600">Estimated Budget</label>
+                    <p className="text-base font-semibold text-green-600">
+                      ₱{parseFloat(selectedBooking.TotalAmount || 0).toLocaleString()}
+                    </p>
                   </div>
+                  
                   <div>
                     <label className="text-sm font-semibold text-gray-600">Number of Guests</label>
-                    <p>{selectedBooking.NumberOfGuests}</p>
+                    <p className="text-base">{selectedBooking.NumberOfGuests || 'Not specified'}</p>
                   </div>
                 </div>
 
@@ -915,16 +965,27 @@ export default function Profile() {
                   </div>
                 )}
 
-                {selectedBooking.SpecialRequests && (
-                  <div>
-                    <label className="text-sm font-semibold text-gray-600">Special Requests</label>
-                    <p className="text-sm bg-gray-50 p-3 rounded-lg">{selectedBooking.SpecialRequests}</p>
+                {/* ✅ Additional Notes with better styling */}
+                {selectedBooking.AdditionalNotes && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <label className="text-sm font-semibold text-blue-900">
+                      Additional Notes
+                    </label>
+                    <p className="text-sm mt-2 text-blue-800 whitespace-pre-wrap">{selectedBooking.AdditionalNotes}</p>
                   </div>
                 )}
 
-                <div>
-                  <label className="text-sm font-semibold text-gray-600">Created At</label>
-                  <p className="text-sm">{new Date(selectedBooking.CreatedAt).toLocaleString()}</p>
+                {/* Package Selected */}
+                {selectedBooking.PackageSelected && (
+                  <div>
+                    <label className="text-sm font-semibold text-gray-600">Package Selected</label>
+                    <p className="text-sm bg-purple-50 p-3 rounded-lg border border-purple-200">{selectedBooking.PackageSelected}</p>
+                  </div>
+                )}
+
+                <div className="border-t pt-4">
+                  <label className="text-sm font-semibold text-gray-600">Booking Created</label>
+                  <p className="text-sm text-gray-500">{new Date(selectedBooking.CreatedAt).toLocaleString()}</p>
                 </div>
               </div>
 

@@ -1,4 +1,4 @@
-// src/pages/MyBookings.jsx - ENHANCED VERSION WITH DETAILS MODAL
+// src/pages/MyBookings.jsx - ENHANCED VERSION WITH ALL BOOKING DETAILS
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "../utils/toast";
@@ -22,6 +22,25 @@ export default function MyBookings() {
   useEffect(() => {
     loadBookings();
   }, []);
+
+  /* ================= ✅ HELPER: FORMAT DATE AND TIME ================= */
+  const formatDateTime = (dateString) => {
+    if (!dateString) return { date: 'N/A', time: 'N/A' };
+    
+    const date = new Date(dateString);
+    const dateFormatted = date.toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+    const timeFormatted = date.toLocaleTimeString('en-US', { 
+      hour: '2-digit', 
+      minute: '2-digit',
+      hour12: true 
+    });
+    
+    return { date: dateFormatted, time: timeFormatted };
+  };
 
   const loadBookings = async () => {
     try {
@@ -189,6 +208,7 @@ export default function MyBookings() {
           {filteredBookings.map((booking) => {
             const statusColors = getStatusStyle(booking.BookingStatus);
             const canCancel = booking.BookingStatus === "Pending";
+            const { date, time } = formatDateTime(booking.EventDate);
 
             return (
               <div key={booking.ID} style={styles.card}>
@@ -212,19 +232,29 @@ export default function MyBookings() {
                 </div>
 
                 <div style={styles.cardBody}>
+                  {/* ✅ UPDATED: Display date AND time */}
                   <div style={styles.infoRow}>
                     <svg style={styles.icon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
-                    <span>{new Date(booking.EventDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                    <span><strong>Date:</strong> {date}</span>
                   </div>
 
+                  {/* ✅ NEW: Display event time */}
+                  <div style={styles.infoRow}>
+                    <svg style={styles.icon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span><strong>Time:</strong> {time}</span>
+                  </div>
+
+                  {/* ✅ Event Location */}
                   <div style={styles.infoRow}>
                     <svg style={styles.icon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
-                    <span>{booking.EventLocation}</span>
+                    <span><strong>Location:</strong> {booking.EventLocation || 'Not specified'}</span>
                   </div>
 
                   {booking.EventType && (
@@ -232,16 +262,27 @@ export default function MyBookings() {
                       <svg style={styles.icon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
                       </svg>
-                      <span>Type: {booking.EventType}</span>
+                      <span><strong>Type:</strong> {booking.EventType}</span>
                     </div>
                   )}
 
+                  {/* ✅ NEW: Display estimated budget */}
                   {booking.TotalAmount && (
                     <div style={styles.infoRow}>
                       <svg style={styles.icon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
-                      <span>₱{parseFloat(booking.TotalAmount).toLocaleString()}</span>
+                      <span><strong>Budget:</strong> ₱{parseFloat(booking.TotalAmount).toLocaleString()}</span>
+                    </div>
+                  )}
+
+                  {/* ✅ NEW: Display additional notes preview */}
+                  {booking.AdditionalNotes && (
+                    <div style={{...styles.infoRow, ...styles.notesPreview}}>
+                      <svg style={styles.icon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <span><strong>Notes:</strong> {booking.AdditionalNotes.substring(0, 60)}{booking.AdditionalNotes.length > 60 ? '...' : ''}</span>
                     </div>
                   )}
                 </div>
@@ -440,6 +481,12 @@ const styles = {
     marginBottom: "0.75rem",
     color: "#444",
     fontSize: "0.9rem"
+  },
+  notesPreview: {
+    backgroundColor: "#f0f9ff",
+    padding: "0.5rem",
+    borderRadius: "6px",
+    border: "1px solid #bae6fd"
   },
   icon: {
     width: "1.25rem",

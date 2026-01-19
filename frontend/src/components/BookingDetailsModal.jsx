@@ -34,7 +34,30 @@ export default function BookingDetailsModal({
 
   const statusStyle = getStatusStyle(booking.BookingStatus);
 
-  // Format date
+  // ✅ UPDATED: Format date and time SEPARATELY
+  const formatDateTime = (dateStr) => {
+    if (!dateStr) return { date: 'Not specified', time: 'Not specified' };
+    
+    try {
+      const date = new Date(dateStr);
+      const dateFormatted = date.toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric'
+      });
+      const timeFormatted = date.toLocaleTimeString('en-US', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: true 
+      });
+      
+      return { date: dateFormatted, time: timeFormatted };
+    } catch {
+      return { date: dateStr, time: 'N/A' };
+    }
+  };
+
+  // Format regular dates (for CreatedAt, UpdatedAt)
   const formatDate = (dateStr) => {
     if (!dateStr) return 'Not specified';
     try {
@@ -49,6 +72,9 @@ export default function BookingDetailsModal({
       return dateStr;
     }
   };
+
+  // ✅ Get formatted event date and time
+  const { date: eventDate, time: eventTime } = formatDateTime(booking.EventDate);
 
   // Check if actions are available
   const canAccept = isVendor && booking.BookingStatus === 'Pending';
@@ -86,43 +112,67 @@ export default function BookingDetailsModal({
           
           {/* Service Information */}
           <section style={styles.section}>
-            <h3 style={styles.sectionTitle}>Service Information</h3>
+            <h3 style={styles.sectionTitle}>💼 Service Information</h3>
             <div style={styles.infoGrid}>
               <InfoItem 
+                icon="🎯"
                 label="Service" 
                 value={booking.ServiceName || 'Not specified'} 
               />
               <InfoItem 
+                icon="🎉"
                 label="Event Type" 
                 value={booking.EventType || 'Not specified'} 
               />
               <InfoItem 
+                icon="📦"
                 label="Package Selected" 
                 value={booking.PackageSelected || 'Not specified'} 
               />
               <InfoItem 
-                label="Total Amount" 
-                value={booking.TotalAmount ? `₱${parseFloat(booking.TotalAmount).toLocaleString()}` : 'Not specified'} 
+                icon="💰"
+                label="Estimated Budget" 
+                value={booking.TotalAmount ? `₱${parseFloat(booking.TotalAmount).toLocaleString()}` : 'Not specified'}
+                highlight
               />
             </div>
           </section>
 
-          {/* Event Details */}
+          {/* ✅ UPDATED: Event Details with Separate Date and Time */}
           <section style={styles.section}>
-            <h3 style={styles.sectionTitle}>Event Details</h3>
+            <h3 style={styles.sectionTitle}>📅 Event Details</h3>
             <div style={styles.infoGrid}>
               <InfoItem 
+                icon="📅"
                 label="Event Date" 
-                value={formatDate(booking.EventDate)} 
+                value={eventDate} 
               />
               <InfoItem 
+                icon="⏰"
+                label="Event Time" 
+                value={eventTime} 
+              />
+              <InfoItem 
+                icon="📍"
                 label="Event Location" 
                 value={booking.EventLocation || 'Not specified'} 
               />
+              {booking.NumberOfGuests && (
+                <InfoItem 
+                  icon="👥"
+                  label="Number of Guests" 
+                  value={booking.NumberOfGuests.toString()} 
+                />
+              )}
             </div>
+            
+            {/* ✅ UPDATED: Enhanced Additional Notes Display */}
             {booking.AdditionalNotes && (
               <div style={styles.notesContainer}>
-                <label style={styles.label}>Additional Notes:</label>
+                <label style={styles.notesLabel}>
+                  <span style={styles.notesIcon}>📝</span>
+                  Additional Notes
+                </label>
                 <p style={styles.notes}>{booking.AdditionalNotes}</p>
               </div>
             )}
@@ -131,18 +181,21 @@ export default function BookingDetailsModal({
           {/* Client Information (Vendor View) */}
           {isVendor && (
             <section style={styles.section}>
-              <h3 style={styles.sectionTitle}>Client Information</h3>
+              <h3 style={styles.sectionTitle}>👤 Client Information</h3>
               <div style={styles.infoGrid}>
                 <InfoItem 
+                  icon="👤"
                   label="Client Name" 
                   value={booking.client_name || booking.client_first_name + ' ' + booking.client_last_name || 'Not available'} 
                 />
                 <InfoItem 
+                  icon="📧"
                   label="Email" 
                   value={booking.client_email || 'Not available'} 
                 />
                 {booking.client_phone && (
                   <InfoItem 
+                    icon="📱"
                     label="Phone" 
                     value={booking.client_phone} 
                   />
@@ -154,13 +207,15 @@ export default function BookingDetailsModal({
           {/* Vendor Information (Client View) */}
           {isClient && (
             <section style={styles.section}>
-              <h3 style={styles.sectionTitle}>Vendor Information</h3>
+              <h3 style={styles.sectionTitle}>🏢 Vendor Information</h3>
               <div style={styles.infoGrid}>
                 <InfoItem 
+                  icon="🏢"
                   label="Business Name" 
                   value={booking.vendor_business_name || booking.vendor_name || 'Not available'} 
                 />
                 <InfoItem 
+                  icon="📧"
                   label="Contact Email" 
                   value={booking.vendor_email || 'Not available'} 
                 />
@@ -170,18 +225,21 @@ export default function BookingDetailsModal({
 
           {/* Booking Metadata */}
           <section style={styles.section}>
-            <h3 style={styles.sectionTitle}>Booking Information</h3>
+            <h3 style={styles.sectionTitle}>ℹ️ Booking Information</h3>
             <div style={styles.infoGrid}>
               <InfoItem 
+                icon="🔖"
                 label="Booking ID" 
                 value={`#${booking.ID}`} 
               />
               <InfoItem 
+                icon="📅"
                 label="Booked On" 
                 value={formatDate(booking.CreatedAt)} 
               />
               {booking.UpdatedAt && booking.UpdatedAt !== booking.CreatedAt && (
                 <InfoItem 
+                  icon="🔄"
                   label="Last Updated" 
                   value={formatDate(booking.UpdatedAt)} 
                 />
@@ -202,14 +260,14 @@ export default function BookingDetailsModal({
                 onClick={() => onAccept(booking.ID)}
                 disabled={processing}
               >
-                {processing ? 'Processing...' : 'Accept Booking'}
+                {processing ? 'Processing...' : '✓ Accept Booking'}
               </button>
               <button
                 style={styles.rejectBtn}
                 onClick={() => onReject(booking.ID)}
                 disabled={processing}
               >
-                {processing ? 'Processing...' : 'Reject Booking'}
+                {processing ? 'Processing...' : '✗ Reject Booking'}
               </button>
             </>
           )}
@@ -221,7 +279,7 @@ export default function BookingDetailsModal({
               onClick={() => onCancel(booking.ID)}
               disabled={processing}
             >
-              {processing ? 'Processing...' : 'Cancel Booking'}
+              {processing ? 'Processing...' : '✗ Cancel Booking'}
             </button>
           )}
 
@@ -238,13 +296,21 @@ export default function BookingDetailsModal({
 
 /**
  * InfoItem Component
- * Displays a label-value pair
+ * Displays a label-value pair with optional icon and highlight
  */
-function InfoItem({ label, value }) {
+function InfoItem({ icon, label, value, highlight }) {
   return (
     <div style={styles.infoItem}>
-      <label style={styles.label}>{label}</label>
-      <p style={styles.value}>{value}</p>
+      <label style={styles.label}>
+        {icon && <span style={styles.icon}>{icon}</span>}
+        {label}
+      </label>
+      <p style={{
+        ...styles.value,
+        ...(highlight ? styles.highlightValue : {})
+      }}>
+        {value}
+      </p>
     </div>
   );
 }
@@ -332,7 +398,10 @@ const styles = {
     color: '#333',
     marginBottom: '1rem',
     paddingBottom: '0.5rem',
-    borderBottom: '2px solid #e5e5e5'
+    borderBottom: '2px solid #e5e5e5',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem'
   },
   infoGrid: {
     display: 'grid',
@@ -349,7 +418,13 @@ const styles = {
     color: '#666',
     textTransform: 'uppercase',
     letterSpacing: '0.05em',
-    marginBottom: '0.25rem'
+    marginBottom: '0.25rem',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.25rem'
+  },
+  icon: {
+    fontSize: '1rem'
   },
   value: {
     fontSize: '0.95rem',
@@ -357,17 +432,34 @@ const styles = {
     margin: 0,
     fontWeight: '500'
   },
+  highlightValue: {
+    color: '#059669',
+    fontWeight: '600',
+    fontSize: '1rem'
+  },
   notesContainer: {
     marginTop: '1rem',
     padding: '1rem',
-    backgroundColor: '#f9f9f9',
+    backgroundColor: '#eff6ff',
     borderRadius: '8px',
-    border: '1px solid #e5e5e5'
+    border: '1px solid #bfdbfe'
+  },
+  notesLabel: {
+    fontSize: '0.875rem',
+    fontWeight: '600',
+    color: '#1e40af',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    marginBottom: '0.5rem'
+  },
+  notesIcon: {
+    fontSize: '1.2rem'
   },
   notes: {
     fontSize: '0.95rem',
-    color: '#333',
-    margin: '0.5rem 0 0 0',
+    color: '#1e3a8a',
+    margin: 0,
     lineHeight: '1.6',
     whiteSpace: 'pre-wrap'
   },
