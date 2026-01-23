@@ -5,6 +5,7 @@
  * ============================================
  * API routes for booking management
  * Developer: Ryan (01-17_Ryan_Manual-Booking)
+ * Updated: Added UC06 - Reschedule Booking
  * ============================================
  */
 
@@ -62,6 +63,11 @@ return function (App $app) {
         return $json($res, ['success' => true]);
     });
 
+    // ✅ UC06: OPTIONS for reschedule endpoint
+    $app->options('/api/bookings/{id}/reschedule', function (Request $req, Response $res) use ($json) {
+        return $json($res, ['success' => true]);
+    });
+
     /* ===========================================================
      * BOOKING ENDPOINTS
      * =========================================================== */
@@ -108,10 +114,29 @@ return function (App $app) {
         ->add(new AuthMiddleware());
 
     /**
-     * CANCEL BOOKING (CLIENT ACTION)
+     * CANCEL BOOKING (CLIENT ACTION) - UC07
      * PATCH /api/bookings/{id}/cancel
      * Client cancels their own booking
      */
     $app->patch('/api/bookings/{id}/cancel', [$bookingController, 'cancelBooking'])
+        ->add(new AuthMiddleware());
+
+    /**
+     * ✅ UC06: RESCHEDULE BOOKING (CLIENT ACTION)
+     * PATCH /api/bookings/{id}/reschedule
+     * Body: { "new_event_date": "2026-02-15 14:00:00" }    
+     * Client reschedules their booking to a new date/time
+     * 
+     * Main Flow:
+     * - Checks vendor availability for new date/time
+     * - Updates booking with new EventDate
+     * - Notifies vendor of reschedule
+     * - Returns confirmation
+     * 
+     * Alternate Flows:
+     * - Returns 400 if event date has passed
+     * - Returns 409 if vendor unavailable at new time
+     */
+    $app->patch('/api/bookings/{id}/reschedule', [$bookingController, 'rescheduleBooking'])
         ->add(new AuthMiddleware());
 };

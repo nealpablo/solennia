@@ -25,12 +25,21 @@ export default function Profile() {
   const [avatarPreview, setAvatarPreview] = useState(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
-  // ✅ Booking Modal States
+  // Booking Modal States with TABS
   const [showBookingsModal, setShowBookingsModal] = useState(false);
   const [bookings, setBookings] = useState([]);
   const [loadingBookings, setLoadingBookings] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [processingBooking, setProcessingBooking] = useState(false);
+  const [activeTab, setActiveTab] = useState("original");
+
+  // Reschedule Modal States
+  const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+  const [rescheduleBooking, setRescheduleBooking] = useState(null);
+  const [rescheduleForm, setRescheduleForm] = useState({
+    new_date: "",
+    new_time: "14:00"
+  });
 
   // Edit profile state
   const [editForm, setEditForm] = useState({
@@ -51,6 +60,32 @@ export default function Profile() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [savingChanges, setSavingChanges] = useState(false);
+
+  /* ================= HELPER TO GET PENDING RESCHEDULE DATA ================= */
+  const getPendingRescheduleData = (booking) => {
+    // Method 1: Check if backend provided it directly (from LEFT JOIN)
+    if (booking.original_date && booking.requested_date) {
+      return {
+        originalDate: booking.original_date,
+        requestedDate: booking.requested_date,
+        hasPending: true
+      };
+    }
+
+    // Method 2: Extract from reschedule_history array (fallback)
+    const rescheduleHistory = booking.reschedule_history || [];
+    const pendingReschedule = rescheduleHistory.find(r => r.Status === 'Pending');
+    
+    if (pendingReschedule) {
+      return {
+        originalDate: pendingReschedule.OriginalEventDate,
+        requestedDate: pendingReschedule.RequestedEventDate,
+        hasPending: true
+      };
+    }
+
+    return { hasPending: false };
+  };
 
   /* ================= PASSWORD STRENGTH CHECKER ================= */
   const checkPasswordStrength = (password) => {
@@ -84,7 +119,6 @@ export default function Profile() {
     return { score, label, color };
   };
 
-  // Update password strength when password changes
   useEffect(() => {
     const strength = checkPasswordStrength(editForm.newPassword);
     setPasswordStrength(strength);
@@ -113,7 +147,6 @@ export default function Profile() {
       });
   }, [token]);
 
-  
   /* ================= VENDOR STATUS ================= */
   useEffect(() => {
     if (!token || role !== 0) return;
@@ -132,9 +165,9 @@ export default function Profile() {
       .catch(() => {});
   }, [token, role]);
 
-  /* ================= ✅ HELPER: FORMAT DATE AND TIME ================= */
+  /* ================= HELPER: FORMAT DATE AND TIME ================= */
   const formatDateTime = (dateString) => {
-    if (!dateString) return { date: 'N/A', time: 'N/A' };
+    if (!dateString) return { date: 'N/A', time: 'N/A', full: 'N/A' };
     
     const date = new Date(dateString);
     const dateFormatted = date.toLocaleDateString('en-US', { 
@@ -148,7 +181,7 @@ export default function Profile() {
       hour12: true 
     });
     
-    return { date: dateFormatted, time: timeFormatted };
+    return { date: dateFormatted, time: timeFormatted, full: `${dateFormatted} at ${timeFormatted}` };
   };
 
   /* ================= LOAD BOOKINGS ================= */
@@ -157,7 +190,6 @@ export default function Profile() {
     
     setLoadingBookings(true);
     try {
-      // Clients see their bookings, Vendors see booking requests
       const endpoint = role === 1 ? '/bookings/vendor' : '/bookings/user';
       
       const res = await fetch(`${API}${endpoint}`, {
@@ -198,7 +230,7 @@ export default function Profile() {
       
       if (data.success) {
         toast.success('Booking accepted!');
-        loadBookings(); // Reload bookings
+        loadBookings();
         setSelectedBooking(null);
       } else {
         toast.error(data.error || 'Failed to accept booking');
@@ -230,7 +262,7 @@ export default function Profile() {
       
       if (data.success) {
         toast.success('Booking rejected');
-        loadBookings(); // Reload bookings
+        loadBookings();
         setSelectedBooking(null);
       } else {
         toast.error(data.error || 'Failed to reject booking');
@@ -260,7 +292,7 @@ export default function Profile() {
       
       if (data.success) {
         toast.success('Booking cancelled');
-        loadBookings(); // Reload bookings
+        loadBookings();
         setSelectedBooking(null);
       } else {
         toast.error(data.error || 'Failed to cancel booking');
@@ -268,6 +300,85 @@ export default function Profile() {
     } catch (err) {
       console.error('Cancel booking error:', err);
       toast.error('Failed to cancel booking');
+    } finally {
+      setProcessingBooking(false);
+    }
+  };
+
+  /* ================= OPEN RESCHEDULE MODAL ================= */
+  const openRescheduleModal = (booking) => {
+    setRescheduleBooking(booking);
+    
+    const currentDate = new Date(booking.EventDate);
+    const dateStr = currentDate.toISOString().split('T')[0];
+    const timeStr = currentDate.toTimeString().slice(0, 5);
+    
+    setRescheduleForm({
+      new_date: dateStr,
+      new_time: timeStr
+    });
+    
+    setShowRescheduleModal(true);
+  };
+
+  /* ================= HANDLE RESCHEDULE SUBMISSION ================= */
+  const handleReschedule = async (e) => {
+    e.preventDefault();
+    
+    if (!rescheduleForm.new_date || !rescheduleForm.new_time) {
+      toast.error("Please select both date and time");
+      return;
+    }
+    
+    try {
+      setProcessingBooking(true);
+      
+      const newEventDateTime = `${rescheduleForm.new_date} ${rescheduleForm.new_time}:00`;
+      
+      const res = await fetch(`${API}/bookings/${rescheduleBooking.ID}/reschedule`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          new_event_date: newEventDateTime
+        })
+      });
+      
+      const data = await res.json();
+      
+      if (res.status === 400 && data.past_event) {
+        toast.error(data.message || "Cannot reschedule. Event date has passed.", { duration: 8000 });
+        setShowRescheduleModal(false);
+        return;
+      }
+      
+      if (res.status === 409 && data.conflict) {
+        toast.error(
+          data.message || "This vendor is already booked for the selected date and time.",
+          { duration: 10000 }
+        );
+        return;
+      }
+      
+      if (!data.success) {
+        throw new Error(data.error || "Failed to reschedule booking");
+      }
+      
+      toast.success(
+        "Reschedule request sent successfully! Your booking status has changed to Pending. The vendor will review and approve/reject your new schedule.",
+        { duration: 8000 }
+      );
+      
+      setShowRescheduleModal(false);
+      setRescheduleBooking(null);
+      setRescheduleForm({ new_date: "", new_time: "14:00" });
+      loadBookings();
+      
+    } catch (error) {
+      console.error("Reschedule error:", error);
+      toast.error(error.message || "Failed to reschedule booking");
     } finally {
       setProcessingBooking(false);
     }
@@ -284,6 +395,24 @@ export default function Profile() {
     };
     
     return statusMap[status] || 'bg-gray-100 text-gray-800 border-gray-300';
+  };
+
+  /* ================= FILTER BOOKINGS BY TAB ================= */
+  const getFilteredBookings = () => {
+    if (activeTab === "original") {
+      // Show bookings without reschedule history OR with only rejected reschedules
+      return bookings.filter(booking => {
+        const rescheduleHistory = booking.reschedule_history || [];
+        const hasApproved = rescheduleHistory.some(r => r.Status === 'Approved');
+        return !hasApproved; // Show if no approved reschedules
+      });
+    } else {
+      // Show bookings with approved OR rejected reschedule history
+      return bookings.filter(booking => {
+        const rescheduleHistory = booking.reschedule_history || [];
+        return rescheduleHistory.some(r => r.Status === 'Approved' || r.Status === 'Rejected');
+      });
+    }
   };
 
   /* ================= AVATAR PREVIEW ================= */
@@ -363,7 +492,6 @@ export default function Profile() {
       let updatedFields = {};
       let passwordChanged = false;
 
-      // 1. Update Phone if changed
       if (editForm.phone !== (profile.phone || "")) {
         const phoneRes = await fetch(`${API}/user/update-phone`, {
           method: "POST",
@@ -381,7 +509,6 @@ export default function Profile() {
         toast.success("Phone number updated!");
       }
 
-      // 2. Change Password (Firebase)
       if (editForm.newPassword.trim()) {
         if (!editForm.currentPassword.trim()) {
           throw new Error("Current password is required to change password");
@@ -498,21 +625,17 @@ export default function Profile() {
     ? `${profile.first_name || ""} ${profile.last_name || ""}`.trim()
     : "Guest";
 
+  const filteredBookings = getFilteredBookings();
+
   return (
     <>
       <main className="pb-24 bg-[#f6f0e8] text-[#1c1b1a] min-h-screen">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
-          {/* ================= PAGE HEADER ================= */}
-          <div className="mb-6">
-          </div>
-
-          {/* ================= TWO COLUMN LAYOUT (40/60) ================= */}
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6">
             
-            {/* ================= LEFT COLUMN - PROFILE INFO (40%) ================= */}
+            {/* LEFT COLUMN - PROFILE INFO */}
             <div className="lg:col-span-2">
               <div className="flex flex-col items-center justify-center" style={{ height: 'calc(100vh - 180px)' }}>
-                {/* Large Avatar */}
                 <div className="relative mb-6">
                   <div
                     onClick={() => token && setShowAvatarModal(true)}
@@ -546,20 +669,16 @@ export default function Profile() {
                   </button>
                 </div>
 
-                {/* Name */}
                 <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">{name}</h1>
                 
-                {/* Username */}
                 {profile?.username && (
                   <p className="text-sm text-gray-600 mb-4">@{profile.username}</p>
                 )}
 
-                {/* Email */}
                 {profile?.email && (
                   <p className="text-sm text-gray-700 mb-6">{profile.email}</p>
                 )}
 
-                {/* Action Buttons */}
                 <div className="space-y-3 w-full max-w-xs">
                   <button
                     onClick={() => setShowEditModal(true)}
@@ -571,11 +690,11 @@ export default function Profile() {
                     Edit Profile
                   </button>
 
-                  {/* ✅ MY BOOKINGS BUTTON (CLIENT) */}
                   {role === 0 && (
                     <button
                       onClick={() => {
                         setShowBookingsModal(true);
+                        setActiveTab("original");
                         loadBookings();
                       }}
                       className="w-full bg-[#e8ddae] text-[#3b2f25] px-4 py-3 rounded-lg text-sm font-semibold hover:opacity-90 flex items-center justify-center gap-2 shadow-md"
@@ -587,11 +706,11 @@ export default function Profile() {
                     </button>
                   )}
 
-                  {/* ✅ BOOKING REQUESTS BUTTON (VENDOR) */}
                   {role === 1 && (
                     <button
                       onClick={() => {
                         setShowBookingsModal(true);
+                        setActiveTab("original");
                         loadBookings();
                       }}
                       className="w-full bg-[#e8ddae] text-[#3b2f25] px-4 py-3 rounded-lg text-sm font-semibold hover:opacity-90 flex items-center justify-center gap-2 shadow-md"
@@ -630,10 +749,9 @@ export default function Profile() {
               </div>
             </div>
 
-            {/* ================= RIGHT COLUMN - FAVORITES (60%) ================= */}
+            {/* RIGHT COLUMN - FAVORITES */}
             <div className="lg:col-span-3 mt-4 lg:mt-0">
               <div className="bg-white rounded-2xl shadow-lg border border-[#c9bda4] overflow-hidden flex flex-col" style={{ height: 'calc(100vh - 180px)' }}>
-                {/* Header */}
                 <div className="flex justify-between items-center px-4 py-3 border-b border-gray-200 flex-shrink-0">
                   <h2 className="text-base sm:text-lg font-bold text-gray-900 flex items-center gap-2">
                     <svg className="w-5 h-5 text-[#7a5d47]" fill="currentColor" viewBox="0 0 24 24">
@@ -646,9 +764,7 @@ export default function Profile() {
                   </span>
                 </div>
 
-                {/* Scrollable Content */}
                 <div className="flex-1 overflow-y-auto">
-                  {/* Favorite Item 1 */}
                   <div className="group relative overflow-hidden cursor-pointer transition-transform duration-300 hover:-translate-y-2">
                     <img
                       src="/images/gallery1.jpg"
@@ -658,21 +774,7 @@ export default function Profile() {
                     <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/25 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                       <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
                         <h3 className="text-xl font-bold mb-1">Kids Party Venue</h3>
-                        <p className="text-xs text-gray-200 mb-2">Perfect space for children's celebrations with colorful decorations and entertainment areas</p>
-                        <div className="flex items-center gap-3 text-xs mb-3">
-                          <span className="flex items-center gap-1">
-                            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z"/>
-                            </svg>
-                            Manila, PH
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-                              <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/>
-                            </svg>
-                            50-100 guests
-                          </span>
-                        </div>
+                        <p className="text-xs text-gray-200 mb-2">Perfect space for children's celebrations</p>
                         <button className="w-full bg-[#7a5d47] text-white px-4 py-2 rounded-lg text-xs font-semibold hover:bg-[#5d4436] transition-colors">
                           View Details
                         </button>
@@ -680,7 +782,6 @@ export default function Profile() {
                     </div>
                   </div>
 
-                  {/* Favorite Item 2 */}
                   <div className="group relative overflow-hidden cursor-pointer transition-transform duration-300 hover:-translate-y-2">
                     <img
                       src="/images/gallery2.jpg"
@@ -690,21 +791,7 @@ export default function Profile() {
                     <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/25 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                       <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
                         <h3 className="text-xl font-bold mb-1">Wedding Venue</h3>
-                        <p className="text-xs text-gray-200 mb-2">Elegant outdoor ceremony space with beautiful garden backdrop and sophisticated decor</p>
-                        <div className="flex items-center gap-3 text-xs mb-3">
-                          <span className="flex items-center gap-1">
-                            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z"/>
-                            </svg>
-                            Tagaytay, PH
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-                              <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/>
-                            </svg>
-                            100-200 guests
-                          </span>
-                        </div>
+                        <p className="text-xs text-gray-200 mb-2">Elegant outdoor ceremony space</p>
                         <button className="w-full bg-[#7a5d47] text-white px-4 py-2 rounded-lg text-xs font-semibold hover:bg-[#5d4436] transition-colors">
                           View Details
                         </button>
@@ -713,7 +800,6 @@ export default function Profile() {
                   </div>
                 </div>
 
-                {/* Footer Action */}
                 <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 flex-shrink-0">
                   <button className="w-full bg-[#7a5d47] text-white px-6 py-2 rounded-lg hover:opacity-90 font-semibold flex items-center justify-center gap-2 text-sm">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -728,11 +814,10 @@ export default function Profile() {
         </div>
       </main>
 
-      {/* ================= ✅ UPDATED: BOOKINGS MODAL WITH NEW FIELDS ================= */}
+      {/* ================= BOOKINGS MODAL WITH TABS ================= */}
       {showBookingsModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[9999] p-4">
           <div className="bg-white rounded-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
-            {/* Header */}
             <div className="bg-[#7a5d47] text-white p-6 flex justify-between items-center">
               <h2 className="text-xl font-bold">
                 {role === 1 ? 'Booking Requests' : 'My Bookings'}
@@ -748,120 +833,268 @@ export default function Profile() {
               </button>
             </div>
 
-            {/* Content */}
+            {/* TAB NAVIGATION */}
+            <div className="flex border-b border-gray-200 bg-gray-50">
+              <button
+                onClick={() => setActiveTab("original")}
+                className={`flex-1 px-6 py-3 font-semibold text-sm transition-colors ${
+                  activeTab === "original"
+                    ? "bg-white text-[#7a5d47] border-b-2 border-[#7a5d47]"
+                    : "text-gray-600 hover:text-gray-900"
+                }`}
+              >
+                📋 Original Bookings
+              </button>
+              <button
+                onClick={() => setActiveTab("rescheduled")}
+                className={`flex-1 px-6 py-3 font-semibold text-sm transition-colors ${
+                  activeTab === "rescheduled"
+                    ? "bg-white text-[#7a5d47] border-b-2 border-[#7a5d47]"
+                    : "text-gray-600 hover:text-gray-900"
+                }`}
+              >
+                🔄 Rescheduled Bookings
+              </button>
+            </div>
+
             <div className="flex-1 overflow-y-auto p-6">
               {loadingBookings ? (
                 <div className="flex items-center justify-center py-12">
                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#7a5d47]"></div>
                 </div>
-              ) : bookings.length === 0 ? (
+              ) : filteredBookings.length === 0 ? (
                 <div className="text-center py-12">
                   <svg className="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                   </svg>
                   <p className="text-gray-500">
-                    {role === 1 ? 'No booking requests yet' : 'No bookings yet'}
+                    {activeTab === "original" 
+                      ? "No original bookings found" 
+                      : "No rescheduled bookings found"}
                   </p>
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {bookings.map((booking) => {
-                    const { date, time } = formatDateTime(booking.EventDate);
+                  {filteredBookings.map((booking) => {
+                    // Get pending reschedule data using the helper function
+                    const pendingData = getPendingRescheduleData(booking);
+                    const displayDate = pendingData.hasPending 
+                      ? pendingData.originalDate 
+                      : booking.EventDate;
+                    const { date, time } = formatDateTime(displayDate);
+                    
+                    const canReschedule = role === 0 && booking.BookingStatus === 'Confirmed' && !pendingData.hasPending;
+                    
+                    const rescheduleHistory = booking.reschedule_history || [];
                     
                     return (
                       <div
                         key={booking.ID}
                         className="bg-gray-50 rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow"
                       >
-                        <div className="flex justify-between items-start mb-3">
-                          <div>
-                            <h3 className="font-semibold text-lg">{booking.ServiceName}</h3>
-                            <p className="text-sm text-gray-600">
-                              {role === 1 ? `Client: ${booking.client_name}` : `Vendor: ${booking.vendor_name}`}
-                            </p>
-                          </div>
-                          <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusBadge(booking.BookingStatus)}`}>
-                            {booking.BookingStatus}
-                          </span>
-                        </div>
+                        {/* ORIGINAL TAB VIEW */}
+                        {activeTab === "original" && (
+                          <>
+                            {/* Show pending reschedule indicator */}
+                            {pendingData.hasPending && (
+                              <div className="mb-3 bg-yellow-50 border-l-4 border-yellow-500 p-3 rounded">
+                                <div className="flex items-start gap-2">
+                                  <svg className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                  <div className="flex-1">
+                                    <p className="text-sm font-semibold text-yellow-900 mb-1">
+                                      {role === 1 ? '⏳ Pending Reschedule Request' : '⏳ Awaiting Reschedule Approval'}
+                                    </p>
+                                    <p className="text-xs text-yellow-700 mb-2">
+                                      {role === 1 
+                                        ? 'Client has requested a new schedule. Review below.' 
+                                        : 'Vendor is reviewing your reschedule request.'}
+                                    </p>
+                                    <div className="bg-white border border-yellow-200 rounded p-2 mt-2">
+                                      <p className="text-xs text-gray-700">
+                                        <span className="font-semibold">Original:</span>{' '}
+                                        {formatDateTime(pendingData.originalDate).full}
+                                      </p>
+                                      <p className="text-xs text-yellow-800 mt-1">
+                                        <span className="font-semibold">Requested:</span>{' '}
+                                        {formatDateTime(pendingData.requestedDate).full}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
 
-                        {/* ✅ UPDATED: Display ALL booking information including time, location, budget */}
-                        <div className="grid grid-cols-2 gap-3 text-sm mb-3">
-                          <div>
-                            <span className="text-gray-600">Event Date:</span>
-                            <p className="font-medium">{date}</p>
-                          </div>
-                          <div>
-                            <span className="text-gray-600">Event Time:</span>
-                            <p className="font-medium">{time}</p>
-                          </div>
-                          <div>
-                            <span className="text-gray-600">Event Location:</span>
-                            <p className="font-medium">{booking.EventLocation || 'Not specified'}</p>
-                          </div>
-                          <div>
-                            <span className="text-gray-600">Event Type:</span>
-                            <p className="font-medium">{booking.EventType || 'Not specified'}</p>
-                          </div>
-                          <div>
-                            <span className="text-gray-600">Estimated Budget:</span>
-                            <p className="font-medium">₱{parseFloat(booking.TotalAmount || 0).toLocaleString()}</p>
-                          </div>
-                          <div>
-                            <span className="text-gray-600">Number of Guests:</span>
-                            <p className="font-medium">{booking.NumberOfGuests || 'Not specified'}</p>
-                          </div>
-                        </div>
+                            <div className="flex justify-between items-start mb-3">
+                              <div>
+                                <h3 className="font-semibold text-lg">{booking.ServiceName}</h3>
+                                <p className="text-sm text-gray-600">
+                                  {role === 1 ? `Client: ${booking.client_name}` : `Vendor: ${booking.vendor_name}`}
+                                </p>
+                              </div>
+                              <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusBadge(booking.BookingStatus)}`}>
+                                {booking.BookingStatus}
+                              </span>
+                            </div>
 
-                        {/* ✅ Additional Notes */}
-                        {booking.AdditionalNotes && (
-                          <div className="mb-3 bg-blue-50 border border-blue-200 rounded p-3">
-                            <span className="text-sm font-semibold text-blue-900">Additional Notes:</span>
-                            <p className="text-sm mt-1 text-blue-800">{booking.AdditionalNotes}</p>
-                          </div>
+                            <div className="grid grid-cols-2 gap-3 text-sm mb-3">
+                              <div>
+                                <span className="text-gray-600">{pendingData.hasPending ? 'Original' : 'Event'} Date:</span>
+                                <p className="font-medium">{date}</p>
+                              </div>
+                              <div>
+                                <span className="text-gray-600">{pendingData.hasPending ? 'Original' : 'Event'} Time:</span>
+                                <p className="font-medium">{time}</p>
+                              </div>
+                              <div>
+                                <span className="text-gray-600">Location:</span>
+                                <p className="font-medium">{booking.EventLocation || 'Not specified'}</p>
+                              </div>
+                              <div>
+                                <span className="text-gray-600">Budget:</span>
+                                <p className="font-medium">₱{parseFloat(booking.TotalAmount || 0).toLocaleString()}</p>
+                              </div>
+                            </div>
+
+                            <div className="flex gap-2 mt-3">
+                              {role === 0 && booking.BookingStatus === 'Pending' && !pendingData.hasPending && (
+                                <button
+                                  onClick={() => cancelBooking(booking.ID)}
+                                  disabled={processingBooking}
+                                  className="flex-1 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 disabled:opacity-50 text-sm font-semibold"
+                                >
+                                  Cancel
+                                </button>
+                              )}
+
+                              {canReschedule && (
+                                <button
+                                  onClick={() => openRescheduleModal(booking)}
+                                  disabled={processingBooking}
+                                  className="flex-1 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 disabled:opacity-50 text-sm font-semibold"
+                                >
+                                  📅 Reschedule
+                                </button>
+                              )}
+
+                              {role === 1 && booking.BookingStatus === 'Pending' && (
+                                <>
+                                  <button
+                                    onClick={() => acceptBooking(booking.ID)}
+                                    disabled={processingBooking}
+                                    className="flex-1 bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 disabled:opacity-50 text-sm font-semibold"
+                                  >
+                                    {pendingData.hasPending ? '✓ Approve' : 'Accept'}
+                                  </button>
+                                  <button
+                                    onClick={() => rejectBooking(booking.ID)}
+                                    disabled={processingBooking}
+                                    className="flex-1 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 disabled:opacity-50 text-sm font-semibold"
+                                  >
+                                    {pendingData.hasPending ? '✗ Reject' : 'Reject'}
+                                  </button>
+                                </>
+                              )}
+
+                              <button
+                                onClick={() => setSelectedBooking(booking)}
+                                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 text-sm font-semibold"
+                              >
+                                View
+                              </button>
+                            </div>
+                          </>
                         )}
 
-                        {/* Action Buttons */}
-                        <div className="flex gap-2 mt-3">
-                          {/* CLIENT ACTIONS */}
-                          {role === 0 && booking.BookingStatus === 'Pending' && (
-                            <button
-                              onClick={() => cancelBooking(booking.ID)}
-                              disabled={processingBooking}
-                              className="flex-1 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 disabled:opacity-50 text-sm font-semibold"
-                            >
-                              {processingBooking ? 'Processing...' : 'Cancel Booking'}
-                            </button>
-                          )}
+                        {/* RESCHEDULED TAB VIEW */}
+                        {activeTab === "rescheduled" && (
+                          <>
+                            <div className="flex justify-between items-start mb-3">
+                              <div>
+                                <h3 className="font-semibold text-lg">{booking.ServiceName}</h3>
+                                <p className="text-sm text-gray-600">
+                                  {role === 1 ? `Client: ${booking.client_name}` : `Vendor: ${booking.vendor_name}`}
+                                </p>
+                              </div>
+                              <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusBadge(booking.BookingStatus)}`}>
+                                {booking.BookingStatus}
+                              </span>
+                            </div>
 
-                          {/* VENDOR ACTIONS */}
-                          {role === 1 && booking.BookingStatus === 'Pending' && (
-                            <>
-                              <button
-                                onClick={() => acceptBooking(booking.ID)}
-                                disabled={processingBooking}
-                                className="flex-1 bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 disabled:opacity-50 text-sm font-semibold"
+                            {/* Show all reschedule history */}
+                            {rescheduleHistory.map((reschedule) => (
+                              <div
+                                key={reschedule.ID}
+                                className={`mb-3 p-3 rounded border-l-4 ${
+                                  reschedule.Status === 'Approved'
+                                    ? 'bg-green-50 border-green-500'
+                                    : 'bg-red-50 border-red-500'
+                                }`}
                               >
-                                {processingBooking ? 'Processing...' : 'Accept'}
-                              </button>
-                              <button
-                                onClick={() => rejectBooking(booking.ID)}
-                                disabled={processingBooking}
-                                className="flex-1 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 disabled:opacity-50 text-sm font-semibold"
-                              >
-                                {processingBooking ? 'Processing...' : 'Reject'}
-                              </button>
-                            </>
-                          )}
+                                <div className="flex items-start gap-2">
+                                  <div className="flex-1">
+                                    <p className="text-sm font-semibold mb-2">
+                                      {reschedule.Status === 'Approved' 
+                                        ? '✅ Approved Reschedule' 
+                                        : '❌ Rejected Reschedule'}
+                                    </p>
+                                    <div className="bg-white border rounded p-2 space-y-1">
+                                      <p className="text-xs text-gray-700">
+                                        <span className="font-semibold">Original:</span>{' '}
+                                        {formatDateTime(reschedule.OriginalEventDate).full}
+                                      </p>
+                                      <p className="text-xs text-blue-800">
+                                        <span className="font-semibold">Requested:</span>{' '}
+                                        {formatDateTime(reschedule.RequestedEventDate).full}
+                                      </p>
+                                      {reschedule.Status === 'Approved' && (
+                                        <p className="text-xs text-green-700 mt-1 pt-1 border-t">
+                                          <span className="font-semibold">Approved on:</span>{' '}
+                                          {formatDateTime(reschedule.ProcessedAt).full}
+                                        </p>
+                                      )}
+                                      {reschedule.Status === 'Rejected' && (
+                                        <p className="text-xs text-red-700 mt-1 pt-1 border-t">
+                                          <span className="font-semibold">Rejected on:</span>{' '}
+                                          {formatDateTime(reschedule.ProcessedAt).full}
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
 
-                          {/* VIEW DETAILS FOR ALL */}
-                          <button
-                            onClick={() => setSelectedBooking(booking)}
-                            className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 text-sm font-semibold"
-                          >
-                            View Details
-                          </button>
-                        </div>
+                            <div className="grid grid-cols-2 gap-3 text-sm mb-3 mt-3 pt-3 border-t">
+                              <div>
+                                <span className="text-gray-600">Current Date:</span>
+                                <p className="font-medium">{formatDateTime(booking.EventDate).date}</p>
+                              </div>
+                              <div>
+                                <span className="text-gray-600">Current Time:</span>
+                                <p className="font-medium">{formatDateTime(booking.EventDate).time}</p>
+                              </div>
+                              <div>
+                                <span className="text-gray-600">Location:</span>
+                                <p className="font-medium">{booking.EventLocation || 'Not specified'}</p>
+                              </div>
+                              <div>
+                                <span className="text-gray-600">Budget:</span>
+                                <p className="font-medium">₱{parseFloat(booking.TotalAmount || 0).toLocaleString()}</p>
+                              </div>
+                            </div>
+
+                            <div className="flex gap-2 mt-3">
+                              <button
+                                onClick={() => setSelectedBooking(booking)}
+                                className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 text-sm font-semibold"
+                              >
+                                View Full Details
+                              </button>
+                            </div>
+                          </>
+                        )}
                       </div>
                     );
                   })}
@@ -869,7 +1102,6 @@ export default function Profile() {
               )}
             </div>
 
-            {/* Footer */}
             <div className="border-t border-gray-200 p-4 bg-gray-50">
               <button
                 onClick={() => {
@@ -885,7 +1117,7 @@ export default function Profile() {
         </div>
       )}
 
-      {/* ================= ✅ UPDATED: BOOKING DETAILS MODAL WITH NEW FIELDS ================= */}
+      {/* ================= BOOKING DETAILS MODAL ================= */}
       {selectedBooking && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[10000] p-4">
           <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
@@ -900,6 +1132,63 @@ export default function Profile() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-6">
+              {(() => {
+                const pendingData = getPendingRescheduleData(selectedBooking);
+                return pendingData.hasPending ? (
+                  <div className="mb-4 bg-yellow-50 border-l-4 border-yellow-500 p-4 rounded">
+                    <p className="font-semibold text-yellow-900 mb-2">
+                      {role === 1 ? '⏳ Pending Reschedule Request' : '⏳ Awaiting Approval'}
+                    </p>
+                    <div className="bg-white border border-yellow-200 rounded p-3">
+                      <p className="text-sm text-gray-800 mb-2">
+                        <span className="font-semibold">Original:</span><br />
+                        {formatDateTime(pendingData.originalDate).full}
+                      </p>
+                      <p className="text-sm text-yellow-800">
+                        <span className="font-semibold">Requested:</span><br />
+                        {formatDateTime(pendingData.requestedDate).full}
+                      </p>
+                    </div>
+                  </div>
+                ) : null;
+              })()}
+
+              {/* Show reschedule history */}
+              {selectedBooking.reschedule_history && selectedBooking.reschedule_history.length > 0 && (
+                <div className="mb-4">
+                  <h3 className="font-semibold text-gray-700 mb-3">🔄 Reschedule History</h3>
+                  {selectedBooking.reschedule_history.map((reschedule) => (
+                    <div
+                      key={reschedule.ID}
+                      className={`mb-3 p-3 rounded border-l-4 ${
+                        reschedule.Status === 'Pending' ? 'bg-yellow-50 border-yellow-500' :
+                        reschedule.Status === 'Approved' ? 'bg-green-50 border-green-500' :
+                        'bg-red-50 border-red-500'
+                      }`}
+                    >
+                      <p className="text-sm font-semibold mb-2">
+                        {reschedule.Status === 'Pending' && '⏳ Pending'}
+                        {reschedule.Status === 'Approved' && '✅ Approved'}
+                        {reschedule.Status === 'Rejected' && '❌ Rejected'}
+                      </p>
+                      <div className="bg-white border rounded p-2 space-y-1">
+                        <p className="text-xs">
+                          <strong>From:</strong> {formatDateTime(reschedule.OriginalEventDate).full}
+                        </p>
+                        <p className="text-xs">
+                          <strong>To:</strong> {formatDateTime(reschedule.RequestedEventDate).full}
+                        </p>
+                        {reschedule.ProcessedAt && (
+                          <p className="text-xs text-gray-600 mt-1 pt-1 border-t">
+                            <strong>Processed:</strong> {formatDateTime(reschedule.ProcessedAt).full}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <div className="space-y-4">
                 <div>
                   <label className="text-sm font-semibold text-gray-600">Service Name</label>
@@ -915,20 +1204,18 @@ export default function Profile() {
                   </p>
                 </div>
 
-                {/* ✅ UPDATED: Show date AND time separately */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-sm font-semibold text-gray-600">Event Date</label>
+                    <label className="text-sm font-semibold text-gray-600">Current Date</label>
                     <p className="text-base">{formatDateTime(selectedBooking.EventDate).date}</p>
                   </div>
                   <div>
-                    <label className="text-sm font-semibold text-gray-600">Event Time</label>
+                    <label className="text-sm font-semibold text-gray-600">Current Time</label>
                     <p className="text-base">{formatDateTime(selectedBooking.EventDate).time}</p>
                   </div>
                   
-                  {/* ✅ Event Location */}
                   <div>
-                    <label className="text-sm font-semibold text-gray-600">Event Location</label>
+                    <label className="text-sm font-semibold text-gray-600">Location</label>
                     <p className="text-base">{selectedBooking.EventLocation || 'Not specified'}</p>
                   </div>
                   
@@ -937,17 +1224,11 @@ export default function Profile() {
                     <p className="text-base">{selectedBooking.EventType || 'Not specified'}</p>
                   </div>
                   
-                  {/* ✅ Estimated Budget */}
                   <div>
-                    <label className="text-sm font-semibold text-gray-600">Estimated Budget</label>
+                    <label className="text-sm font-semibold text-gray-600">Budget</label>
                     <p className="text-base font-semibold text-green-600">
                       ₱{parseFloat(selectedBooking.TotalAmount || 0).toLocaleString()}
                     </p>
-                  </div>
-                  
-                  <div>
-                    <label className="text-sm font-semibold text-gray-600">Number of Guests</label>
-                    <p className="text-base">{selectedBooking.NumberOfGuests || 'Not specified'}</p>
                   </div>
                 </div>
 
@@ -965,40 +1246,23 @@ export default function Profile() {
                   </div>
                 )}
 
-                {/* ✅ Additional Notes with better styling */}
                 {selectedBooking.AdditionalNotes && (
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <label className="text-sm font-semibold text-blue-900">
-                      Additional Notes
-                    </label>
+                    <label className="text-sm font-semibold text-blue-900">Additional Notes</label>
                     <p className="text-sm mt-2 text-blue-800 whitespace-pre-wrap">{selectedBooking.AdditionalNotes}</p>
                   </div>
                 )}
-
-                {/* Package Selected */}
-                {selectedBooking.PackageSelected && (
-                  <div>
-                    <label className="text-sm font-semibold text-gray-600">Package Selected</label>
-                    <p className="text-sm bg-purple-50 p-3 rounded-lg border border-purple-200">{selectedBooking.PackageSelected}</p>
-                  </div>
-                )}
-
-                <div className="border-t pt-4">
-                  <label className="text-sm font-semibold text-gray-600">Booking Created</label>
-                  <p className="text-sm text-gray-500">{new Date(selectedBooking.CreatedAt).toLocaleString()}</p>
-                </div>
               </div>
 
-              {/* Actions */}
               {selectedBooking.BookingStatus === 'Pending' && (
                 <div className="flex gap-2 mt-6 pt-6 border-t">
-                  {role === 0 && (
+                  {role === 0 && !getPendingRescheduleData(selectedBooking).hasPending && (
                     <button
                       onClick={() => cancelBooking(selectedBooking.ID)}
                       disabled={processingBooking}
                       className="flex-1 bg-red-500 text-white px-6 py-3 rounded-lg hover:bg-red-600 disabled:opacity-50 font-semibold"
                     >
-                      {processingBooking ? 'Processing...' : 'Cancel Booking'}
+                      Cancel
                     </button>
                   )}
 
@@ -1009,17 +1273,32 @@ export default function Profile() {
                         disabled={processingBooking}
                         className="flex-1 bg-green-500 text-white px-6 py-3 rounded-lg hover:bg-green-600 disabled:opacity-50 font-semibold"
                       >
-                        {processingBooking ? 'Processing...' : 'Accept'}
+                        {getPendingRescheduleData(selectedBooking).hasPending ? 'Approve Reschedule' : 'Accept'}
                       </button>
                       <button
                         onClick={() => rejectBooking(selectedBooking.ID)}
                         disabled={processingBooking}
                         className="flex-1 bg-red-500 text-white px-6 py-3 rounded-lg hover:bg-red-600 disabled:opacity-50 font-semibold"
                       >
-                        {processingBooking ? 'Processing...' : 'Reject'}
+                        {getPendingRescheduleData(selectedBooking).hasPending ? 'Reject Reschedule' : 'Reject'}
                       </button>
                     </>
                   )}
+                </div>
+              )}
+
+              {role === 0 && selectedBooking.BookingStatus === 'Confirmed' && !getPendingRescheduleData(selectedBooking).hasPending && (
+                <div className="flex gap-2 mt-6 pt-6 border-t">
+                  <button
+                    onClick={() => {
+                      setSelectedBooking(null);
+                      openRescheduleModal(selectedBooking);
+                    }}
+                    disabled={processingBooking}
+                    className="flex-1 bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 disabled:opacity-50 font-semibold"
+                  >
+                    📅 Reschedule Booking
+                  </button>
                 </div>
               )}
             </div>
@@ -1032,6 +1311,126 @@ export default function Profile() {
                 Close
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= RESCHEDULE MODAL ================= */}
+      {showRescheduleModal && rescheduleBooking && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[10001] p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
+            <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-6">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="text-xl font-bold mb-1">📅 Reschedule Booking</h3>
+                  <p className="text-sm text-blue-100">
+                    {rescheduleBooking.ServiceName}
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowRescheduleModal(false);
+                    setRescheduleBooking(null);
+                  }}
+                  className="text-white hover:text-gray-200 text-3xl font-light"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+
+            <form onSubmit={handleReschedule} className="p-6">
+              <div className="mb-4 bg-amber-50 border-l-4 border-amber-500 p-3 rounded">
+                <div className="flex items-start gap-2">
+                  <svg className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <div>
+                    <p className="text-sm font-semibold text-amber-900">Note:</p>
+                    <p className="text-xs text-amber-800 mt-1">
+                      Your booking status will change to "Pending" after rescheduling. The vendor must approve your new schedule.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gray-100 border border-gray-300 rounded-lg p-4 mb-4">
+                <p className="text-sm text-gray-600 mb-1">Current Schedule:</p>
+                <p className="font-semibold text-gray-900">
+                  {formatDateTime(rescheduleBooking.EventDate).date}
+                </p>
+                <p className="font-semibold text-gray-900">
+                  {formatDateTime(rescheduleBooking.EventDate).time}
+                </p>
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  New Date <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  value={rescheduleForm.new_date}
+                  onChange={(e) => setRescheduleForm({ ...rescheduleForm, new_date: e.target.value })}
+                  min={new Date().toISOString().split('T')[0]}
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  New Time <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="time"
+                  value={rescheduleForm.new_time}
+                  onChange={(e) => setRescheduleForm({ ...rescheduleForm, new_time: e.target.value })}
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-6 flex gap-3">
+                <span className="text-xl">ℹ️</span>
+                <p className="text-sm text-blue-800">
+                  The vendor will be notified of your reschedule request and must approve the new date and time.
+                </p>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowRescheduleModal(false);
+                    setRescheduleBooking(null);
+                  }}
+                  disabled={processingBooking}
+                  className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 font-semibold disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={processingBooking}
+                  className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {processingBooking ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      Request Reschedule
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -1104,7 +1503,6 @@ export default function Profile() {
             </div>
 
             <form onSubmit={saveProfileChanges} className="p-6 space-y-6">
-              {/* USERNAME - READ ONLY WITH REQUEST BUTTON */}
               <div>
                 <label className="block text-sm font-semibold uppercase mb-2">
                   Username
@@ -1133,7 +1531,6 @@ export default function Profile() {
                 </p>
               </div>
 
-              {/* PHONE NUMBER (2FA) */}
               <div>
                 <label className="block text-sm font-semibold uppercase mb-2">
                   Phone Number (For 2FA)
@@ -1150,11 +1547,9 @@ export default function Profile() {
                 </p>
               </div>
 
-              {/* PASSWORD SECTION */}
               <div className="border-t border-gray-300 pt-6">
                 <h3 className="text-base font-semibold mb-4">Change Password</h3>
                 
-                {/* Current Password */}
                 <div className="mb-4">
                   <label className="block text-sm font-semibold uppercase mb-2">
                     Current Password
@@ -1177,7 +1572,6 @@ export default function Profile() {
                   </div>
                 </div>
 
-                {/* New Password */}
                 <div className="mb-4">
                   <label className="block text-sm font-semibold uppercase mb-2">
                     New Password
@@ -1199,7 +1593,6 @@ export default function Profile() {
                     </button>
                   </div>
 
-                  {/* Password Strength Indicator */}
                   {editForm.newPassword && (
                     <div className="mt-2">
                       <div className="flex items-center gap-2 mb-1">
@@ -1226,7 +1619,6 @@ export default function Profile() {
                   )}
                 </div>
 
-                {/* Confirm Password */}
                 <div className="mb-4">
                   <label className="block text-sm font-semibold uppercase mb-2">
                     Confirm New Password
@@ -1248,7 +1640,6 @@ export default function Profile() {
                     </button>
                   </div>
 
-                  {/* Password Match Indicator */}
                   {editForm.confirmPassword && (
                     <div className="mt-1">
                       {editForm.newPassword === editForm.confirmPassword ? (
@@ -1269,7 +1660,6 @@ export default function Profile() {
                 </p>
               </div>
 
-              {/* BUTTONS */}
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
