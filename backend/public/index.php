@@ -155,6 +155,7 @@ $loadRoutes('/src/Routes/notificationRoutes.php');
 $loadRoutes('/src/Routes/chatRoutes.php');
 $loadRoutes('/src/Routes/usernameResolverRoutes.php');
 $loadRoutes('/src/Routes/bookingRoutes.php');
+$loadRoutes('/src/Routes/availabilityRoutes.php');
 
 error_log("All route files loaded");
 
