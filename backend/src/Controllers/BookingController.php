@@ -11,6 +11,7 @@ use Illuminate\Database\Capsule\Manager as DB;
  * BOOKING CONTROLLER WITH RESCHEDULE SUPPORT
  * ============================================
  * FIXED VERSION - Vendors now see reschedule fields
+ * + UC08: Added completeBooking() method for marking bookings as Completed
  * ============================================
  */
 class BookingController
@@ -148,7 +149,7 @@ class BookingController
 
     /**
      * ============================================
-     * ✅ GET USER BOOKINGS + RESCHEDULE HISTORY
+     *  GET USER BOOKINGS + RESCHEDULE HISTORY
      * ============================================
      */
     public function getUserBookings(Request $req, Response $res): Response
@@ -196,30 +197,31 @@ class BookingController
                     trim(($booking->vendor_first_name ?? '') . ' ' . ($booking->vendor_last_name ?? ''));
                 
                 $booking->has_pending_reschedule = !empty($booking->reschedule_id);
-                $booking->is_rescheduled = $booking->has_pending_reschedule;
-
-                // ✅ Get ALL reschedule history
-                $rescheduleHistory = DB::table('booking_reschedule')
+                
+                $booking->approved_reschedules = DB::table('booking_reschedule')
                     ->where('BookingID', $booking->ID)
-                    ->orderBy('RequestedAt', 'DESC')
+                    ->where('Status', 'Approved')
+                    ->orderBy('ProcessedAt', 'DESC')
                     ->get();
-
-                $booking->reschedule_history = $rescheduleHistory;
+                
+                $booking->rejected_reschedules = DB::table('booking_reschedule')
+                    ->where('BookingID', $booking->ID)
+                    ->where('Status', 'Rejected')
+                    ->orderBy('ProcessedAt', 'DESC')
+                    ->get();
             }
 
             return $this->json($res, ['success' => true, 'bookings' => $bookings]);
 
         } catch (\Throwable $e) {
             error_log("GET_USER_BOOKINGS_ERROR: " . $e->getMessage());
-            return $this->json($res, ['success' => false, 'error' => 'Failed to load bookings'], 500);
+            return $this->json($res, ['success' => false, 'error' => 'Failed to fetch bookings'], 500);
         }
     }
 
     /**
      * ============================================
-     * ✅ FIXED: GET VENDOR BOOKINGS + RESCHEDULE FIELDS
-     * ============================================
-     * NOW includes LEFT JOIN for pending reschedule data
+     * GET VENDOR BOOKINGS + RESCHEDULE INFO
      * ============================================
      */
     public function getVendorBookings(Request $req, Response $res): Response
@@ -231,60 +233,60 @@ class BookingController
             }
 
             $vendorUserId = $user->mysql_id;
+            $params = $req->getQueryParams();
+            $status = $params['status'] ?? null;
 
-            $esp = DB::table('event_service_provider')->where('UserID', $vendorUserId)->first();
-            if (!$esp) {
-                return $this->json($res, ['success' => false, 'error' => 'Vendor not found'], 404);
+            $vendorProfile = DB::table('event_service_provider')
+                ->where('UserID', $vendorUserId)
+                ->first();
+
+            if (!$vendorProfile) {
+                return $this->json($res, ['success' => false, 'error' => 'Vendor profile not found'], 404);
             }
 
-            // ✅ FIXED: Added LEFT JOIN for pending reschedule
-            $bookings = DB::table('booking as b')
+            $query = DB::table('booking as b')
                 ->select([
                     'b.*',
-                    'c.first_name as client_first_name',
-                    'c.last_name as client_last_name',
-                    'c.email as client_email',
+                    'c.first_name',
+                    'c.last_name',
+                    'c.email',
+                    'c.phone',
                     'br_pending.ID as reschedule_id',
                     'br_pending.OriginalEventDate as original_date',
                     'br_pending.RequestedEventDate as requested_date',
-                    'br_pending.Status as reschedule_status'
+                    'br_pending.Status as reschedule_status',
+                    'br_pending.RequestedAt as reschedule_requested_at'
                 ])
                 ->leftJoin('credential as c', 'b.UserID', '=', 'c.id')
                 ->leftJoin('booking_reschedule as br_pending', function($join) {
                     $join->on('b.ID', '=', 'br_pending.BookingID')
                          ->where('br_pending.Status', '=', 'Pending');
                 })
-                ->where('b.EventServiceProviderID', $esp->ID)
-                ->orderBy('b.CreatedAt', 'DESC')
-                ->get();
+                ->where('b.EventServiceProviderID', $vendorProfile->ID)
+                ->orderBy('b.CreatedAt', 'DESC');
+
+            if ($status) {
+                $query->where('b.BookingStatus', $status);
+            }
+
+            $bookings = $query->get();
 
             foreach ($bookings as $booking) {
-                $booking->client_name = trim(($booking->client_first_name ?? '') . ' ' . ($booking->client_last_name ?? ''));
-
-                // ✅ Set flags
+                $booking->client_name = trim(($booking->first_name ?? '') . ' ' . ($booking->last_name ?? ''));
                 $booking->has_pending_reschedule = !empty($booking->reschedule_id);
-                $booking->is_rescheduled = $booking->has_pending_reschedule;
-
-                // ✅ Get reschedule history
-                $rescheduleHistory = DB::table('booking_reschedule')
-                    ->where('BookingID', $booking->ID)
-                    ->orderBy('RequestedAt', 'DESC')
-                    ->get();
-
-                $booking->reschedule_history = $rescheduleHistory;
             }
 
             return $this->json($res, ['success' => true, 'bookings' => $bookings]);
 
         } catch (\Throwable $e) {
             error_log("GET_VENDOR_BOOKINGS_ERROR: " . $e->getMessage());
-            return $this->json($res, ['success' => false, 'error' => 'Failed to load bookings'], 500);
+            return $this->json($res, ['success' => false, 'error' => 'Failed to fetch bookings'], 500);
         }
     }
 
     /**
      * ============================================
-     * ✅ GET BOOKING DETAILS + RESCHEDULE HISTORY
+     * GET BOOKING DETAILS
      * ============================================
      */
     public function getBookingDetails(Request $req, Response $res, array $args): Response
@@ -295,14 +297,24 @@ class BookingController
                 return $this->json($res, ['success' => false, 'error' => 'Unauthorized'], 401);
             }
 
+            $userId = $user->mysql_id;
             $bookingId = $args['id'] ?? null;
-            if (!$bookingId) {
-                return $this->json($res, ['success' => false, 'error' => 'Booking ID required'], 400);
-            }
 
             $booking = DB::table('booking as b')
-                ->select(['b.*', 'esp.BusinessName as vendor_name'])
+                ->select([
+                    'b.*',
+                    'esp.BusinessName',
+                    'esp.BusinessEmail',
+                    'esp.UserID as vendor_user_id',
+                    'c_client.first_name as client_first_name',
+                    'c_client.last_name as client_last_name',
+                    'c_client.email as client_email',
+                    'c_vendor.first_name as vendor_first_name',
+                    'c_vendor.last_name as vendor_last_name'
+                ])
                 ->leftJoin('event_service_provider as esp', 'b.EventServiceProviderID', '=', 'esp.ID')
+                ->leftJoin('credential as c_client', 'b.UserID', '=', 'c_client.id')
+                ->leftJoin('credential as c_vendor', 'esp.UserID', '=', 'c_vendor.id')
                 ->where('b.ID', $bookingId)
                 ->first();
 
@@ -310,25 +322,24 @@ class BookingController
                 return $this->json($res, ['success' => false, 'error' => 'Booking not found'], 404);
             }
 
-            // ✅ Get reschedule history
-            $rescheduleHistory = DB::table('booking_reschedule')
-                ->where('BookingID', $bookingId)
-                ->orderBy('RequestedAt', 'DESC')
-                ->get();
+            $userIsOwner = $booking->UserID == $userId;
+            $userIsVendor = $booking->vendor_user_id == $userId;
 
-            $booking->reschedule_history = $rescheduleHistory;
+            if (!$userIsOwner && !$userIsVendor) {
+                return $this->json($res, ['success' => false, 'error' => 'Access denied'], 403);
+            }
 
             return $this->json($res, ['success' => true, 'booking' => $booking]);
 
         } catch (\Throwable $e) {
             error_log("GET_BOOKING_DETAILS_ERROR: " . $e->getMessage());
-            return $this->json($res, ['success' => false, 'error' => 'Failed to load details'], 500);
+            return $this->json($res, ['success' => false, 'error' => 'Failed to get booking'], 500);
         }
     }
 
     /**
      * ============================================
-     * ✅ RESCHEDULE BOOKING
+     * RESCHEDULE BOOKING (CLIENT)
      * ============================================
      */
     public function rescheduleBooking(Request $req, Response $res, array $args): Response
@@ -342,38 +353,34 @@ class BookingController
             $userId = $user->mysql_id;
             $bookingId = $args['id'] ?? null;
             $data = (array) $req->getParsedBody();
+            $newEventDate = $data['new_event_date'] ?? null;
 
-            if (empty($data['new_event_date'])) {
+            if (!$newEventDate) {
                 return $this->json($res, ['success' => false, 'error' => 'New date required'], 400);
-            }
-
-            $newEventDate = $data['new_event_date'];
-
-            if (strtotime($newEventDate) <= time()) {
-                return $this->json($res, ['success' => false, 'error' => 'Date must be in future'], 400);
             }
 
             $booking = DB::table('booking as b')
                 ->leftJoin('event_service_provider as esp', 'b.EventServiceProviderID', '=', 'esp.ID')
                 ->where('b.ID', $bookingId)
+                ->where('b.UserID', $userId)
                 ->select('b.*', 'esp.UserID as vendor_user_id')
                 ->first();
 
-            if (!$booking || $booking->UserID != $userId) {
+            if (!$booking) {
                 return $this->json($res, ['success' => false, 'error' => 'Access denied'], 403);
             }
 
             if ($booking->BookingStatus !== 'Confirmed') {
-                return $this->json($res, ['success' => false, 'error' => 'Only confirmed bookings can be rescheduled'], 400);
+                return $this->json($res, ['success' => false, 'error' => 'Only Confirmed bookings can be rescheduled'], 400);
             }
 
-            $existingReschedule = DB::table('booking_reschedule')
+            $existingPending = DB::table('booking_reschedule')
                 ->where('BookingID', $bookingId)
                 ->where('Status', 'Pending')
                 ->first();
 
-            if ($existingReschedule) {
-                return $this->json($res, ['success' => false, 'error' => 'Reschedule already pending'], 400);
+            if ($existingPending) {
+                return $this->json($res, ['success' => false, 'error' => 'A reschedule request is already pending'], 409);
             }
 
             $conflictingBooking = DB::table('booking')
@@ -394,7 +401,7 @@ class BookingController
             DB::beginTransaction();
 
             try {
-                // ✅ Create reschedule request
+                //  Create reschedule request
                 $rescheduleId = DB::table('booking_reschedule')->insertGetId([
                     'BookingID' => $bookingId,
                     'OriginalEventDate' => $booking->EventDate,
@@ -405,7 +412,7 @@ class BookingController
                     'CreatedAt' => DB::raw('NOW()')
                 ]);
 
-                // ✅ Update status to Pending (EventDate stays unchanged!)
+                //  Update status to Pending (EventDate stays unchanged!)
                 DB::table('booking')->where('ID', $bookingId)->update([
                     'BookingStatus' => 'Pending',
                     'UpdatedAt' => DB::raw('NOW()')
@@ -439,7 +446,7 @@ class BookingController
 
     /**
      * ============================================
-     * ✅ UPDATE BOOKING STATUS
+     *  UPDATE BOOKING STATUS
      * ============================================
      */
     public function updateBookingStatus(Request $req, Response $res, array $args): Response
@@ -576,6 +583,117 @@ class BookingController
         } catch (\Throwable $e) {
             error_log("CANCEL_ERROR: " . $e->getMessage());
             return $this->json($res, ['success' => false, 'error' => 'Failed to cancel'], 500);
+        }
+    }
+
+    /**
+     * ============================================
+     * MARK BOOKING AS COMPLETED (UC08 - NEW!)
+     * ============================================
+     * Allows vendors to mark a Confirmed booking as Completed
+     * after the event has been successfully delivered.
+     * This enables clients to leave feedback.
+     * 
+     * Route: PATCH /api/bookings/{id}/complete
+     * Auth: Vendor only (must be the service provider)
+     * 
+     * @param Request $req
+     * @param Response $res
+     * @param array $args ['id' => booking ID]
+     * @return Response
+     */
+    public function completeBooking(Request $req, Response $res, array $args): Response
+    {
+        try {
+            $user = $req->getAttribute('user');
+            if (!$user || !isset($user->mysql_id)) {
+                return $this->json($res, [
+                    'success' => false,
+                    'error' => 'Unauthorized. Please log in.'
+                ], 401);
+            }
+
+            $vendorUserId = $user->mysql_id;
+            $bookingId = $args['id'] ?? null;
+
+            if (!$bookingId) {
+                return $this->json($res, [
+                    'success' => false,
+                    'error' => 'Booking ID is required'
+                ], 400);
+            }
+
+            // Get booking with vendor information
+            $booking = DB::table('booking as b')
+                ->leftJoin('event_service_provider as esp', 'b.EventServiceProviderID', '=', 'esp.ID')
+                ->where('b.ID', $bookingId)
+                ->select('b.*', 'esp.UserID as vendor_user_id', 'esp.BusinessName')
+                ->first();
+
+            if (!$booking) {
+                return $this->json($res, [
+                    'success' => false,
+                    'error' => 'Booking not found'
+                ], 404);
+            }
+
+            // Verify vendor ownership
+            if ($booking->vendor_user_id != $vendorUserId) {
+                return $this->json($res, [
+                    'success' => false,
+                    'error' => 'Access denied. This booking does not belong to you.'
+                ], 403);
+            }
+
+            // Only Confirmed bookings can be marked as Completed
+            if ($booking->BookingStatus !== 'Confirmed') {
+                return $this->json($res, [
+                    'success' => false,
+                    'error' => "Only Confirmed bookings can be marked as Completed. Current status: {$booking->BookingStatus}"
+                ], 400);
+            }
+
+            // Check if event date has passed (optional validation)
+            $eventDate = strtotime($booking->EventDate);
+            $now = time();
+            
+            // Allow marking as completed only after event date
+            if ($eventDate > $now) {
+                $formattedDate = date('F j, Y \a\t g:i A', $eventDate);
+                return $this->json($res, [
+                    'success' => false,
+                    'error' => "Cannot mark as completed before the event date ({$formattedDate})"
+                ], 400);
+            }
+
+            // Update booking status to Completed
+            DB::table('booking')
+                ->where('ID', $bookingId)
+                ->update([
+                    'BookingStatus' => 'Completed',
+                    'Remarks' => 'Service completed successfully',
+                    'UpdatedAt' => DB::raw('NOW()')
+                ]);
+
+            // Send notification to client
+            $this->sendNotification(
+                $booking->UserID,
+                'booking_completed',
+                'Booking Completed',
+                "Your booking for {$booking->ServiceName} has been marked as completed by {$booking->BusinessName}. You can now leave feedback!"
+            );
+
+            return $this->json($res, [
+                'success' => true,
+                'message' => 'Booking marked as completed successfully'
+            ]);
+
+        } catch (\Throwable $e) {
+            error_log("COMPLETE_BOOKING_ERROR: " . $e->getMessage());
+            return $this->json($res, [
+                'success' => false,
+                'error' => 'Failed to mark booking as completed'
+            ], 500);
         }
     }
 }

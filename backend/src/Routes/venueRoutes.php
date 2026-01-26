@@ -25,7 +25,7 @@ return function (App $app) {
         (new VenueController)->deleteListing($r, $s, $a)
     )->add(new AuthMiddleware());
 
-    // ✅ FIXED: Added firebase_uid join for chat functionality
+    //  Added firebase_uid join for chat functionality
     $app->get('/api/venues', function (Request $r, Response $s) {
         $venues = DB::table('venue_listings as v')
             ->leftJoin('credential as c', 'v.user_id', '=', 'c.id')

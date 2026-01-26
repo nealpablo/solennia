@@ -28,7 +28,7 @@ class AuthMiddleware implements Middleware
 
         /**
          * =====================================================
-         * 🔥 AUTH HEADER RESOLUTION (XAMPP / APACHE SAFE)
+         *  AUTH HEADER RESOLUTION (XAMPP / APACHE SAFE)
          * =====================================================
          */
         $auth = $request->getHeaderLine('Authorization');
@@ -62,7 +62,7 @@ class AuthMiddleware implements Middleware
 
             /**
              * =====================================================
-             * ✅ FIX: SUPPORT mysql_id OR sub
+             *  FIX: SUPPORT mysql_id OR sub
              * =====================================================
              */
             if (!isset($decoded->mysql_id) && !isset($decoded->sub)) {

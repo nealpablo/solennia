@@ -25,7 +25,7 @@ class VenueController
     }
 
     /* =========================================================
-     * ✅ OPTIMIZED CREATE VENUE LISTING with validation
+     *  OPTIMIZED CREATE VENUE LISTING with validation
      * ========================================================= */
     public function createListing(Request $request, Response $response)
     {
@@ -44,11 +44,11 @@ class VenueController
                 return $this->json($response, false, "Missing required fields", 422);
             }
 
-            // ✅ Start transaction
+            //  Start transaction
             DB::beginTransaction();
 
             try {
-                // ✅ Upload Logo (Main Image) with validation
+                //  Upload Logo (Main Image) with validation
                 $logoUrl = null;
                 if (isset($files['logo']) && $files['logo']->getError() === UPLOAD_ERR_OK) {
                     // Validate file size
@@ -82,7 +82,7 @@ class VenueController
                     }
                 }
 
-                // ✅ Upload Gallery Images with validation
+                //  Upload Gallery Images with validation
                 $galleryUrls = [];
                 $galleryKeys = ['gallery_1', 'gallery_2', 'gallery_3'];
                 
@@ -118,7 +118,7 @@ class VenueController
                     }
                 }
 
-                // ✅ Build insert data
+                //  Build insert data
                 $insertData = [
                     'user_id' => $userId,
                     'venue_name' => $data['venue_name'],
@@ -135,7 +135,7 @@ class VenueController
                     'created_at' => DB::raw('NOW()')
                 ];
 
-                // ✅ Cached column check (only once)
+                //  Cached column check (only once)
                 static $tableColumns = null;
                 static $columnNames = null;
                 
@@ -168,7 +168,7 @@ class VenueController
                     }
                 }
 
-                // ✅ Insert listing
+                //  Insert listing
                 $listingId = DB::table('venue_listings')->insertGetId($insertData);
 
                 DB::commit();
@@ -194,7 +194,7 @@ class VenueController
     }
 
     /* =========================================================
-     * ✅ OPTIMIZED GET MY VENUE LISTINGS with pagination
+     *  OPTIMIZED GET MY VENUE LISTINGS with pagination
      * ========================================================= */
     public function getMyListings(Request $request, Response $response)
     {
@@ -205,13 +205,13 @@ class VenueController
             }
             $userId = $u->mysql_id;
 
-            // ✅ Add pagination support
+            //  Add pagination support
             $params = $request->getQueryParams();
             $page = max(1, (int)($params['page'] ?? 1));
             $perPage = min(50, max(1, (int)($params['per_page'] ?? 20)));
             $offset = ($page - 1) * $perPage;
 
-            // ✅ Optimized query with pagination
+            //  Optimized query with pagination
             $listings = DB::table('venue_listings')
                 ->where('user_id', $userId)
                 ->orderBy('created_at', 'desc')
@@ -224,7 +224,7 @@ class VenueController
                 ->where('user_id', $userId)
                 ->count();
 
-            // ✅ Determine which image column exists
+            //  Determine which image column exists
             static $imageColumn = null;
             if ($imageColumn === null && !$listings->isEmpty()) {
                 $first = $listings->first();
@@ -278,7 +278,7 @@ class VenueController
     }
 
     /* =========================================================
-     * ✅ OPTIMIZED UPDATE VENUE LISTING with validation
+     *  OPTIMIZED UPDATE VENUE LISTING with validation
      * ========================================================= */
     public function updateListing(Request $request, Response $response, $args)
     {
@@ -290,7 +290,7 @@ class VenueController
             $userId = $u->mysql_id;
             $listingId = (int) $args['id'];
 
-            // ✅ Start transaction
+            //  Start transaction
             DB::beginTransaction();
 
             try {
@@ -321,7 +321,7 @@ class VenueController
                     }
                 }
 
-                // ✅ Upload new logo if provided with validation
+                //  Upload new logo if provided with validation
                 if (isset($files['logo']) && $files['logo']->getError() === UPLOAD_ERR_OK) {
                     // Validate file size
                     if ($files['logo']->getSize() > self::MAX_FILE_SIZE) {
@@ -363,7 +363,7 @@ class VenueController
                     }
                 }
 
-                // ✅ Upload new gallery images if provided with validation
+                //  Upload new gallery images if provided with validation
                 $existingGallery = [];
                 $galleryField = $listing->gallery ?? $listing->gallery_images ?? null;
                 if ($galleryField) {
@@ -449,7 +449,7 @@ class VenueController
     }
 
     /* =========================================================
-     * ✅ OPTIMIZED DELETE VENUE LISTING
+     *  OPTIMIZED DELETE VENUE LISTING
      * ========================================================= */
     public function deleteListing(Request $request, Response $response, $args)
     {

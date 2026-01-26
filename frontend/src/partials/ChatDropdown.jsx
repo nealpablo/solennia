@@ -171,7 +171,7 @@ export default function ChatDropdown() {
       const filtered = enriched.filter(c => c.displayName);
       setConversations(filtered);
       
-      // ✅ Calculate unread count
+      //  Calculate unread count
       calculateUnreadCount(filtered);
       
     } catch (err) {
@@ -181,7 +181,7 @@ export default function ChatDropdown() {
     }
   }
 
-  // ✅ NEW: Calculate unread messages based on last seen timestamps
+  // Calculate unread messages based on last seen timestamps
   function calculateUnreadCount(convs) {
     try {
       const lastSeenData = localStorage.getItem('chat_last_seen') || '{}';

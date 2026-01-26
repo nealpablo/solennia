@@ -25,7 +25,7 @@ class VendorController
     }
 
     /* ===========================================================
-     *  ✅ OPTIMIZED: CREATE VENDOR PROFILE with validation
+     *   OPTIMIZED: CREATE VENDOR PROFILE with validation
      * =========================================================== */
     public function createVendorProfile(Request $request, Response $response)
     {
@@ -36,7 +36,7 @@ class VendorController
             }
             $userId = $u->mysql_id;
 
-            // ✅ Use transaction for data consistency
+            //  Use transaction for data consistency
             DB::beginTransaction();
 
             try {
@@ -75,13 +75,13 @@ class VendorController
                     return $this->json($response, false, "Bio and services are required", 422);
                 }
 
-                // ✅ Upload images with validation and parallel processing
+                //  Upload images with validation and parallel processing
                 $logoUrl = null;
                 $heroUrl = null;
 
                 // Upload Logo with validation
                 if (isset($files['logo']) && $files['logo']->getError() === UPLOAD_ERR_OK) {
-                    // ✅ Validate file size
+                    //  Validate file size
                     if ($files['logo']->getSize() > self::MAX_FILE_SIZE) {
                         DB::rollBack();
                         return $this->json($response, false, "Logo file too large (max 10MB)", 400);
@@ -107,7 +107,7 @@ class VendorController
 
                 // Upload Hero Image with validation
                 if (isset($files['hero']) && $files['hero']->getError() === UPLOAD_ERR_OK) {
-                    // ✅ Validate file size
+                    //  Validate file size
                     if ($files['hero']->getSize() > self::MAX_FILE_SIZE) {
                         DB::rollBack();
                         return $this->json($response, false, "Hero image file too large (max 10MB)", 400);
@@ -246,7 +246,7 @@ class VendorController
             return $this->json($response, false, "User ID required", 400);
         }
 
-        // ✅ Single optimized query with gallery
+        //  Single optimized query with gallery
         $vendor = DB::table('event_service_provider')
             ->where('UserID', $userId)
             ->where('ApplicationStatus', 'Approved')
@@ -283,7 +283,7 @@ class VendorController
     }
 
     /* ===========================================================
-     *  ✅ OPTIMIZED: UPDATE LOGO with validation
+     *   OPTIMIZED: UPDATE LOGO with validation
      * =========================================================== */
     public function updateLogo(Request $request, Response $response)
     {
@@ -298,7 +298,7 @@ class VendorController
             return $this->json($response, false, "Invalid logo file", 400);
         }
 
-        // ✅ Validate file size
+        //  Validate file size
         if ($logo->getSize() > self::MAX_FILE_SIZE) {
             return $this->json($response, false, "File too large (max 10MB)", 400);
         }
@@ -339,7 +339,7 @@ class VendorController
     }
 
     /* ===========================================================
-     *  ✅ OPTIMIZED: UPDATE HERO IMAGE with validation
+     *  OPTIMIZED: UPDATE HERO IMAGE with validation
      * =========================================================== */
     public function updateHero(Request $request, Response $response)
     {
@@ -354,7 +354,7 @@ class VendorController
             return $this->json($response, false, "Invalid hero image", 400);
         }
 
-        // ✅ Validate file size
+        //  Validate file size
         if ($hero->getSize() > self::MAX_FILE_SIZE) {
             return $this->json($response, false, "File too large (max 10MB)", 400);
         }
@@ -395,7 +395,7 @@ class VendorController
     }
 
     /* ===========================================================
-     *  ✅ BATCH OPTIMIZED: UPLOAD GALLERY with validation
+     *   BATCH OPTIMIZED: UPLOAD GALLERY with validation
      * =========================================================== */
     public function uploadGallery(Request $request, Response $response)
     {
@@ -424,7 +424,7 @@ class VendorController
                 continue;
             }
 
-            // ✅ Validate file size
+            //  Validate file size
             if ($file->getSize() > self::MAX_FILE_SIZE) {
                 $errors[] = "Image " . ($index + 1) . " too large (max 10MB)";
                 continue;
@@ -451,7 +451,7 @@ class VendorController
                 $url = $upload['secure_url'];
                 $urls[] = $url;
 
-                // ✅ Batch inserts for better performance
+                //  Batch inserts for better performance
                 $inserts[] = [
                     "user_id" => $userId,
                     "image_url" => $url,
@@ -464,7 +464,7 @@ class VendorController
             }
         }
 
-        // ✅ Batch insert all images at once
+        //  Batch insert all images at once
         if (!empty($inserts)) {
             DB::table("vendor_gallery")->insert($inserts);
         }
@@ -481,7 +481,7 @@ class VendorController
     }
 
     /* ===========================================================
-     *  ✅ OPTIMIZED: UPDATE VENDOR INFO
+     *   OPTIMIZED: UPDATE VENDOR INFO
      * =========================================================== */
     public function updateVendorInfo(Request $request, Response $response)
     {

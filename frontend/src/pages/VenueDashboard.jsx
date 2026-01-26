@@ -1,4 +1,3 @@
-// src/pages/VenueDashboard.jsx - ✅ INDIVIDUAL IMAGE UPLOADS
 import { useEffect, useState } from "react";
 import React from "react";
 import { useNavigate } from "react-router-dom";
@@ -23,7 +22,7 @@ export default function VenueDashboard() {
   const [showCreateListing, setShowCreateListing] = useState(false);
   const [editingListing, setEditingListing] = useState(null);
 
-  // Form state - ✅ Individual images
+  // Form state 
   const [listingForm, setListingForm] = useState({
     venue_name: "",
     venue_subcategory: "",
@@ -113,7 +112,7 @@ export default function VenueDashboard() {
     }
   };
 
-  /* ================= ✅ HANDLE INDIVIDUAL IMAGE UPLOADS ================= */
+  /* =================  HANDLE INDIVIDUAL IMAGE UPLOADS ================= */
   const handleImageChange = (imageType, file) => {
     if (!file) return;
 
@@ -155,7 +154,7 @@ export default function VenueDashboard() {
         }
       });
 
-      // ✅ Add images (individually)
+      //  Add images (individually)
       if (listingForm.logo) {
         formData.append('logo', listingForm.logo);
       }
@@ -505,7 +504,7 @@ export default function VenueDashboard() {
           min-height: 100px;
           resize: vertical;
         }
-        /* ✅ Individual Image Upload Boxes */
+        /*  Individual Image Upload Boxes */
         .image-upload-box {
           border: 2px dashed #ddd;
           border-radius: 8px;
@@ -759,7 +758,7 @@ export default function VenueDashboard() {
                 />
               </div>
 
-              {/* ✅ LOGO IMAGE UPLOAD */}
+              {/*  LOGO IMAGE UPLOAD */}
               <div className="form-group">
                 <label>
                   Venue Logo {!editingListing && <span className="required">*</span>}
@@ -789,7 +788,7 @@ export default function VenueDashboard() {
                 </div>
               </div>
 
-              {/* ✅ GALLERY IMAGES (3 INDIVIDUAL UPLOADS) */}
+              {/*  GALLERY IMAGES (3 INDIVIDUAL UPLOADS) */}
               <div className="form-group">
                 <label>Gallery Images (up to 3 photos)</label>
                 <div className="gallery-upload-grid">

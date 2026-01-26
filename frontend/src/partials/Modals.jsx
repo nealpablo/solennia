@@ -60,21 +60,21 @@ export default function Modals() {
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotLoading, setForgotLoading] = useState(false);
 
-  // ✅ Upload progress for each file
+  //  Upload progress for each file
   const [uploadProgress, setUploadProgress] = useState({
     permits: 0,
     gov_id: 0,
     portfolio: 0
   });
 
-  // ✅ Uploaded Cloudinary URLs
+  //  Uploaded Cloudinary URLs
   const [uploadedUrls, setUploadedUrls] = useState({
     permits_url: '',
     gov_id_url: '',
     portfolio_url: ''
   });
 
-  // ✅ Selected files before upload
+  //  Selected files before upload
   const [selectedFiles, setSelectedFiles] = useState({
     permits: null,
     gov_id: null,
@@ -326,7 +326,7 @@ export default function Modals() {
     document.getElementById("vendorBackground")?.classList.add("hidden");
     document.getElementById("vendorMedia")?.classList.add("hidden");
     
-    // ✅ Reset upload state
+    //  Reset upload state
     setUploadProgress({ permits: 0, gov_id: 0, portfolio: 0 });
     setUploadedUrls({ permits_url: '', gov_id_url: '', portfolio_url: '' });
     setSelectedFiles({ permits: null, gov_id: null, portfolio: null });
@@ -355,9 +355,7 @@ export default function Modals() {
     window.solenniaLogout = handleLogout;
   }, []);
 
-  /* =========================
-   ✅ ULTRA FAST CLOUDINARY UPLOAD FUNCTIONS
-  ========================= */
+
 
   // Upload single file directly to Cloudinary (RETURNS URL)
 const uploadToCloudinary = async (file, fileType) => {
@@ -435,7 +433,7 @@ const uploadAllVendorFiles = async () => {
   };
 };
 
-// ✅ File validation (keep this as is)
+//  File validation (keep this as is)
 const handleVendorFileChange = (e, fileType) => {
   const file = e.target.files?.[0];
   if (!file) return;
@@ -2625,7 +2623,7 @@ const handleVendorFileChange = (e, fileType) => {
               />
             </div>
 
-            {/* ✅ ULTRA-FAST FILE UPLOADS WITH PROGRESS */}
+            
             <div className="border-t border-gray-300 pt-4">
               <h3 className="text-sm font-semibold uppercase text-[#7a5d47] mb-3">
                 Required Documents (Max 5MB each)

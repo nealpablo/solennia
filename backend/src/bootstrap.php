@@ -207,14 +207,14 @@ if ($APP_ENV === 'production') {
 }
 
 /**
- * ✅ NEW: Output buffering for better performance
+ *  Output buffering for better performance
  */
 if ($APP_ENV === 'production') {
     ob_start('ob_gzhandler'); // Enable gzip compression
 }
 
 /**
- * ✅ NEW: Session configuration (if using sessions)
+ *  Session configuration (if using sessions)
  */
 if (session_status() === PHP_SESSION_NONE) {
     ini_set('session.cookie_httponly', '1');
@@ -224,7 +224,7 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 /**
- * ✅ NEW: Security headers helper (optional)
+ * Security headers helper (optional)
  */
 if ($APP_ENV === 'production') {
     header('X-Frame-Options: DENY');

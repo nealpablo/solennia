@@ -1,13 +1,5 @@
 <?php
-/**
- * ============================================
- * BOOKING ROUTES
- * ============================================
- * API routes for booking management
- * Developer: Ryan (01-17_Ryan_Manual-Booking)
- * Updated: Added UC06 - Reschedule Booking
- * ============================================
- */
+
 
 use Slim\App;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -68,13 +60,16 @@ return function (App $app) {
         return $json($res, ['success' => true]);
     });
 
+    // ✅ UC08: OPTIONS for complete endpoint (NEW!)
+    $app->options('/api/bookings/{id}/complete', function (Request $req, Response $res) use ($json) {
+        return $json($res, ['success' => true]);
+    });
+
     /* ===========================================================
      * BOOKING ENDPOINTS
      * =========================================================== */
 
     /**
-     * CREATE BOOKING (UC05)
-     * POST /api/bookings/create
      * Client creates a booking request
      */
     $app->post('/api/bookings/create', [$bookingController, 'createBooking'])
@@ -82,16 +77,11 @@ return function (App $app) {
 
     /**
      * GET USER'S BOOKINGS (CLIENT VIEW)
-     * GET /api/bookings/user
-     * Optional: ?status=Pending
      */
     $app->get('/api/bookings/user', [$bookingController, 'getUserBookings'])
         ->add(new AuthMiddleware());
 
     /**
-     * GET VENDOR'S BOOKING REQUESTS (VENDOR VIEW)
-     * GET /api/bookings/vendor
-     * Optional: ?status=Pending
      * Shows all bookings where the vendor is the service provider
      */
     $app->get('/api/bookings/vendor', [$bookingController, 'getVendorBookings'])
@@ -105,38 +95,29 @@ return function (App $app) {
         ->add(new AuthMiddleware());
 
     /**
-     * UPDATE BOOKING STATUS (VENDOR ACTION)
-     * PATCH /api/bookings/{id}/status
-     * Body: { "status": "Confirmed" | "Declined" }
      * Vendor accepts or declines the booking request
      */
     $app->patch('/api/bookings/{id}/status', [$bookingController, 'updateBookingStatus'])
         ->add(new AuthMiddleware());
 
     /**
-     * CANCEL BOOKING (CLIENT ACTION) - UC07
-     * PATCH /api/bookings/{id}/cancel
      * Client cancels their own booking
      */
     $app->patch('/api/bookings/{id}/cancel', [$bookingController, 'cancelBooking'])
         ->add(new AuthMiddleware());
 
     /**
-     * ✅ UC06: RESCHEDULE BOOKING (CLIENT ACTION)
+     * UC06: Client requests to reschedule a booking
      * PATCH /api/bookings/{id}/reschedule
-     * Body: { "new_event_date": "2026-02-15 14:00:00" }    
-     * Client reschedules their booking to a new date/time
-     * 
-     * Main Flow:
-     * - Checks vendor availability for new date/time
-     * - Updates booking with new EventDate
-     * - Notifies vendor of reschedule
-     * - Returns confirmation
-     * 
-     * Alternate Flows:
-     * - Returns 400 if event date has passed
-     * - Returns 409 if vendor unavailable at new time
      */
     $app->patch('/api/bookings/{id}/reschedule', [$bookingController, 'rescheduleBooking'])
+        ->add(new AuthMiddleware());
+
+    /**
+     * UC08: Vendor marks a Confirmed booking as Completed (NEW!)
+     * This allows clients to leave feedback
+     * PATCH /api/bookings/{id}/complete
+     */
+    $app->patch('/api/bookings/{id}/complete', [$bookingController, 'completeBooking'])
         ->add(new AuthMiddleware());
 };

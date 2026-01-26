@@ -10,14 +10,14 @@ export default function Header() {
   const [email, setEmail] = useState(null);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // ✅ NEW: Mobile menu state
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // Mobile menu state
 
-  // ✅ NEW: Toggle mobile menu
+  // Toggle mobile menu
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
   };
 
-  // ✅ NEW: Close mobile menu when clicking on a link
+  // Close mobile menu when clicking on a link
   const closeMobileMenu = () => {
     setIsMobileMenuOpen(false);
   };
@@ -299,7 +299,7 @@ export default function Header() {
 
         </div>
 
-        {/* ✅ MOBILE MENU - Slides from right */}
+        {/*  MOBILE MENU - Slides from right */}
         <div
           className={`fixed inset-y-0 right-0 w-64 bg-[#f6f0e8] shadow-2xl transform transition-transform duration-300 ease-in-out z-40 md:hidden ${
             isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'
@@ -428,7 +428,7 @@ export default function Header() {
           </div>
         </div>
 
-        {/* ✅ OVERLAY for mobile menu */}
+        {/*  OVERLAY for mobile menu */}
         {isMobileMenuOpen && (
           <div
             className="fixed inset-0 bg-black/50 z-30 md:hidden"

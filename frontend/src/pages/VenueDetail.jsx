@@ -1,4 +1,4 @@
-// src/pages/VenueDetail.jsx - ✅ FIXED: Gallery Support
+// src/pages/VenueDetail.jsx -  Gallery Support
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import toast from "../utils/toast";
@@ -29,7 +29,7 @@ export default function VenueDetail() {
         console.log("Venue detail data:", data); // Debug
         
         if (response.ok && data.venue) {
-          // ✅ FIXED: Parse gallery properly
+          //  Parse gallery properly
           let galleryImages = [];
           if (data.venue.gallery) {
             try {
@@ -42,7 +42,7 @@ export default function VenueDetail() {
             }
           }
 
-          // ✅ FIXED: Get main image
+          //  Get main image
           const mainImage = data.venue.logo 
             || data.venue.portfolio 
             || data.venue.portfolio_image 
@@ -116,7 +116,7 @@ export default function VenueDetail() {
       return;
     }
 
-    console.log("✅ Navigating to chat with UID:", firebaseUid);
+    console.log(" Navigating to chat with UID:", firebaseUid);
     navigate(`/chat?to=${encodeURIComponent(firebaseUid)}`);
   };
 
@@ -160,7 +160,7 @@ export default function VenueDetail() {
         Back to Venues
       </button>
 
-      {/* ✅ FIXED: Image Gallery with Multiple Images */}
+      {/*  Image Gallery with Multiple Images */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
         {/* Main Image */}
         <div className="h-96 rounded-lg overflow-hidden">

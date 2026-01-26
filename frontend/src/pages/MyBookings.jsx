@@ -1,16 +1,7 @@
-// ============================================
-// MY BOOKINGS PAGE WITH SEPARATE SECTIONS
-// ============================================
-// FEATURES:
-// 1. Original Booking Details (always visible)
-// 2. Pending Reschedule Request (yellow section)
-// 3. Approved Reschedules History (green section)
-// 4. Rejected Reschedules History (red section)
-// ============================================
-
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "../utils/toast";
+import FeedbackModal from "../components/FeedbackModal";
 
 const API =
   import.meta.env.VITE_API_BASE ||
@@ -33,6 +24,10 @@ export default function MyBookings() {
     new_date: "",
     new_time: "14:00"
   });
+
+  // Feedback modal state (NEW)
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [feedbackBooking, setFeedbackBooking] = useState(null);
 
   useEffect(() => {
     loadBookings();
@@ -179,6 +174,16 @@ export default function MyBookings() {
     }
   };
 
+  // NEW: Feedback modal handlers
+  const openFeedbackModal = (booking) => {
+    setFeedbackBooking(booking);
+    setShowFeedbackModal(true);
+  };
+
+  const handleFeedbackSuccess = () => {
+    loadBookings();
+  };
+
   const filteredBookings = bookings.filter(booking => {
     if (filter === "all") return true;
     return booking.BookingStatus === filter;
@@ -258,6 +263,7 @@ export default function MyBookings() {
             const statusColors = getStatusStyle(booking.BookingStatus);
             const canCancel = booking.BookingStatus === "Pending" && !booking.has_pending_reschedule;
             const canReschedule = booking.BookingStatus === "Confirmed" && !booking.has_pending_reschedule;
+            const canLeaveFeedback = booking.BookingStatus === "Completed"; // NEW
             
             // Determine display date
             const displayDate = booking.has_pending_reschedule && booking.original_date 
@@ -292,7 +298,7 @@ export default function MyBookings() {
                   </span>
                 </div>
 
-                {/* ============ SECTION 1: ORIGINAL BOOKING DETAILS ============ */}
+                {/* Original Booking Details */}
                 <div style={styles.sectionContainer}>
                   <div style={styles.sectionHeader}>
                     <h4 style={styles.sectionTitle}>📋 Original Booking Details</h4>
@@ -339,7 +345,7 @@ export default function MyBookings() {
                   </div>
                 </div>
 
-                {/* ============ SECTION 2: PENDING RESCHEDULE ============ */}
+                {/* Pending Reschedule */}
                 {hasPendingReschedule && rescheduleHistory.filter(r => r.Status === 'Pending').map((reschedule) => {
                   const badgeStyle = getRescheduleStatusBadge('Pending');
                   const originalFormatted = formatDateTime(reschedule.OriginalEventDate);
@@ -383,11 +389,11 @@ export default function MyBookings() {
                   );
                 })}
 
-                {/* ============ SECTION 3: APPROVED RESCHEDULES ============ */}
+                {/* Approved Reschedules */}
                 {hasApprovedReschedules.length > 0 && (
                   <div style={{...styles.sectionContainer, ...styles.approvedSection}}>
                     <div style={styles.sectionHeader}>
-                      <h4 style={styles.sectionTitle}>✅ Approved Reschedules</h4>
+                      <h4 style={styles.sectionTitle}> Approved Reschedules</h4>
                     </div>
                     <div style={styles.sectionBody}>
                       {hasApprovedReschedules.map((reschedule) => {
@@ -425,7 +431,7 @@ export default function MyBookings() {
                   </div>
                 )}
 
-                {/* ============ SECTION 4: REJECTED RESCHEDULES ============ */}
+                {/* Rejected Reschedules */}
                 {hasRejectedReschedules.length > 0 && (
                   <div style={{...styles.sectionContainer, ...styles.rejectedSection}}>
                     <div style={styles.sectionHeader}>
@@ -467,7 +473,7 @@ export default function MyBookings() {
                   </div>
                 )}
 
-                {/* ============ ADDITIONAL NOTES ============ */}
+                {/* Additional Notes */}
                 {booking.AdditionalNotes && (
                   <div style={styles.notesContainer}>
                     <strong>📝 Additional Notes:</strong>
@@ -475,7 +481,7 @@ export default function MyBookings() {
                   </div>
                 )}
 
-                {/* ============ ACTION BUTTONS ============ */}
+                {/* Action Buttons */}
                 <div style={styles.cardActions}>
                   {canReschedule && (
                     <button
@@ -484,6 +490,16 @@ export default function MyBookings() {
                       style={styles.rescheduleButton}
                     >
                       📅 Reschedule
+                    </button>
+                  )}
+
+                  {canLeaveFeedback && (
+                    <button
+                      onClick={() => openFeedbackModal(booking)}
+                      disabled={processing}
+                      style={styles.feedbackButton}
+                    >
+                      ⭐ Leave Feedback
                     </button>
                   )}
                   
@@ -509,7 +525,7 @@ export default function MyBookings() {
         </div>
       )}
 
-      {/* ============ RESCHEDULE MODAL ============ */}
+      {/* Reschedule Modal */}
       {showRescheduleModal && rescheduleBooking && (
         <div style={styles.modalOverlay}>
           <div style={styles.modalContent}>
@@ -601,14 +617,21 @@ export default function MyBookings() {
           </div>
         </div>
       )}
+
+      {/* Feedback Modal (NEW - appears only ONCE) */}
+      {showFeedbackModal && feedbackBooking && (
+        <FeedbackModal
+          booking={feedbackBooking}
+          isOpen={showFeedbackModal}
+          onClose={() => setShowFeedbackModal(false)}
+          onSubmitSuccess={handleFeedbackSuccess}
+        />
+      )}
     </div>
   );
 }
 
-// ============================================
-// STYLES
-// ============================================
-
+// Styles
 const styles = {
   container: {
     maxWidth: "1200px",
@@ -901,6 +924,18 @@ const styles = {
     minWidth: "150px",
     padding: "0.75rem 1.5rem",
     background: "#3b82f6",
+    color: "white",
+    border: "none",
+    borderRadius: "8px",
+    fontSize: "0.9rem",
+    fontWeight: "600",
+    cursor: "pointer"
+  },
+  feedbackButton: {
+    flex: "1",
+    minWidth: "150px",
+    padding: "0.75rem 1.5rem",
+    background: "#16a34a",
     color: "white",
     border: "none",
     borderRadius: "8px",

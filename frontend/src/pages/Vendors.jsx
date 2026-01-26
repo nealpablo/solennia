@@ -33,7 +33,7 @@ export default function Vendors() {
         }
 
         const json = await res.json();
-        // ✅ FILTER OUT VENUE VENDORS - They should not appear here
+        //  FILTER OUT VENUE VENDORS
         const nonVenueVendors = (json.vendors || []).filter(v => v.category !== "Venue");
         setVendors(Array.isArray(nonVenueVendors) ? nonVenueVendors : []);
       } catch (err) {
@@ -192,7 +192,7 @@ function VendorCard({ vendor, navigate }) {
     navigate(`/vendor-profile?id=${encodeURIComponent(vendor.user_id || vendor.id)}`);
   };
 
-  // ✅ FIXED: Book Now Handler
+  // Book Now Handler
   const handleBookNow = (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -203,7 +203,7 @@ function VendorCard({ vendor, navigate }) {
       return;
     }
 
-    // ✅ Get the UserID - try multiple field names (case-sensitive)
+    //  Get the UserID 
     const vendorUserId = vendor.UserID || vendor.user_id || vendor.id;
     const vendorName = vendor.business_name || vendor.BusinessName || "Vendor";
     const serviceName = vendor.category || vendor.Category || "";
@@ -218,7 +218,7 @@ function VendorCard({ vendor, navigate }) {
 
     navigate('/create-booking', {
       state: {
-        vendorUserId: vendorUserId,  // ✅ Changed from vendorId to vendorUserId
+        vendorUserId: vendorUserId,  // Changed from vendorId to vendorUserId
         vendorName: vendorName,
         serviceName: serviceName
       }

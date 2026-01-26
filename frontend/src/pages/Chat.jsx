@@ -18,7 +18,7 @@ const API =
   (import.meta.env.PROD 
     ? "https://solennia.up.railway.app/api" : "/api");
 
-// ✅ Format message time in user's local timezone with context
+//  Format message time in user's local timezone with context
 const formatMessageTime = (timestamp) => {
   const msgDate = new Date(timestamp);
   const now = new Date();
@@ -69,7 +69,7 @@ export default function Chat() {
   const meUid = useRef(null);
   const messagesRef = useRef(null);
   const unsubscribeRef = useRef(null);
-  const threadsUnsubscribeRef = useRef(null); // ✅ For real-time threads listener
+  const threadsUnsubscribeRef = useRef(null); 
   const hasAutoOpened = useRef(false);
 
   useEffect(() => {
@@ -91,7 +91,7 @@ export default function Chat() {
         meUid.current = currentUserUid();
         await loadContacts();
         
-        // ✅ NEW: Set up real-time listener for thread updates
+        //  Set up real-time listener for thread updates
         threadsUnsubscribeRef.current = onAllThreadsUpdate(async (threads) => {
           console.log('🔄 Threads updated:', threads.length);
           await updateContactsFromThreads(threads);
@@ -108,7 +108,7 @@ export default function Chat() {
     init();
   }, []);
 
-  // ✅ NEW: Update contacts when threads change in real-time
+  // Update contacts when threads change in real-time
   async function updateContactsFromThreads(threads) {
     const token = localStorage.getItem("solennia_token");
     if (!token) return;
@@ -146,7 +146,7 @@ export default function Chat() {
     });
   }
 
-  // ✅ NEW: Fetch user info and add to contacts
+  //  Fetch user info and add to contacts
   async function fetchAndAddContact(firebaseUid, lastMessage, lastTs) {
     try {
       const token = localStorage.getItem("solennia_token");
@@ -199,7 +199,7 @@ export default function Chat() {
     }
   }
 
-  // ✅ FIXED: Prevent duplicate contacts
+  // Prevent duplicate contacts
   async function loadContacts() {
     try {
       const token = localStorage.getItem("solennia_token");
@@ -218,7 +218,7 @@ export default function Chat() {
       // Get Firebase threads
       const threads = await listThreadsForCurrentUser();
 
-      // ✅ FIX: Use Map with firebase_uid as key to prevent duplicates
+      // Use Map with firebase_uid as key to prevent duplicates
       const contactMap = new Map();
       const userIdSet = new Set(); // Track MySQL user IDs to prevent duplicates
 
@@ -231,7 +231,7 @@ export default function Chat() {
           let displayName = `${contact.first_name} ${contact.last_name}`;
           let avatar = contact.avatar;
           
-          // ✅ FIX: If vendor, fetch business name even for MySQL contacts
+          // If vendor, fetch business name even for MySQL contacts
           if (contact.role === 1) {
             try {
               const vendorRes = await fetch(`${API}/vendor/public/${contact.id}`);
@@ -259,7 +259,7 @@ export default function Chat() {
       for (const thread of threads) {
         const { otherUid, lastMessageSnippet, lastTs } = thread;
         
-        // ✅ CRITICAL FIX: Always fetch user info to get latest data and vendor info
+        //  Always fetch user info to get latest data and vendor info
         try {
           const userRes = await fetch(`${API}/users/${otherUid}`, {
             headers: { Authorization: `Bearer ${token}` }
@@ -269,7 +269,7 @@ export default function Chat() {
             const userData = await userRes.json();
             const user = userData.user;
             
-            // ✅ FIX: Skip if this user ID was already added from MySQL
+            // Skip if this user ID was already added from MySQL
             if (userIdSet.has(user.id)) {
               // Just update the message info for existing entry
               const existingContact = contactMap.get(otherUid);
@@ -297,7 +297,7 @@ export default function Chat() {
               }
             }
             
-            // ✅ FIX: Set/update contact with complete info including vendor data
+            // Set/update contact with complete info including vendor data
             userIdSet.add(user.id); // Track this user ID
             contactMap.set(otherUid, {
               id: user.id,
@@ -385,7 +385,7 @@ export default function Chat() {
         displayName: displayName
       };
       
-      // ✅ FIX: Check for duplicates before adding
+      //  Check for duplicates before adding
       setContacts(prev => {
         const exists = prev.find(c => c.firebase_uid === firebaseUid);
         if (exists) return prev;
@@ -402,7 +402,7 @@ export default function Chat() {
     }
   }
 
-  // ✅ NEW: Mark thread as seen (update last seen timestamp)
+  // Mark thread as seen (update last seen timestamp)
   function markThreadAsSeen(threadId) {
     try {
       const lastSeenData = localStorage.getItem('chat_last_seen') || '{}';
@@ -414,7 +414,7 @@ export default function Chat() {
     }
   }
 
-  // ✅ CRITICAL FIX: Properly unsubscribe from old messages when switching contacts
+  // Properly unsubscribe from old messages when switching contacts
   function openChat(contact) {
     if (!meUid.current) {
       toast.error("Chat not initialized");
@@ -424,7 +424,7 @@ export default function Chat() {
     setActive(contact);
     setMessages([]);
 
-    // ✅ FIX: Unsubscribe from previous conversation
+    // Unsubscribe from previous conversation
     if (unsubscribeRef.current) {
       unsubscribeRef.current();
       unsubscribeRef.current = null;
@@ -439,18 +439,17 @@ export default function Chat() {
       const { threadId } = result;
       setMessages([]);
       
-      // ✅ Mark this thread as seen
+      
       markThreadAsSeen(threadId);
 
-      // ✅ CRITICAL FIX: Store the actual unsubscribe function and filter messages
+      // Store the actual unsubscribe function and filter messages
       const unsubscribe = onThreadMessages(threadId, (msg) => {
         setMessages((prev) => {
           // Only add message if it doesn't already exist
           const exists = prev.find((m) => m.id === msg.id);
           if (exists) return prev;
           
-          // ✅ FIX: Since messages are stored under messages/${threadId}, they already belong to this thread
-          // Just verify the sender is one of the two participants (me or active contact)
+        
           const isValidSender = 
             msg.senderUid === meUid.current || 
             msg.senderUid === contact.firebase_uid;
@@ -460,14 +459,14 @@ export default function Chat() {
             return prev;
           }
           
-          // ✅ Mark thread as seen when new message arrives in active conversation
+          //  Mark thread as seen when new message arrives in active conversation
           markThreadAsSeen(threadId);
           
           return [...prev, msg];
         });
       });
 
-      // ✅ FIX: Store the real unsubscribe function (not empty function!)
+      //  Store the real unsubscribe function (not empty function!)
       unsubscribeRef.current = unsubscribe;
     });
   }
@@ -489,7 +488,7 @@ export default function Chat() {
         }
       }, 100);
       
-      // ✅ Real-time listener will update contacts automatically
+      //  Real-time listener will update contacts automatically
       
     } catch (err) {
       console.error("Send failed:", err);
@@ -508,7 +507,7 @@ export default function Chat() {
       if (unsubscribeRef.current) {
         unsubscribeRef.current();
       }
-      // ✅ NEW: Cleanup threads listener
+      // Cleanup threads listener
       if (threadsUnsubscribeRef.current) {
         threadsUnsubscribeRef.current();
       }

@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { auth } from "../firebase";
 import { updatePassword, reauthenticateWithCredential, EmailAuthProvider } from "firebase/auth";
 import toast from "../utils/toast";
+import FeedbackModal from "../components/FeedbackModal";
 import "../style.css";
 
 const API = 
@@ -11,6 +13,7 @@ const API =
     ? "https://solennia.up.railway.app/api" : "/api");
 
 export default function Profile() {
+  const navigate = useNavigate();
   const token = localStorage.getItem("solennia_token");
 
   const [profile, setProfile] = useState(null);
@@ -32,6 +35,10 @@ export default function Profile() {
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [processingBooking, setProcessingBooking] = useState(false);
   const [activeTab, setActiveTab] = useState("original");
+
+  // Feedback Modal States
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [feedbackBooking, setFeedbackBooking] = useState(null);
 
   // Reschedule Modal States
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
@@ -60,6 +67,30 @@ export default function Profile() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [savingChanges, setSavingChanges] = useState(false);
+
+  // CALENDAR MODAL STATES
+  const [showCalendarModal, setShowCalendarModal] = useState(false);
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [availability, setAvailability] = useState([]);
+  const [loadingAvailability, setLoadingAvailability] = useState(false);
+  const [showAvailabilityModal, setShowAvailabilityModal] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [availabilityForm, setAvailabilityForm] = useState({
+    start_time: "09:00",
+    end_time: "17:00",
+    is_available: true,
+    notes: ""
+  });
+  const [editingAvailability, setEditingAvailability] = useState(null);
+  const [savingAvailability, setSavingAvailability] = useState(false);
+
+  /* ================= CALENDAR: FORMAT DATE TO LOCAL TIMEZONE ================= */
+  const formatDateToLocal = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
 
   /* ================= HELPER TO GET PENDING RESCHEDULE DATA ================= */
   const getPendingRescheduleData = (booking) => {
@@ -147,23 +178,242 @@ export default function Profile() {
       });
   }, [token]);
 
-  /* ================= VENDOR STATUS ================= */
+  /* ================= VENDOR STATUS  ================= */
   useEffect(() => {
     if (!token || role !== 0) return;
 
     fetch(`${API}/vendor/status`, {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then((r) => r.json())
+      .then((r) => {
+        // Handle 401/404 gracefully
+        if (r.status === 401 || r.status === 404) {
+          console.log('Vendor status endpoint not available or unauthorized - skipping');
+          return null;
+        }
+        return r.json();
+      })
       .then((j) => {
-        setVendorStatus(j.status);
-        
-        if (j.status === 'pending') {
-          console.log('Vendor application is pending review');
+        if (j && j.status) {
+          setVendorStatus(j.status);
+          if (j.status === 'pending') {
+            console.log('Vendor application is pending review');
+          }
         }
       })
-      .catch(() => {});
+      .catch((err) => {
+        // Silently handle errors - vendor status is not critical
+        console.log('Vendor status check skipped:', err.message);
+      });
   }, [token, role]);
+
+  /* ================= CALENDAR: LOAD AVAILABILITY ================= */
+  useEffect(() => {
+    if (!showCalendarModal || !profile?.id) return;
+    loadAvailability();
+  }, [showCalendarModal, profile?.id, currentMonth]);
+
+  const loadAvailability = async () => {
+    if (!profile?.id) return;
+    
+    try {
+      setLoadingAvailability(true);
+      const year = currentMonth.getFullYear();
+      const month = currentMonth.getMonth() + 1;
+      
+      const res = await fetch(`${API}/vendor/availability/${profile.id}?year=${year}&month=${month}`);
+      const json = await res.json();
+      
+      if (json.success) {
+        setAvailability(json.availability || []);
+      }
+    } catch (err) {
+      console.error("Failed to load availability:", err);
+    } finally {
+      setLoadingAvailability(false);
+    }
+  };
+
+  /* ================= CALENDAR HELPERS ================= */
+  const getDaysInMonth = (date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDayOfWeek = firstDay.getDay();
+    
+    return { daysInMonth, startingDayOfWeek, year, month };
+  };
+
+  const getAvailabilityForDate = (date) => {
+    const dateStr = formatDateToLocal(date);
+    return availability.filter(a => a.date === dateStr);
+  };
+
+  const isDateBooked = (date) => {
+    const dateStr = formatDateToLocal(date);
+    return availability.some(a => a.date === dateStr && !a.is_available);
+  };
+
+  const isDateAvailable = (date) => {
+    const dateStr = formatDateToLocal(date);
+    return availability.some(a => a.date === dateStr && a.is_available);
+  };
+
+  const getUpcomingAvailability = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    return availability
+      .filter(a => {
+        const availDate = new Date(a.date);
+        return availDate >= today;
+      })
+      .sort((a, b) => new Date(a.date) - new Date(b.date))
+      .slice(0, 5);
+  };
+
+  const previousMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1));
+  };
+
+  const nextMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1));
+  };
+
+  const formatDate = (dateStr) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', { 
+      weekday: 'short', 
+      month: 'short', 
+      day: 'numeric',
+      year: 'numeric'
+    });
+  };
+
+  /* ================= CALENDAR: AVAILABILITY MODAL ================= */
+  const openAvailabilityModal = (date, existingAvailability = null) => {
+    setSelectedDate(date);
+    
+    if (existingAvailability) {
+      setEditingAvailability(existingAvailability);
+      setAvailabilityForm({
+        start_time: existingAvailability.start_time ? existingAvailability.start_time.substring(0, 5) : "09:00",
+        end_time: existingAvailability.end_time ? existingAvailability.end_time.substring(0, 5) : "17:00",
+        is_available: existingAvailability.is_available,
+        notes: existingAvailability.notes || ""
+      });
+    } else {
+      setEditingAvailability(null);
+      setAvailabilityForm({
+        start_time: "09:00",
+        end_time: "17:00",
+        is_available: true,
+        notes: ""
+      });
+    }
+    
+    setShowAvailabilityModal(true);
+  };
+
+  const closeAvailabilityModal = () => {
+    setShowAvailabilityModal(false);
+    setSelectedDate(null);
+    setEditingAvailability(null);
+    setAvailabilityForm({
+      start_time: "09:00",
+      end_time: "17:00",
+      is_available: true,
+      notes: ""
+    });
+  };
+
+  /* ================= CALENDAR: SAVE AVAILABILITY ================= */
+  const saveAvailability = async (e) => {
+    e.preventDefault();
+    
+    if (!selectedDate) return;
+    
+    if (!token) {
+      toast.error("Please log in");
+      return;
+    }
+
+    try {
+      setSavingAvailability(true);
+      
+      const dateStr = formatDateToLocal(selectedDate);
+      const payload = {
+        date: dateStr,
+        ...availabilityForm
+      };
+
+      let url = `${API}/vendor/availability`;
+      let method = "POST";
+
+      if (editingAvailability) {
+        url = `${API}/vendor/availability/${editingAvailability.id}`;
+        method = "PATCH";
+      }
+
+      const res = await fetch(url, {
+        method: method,
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const json = await res.json();
+      
+      if (json.success) {
+        toast.success(editingAvailability ? "Availability updated!" : "Availability added!");
+        closeAvailabilityModal();
+        loadAvailability();
+      } else {
+        toast.error(json.error || "Failed to save availability");
+      }
+    } catch (err) {
+      console.error("Save availability error:", err);
+      toast.error("Failed to save availability");
+    } finally {
+      setSavingAvailability(false);
+    }
+  };
+
+  /* ================= CALENDAR: DELETE AVAILABILITY ================= */
+  const deleteAvailability = async (availabilityId) => {
+    if (!confirm("Delete this availability entry?")) return;
+    
+    if (!token) {
+      toast.error("Please log in");
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API}/vendor/availability/${availabilityId}`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+
+      const json = await res.json();
+      
+      if (json.success) {
+        toast.success("Availability deleted!");
+        closeAvailabilityModal();
+        loadAvailability();
+      } else {
+        toast.error(json.error || "Failed to delete availability");
+      }
+    } catch (err) {
+      console.error("Delete availability error:", err);
+      toast.error("Failed to delete availability");
+    }
+  };
 
   /* ================= HELPER: FORMAT DATE AND TIME ================= */
   const formatDateTime = (dateString) => {
@@ -229,7 +479,7 @@ export default function Profile() {
       const data = await res.json();
       
       if (data.success) {
-        toast.success('Booking accepted!');
+        toast.success('Booking accepted!', { duration: 5000 });
         loadBookings();
         setSelectedBooking(null);
       } else {
@@ -261,7 +511,7 @@ export default function Profile() {
       const data = await res.json();
       
       if (data.success) {
-        toast.success('Booking rejected');
+        toast.success('Booking rejected', { duration: 5000 });
         loadBookings();
         setSelectedBooking(null);
       } else {
@@ -270,6 +520,37 @@ export default function Profile() {
     } catch (err) {
       console.error('Reject booking error:', err);
       toast.error('Failed to reject booking');
+    } finally {
+      setProcessingBooking(false);
+    }
+  };
+
+  /* =================  COMPLETE BOOKING (VENDOR) ================= */
+  const completeBooking = async (bookingId) => {
+    if (!confirm('Mark this booking as completed? The client will be able to leave feedback.')) return;
+    
+    setProcessingBooking(true);
+    try {
+      const res = await fetch(`${API}/bookings/${bookingId}/complete`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await res.json();
+      
+      if (data.success) {
+        toast.success('Booking marked as completed! Client can now leave feedback.', { duration: 5000 });
+        loadBookings();
+        setSelectedBooking(null);
+      } else {
+        toast.error(data.error || 'Failed to mark as completed');
+      }
+    } catch (err) {
+      console.error('Complete booking error:', err);
+      toast.error('Failed to mark as completed');
     } finally {
       setProcessingBooking(false);
     }
@@ -291,7 +572,7 @@ export default function Profile() {
       const data = await res.json();
       
       if (data.success) {
-        toast.success('Booking cancelled');
+        toast.success('Booking cancelled', { duration: 5000 });
         loadBookings();
         setSelectedBooking(null);
       } else {
@@ -303,6 +584,19 @@ export default function Profile() {
     } finally {
       setProcessingBooking(false);
     }
+  };
+
+  /* ================= OPEN FEEDBACK MODAL (CLIENT) ================= */
+  const openFeedbackModal = (booking) => {
+    setFeedbackBooking(booking);
+    setShowFeedbackModal(true);
+  };
+
+  /* =================  HANDLE FEEDBACK SUCCESS ================= */
+  const handleFeedbackSuccess = () => {
+    setShowFeedbackModal(false);
+    setFeedbackBooking(null);
+    loadBookings(); // Reload bookings to show updated state
   };
 
   /* ================= OPEN RESCHEDULE MODAL ================= */
@@ -391,7 +685,7 @@ export default function Profile() {
       'Confirmed': 'bg-green-100 text-green-800 border-green-300',
       'Rejected': 'bg-red-100 text-red-800 border-red-300',
       'Cancelled': 'bg-gray-100 text-gray-800 border-gray-300',
-      'Completed': 'bg-blue-100 text-blue-800 border-blue-300',
+      'Completed': 'bg-purple-100 text-purple-800 border-purple-300', // ✅ CHANGED to purple
     };
     
     return statusMap[status] || 'bg-gray-100 text-gray-800 border-gray-300';
@@ -400,14 +694,12 @@ export default function Profile() {
   /* ================= FILTER BOOKINGS BY TAB ================= */
   const getFilteredBookings = () => {
     if (activeTab === "original") {
-      // Show bookings without reschedule history OR with only rejected reschedules
       return bookings.filter(booking => {
         const rescheduleHistory = booking.reschedule_history || [];
         const hasApproved = rescheduleHistory.some(r => r.Status === 'Approved');
-        return !hasApproved; // Show if no approved reschedules
+        return !hasApproved;
       });
     } else {
-      // Show bookings with approved OR rejected reschedule history
       return bookings.filter(booking => {
         const rescheduleHistory = booking.reschedule_history || [];
         return rescheduleHistory.some(r => r.Status === 'Approved' || r.Status === 'Rejected');
@@ -722,6 +1014,18 @@ export default function Profile() {
                     </button>
                   )}
 
+                  {role === 1 && (
+                    <button
+                      onClick={() => setShowCalendarModal(true)}
+                      className="w-full bg-[#e8ddae] text-[#3b2f25] px-4 py-3 rounded-lg text-sm font-semibold hover:opacity-90 flex items-center justify-center gap-2 shadow-md"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      Manage Calendar
+                    </button>
+                  )}
+
                   {dashboardHref() && dashboardLabel() && (
                     <a
                       href={dashboardHref()}
@@ -833,7 +1137,6 @@ export default function Profile() {
               </button>
             </div>
 
-            {/* TAB NAVIGATION */}
             <div className="flex border-b border-gray-200 bg-gray-50">
               <button
                 onClick={() => setActiveTab("original")}
@@ -876,7 +1179,6 @@ export default function Profile() {
               ) : (
                 <div className="space-y-4">
                   {filteredBookings.map((booking) => {
-                    // Get pending reschedule data using the helper function
                     const pendingData = getPendingRescheduleData(booking);
                     const displayDate = pendingData.hasPending 
                       ? pendingData.originalDate 
@@ -884,6 +1186,8 @@ export default function Profile() {
                     const { date, time } = formatDateTime(displayDate);
                     
                     const canReschedule = role === 0 && booking.BookingStatus === 'Confirmed' && !pendingData.hasPending;
+                    const canComplete = role === 1 && booking.BookingStatus === 'Confirmed'; // ✅ NEW
+                    const canLeaveFeedback = role === 0 && booking.BookingStatus === 'Completed'; // ✅ NEW
                     
                     const rescheduleHistory = booking.reschedule_history || [];
                     
@@ -892,10 +1196,8 @@ export default function Profile() {
                         key={booking.ID}
                         className="bg-gray-50 rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow"
                       >
-                        {/* ORIGINAL TAB VIEW */}
                         {activeTab === "original" && (
                           <>
-                            {/* Show pending reschedule indicator */}
                             {pendingData.hasPending && (
                               <div className="mb-3 bg-yellow-50 border-l-4 border-yellow-500 p-3 rounded">
                                 <div className="flex items-start gap-2">
@@ -957,7 +1259,7 @@ export default function Profile() {
                               </div>
                             </div>
 
-                            <div className="flex gap-2 mt-3">
+                            <div className="flex gap-2 mt-3 flex-wrap">
                               {role === 0 && booking.BookingStatus === 'Pending' && !pendingData.hasPending && (
                                 <button
                                   onClick={() => cancelBooking(booking.ID)}
@@ -975,6 +1277,29 @@ export default function Profile() {
                                   className="flex-1 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 disabled:opacity-50 text-sm font-semibold"
                                 >
                                   📅 Reschedule
+                                </button>
+                              )}
+
+                              {/* NEW: COMPLETE BUTTON FOR VENDORS */}
+                              {canComplete && (
+                                <button
+                                  onClick={() => completeBooking(booking.ID)}
+                                  disabled={processingBooking}
+                                 className="flex-1 bg-[#7a5d47] text-white px-4 py-2 rounded-lg hover:bg-[#5d4436] disabled:opacity-50 text-sm font-semibold"
+
+
+                                >
+                                   Mark Completed
+                                </button>
+                              )}
+
+                              {/*  NEW: FEEDBACK BUTTON FOR CLIENTS */}
+                              {canLeaveFeedback && (
+                                <button
+                                  onClick={() => openFeedbackModal(booking)}
+                                  className="flex-1 bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600 text-sm font-semibold"
+                                >
+                                  ⭐ Leave Feedback
                                 </button>
                               )}
 
@@ -1007,7 +1332,6 @@ export default function Profile() {
                           </>
                         )}
 
-                        {/* RESCHEDULED TAB VIEW */}
                         {activeTab === "rescheduled" && (
                           <>
                             <div className="flex justify-between items-start mb-3">
@@ -1022,7 +1346,6 @@ export default function Profile() {
                               </span>
                             </div>
 
-                            {/* Show all reschedule history */}
                             {rescheduleHistory.map((reschedule) => (
                               <div
                                 key={reschedule.ID}
@@ -1153,7 +1476,6 @@ export default function Profile() {
                 ) : null;
               })()}
 
-              {/* Show reschedule history */}
               {selectedBooking.reschedule_history && selectedBooking.reschedule_history.length > 0 && (
                 <div className="mb-4">
                   <h3 className="font-semibold text-gray-700 mb-3">🔄 Reschedule History</h3>
@@ -1301,6 +1623,35 @@ export default function Profile() {
                   </button>
                 </div>
               )}
+
+              {/*  NEW: COMPLETE BUTTON IN DETAILS MODAL */}
+              {role === 1 && selectedBooking.BookingStatus === 'Confirmed' && (
+                <div className="flex gap-2 mt-6 pt-6 border-t">
+                  <button
+                    onClick={() => completeBooking(selectedBooking.ID)}
+                    disabled={processingBooking}
+                    className="flex-1 bg-[#7a5d47] text-white px-4 py-2 rounded-lg hover:bg-[#5d4436] disabled:opacity-50 text-sm font-semibold"
+
+                  >
+                     Mark as Completed
+                  </button>
+                </div>
+              )}
+
+              {/*  NEW: FEEDBACK BUTTON IN DETAILS MODAL */}
+              {role === 0 && selectedBooking.BookingStatus === 'Completed' && (
+                <div className="flex gap-2 mt-6 pt-6 border-t">
+                  <button
+                    onClick={() => {
+                      setSelectedBooking(null);
+                      openFeedbackModal(selectedBooking);
+                    }}
+                    className="flex-1 bg-yellow-500 text-white px-6 py-3 rounded-lg hover:bg-yellow-600 font-semibold"
+                  >
+                    ⭐ Leave Feedback
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="border-t border-gray-200 p-4 bg-gray-50">
@@ -1433,6 +1784,19 @@ export default function Profile() {
             </form>
           </div>
         </div>
+      )}
+
+      {/* FEEDBACK MODAL ================= */}
+      {showFeedbackModal && feedbackBooking && (
+        <FeedbackModal
+          booking={feedbackBooking}
+          isOpen={showFeedbackModal}
+          onClose={() => {
+            setShowFeedbackModal(false);
+            setFeedbackBooking(null);
+          }}
+          onSuccess={handleFeedbackSuccess}
+        />
       )}
 
       {/* ================= AVATAR MODAL ================= */}
@@ -1674,6 +2038,293 @@ export default function Profile() {
                   className="flex-1 bg-[#7a5d47] text-white py-2 rounded-lg hover:opacity-90 disabled:opacity-50"
                 >
                   {savingChanges ? "Saving..." : "Save Changes"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* CALENDAR MODAL ================= */}
+      {showCalendarModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[10002] p-4">
+          <div className="bg-white rounded-2xl w-full max-w-5xl max-h-[95vh] overflow-hidden shadow-2xl">
+            <div className="bg-[#7a5d47] text-white p-6 flex justify-between items-center">
+              <div>
+                <h2 className="text-2xl font-bold">Manage Your Calendar</h2>
+                <p className="text-sm text-white/80 mt-1">Set your availability and manage bookings</p>
+              </div>
+              <button
+                onClick={() => setShowCalendarModal(false)}
+                className="text-white hover:text-gray-200 text-3xl font-light"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(95vh - 100px)' }}>
+              {/* Upcoming Availability Summary */}
+              {(() => {
+                const upcomingAvailability = getUpcomingAvailability();
+                return upcomingAvailability.length > 0 && (
+                  <div className="bg-white border border-gray-200 rounded-lg p-4 mb-6">
+                    <h4 className="font-semibold text-gray-700 mb-3">Your Upcoming Availability:</h4>
+                    <div className="space-y-2">
+                      {upcomingAvailability.map((avail, index) => (
+                        <div 
+                          key={index} 
+                          className={`p-3 rounded-lg border ${
+                            avail.is_available 
+                              ? 'bg-green-50 border-green-200' 
+                              : 'bg-red-50 border-red-200'
+                          }`}
+                        >
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <p className="font-medium">
+                                {avail.is_available ? '✓' : '✕'} {formatDate(avail.date)}
+                              </p>
+                              <p className="text-sm text-gray-600">
+                                {avail.start_time?.substring(0, 5)} - {avail.end_time?.substring(0, 5)}
+                              </p>
+                              {avail.notes && (
+                                <p className="text-xs text-gray-500 mt-1">{avail.notes}</p>
+                              )}
+                            </div>
+                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                              avail.is_available 
+                                ? 'bg-green-500 text-white' 
+                                : 'bg-red-500 text-white'
+                            }`}>
+                              {avail.is_available ? 'Available' : 'Booked'}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Calendar */}
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
+                {/* Calendar Header */}
+                <div className="flex justify-between items-center mb-6">
+                  <button 
+                    onClick={previousMonth}
+                    className="bg-[#7a5d47] text-white px-4 py-2 rounded-lg hover:opacity-90"
+                  >
+                    ← Previous
+                  </button>
+                  <h4 className="text-xl font-bold">
+                    {new Date(currentMonth).toLocaleDateString('en-US', { 
+                      month: 'long', 
+                      year: 'numeric' 
+                    })}
+                  </h4>
+                  <button 
+                    onClick={nextMonth}
+                    className="bg-[#7a5d47] text-white px-4 py-2 rounded-lg hover:opacity-90"
+                  >
+                    Next →
+                  </button>
+                </div>
+
+                {/* Legend */}
+                <div className="flex gap-4 mb-4 text-sm">
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-green-500 rounded"></div>
+                    <span>Available</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-red-500 rounded"></div>
+                    <span>Booked</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-blue-500 rounded"></div>
+                    <span>Click to manage</span>
+                  </div>
+                </div>
+
+                {/* Calendar Grid */}
+                <div className="grid grid-cols-7 gap-2">
+                  {/* Weekday headers */}
+                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                    <div key={day} className="text-center font-semibold text-gray-600 py-2">
+                      {day}
+                    </div>
+                  ))}
+
+                  {/* Calendar days */}
+                  {(() => {
+                    const { daysInMonth, startingDayOfWeek, year, month } = getDaysInMonth(currentMonth);
+                    const days = [];
+                    
+                    // Empty cells before month starts
+                    for (let i = 0; i < startingDayOfWeek; i++) {
+                      days.push(<div key={`empty-${i}`} className="aspect-square"></div>);
+                    }
+                    
+                    // Days of month
+                    for (let day = 1; day <= daysInMonth; day++) {
+                      const date = new Date(year, month, day);
+                      const isToday = date.toDateString() === new Date().toDateString();
+                      const isPast = date < new Date().setHours(0, 0, 0, 0);
+                      const availabilityData = getAvailabilityForDate(date);
+                      const isAvailable = isDateAvailable(date);
+                      const isBooked = isDateBooked(date);
+
+                      days.push(
+                        <div
+                          key={day}
+                          onClick={() => {
+                            if (!isPast) {
+                              if (availabilityData.length > 0) {
+                                openAvailabilityModal(date, availabilityData[0]);
+                              } else {
+                                openAvailabilityModal(date);
+                              }
+                            }
+                          }}
+                          className={`aspect-square p-2 rounded-lg border-2 flex flex-col items-center justify-center cursor-pointer transition-all ${
+                            isPast 
+                              ? 'bg-gray-100 opacity-50 cursor-not-allowed' 
+                              : isAvailable
+                              ? 'bg-green-50 border-green-500 hover:bg-green-100'
+                              : isBooked
+                              ? 'bg-red-50 border-red-500 hover:bg-red-100'
+                              : 'bg-white border-gray-300 hover:border-blue-500 hover:bg-blue-50'
+                          } ${isToday ? 'ring-2 ring-[#7a5d47]' : ''}`}
+                          title={availabilityData.length > 0 ? `${availabilityData[0].is_available ? 'Available' : 'Booked'}` : 'Click to set availability'}
+                        >
+                          <span className="font-semibold">{day}</span>
+                          {availabilityData.length > 0 && (
+                            <span className="text-xs mt-1">
+                              {availabilityData[0].is_available ? '✓' : '✕'}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    }
+                    
+                    return days;
+                  })()}
+                </div>
+
+                {loadingAvailability && (
+                  <div className="text-center py-4 text-gray-500">
+                    Loading availability...
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AVAILABILITY EDIT MODAL (inside Calendar Modal) ================= */}
+      {showAvailabilityModal && selectedDate && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[10003] p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
+            <div className="bg-[#7a5d47] text-white p-6">
+              <h3 className="text-xl font-bold">
+                {editingAvailability ? 'Edit' : 'Set'} Availability
+              </h3>
+              <p className="text-sm text-white/80 mt-1">
+                {selectedDate.toLocaleDateString('en-US', { 
+                  weekday: 'long', 
+                  year: 'numeric', 
+                  month: 'long', 
+                  day: 'numeric' 
+                })}
+              </p>
+            </div>
+
+            <form onSubmit={saveAvailability} className="p-6">
+              <div className="mb-4">
+                <label className="block text-sm font-semibold mb-2">Status</label>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="is_available"
+                      checked={availabilityForm.is_available === true}
+                      onChange={() => setAvailabilityForm({ ...availabilityForm, is_available: true })}
+                      className="w-4 h-4"
+                    />
+                    <span>Available</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="is_available"
+                      checked={availabilityForm.is_available === false}
+                      onChange={() => setAvailabilityForm({ ...availabilityForm, is_available: false })}
+                      className="w-4 h-4"
+                    />
+                    <span>Booked/Unavailable</span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-semibold mb-2">Start Time</label>
+                  <input
+                    type="time"
+                    value={availabilityForm.start_time}
+                    onChange={(e) => setAvailabilityForm({ ...availabilityForm, start_time: e.target.value })}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold mb-2">End Time</label>
+                  <input
+                    type="time"
+                    value={availabilityForm.end_time}
+                    onChange={(e) => setAvailabilityForm({ ...availabilityForm, end_time: e.target.value })}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
+                </div>
+              </div>
+
+              <div className="mb-6">
+                <label className="block text-sm font-semibold mb-2">Notes (Optional)</label>
+                <textarea
+                  value={availabilityForm.notes}
+                  onChange={(e) => setAvailabilityForm({ ...availabilityForm, notes: e.target.value })}
+                  placeholder="Add any notes about this time slot..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  rows="3"
+                />
+              </div>
+
+              <div className="flex gap-3">
+                {editingAvailability && (
+                  <button
+                    type="button"
+                    onClick={() => deleteAvailability(editingAvailability.id)}
+                    className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
+                  >
+                    Delete
+                  </button>
+                )}
+                <div className="flex-1"></div>
+                <button
+                  type="button"
+                  onClick={closeAvailabilityModal}
+                  className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingAvailability}
+                  className="px-6 py-2 bg-[#7a5d47] text-white rounded-lg hover:opacity-90 disabled:opacity-50"
+                >
+                  {savingAvailability ? 'Saving...' : 'Save'}
                 </button>
               </div>
             </form>

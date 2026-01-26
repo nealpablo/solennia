@@ -199,7 +199,7 @@ return function (App $app) {
         $userId = (int)$auth->mysql_id;
 
         try {
-            // ✅ FIX: Use vendor_application instead of event_service_provider
+            //  FIX: Use vendor_application instead of event_service_provider
             $vendor = DB::table('vendor_application')
                 ->where('user_id', $userId)
                 ->where('status', 'Approved')
@@ -230,11 +230,11 @@ return function (App $app) {
     })->add(new AuthMiddleware());
 
     /* ===========================================================
-     * PUBLIC VENDORS (✅ FIXED FOR vendor_application TABLE)
+     * PUBLIC VENDORS 
      * =========================================================== */
     $app->get('/api/vendors/public', function (Request $req, Response $res) use ($json) {
         try {
-            // ✅ FIX: Use vendor_application instead of event_service_provider
+            //  Use vendor_application instead of event_service_provider
             $vendors = DB::table('vendor_application as va')
                 ->leftJoin('credential as c', 'va.user_id', '=', 'c.id')
                 ->where('va.status', 'Approved')
@@ -261,13 +261,13 @@ return function (App $app) {
     });
 
     /* ===========================================================
-     * GET SINGLE VENDOR (PUBLIC) - ✅ FIXED
+     * GET SINGLE VENDOR (PUBLIC) 
      * =========================================================== */
     $app->get('/api/vendor/public/{userId}', function (Request $req, Response $res, array $args) use ($json) {
         try {
             $userId = (int) $args['userId'];
 
-            // ✅ FIX: Use vendor_application instead of event_service_provider
+            //  FIX: Use vendor_application instead of event_service_provider
             $vendor = DB::table('vendor_application as va')
                 ->leftJoin('credential as c', 'va.user_id', '=', 'c.id')
                 ->where('va.user_id', $userId)
@@ -288,7 +288,7 @@ return function (App $app) {
                 ], 404);
             }
 
-            // ✅ GALLERY FIX: Fetch from vendor_gallery table
+            //  GALLERY FIX: Fetch from vendor_gallery table
             $gallery = DB::table('vendor_gallery')
                 ->where('user_id', $userId)
                 ->orderBy('created_at', 'desc')
@@ -352,7 +352,7 @@ return function (App $app) {
 
             $data = (array) $req->getParsedBody();
 
-            // ✅ CHANGED: Now requires URLs instead of files
+            //  CHANGED: Now requires URLs instead of files
             $required = ['business_name','category','address','description','pricing','permits_url','gov_id_url','portfolio_url'];
             foreach ($required as $field) {
                 if (empty($data[$field])) {
@@ -363,7 +363,7 @@ return function (App $app) {
                 }
             }
 
-            // ✅ Validate URLs are from Cloudinary
+            //  Validate URLs are from Cloudinary
             $cloudinaryDomain = 'res.cloudinary.com';
             foreach (['permits_url', 'gov_id_url', 'portfolio_url'] as $urlField) {
                 if (strpos($data[$urlField], $cloudinaryDomain) === false) {
@@ -386,15 +386,15 @@ return function (App $app) {
                 ], 400);
             }
 
-            // ✅ NO FILE UPLOAD - INSTANT INSERT!
+            //  NO FILE UPLOAD - INSTANT INSERT!
             $insertData = [
                 'user_id'       => $userId,
                 'business_name' => $data['business_name'],
                 'category'      => $data['category'],
                 'address'       => $data['address'],
-                'permits'       => $data['permits_url'],  // ✅ Direct URL
-                'gov_id'        => $data['gov_id_url'],    // ✅ Direct URL
-                'portfolio'     => $data['portfolio_url'], // ✅ Direct URL
+                'permits'       => $data['permits_url'],  
+                'gov_id'        => $data['gov_id_url'],    
+                'portfolio'     => $data['portfolio_url'], 
                 'contact_email'=> $data['contact_email']
                     ?? DB::table('credential')->where('id', $userId)->value('email'),
                 'description'   => $data['description'],
@@ -429,7 +429,7 @@ return function (App $app) {
                 'Your vendor application has been received and is under review.'
             );
 
-            // ✅ INSTANT RESPONSE (< 100ms instead of 30+ seconds!)
+            //  INSTANT RESPONSE (< 100ms instead of 30+ seconds!)
             return $json($res, [
                 'success' => true,
                 'message' => 'Vendor application submitted!',

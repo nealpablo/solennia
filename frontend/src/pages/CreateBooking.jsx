@@ -17,7 +17,10 @@ export default function CreateBooking() {
   const { vendorUserId, vendorName, serviceName } = location.state || {};
 
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({
+  const [currentStep, setCurrentStep] = useState(1);
+
+  // STEP 1: Event Details
+  const [eventData, setEventData] = useState({
     event_type: "",
     event_date: "",
     event_time: "14:00",
@@ -25,6 +28,57 @@ export default function CreateBooking() {
     package_selected: "",
     additional_notes: "",
     budget_amount: ""
+  });
+
+  // STEP 2: Event-Specific Data (changes based on event type)
+  const [eventSpecificData, setEventSpecificData] = useState({
+    // Common fields
+    contact_name: "",
+    contact_email: "",
+    contact_phone: "",
+    number_of_guests: "",
+    special_requests: "",
+    
+    // Wedding-specific
+    bride_name: "",
+    groom_name: "",
+    wedding_theme: "",
+    reception_venue: "",
+    
+    // Birthday-specific
+    celebrant_name: "",
+    celebrant_age: "",
+    birthday_theme: "",
+    cake_preference: "",
+    
+    // Corporate-specific
+    company_name: "",
+    department: "",
+    position: "",
+    event_purpose: "",
+    
+    // Anniversary-specific
+    couple_names: "",
+    years_together: "",
+    anniversary_theme: "",
+    
+    // Debut-specific
+    debutante_name: "",
+    debut_theme: "",
+    number_of_roses: "",
+    number_of_candles: "",
+    
+    // Graduation-specific
+    graduate_name: "",
+    school_name: "",
+    degree_program: "",
+    graduation_year: "",
+    
+    // Shared optional fields
+    dietary_restrictions: "",
+    accessibility_requirements: "",
+    emergency_contact_name: "",
+    emergency_contact_phone: ""
   });
 
   useEffect(() => {
@@ -38,10 +92,27 @@ export default function CreateBooking() {
     if (!vendorUserId || !vendorName) {
       toast.error("Vendor information missing");
       navigate("/vendors");
+      return;
+    }
+
+    // Auto-fill contact info from profile
+    const profileStr = localStorage.getItem("solennia_profile");
+    if (profileStr) {
+      try {
+        const profile = JSON.parse(profileStr);
+        setEventSpecificData(prev => ({
+          ...prev,
+          contact_name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim(),
+          contact_email: profile.email || '',
+          contact_phone: profile.phone || ''
+        }));
+      } catch (err) {
+        console.error("Failed to parse profile:", err);
+      }
     }
   }, [vendorUserId, vendorName, navigate]);
 
-  // Event types with original icon size (32px)
+  // Event types with icons
   const eventTypes = [
     { 
       value: "Wedding", 
@@ -114,40 +185,49 @@ export default function CreateBooking() {
     }
   ];
 
-  const handleChange = (e) => {
+  const handleEventChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setEventData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleEventSpecificChange = (e) => {
+    const { name, value } = e.target;
+    setEventSpecificData(prev => ({
       ...prev,
       [name]: value
     }));
   };
 
   const handleEventTypeSelect = (eventType) => {
-    setFormData(prev => ({
+    setEventData(prev => ({
       ...prev,
       event_type: eventType
     }));
   };
 
-  const validateForm = () => {
-    if (!formData.event_type) {
+  // Validation for Step 1
+  const validateStep1 = () => {
+    if (!eventData.event_type) {
       toast.error("Please select an event type");
       return false;
     }
 
-    if (!formData.event_date) {
+    if (!eventData.event_date) {
       toast.error("Please select an event date");
       return false;
     }
 
-    const selectedDate = new Date(`${formData.event_date}T${formData.event_time}`);
+    const selectedDate = new Date(`${eventData.event_date}T${eventData.event_time}`);
     const now = new Date();
     if (selectedDate <= now) {
       toast.error("Event date must be in the future");
       return false;
     }
 
-    if (!formData.event_location.trim()) {
+    if (!eventData.event_location.trim()) {
       toast.error("Please enter event location");
       return false;
     }
@@ -155,17 +235,194 @@ export default function CreateBooking() {
     return true;
   };
 
-  /* ============================================
-   * ✅ ENHANCED handleSubmit WITH CONFLICT HANDLING
-   * ============================================
-   * CHANGES MADE ON LINES 207-226
-   * Added detection and handling for schedule conflicts (UC05 Alternate Flow 5a-5c)
-   * ============================================
-   */
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  // Validation for Step 2 (event-specific)
+  const validateStep2 = () => {
+    // Common required fields
+    if (!eventSpecificData.contact_name.trim()) {
+      toast.error("Please enter your name");
+      return false;
+    }
 
-    if (!validateForm()) return;
+    if (!eventSpecificData.contact_email.trim()) {
+      toast.error("Please enter your email");
+      return false;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(eventSpecificData.contact_email)) {
+      toast.error("Please enter a valid email address");
+      return false;
+    }
+
+    if (!eventSpecificData.contact_phone.trim()) {
+      toast.error("Please enter your phone number");
+      return false;
+    }
+
+    // Event-specific validations
+    switch(eventData.event_type) {
+      case "Wedding":
+        if (!eventSpecificData.bride_name.trim()) {
+          toast.error("Please enter the bride's name");
+          return false;
+        }
+        if (!eventSpecificData.groom_name.trim()) {
+          toast.error("Please enter the groom's name");
+          return false;
+        }
+        break;
+      
+      case "Birthday":
+        if (!eventSpecificData.celebrant_name.trim()) {
+          toast.error("Please enter the celebrant's name");
+          return false;
+        }
+        break;
+      
+      case "Corporate Event":
+        if (!eventSpecificData.company_name.trim()) {
+          toast.error("Please enter the company name");
+          return false;
+        }
+        break;
+      
+      case "Anniversary":
+        if (!eventSpecificData.couple_names.trim()) {
+          toast.error("Please enter the couple's names");
+          return false;
+        }
+        break;
+      
+      case "Debut":
+        if (!eventSpecificData.debutante_name.trim()) {
+          toast.error("Please enter the debutante's name");
+          return false;
+        }
+        break;
+      
+      case "Graduation":
+        if (!eventSpecificData.graduate_name.trim()) {
+          toast.error("Please enter the graduate's name");
+          return false;
+        }
+        break;
+    }
+
+    return true;
+  };
+
+  // Navigation
+  const goToNextStep = () => {
+    if (currentStep === 1 && !validateStep1()) return;
+    if (currentStep === 2 && !validateStep2()) return;
+    
+    if (currentStep < 3) {
+      setCurrentStep(currentStep + 1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const goToPreviousStep = () => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  // Build event-specific notes
+  const buildEventSpecificNotes = () => {
+    let notes = `Event Type: ${eventData.event_type}\n`;
+    
+    if (eventData.additional_notes) {
+      notes += `\nEvent Notes: ${eventData.additional_notes}\n`;
+    }
+    
+    notes += `\n--- Contact Information ---\n`;
+    notes += `Name: ${eventSpecificData.contact_name}\n`;
+    notes += `Email: ${eventSpecificData.contact_email}\n`;
+    notes += `Phone: ${eventSpecificData.contact_phone}\n`;
+    
+    if (eventSpecificData.number_of_guests) {
+      notes += `\nNumber of Guests: ${eventSpecificData.number_of_guests}\n`;
+    }
+    
+    // Add event-specific information
+    switch(eventData.event_type) {
+      case "Wedding":
+        notes += `\n--- Wedding Details ---\n`;
+        notes += `Bride: ${eventSpecificData.bride_name}\n`;
+        notes += `Groom: ${eventSpecificData.groom_name}\n`;
+        if (eventSpecificData.wedding_theme) notes += `Theme: ${eventSpecificData.wedding_theme}\n`;
+        if (eventSpecificData.reception_venue) notes += `Reception Venue: ${eventSpecificData.reception_venue}\n`;
+        break;
+      
+      case "Birthday":
+        notes += `\n--- Birthday Details ---\n`;
+        notes += `Celebrant: ${eventSpecificData.celebrant_name}\n`;
+        if (eventSpecificData.celebrant_age) notes += `Age: ${eventSpecificData.celebrant_age}\n`;
+        if (eventSpecificData.birthday_theme) notes += `Theme: ${eventSpecificData.birthday_theme}\n`;
+        if (eventSpecificData.cake_preference) notes += `Cake Preference: ${eventSpecificData.cake_preference}\n`;
+        break;
+      
+      case "Corporate Event":
+        notes += `\n--- Corporate Event Details ---\n`;
+        notes += `Company: ${eventSpecificData.company_name}\n`;
+        if (eventSpecificData.department) notes += `Department: ${eventSpecificData.department}\n`;
+        if (eventSpecificData.position) notes += `Position: ${eventSpecificData.position}\n`;
+        if (eventSpecificData.event_purpose) notes += `Purpose: ${eventSpecificData.event_purpose}\n`;
+        break;
+      
+      case "Anniversary":
+        notes += `\n--- Anniversary Details ---\n`;
+        notes += `Couple: ${eventSpecificData.couple_names}\n`;
+        if (eventSpecificData.years_together) notes += `Years Together: ${eventSpecificData.years_together}\n`;
+        if (eventSpecificData.anniversary_theme) notes += `Theme: ${eventSpecificData.anniversary_theme}\n`;
+        break;
+      
+      case "Debut":
+        notes += `\n--- Debut Details ---\n`;
+        notes += `Debutante: ${eventSpecificData.debutante_name}\n`;
+        if (eventSpecificData.debut_theme) notes += `Theme: ${eventSpecificData.debut_theme}\n`;
+        if (eventSpecificData.number_of_roses) notes += `Number of Roses: ${eventSpecificData.number_of_roses}\n`;
+        if (eventSpecificData.number_of_candles) notes += `Number of Candles: ${eventSpecificData.number_of_candles}\n`;
+        break;
+      
+      case "Graduation":
+        notes += `\n--- Graduation Details ---\n`;
+        notes += `Graduate: ${eventSpecificData.graduate_name}\n`;
+        if (eventSpecificData.school_name) notes += `School: ${eventSpecificData.school_name}\n`;
+        if (eventSpecificData.degree_program) notes += `Degree/Program: ${eventSpecificData.degree_program}\n`;
+        if (eventSpecificData.graduation_year) notes += `Year: ${eventSpecificData.graduation_year}\n`;
+        break;
+    }
+    
+    // Add common optional fields
+    if (eventSpecificData.dietary_restrictions) {
+      notes += `\nDietary Restrictions: ${eventSpecificData.dietary_restrictions}\n`;
+    }
+    if (eventSpecificData.accessibility_requirements) {
+      notes += `Accessibility Requirements: ${eventSpecificData.accessibility_requirements}\n`;
+    }
+    if (eventSpecificData.emergency_contact_name) {
+      notes += `\nEmergency Contact: ${eventSpecificData.emergency_contact_name}`;
+      if (eventSpecificData.emergency_contact_phone) {
+        notes += ` (${eventSpecificData.emergency_contact_phone})`;
+      }
+      notes += `\n`;
+    }
+    if (eventSpecificData.special_requests) {
+      notes += `\nSpecial Requests: ${eventSpecificData.special_requests}\n`;
+    }
+    
+    return notes.trim();
+  };
+
+  // Submit booking
+  const handleSubmit = async () => {
+    if (!validateStep1() || !validateStep2()) {
+      toast.error("Please complete all required fields");
+      return;
+    }
 
     try {
       setLoading(true);
@@ -177,9 +434,8 @@ export default function CreateBooking() {
         return;
       }
 
-      const eventDateTime = `${formData.event_date} ${formData.event_time}:00`;
-
-      console.log("Submitting booking with vendor_id:", vendorUserId);
+      const eventDateTime = `${eventData.event_date} ${eventData.event_time}:00`;
+      const combinedNotes = buildEventSpecificNotes();
 
       const response = await fetch(`${API}/bookings/create`, {
         method: "POST",
@@ -189,13 +445,13 @@ export default function CreateBooking() {
         },
         body: JSON.stringify({
           vendor_id: vendorUserId,
-          service_name: serviceName || formData.event_type,
+          service_name: serviceName || eventData.event_type,
           event_date: eventDateTime,
-          event_location: formData.event_location,
-          event_type: formData.event_type,
-          package_selected: formData.package_selected || null,
-          additional_notes: formData.additional_notes || null,
-          total_amount: formData.budget_amount ? parseFloat(formData.budget_amount) : null
+          event_location: eventData.event_location,
+          event_type: eventData.event_type,
+          package_selected: eventData.package_selected || null,
+          additional_notes: combinedNotes,
+          total_amount: eventData.budget_amount ? parseFloat(eventData.budget_amount) : null
         })
       });
 
@@ -211,40 +467,16 @@ export default function CreateBooking() {
         throw new Error("Server returned an invalid response. Please try again.");
       }
 
-      /* ============================================
-       * ✅ NEW CODE STARTS HERE (LINES 207-226)
-       * ============================================
-       * Handle schedule conflict (UC05 Alternate Flow 5a-5c)
-       * ============================================
-       */
-      
-      // UC05 Alternate Flow 5a: Check if schedule conflict detected (409 status)
       if (response.status === 409 && data.conflict) {
-        // This vendor is already booked at this date/time
-        console.log("Schedule conflict detected:", data);
-        
-        // UC05 Alternate Flow 5b: Display message informing client
         toast.error(
           data.message || 
           "This vendor is already booked for the selected date and time. Please choose a different schedule.",
-          { duration: 10000 } // ✅ INCREASED: 10 seconds for better readability
+          { duration: 10000 }
         );
-        
-        // UC05 Alternate Flow 5c: Prompt to choose different date/time
-        // Scroll to date/time fields so user can easily change them
-        const dateField = document.querySelector('input[type="date"]');
-        if (dateField) {
-          dateField.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          dateField.focus();
-        }
-        
-        return; // Don't navigate away, let user modify the form
+        setCurrentStep(1);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
       }
-
-      /* ============================================
-       * ✅ NEW CODE ENDS HERE
-       * ============================================
-       */
 
       if (!response.ok) {
         throw new Error(data.error || data.message || `Server error: ${response.status}`);
@@ -268,196 +500,1039 @@ export default function CreateBooking() {
     navigate(-1);
   };
 
+  // Progress indicator
+  const steps = [
+    { number: 1, title: "Event Details" },
+    { number: 2, title: `${eventData.event_type || 'Event'} Information` },
+    { number: 3, title: "Review & Submit" }
+  ];
+
+  // Render event-specific fields based on selected event type
+  const renderEventSpecificFields = () => {
+    switch(eventData.event_type) {
+      case "Wedding":
+        return (
+          <>
+            <div style={styles.subsection}>
+              <h3 style={styles.subsectionTitle}>💑 Wedding Details</h3>
+              
+              <div style={styles.row}>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>
+                    Bride's Name <span style={styles.required}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="bride_name"
+                    value={eventSpecificData.bride_name}
+                    onChange={handleEventSpecificChange}
+                    placeholder="Maria Santos"
+                    style={styles.input}
+                    required
+                  />
+                </div>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>
+                    Groom's Name <span style={styles.required}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="groom_name"
+                    value={eventSpecificData.groom_name}
+                    onChange={handleEventSpecificChange}
+                    placeholder="Juan Dela Cruz"
+                    style={styles.input}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div style={styles.row}>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Wedding Theme</label>
+                  <input
+                    type="text"
+                    name="wedding_theme"
+                    value={eventSpecificData.wedding_theme}
+                    onChange={handleEventSpecificChange}
+                    placeholder="e.g., Rustic, Garden, Modern"
+                    style={styles.input}
+                  />
+                </div>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Reception Venue</label>
+                  <input
+                    type="text"
+                    name="reception_venue"
+                    value={eventSpecificData.reception_venue}
+                    onChange={handleEventSpecificChange}
+                    placeholder="e.g., Grand Ballroom"
+                    style={styles.input}
+                  />
+                </div>
+              </div>
+            </div>
+          </>
+        );
+
+      case "Birthday":
+        return (
+          <>
+            <div style={styles.subsection}>
+              <h3 style={styles.subsectionTitle}>🎂 Birthday Details</h3>
+              
+              <div style={styles.row}>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>
+                    Celebrant's Name <span style={styles.required}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="celebrant_name"
+                    value={eventSpecificData.celebrant_name}
+                    onChange={handleEventSpecificChange}
+                    placeholder="Maria Dela Cruz"
+                    style={styles.input}
+                    required
+                  />
+                </div>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Age Turning</label>
+                  <input
+                    type="number"
+                    name="celebrant_age"
+                    value={eventSpecificData.celebrant_age}
+                    onChange={handleEventSpecificChange}
+                    placeholder="25"
+                    min="1"
+                    style={styles.input}
+                  />
+                </div>
+              </div>
+
+              <div style={styles.row}>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Birthday Theme</label>
+                  <input
+                    type="text"
+                    name="birthday_theme"
+                    value={eventSpecificData.birthday_theme}
+                    onChange={handleEventSpecificChange}
+                    placeholder="e.g., Superhero, Princess, Vintage"
+                    style={styles.input}
+                  />
+                </div>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Cake Preference</label>
+                  <input
+                    type="text"
+                    name="cake_preference"
+                    value={eventSpecificData.cake_preference}
+                    onChange={handleEventSpecificChange}
+                    placeholder="e.g., Chocolate, Vanilla, Red Velvet"
+                    style={styles.input}
+                  />
+                </div>
+              </div>
+            </div>
+          </>
+        );
+
+      case "Corporate Event":
+        return (
+          <>
+            <div style={styles.subsection}>
+              <h3 style={styles.subsectionTitle}>🏢 Corporate Event Details</h3>
+              
+              <div style={styles.section}>
+                <label style={styles.label}>
+                  Company Name <span style={styles.required}>*</span>
+                </label>
+                <input
+                  type="text"
+                  name="company_name"
+                  value={eventSpecificData.company_name}
+                  onChange={handleEventSpecificChange}
+                  placeholder="ABC Corporation"
+                  style={styles.input}
+                  required
+                />
+              </div>
+
+              <div style={styles.row}>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Department</label>
+                  <input
+                    type="text"
+                    name="department"
+                    value={eventSpecificData.department}
+                    onChange={handleEventSpecificChange}
+                    placeholder="e.g., Human Resources, IT"
+                    style={styles.input}
+                  />
+                </div>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Your Position</label>
+                  <input
+                    type="text"
+                    name="position"
+                    value={eventSpecificData.position}
+                    onChange={handleEventSpecificChange}
+                    placeholder="e.g., Events Manager"
+                    style={styles.input}
+                  />
+                </div>
+              </div>
+
+              <div style={styles.section}>
+                <label style={styles.label}>Event Purpose</label>
+                <textarea
+                  name="event_purpose"
+                  value={eventSpecificData.event_purpose}
+                  onChange={handleEventSpecificChange}
+                  placeholder="e.g., Team building, Product launch, Year-end party..."
+                  rows="3"
+                  style={styles.textarea}
+                />
+              </div>
+            </div>
+          </>
+        );
+
+      case "Anniversary":
+        return (
+          <>
+            <div style={styles.subsection}>
+              <h3 style={styles.subsectionTitle}>💕 Anniversary Details</h3>
+              
+              <div style={styles.section}>
+                <label style={styles.label}>
+                  Couple's Names <span style={styles.required}>*</span>
+                </label>
+                <input
+                  type="text"
+                  name="couple_names"
+                  value={eventSpecificData.couple_names}
+                  onChange={handleEventSpecificChange}
+                  placeholder="Juan & Maria Dela Cruz"
+                  style={styles.input}
+                  required
+                />
+              </div>
+
+              <div style={styles.row}>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Years Together</label>
+                  <input
+                    type="number"
+                    name="years_together"
+                    value={eventSpecificData.years_together}
+                    onChange={handleEventSpecificChange}
+                    placeholder="25"
+                    min="1"
+                    style={styles.input}
+                  />
+                </div>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Anniversary Theme</label>
+                  <input
+                    type="text"
+                    name="anniversary_theme"
+                    value={eventSpecificData.anniversary_theme}
+                    onChange={handleEventSpecificChange}
+                    placeholder="e.g., Silver, Golden, Ruby"
+                    style={styles.input}
+                  />
+                </div>
+              </div>
+            </div>
+          </>
+        );
+
+      case "Debut":
+        return (
+          <>
+            <div style={styles.subsection}>
+              <h3 style={styles.subsectionTitle}>👗 Debut Details</h3>
+              
+              <div style={styles.section}>
+                <label style={styles.label}>
+                  Debutante's Name <span style={styles.required}>*</span>
+                </label>
+                <input
+                  type="text"
+                  name="debutante_name"
+                  value={eventSpecificData.debutante_name}
+                  onChange={handleEventSpecificChange}
+                  placeholder="Maria Santos"
+                  style={styles.input}
+                  required
+                />
+              </div>
+
+              <div style={styles.section}>
+                <label style={styles.label}>Debut Theme</label>
+                <input
+                  type="text"
+                  name="debut_theme"
+                  value={eventSpecificData.debut_theme}
+                  onChange={handleEventSpecificChange}
+                  placeholder="e.g., Enchanted Garden, Masquerade, Winter Wonderland"
+                  style={styles.input}
+                />
+              </div>
+
+              <div style={styles.row}>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Number of Roses</label>
+                  <input
+                    type="number"
+                    name="number_of_roses"
+                    value={eventSpecificData.number_of_roses}
+                    onChange={handleEventSpecificChange}
+                    placeholder="18"
+                    min="1"
+                    style={styles.input}
+                  />
+                </div>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Number of Candles</label>
+                  <input
+                    type="number"
+                    name="number_of_candles"
+                    value={eventSpecificData.number_of_candles}
+                    onChange={handleEventSpecificChange}
+                    placeholder="18"
+                    min="1"
+                    style={styles.input}
+                  />
+                </div>
+              </div>
+            </div>
+          </>
+        );
+
+      case "Graduation":
+        return (
+          <>
+            <div style={styles.subsection}>
+              <h3 style={styles.subsectionTitle}>🎓 Graduation Details</h3>
+              
+              <div style={styles.section}>
+                <label style={styles.label}>
+                  Graduate's Name <span style={styles.required}>*</span>
+                </label>
+                <input
+                  type="text"
+                  name="graduate_name"
+                  value={eventSpecificData.graduate_name}
+                  onChange={handleEventSpecificChange}
+                  placeholder="Juan Dela Cruz"
+                  style={styles.input}
+                  required
+                />
+              </div>
+
+              <div style={styles.row}>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>School/University</label>
+                  <input
+                    type="text"
+                    name="school_name"
+                    value={eventSpecificData.school_name}
+                    onChange={handleEventSpecificChange}
+                    placeholder="University of the Philippines"
+                    style={styles.input}
+                  />
+                </div>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Graduation Year</label>
+                  <input
+                    type="number"
+                    name="graduation_year"
+                    value={eventSpecificData.graduation_year}
+                    onChange={handleEventSpecificChange}
+                    placeholder="2026"
+                    min="2020"
+                    max="2030"
+                    style={styles.input}
+                  />
+                </div>
+              </div>
+
+              <div style={styles.section}>
+                <label style={styles.label}>Degree/Program</label>
+                <input
+                  type="text"
+                  name="degree_program"
+                  value={eventSpecificData.degree_program}
+                  onChange={handleEventSpecificChange}
+                  placeholder="e.g., BS Computer Science, BA Communication"
+                  style={styles.input}
+                />
+              </div>
+            </div>
+          </>
+        );
+
+      case "Other":
+      default:
+        return (
+          <>
+            <div style={styles.subsection}>
+              <h3 style={styles.subsectionTitle}>📝 Event Details</h3>
+              <p style={styles.helpText}>
+                Please provide any relevant details about your event in the fields below.
+              </p>
+            </div>
+          </>
+        );
+    }
+  };
+
+  // Render summary based on event type
+  const renderEventSpecificSummary = () => {
+    const items = [];
+
+    switch(eventData.event_type) {
+      case "Wedding":
+        if (eventSpecificData.bride_name) {
+          items.push({ label: "Bride", value: eventSpecificData.bride_name });
+        }
+        if (eventSpecificData.groom_name) {
+          items.push({ label: "Groom", value: eventSpecificData.groom_name });
+        }
+        if (eventSpecificData.wedding_theme) {
+          items.push({ label: "Theme", value: eventSpecificData.wedding_theme });
+        }
+        if (eventSpecificData.reception_venue) {
+          items.push({ label: "Reception", value: eventSpecificData.reception_venue });
+        }
+        break;
+
+      case "Birthday":
+        if (eventSpecificData.celebrant_name) {
+          items.push({ label: "Celebrant", value: eventSpecificData.celebrant_name });
+        }
+        if (eventSpecificData.celebrant_age) {
+          items.push({ label: "Age", value: eventSpecificData.celebrant_age });
+        }
+        if (eventSpecificData.birthday_theme) {
+          items.push({ label: "Theme", value: eventSpecificData.birthday_theme });
+        }
+        if (eventSpecificData.cake_preference) {
+          items.push({ label: "Cake", value: eventSpecificData.cake_preference });
+        }
+        break;
+
+      case "Corporate Event":
+        if (eventSpecificData.company_name) {
+          items.push({ label: "Company", value: eventSpecificData.company_name });
+        }
+        if (eventSpecificData.department) {
+          items.push({ label: "Department", value: eventSpecificData.department });
+        }
+        if (eventSpecificData.position) {
+          items.push({ label: "Position", value: eventSpecificData.position });
+        }
+        if (eventSpecificData.event_purpose) {
+          items.push({ label: "Purpose", value: eventSpecificData.event_purpose });
+        }
+        break;
+
+      case "Anniversary":
+        if (eventSpecificData.couple_names) {
+          items.push({ label: "Couple", value: eventSpecificData.couple_names });
+        }
+        if (eventSpecificData.years_together) {
+          items.push({ label: "Years", value: eventSpecificData.years_together });
+        }
+        if (eventSpecificData.anniversary_theme) {
+          items.push({ label: "Theme", value: eventSpecificData.anniversary_theme });
+        }
+        break;
+
+      case "Debut":
+        if (eventSpecificData.debutante_name) {
+          items.push({ label: "Debutante", value: eventSpecificData.debutante_name });
+        }
+        if (eventSpecificData.debut_theme) {
+          items.push({ label: "Theme", value: eventSpecificData.debut_theme });
+        }
+        if (eventSpecificData.number_of_roses) {
+          items.push({ label: "Roses", value: eventSpecificData.number_of_roses });
+        }
+        if (eventSpecificData.number_of_candles) {
+          items.push({ label: "Candles", value: eventSpecificData.number_of_candles });
+        }
+        break;
+
+      case "Graduation":
+        if (eventSpecificData.graduate_name) {
+          items.push({ label: "Graduate", value: eventSpecificData.graduate_name });
+        }
+        if (eventSpecificData.school_name) {
+          items.push({ label: "School", value: eventSpecificData.school_name });
+        }
+        if (eventSpecificData.degree_program) {
+          items.push({ label: "Degree", value: eventSpecificData.degree_program });
+        }
+        if (eventSpecificData.graduation_year) {
+          items.push({ label: "Year", value: eventSpecificData.graduation_year });
+        }
+        break;
+    }
+
+    return items;
+  };
+
   return (
     <div style={styles.wrapper}>
-      {/* Header - Transparent, Left Aligned */}
+      {/* Header */}
       <div style={styles.headerContainer}>
         <div style={styles.headerContent}>
           <h1 style={styles.title}>Book a Service</h1>
           <p style={styles.subtitle}>
             with <strong>{vendorName}</strong>
           </p>
-          <p style={{ margin: "0.75rem 0 0 0", fontSize: "0.95rem", color: "#666", lineHeight: "1.5" }}>
-            Before we send a booking request to your supplier, let's get organized. You can edit the details until you submit your booking.
-          </p>
         </div>
+      </div>
+
+      {/* Progress Indicator */}
+      <div style={styles.progressContainer}>
+        {steps.map((step, index) => (
+          <div key={step.number} style={styles.progressStepWrapper}>
+            <div style={styles.progressStep}>
+              <div style={{
+                ...styles.progressCircle,
+                ...(currentStep >= step.number ? styles.progressCircleActive : {})
+              }}>
+                {currentStep > step.number ? (
+                  <svg style={styles.checkIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                  </svg>
+                ) : (
+                  step.number
+                )}
+              </div>
+              <span style={{
+                ...styles.progressLabel,
+                ...(currentStep >= step.number ? styles.progressLabelActive : {})
+              }}>
+                {step.title}
+              </span>
+            </div>
+            {index < steps.length - 1 && (
+              <div style={{
+                ...styles.progressLine,
+                ...(currentStep > step.number ? styles.progressLineActive : {})
+              }} />
+            )}
+          </div>
+        ))}
       </div>
 
       {/* Form Container */}
       <div style={styles.formContainer}>
-        <form onSubmit={handleSubmit}>
-          
-          {/* Event Type Selection - SMALLER CONTAINERS */}
-          <div style={styles.section}>
-            <label style={styles.sectionLabel}>
-              Select Event Type <span style={styles.required}>*</span>
-            </label>
-            <div style={styles.eventTypeGrid}>
-              {eventTypes.map((type) => (
-                <div
-                  key={type.value}
-                  onClick={() => handleEventTypeSelect(type.value)}
-                  style={{
-                    ...styles.eventBox,
-                    ...(formData.event_type === type.value ? styles.selectedEventBox : {})
-                  }}
-                >
-                  <div style={{
-                    ...styles.iconContainer,
-                    ...(formData.event_type === type.value ? { color: '#fff' } : { color: '#666' })
-                  }}>
-                    {type.icon}
-                  </div>
-                  <div style={{
-                    ...styles.boxLabel,
-                    ...(formData.event_type === type.value ? { color: '#fff' } : {})
-                  }}>
-                    {type.value}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Date and Time */}
-          <div style={styles.section}>
-            <div style={styles.row}>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>
-                  Event Date <span style={styles.required}>*</span>
-                </label>
-                <input
-                  type="date"
-                  name="event_date"
-                  value={formData.event_date}
-                  onChange={handleChange}
-                  min={new Date().toISOString().split('T')[0]}
-                  style={styles.input}
-                  required
-                />
-              </div>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>
-                  Event Time <span style={styles.required}>*</span>
-                </label>
-                <input
-                  type="time"
-                  name="event_time"
-                  value={formData.event_time}
-                  onChange={handleChange}
-                  style={styles.input}
-                  required
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Event Location */}
-          <div style={styles.section}>
-            <label style={styles.label}>
-              Event Location <span style={styles.required}>*</span>
-            </label>
-            <input
-              type="text"
-              name="event_location"
-              value={formData.event_location}
-              onChange={handleChange}
-              placeholder="e.g., Manila Hotel, Quezon City"
-              style={styles.input}
-              required
-            />
-          </div>
-
-          {/* Estimated Amount of Budget */}
-          <div style={styles.section}>
-            <label style={styles.label}>
-              ₱ Estimated Amount of Budget
-            </label>
-            <input
-              type="number"
-              name="budget_amount"
-              value={formData.budget_amount}
-              onChange={handleChange}
-              placeholder="Enter your budget amount"
-              min="0"
-              step="1000"
-              style={styles.input}
-            />
-          </div>
-
-          {/* Package/Tier */}
-          <div style={styles.section}>
-            <label style={styles.label}>Package/Tier (Optional)</label>
-            <input
-              type="text"
-              name="package_selected"
-              value={formData.package_selected}
-              onChange={handleChange}
-              placeholder="e.g., Premium Package, Basic Package"
-              style={styles.input}
-            />
-          </div>
-
-          {/* Additional Notes */}
-          <div style={styles.section}>
-            <label style={styles.label}>Additional Notes</label>
-            <textarea
-              name="additional_notes"
-              value={formData.additional_notes}
-              onChange={handleChange}
-              placeholder="Any special requests or additional information..."
-              rows="4"
-              style={styles.textarea}
-            />
-          </div>
-
-          {/* Info Box */}
-          <div style={styles.infoBox}>
-            <svg style={styles.infoIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <p style={styles.infoText}>
-              Your booking request will be sent to the vendor for review. 
-              You will be notified once they respond.
+        
+        {/* STEP 1: EVENT DETAILS */}
+        {currentStep === 1 && (
+          <div style={styles.stepContent}>
+            <h2 style={styles.stepTitle}>Step 1: Event Details</h2>
+            <p style={styles.stepDescription}>
+              Tell us about your event. This helps the vendor prepare the best service for you.
             </p>
-          </div>
 
-          {/* Buttons */}
-          <div style={styles.buttonGroup}>
+            {/* Event Type Selection */}
+            <div style={styles.section}>
+              <label style={styles.sectionLabel}>
+                Select Event Type <span style={styles.required}>*</span>
+              </label>
+              <div style={styles.eventTypeGrid}>
+                {eventTypes.map((type) => (
+                  <div
+                    key={type.value}
+                    onClick={() => handleEventTypeSelect(type.value)}
+                    style={{
+                      ...styles.eventBox,
+                      ...(eventData.event_type === type.value ? styles.selectedEventBox : {})
+                    }}
+                  >
+                    <div style={{
+                      ...styles.iconContainer,
+                      ...(eventData.event_type === type.value ? { color: '#fff' } : { color: '#666' })
+                    }}>
+                      {type.icon}
+                    </div>
+                    <div style={{
+                      ...styles.boxLabel,
+                      ...(eventData.event_type === type.value ? { color: '#fff' } : {})
+                    }}>
+                      {type.value}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Date and Time */}
+            <div style={styles.section}>
+              <div style={styles.row}>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>
+                    Event Date <span style={styles.required}>*</span>
+                  </label>
+                  <input
+                    type="date"
+                    name="event_date"
+                    value={eventData.event_date}
+                    onChange={handleEventChange}
+                    min={new Date().toISOString().split('T')[0]}
+                    style={styles.input}
+                    required
+                  />
+                </div>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>
+                    Event Time <span style={styles.required}>*</span>
+                  </label>
+                  <input
+                    type="time"
+                    name="event_time"
+                    value={eventData.event_time}
+                    onChange={handleEventChange}
+                    style={styles.input}
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Event Location */}
+            <div style={styles.section}>
+              <label style={styles.label}>
+                Event Location <span style={styles.required}>*</span>
+              </label>
+              <input
+                type="text"
+                name="event_location"
+                value={eventData.event_location}
+                onChange={handleEventChange}
+                placeholder="e.g., Manila Hotel, Quezon City"
+                style={styles.input}
+                required
+              />
+            </div>
+
+            {/* Budget */}
+            <div style={styles.section}>
+              <label style={styles.label}>
+                ₱ Estimated Budget
+              </label>
+              <input
+                type="number"
+                name="budget_amount"
+                value={eventData.budget_amount}
+                onChange={handleEventChange}
+                placeholder="Enter your budget amount"
+                min="0"
+                step="1000"
+                style={styles.input}
+              />
+            </div>
+
+            {/* Package */}
+            <div style={styles.section}>
+              <label style={styles.label}>Package/Tier (Optional)</label>
+              <input
+                type="text"
+                name="package_selected"
+                value={eventData.package_selected}
+                onChange={handleEventChange}
+                placeholder="e.g., Premium Package, Basic Package"
+                style={styles.input}
+              />
+            </div>
+
+            {/* Additional Notes */}
+            <div style={styles.section}>
+              <label style={styles.label}>Additional Notes</label>
+              <textarea
+                name="additional_notes"
+                value={eventData.additional_notes}
+                onChange={handleEventChange}
+                placeholder="Any special requests or additional information about your event..."
+                rows="4"
+                style={styles.textarea}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* STEP 2: EVENT-SPECIFIC INFORMATION */}
+        {currentStep === 2 && (
+          <div style={styles.stepContent}>
+            <h2 style={styles.stepTitle}>
+              Step 2: {eventData.event_type} Information
+            </h2>
+            <p style={styles.stepDescription}>
+              Provide specific details for your {eventData.event_type.toLowerCase()} so the vendor can better prepare.
+            </p>
+
+            {/* Contact Information (Common for all) */}
+            <div style={styles.subsection}>
+              <h3 style={styles.subsectionTitle}>📞 Contact Details</h3>
+              
+              <div style={styles.section}>
+                <label style={styles.label}>
+                  Full Name <span style={styles.required}>*</span>
+                </label>
+                <input
+                  type="text"
+                  name="contact_name"
+                  value={eventSpecificData.contact_name}
+                  onChange={handleEventSpecificChange}
+                  placeholder="Juan Dela Cruz"
+                  style={styles.input}
+                  required
+                />
+              </div>
+
+              <div style={styles.row}>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>
+                    Email Address <span style={styles.required}>*</span>
+                  </label>
+                  <input
+                    type="email"
+                    name="contact_email"
+                    value={eventSpecificData.contact_email}
+                    onChange={handleEventSpecificChange}
+                    placeholder="juan@example.com"
+                    style={styles.input}
+                    required
+                  />
+                </div>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>
+                    Phone Number <span style={styles.required}>*</span>
+                  </label>
+                  <input
+                    type="tel"
+                    name="contact_phone"
+                    value={eventSpecificData.contact_phone}
+                    onChange={handleEventSpecificChange}
+                    placeholder="+63 912 345 6789"
+                    style={styles.input}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div style={styles.section}>
+                <label style={styles.label}>
+                  Number of Guests (Estimated)
+                </label>
+                <input
+                  type="number"
+                  name="number_of_guests"
+                  value={eventSpecificData.number_of_guests}
+                  onChange={handleEventSpecificChange}
+                  placeholder="100"
+                  min="1"
+                  style={styles.input}
+                />
+              </div>
+            </div>
+
+            {/* Event-Specific Fields */}
+            {renderEventSpecificFields()}
+
+            {/* Common Optional Fields */}
+            <div style={styles.subsection}>
+              <h3 style={styles.subsectionTitle}>ℹ️ Additional Information</h3>
+              
+              <div style={styles.section}>
+                <label style={styles.label}>
+                  Dietary Restrictions or Preferences
+                </label>
+                <textarea
+                  name="dietary_restrictions"
+                  value={eventSpecificData.dietary_restrictions}
+                  onChange={handleEventSpecificChange}
+                  placeholder="e.g., Vegetarian, No pork, Halal, Allergies to shellfish..."
+                  rows="3"
+                  style={styles.textarea}
+                />
+              </div>
+
+              <div style={styles.section}>
+                <label style={styles.label}>
+                  Accessibility Requirements
+                </label>
+                <textarea
+                  name="accessibility_requirements"
+                  value={eventSpecificData.accessibility_requirements}
+                  onChange={handleEventSpecificChange}
+                  placeholder="e.g., Wheelchair access, Parking for elderly guests, Sign language interpreter..."
+                  rows="3"
+                  style={styles.textarea}
+                />
+              </div>
+
+              <div style={styles.row}>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>
+                    Emergency Contact Name
+                  </label>
+                  <input
+                    type="text"
+                    name="emergency_contact_name"
+                    value={eventSpecificData.emergency_contact_name}
+                    onChange={handleEventSpecificChange}
+                    placeholder="Pedro Dela Cruz"
+                    style={styles.input}
+                  />
+                </div>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>
+                    Emergency Contact Phone
+                  </label>
+                  <input
+                    type="tel"
+                    name="emergency_contact_phone"
+                    value={eventSpecificData.emergency_contact_phone}
+                    onChange={handleEventSpecificChange}
+                    placeholder="+63 912 345 6789"
+                    style={styles.input}
+                  />
+                </div>
+              </div>
+
+              <div style={styles.section}>
+                <label style={styles.label}>
+                  Special Requests or Additional Information
+                </label>
+                <textarea
+                  name="special_requests"
+                  value={eventSpecificData.special_requests}
+                  onChange={handleEventSpecificChange}
+                  placeholder="Any other details the vendor should know..."
+                  rows="4"
+                  style={styles.textarea}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 3: SUMMARY */}
+        {currentStep === 3 && (
+          <div style={styles.stepContent}>
+            <h2 style={styles.stepTitle}>Step 3: Review Your Booking</h2>
+            <p style={styles.stepDescription}>
+              Please review all the information before submitting your booking request.
+            </p>
+
+            {/* Event Details Summary */}
+            <div style={styles.summarySection}>
+              <div style={styles.summarySectionHeader}>
+                <h3 style={styles.summarySectionTitle}>📅 Event Details</h3>
+                <button 
+                  onClick={() => setCurrentStep(1)} 
+                  style={styles.editButton}
+                  type="button"
+                >
+                  Edit
+                </button>
+              </div>
+              <div style={styles.summaryGrid}>
+                <div style={styles.summaryItem}>
+                  <span style={styles.summaryLabel}>Event Type:</span>
+                  <span style={styles.summaryValue}>{eventData.event_type}</span>
+                </div>
+                <div style={styles.summaryItem}>
+                  <span style={styles.summaryLabel}>Date:</span>
+                  <span style={styles.summaryValue}>
+                    {new Date(eventData.event_date).toLocaleDateString('en-US', { 
+                      weekday: 'long', 
+                      year: 'numeric', 
+                      month: 'long', 
+                      day: 'numeric' 
+                    })}
+                  </span>
+                </div>
+                <div style={styles.summaryItem}>
+                  <span style={styles.summaryLabel}>Time:</span>
+                  <span style={styles.summaryValue}>{eventData.event_time}</span>
+                </div>
+                <div style={styles.summaryItem}>
+                  <span style={styles.summaryLabel}>Location:</span>
+                  <span style={styles.summaryValue}>{eventData.event_location}</span>
+                </div>
+                {eventData.budget_amount && (
+                  <div style={styles.summaryItem}>
+                    <span style={styles.summaryLabel}>Budget:</span>
+                    <span style={styles.summaryValue}>₱{parseFloat(eventData.budget_amount).toLocaleString()}</span>
+                  </div>
+                )}
+                {eventData.package_selected && (
+                  <div style={styles.summaryItem}>
+                    <span style={styles.summaryLabel}>Package:</span>
+                    <span style={styles.summaryValue}>{eventData.package_selected}</span>
+                  </div>
+                )}
+                {eventData.additional_notes && (
+                  <div style={styles.summaryItem}>
+                    <span style={styles.summaryLabel}>Notes:</span>
+                    <span style={styles.summaryValue}>{eventData.additional_notes}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Contact & Event-Specific Info Summary */}
+            <div style={styles.summarySection}>
+              <div style={styles.summarySectionHeader}>
+                <h3 style={styles.summarySectionTitle}>👤 {eventData.event_type} Information</h3>
+                <button 
+                  onClick={() => setCurrentStep(2)} 
+                  style={styles.editButton}
+                  type="button"
+                >
+                  Edit
+                </button>
+              </div>
+              <div style={styles.summaryGrid}>
+                <div style={styles.summaryItem}>
+                  <span style={styles.summaryLabel}>Contact Name:</span>
+                  <span style={styles.summaryValue}>{eventSpecificData.contact_name}</span>
+                </div>
+                <div style={styles.summaryItem}>
+                  <span style={styles.summaryLabel}>Email:</span>
+                  <span style={styles.summaryValue}>{eventSpecificData.contact_email}</span>
+                </div>
+                <div style={styles.summaryItem}>
+                  <span style={styles.summaryLabel}>Phone:</span>
+                  <span style={styles.summaryValue}>{eventSpecificData.contact_phone}</span>
+                </div>
+                {eventSpecificData.number_of_guests && (
+                  <div style={styles.summaryItem}>
+                    <span style={styles.summaryLabel}>Guests:</span>
+                    <span style={styles.summaryValue}>{eventSpecificData.number_of_guests}</span>
+                  </div>
+                )}
+                
+                {/* Event-Specific Summary Items */}
+                {renderEventSpecificSummary().map((item, index) => (
+                  <div key={index} style={styles.summaryItem}>
+                    <span style={styles.summaryLabel}>{item.label}:</span>
+                    <span style={styles.summaryValue}>{item.value}</span>
+                  </div>
+                ))}
+
+                {eventSpecificData.dietary_restrictions && (
+                  <div style={styles.summaryItem}>
+                    <span style={styles.summaryLabel}>Dietary:</span>
+                    <span style={styles.summaryValue}>{eventSpecificData.dietary_restrictions}</span>
+                  </div>
+                )}
+                {eventSpecificData.accessibility_requirements && (
+                  <div style={styles.summaryItem}>
+                    <span style={styles.summaryLabel}>Accessibility:</span>
+                    <span style={styles.summaryValue}>{eventSpecificData.accessibility_requirements}</span>
+                  </div>
+                )}
+                {eventSpecificData.emergency_contact_name && (
+                  <div style={styles.summaryItem}>
+                    <span style={styles.summaryLabel}>Emergency Contact:</span>
+                    <span style={styles.summaryValue}>
+                      {eventSpecificData.emergency_contact_name} ({eventSpecificData.emergency_contact_phone})
+                    </span>
+                  </div>
+                )}
+                {eventSpecificData.special_requests && (
+                  <div style={styles.summaryItem}>
+                    <span style={styles.summaryLabel}>Special Requests:</span>
+                    <span style={styles.summaryValue}>{eventSpecificData.special_requests}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Info Box */}
+            <div style={styles.infoBox}>
+              <svg style={styles.infoIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p style={styles.infoText}>
+                Your booking request will be sent to <strong>{vendorName}</strong> for review. 
+                You will be notified once they respond.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Navigation Buttons */}
+        <div style={styles.buttonGroup}>
+          {currentStep > 1 && (
             <button
               type="button"
-              onClick={handleCancel}
-              style={styles.cancelButton}
+              onClick={goToPreviousStep}
+              style={styles.backButton}
               disabled={loading}
             >
-              Cancel
+              ← Back
             </button>
+          )}
+          
+          <button
+            type="button"
+            onClick={handleCancel}
+            style={styles.cancelButton}
+            disabled={loading}
+          >
+            Cancel
+          </button>
+
+          {currentStep < 3 ? (
             <button
-              type="submit"
+              type="button"
+              onClick={goToNextStep}
+              style={styles.nextButton}
+              disabled={loading}
+            >
+              Next →
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleSubmit}
               style={styles.submitButton}
               disabled={loading}
             >
-              {loading ? "Sending Request..." : "Submit Booking Request"}
+              {loading ? "Sending Request..." : "✓ Submit Booking Request"}
             </button>
-          </div>
+          )}
+        </div>
 
-        </form>
       </div>
     </div>
   );
 }
 
-// Styles
+// Styles (same as before - keeping consistent)
 const styles = {
   wrapper: {
     maxWidth: "1200px",
     margin: "0 auto",
-    padding: "1.5rem 0.5rem"
+    padding: "1.5rem 0.5rem",
+    minHeight: "100vh"
   },
   
   headerContainer: {
     backgroundColor: "transparent",
-    marginBottom: "1.5rem"
+    marginBottom: "2rem"
   },
   headerContent: {
     textAlign: "left",
@@ -476,17 +1551,114 @@ const styles = {
     color: "#666",
     fontWeight: "400"
   },
+
+  progressContainer: {
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: "3rem",
+    padding: "0 1rem"
+  },
+  progressStepWrapper: {
+    display: "flex",
+    alignItems: "center",
+    flex: 1,
+    maxWidth: "250px"
+  },
+  progressStep: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: "0.5rem"
+  },
+  progressCircle: {
+    width: "50px",
+    height: "50px",
+    borderRadius: "50%",
+    backgroundColor: "#e5e5e5",
+    color: "#999",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "1.2rem",
+    fontWeight: "600",
+    transition: "all 0.3s ease"
+  },
+  progressCircleActive: {
+    backgroundColor: "#74583E",
+    color: "#fff",
+    boxShadow: "0 4px 12px rgba(116, 88, 62, 0.3)"
+  },
+  checkIcon: {
+    width: "24px",
+    height: "24px"
+  },
+  progressLabel: {
+    fontSize: "0.85rem",
+    color: "#999",
+    fontWeight: "500",
+    textAlign: "center",
+    whiteSpace: "nowrap"
+  },
+  progressLabelActive: {
+    color: "#74583E",
+    fontWeight: "600"
+  },
+  progressLine: {
+    flex: 1,
+    height: "3px",
+    backgroundColor: "#e5e5e5",
+    margin: "0 0.5rem",
+    transition: "all 0.3s ease"
+  },
+  progressLineActive: {
+    backgroundColor: "#74583E"
+  },
   
   formContainer: {
     backgroundColor: "#fff",
     borderRadius: "16px",
     padding: "2rem",
     boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
-    border: "1px solid #e5e5e5"
+    border: "1px solid #e5e5e5",
+    minHeight: "600px"
+  },
+
+  stepContent: {
+    animation: "fadeIn 0.3s ease-in"
+  },
+  stepTitle: {
+    fontSize: "1.8rem",
+    fontWeight: "600",
+    color: "#1c1b1a",
+    marginBottom: "0.5rem"
+  },
+  stepDescription: {
+    fontSize: "1rem",
+    color: "#666",
+    marginBottom: "2rem",
+    lineHeight: "1.5"
+  },
+  helpText: {
+    fontSize: "0.9rem",
+    color: "#666",
+    fontStyle: "italic",
+    marginTop: "0.5rem"
   },
   
   section: {
     marginBottom: "2rem"
+  },
+  subsection: {
+    marginBottom: "2.5rem",
+    paddingBottom: "2rem",
+    borderBottom: "1px solid #e5e5e5"
+  },
+  subsectionTitle: {
+    fontSize: "1.2rem",
+    fontWeight: "600",
+    color: "#74583E",
+    marginBottom: "1rem"
   },
   sectionLabel: {
     display: "block",
@@ -496,28 +1668,24 @@ const styles = {
     color: "#1c1b1a"
   },
   
-  // Event Type Grid - SMALLER MAX-WIDTH + MORE COLUMNS
   eventTypeGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(4, 1fr)", // 4 columns to make boxes smaller
-    gap: "0.5rem",
-    maxWidth: "1200px" // Constrain the total width to make boxes smaller
+    gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
+    gap: "0.75rem"
   },
   
-  // Event Box - REDUCED PADDING (smaller container, same content)
   eventBox: {
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
     justifyContent: "center",
-    padding: "0.75rem 0.5rem", // Smaller padding = smaller box
+    padding: "1rem",
     backgroundColor: "#f9f9f9",
     border: "2px solid #e5e5e5",
-    borderRadius: "8px",
+    borderRadius: "12px",
     cursor: "pointer",
     transition: "all 0.2s ease",
-    minHeight: "95px", // Slightly reduced
-    aspectRatio: "1"
+    minHeight: "110px"
   },
   selectedEventBox: {
     backgroundColor: "#74583E",
@@ -533,7 +1701,7 @@ const styles = {
     transition: "color 0.2s ease"
   },
   boxLabel: {
-    fontSize: "0.8rem", // Keep text readable
+    fontSize: "0.85rem",
     fontWeight: "500",
     textAlign: "center",
     lineHeight: "1.2",
@@ -541,7 +1709,8 @@ const styles = {
   },
   
   formGroup: {
-    flex: 1
+    flex: 1,
+    minWidth: "200px"
   },
   row: {
     display: "flex",
@@ -566,7 +1735,7 @@ const styles = {
     border: "2px solid #e5e5e5",
     borderRadius: "10px",
     outline: "none",
-    transition: "all 0.2s",
+    transition: "border-color 0.2s",
     boxSizing: "border-box",
     backgroundColor: "#fff"
   },
@@ -582,6 +1751,58 @@ const styles = {
     boxSizing: "border-box",
     backgroundColor: "#fff"
   },
+
+  summarySection: {
+    backgroundColor: "#f9fafb",
+    border: "1px solid #e5e5e5",
+    borderRadius: "12px",
+    padding: "1.5rem",
+    marginBottom: "1.5rem"
+  },
+  summarySectionHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: "1rem",
+    paddingBottom: "1rem",
+    borderBottom: "2px solid #e5e5e5"
+  },
+  summarySectionTitle: {
+    fontSize: "1.2rem",
+    fontWeight: "600",
+    color: "#1c1b1a",
+    margin: 0
+  },
+  editButton: {
+    padding: "0.5rem 1rem",
+    backgroundColor: "#fff",
+    border: "1px solid #74583E",
+    borderRadius: "6px",
+    color: "#74583E",
+    fontSize: "0.9rem",
+    fontWeight: "600",
+    cursor: "pointer",
+    transition: "all 0.2s"
+  },
+  summaryGrid: {
+    display: "grid",
+    gap: "1rem"
+  },
+  summaryItem: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.25rem"
+  },
+  summaryLabel: {
+    fontSize: "0.85rem",
+    color: "#666",
+    fontWeight: "500"
+  },
+  summaryValue: {
+    fontSize: "1rem",
+    color: "#1c1b1a",
+    fontWeight: "600"
+  },
   
   infoBox: {
     display: "flex",
@@ -591,7 +1812,7 @@ const styles = {
     border: "1px solid #bfdbfe",
     borderRadius: "10px",
     padding: "1rem",
-    marginBottom: "1.5rem"
+    marginTop: "2rem"
   },
   infoIcon: {
     width: "1.5rem",
@@ -611,7 +1832,21 @@ const styles = {
     display: "flex",
     gap: "1rem",
     justifyContent: "flex-end",
-    paddingTop: "1rem"
+    paddingTop: "2rem",
+    marginTop: "2rem",
+    borderTop: "2px solid #e5e5e5",
+    flexWrap: "wrap"
+  },
+  backButton: {
+    padding: "0.875rem 2rem",
+    fontSize: "1rem",
+    fontWeight: "600",
+    border: "2px solid #74583E",
+    borderRadius: "10px",
+    backgroundColor: "#fff",
+    color: "#74583E",
+    cursor: "pointer",
+    transition: "all 0.2s"
   },
   cancelButton: {
     padding: "0.875rem 2rem",
@@ -622,9 +1857,10 @@ const styles = {
     backgroundColor: "#fff",
     color: "#666",
     cursor: "pointer",
-    transition: "all 0.2s"
+    transition: "all 0.2s",
+    marginRight: "auto"
   },
-  submitButton: {
+  nextButton: {
     padding: "0.875rem 2.5rem",
     fontSize: "1rem",
     fontWeight: "600",
@@ -635,5 +1871,17 @@ const styles = {
     cursor: "pointer",
     transition: "all 0.2s",
     boxShadow: "0 2px 8px rgba(116, 88, 62, 0.2)"
+  },
+  submitButton: {
+    padding: "0.875rem 2.5rem",
+    fontSize: "1rem",
+    fontWeight: "600",
+    border: "none",
+    borderRadius: "10px",
+    backgroundColor: "#16a34a",
+    color: "#fff",
+    cursor: "pointer",
+    transition: "all 0.2s",
+    boxShadow: "0 2px 8px rgba(22, 163, 74, 0.3)"
   }
 };

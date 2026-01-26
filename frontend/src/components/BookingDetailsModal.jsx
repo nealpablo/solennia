@@ -1,10 +1,5 @@
 import React from 'react';
 
-/**
- * BookingDetailsModal Component
- * Displays complete booking information for both clients and vendors
- * Shows different views based on user role
- */
 export default function BookingDetailsModal({ 
   booking, 
   isOpen, 
@@ -34,7 +29,7 @@ export default function BookingDetailsModal({
 
   const statusStyle = getStatusStyle(booking.BookingStatus);
 
-  // ✅ UPDATED: Format date and time SEPARATELY
+  //  UPDATED: Format date and time SEPARATELY
   const formatDateTime = (dateStr) => {
     if (!dateStr) return { date: 'Not specified', time: 'Not specified' };
     
@@ -73,7 +68,7 @@ export default function BookingDetailsModal({
     }
   };
 
-  // ✅ Get formatted event date and time
+  //  Get formatted event date and time
   const { date: eventDate, time: eventTime } = formatDateTime(booking.EventDate);
 
   // Check if actions are available
@@ -138,7 +133,7 @@ export default function BookingDetailsModal({
             </div>
           </section>
 
-          {/* ✅ UPDATED: Event Details with Separate Date and Time */}
+          {/*  UPDATED: Event Details with Separate Date and Time */}
           <section style={styles.section}>
             <h3 style={styles.sectionTitle}>📅 Event Details</h3>
             <div style={styles.infoGrid}>
@@ -166,7 +161,7 @@ export default function BookingDetailsModal({
               )}
             </div>
             
-            {/* ✅ UPDATED: Enhanced Additional Notes Display */}
+            {/*  UPDATED: Enhanced Additional Notes Display */}
             {booking.AdditionalNotes && (
               <div style={styles.notesContainer}>
                 <label style={styles.notesLabel}>

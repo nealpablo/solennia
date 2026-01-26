@@ -1,4 +1,3 @@
-// src/pages/Venue.jsx - ✅ FIXED: Gallery Support + Working Filters
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import toast from "../utils/toast";
@@ -15,7 +14,7 @@ export default function Venue() {
   const [visibleCount, setVisibleCount] = useState(12);
   const [isVenueVendor, setIsVenueVendor] = useState(false);
   const [checkingVendor, setCheckingVendor] = useState(true);
-  const [filter, setFilter] = useState("all"); // ✅ NEW: Filter state
+  const [filter, setFilter] = useState("all"); 
   
   const navigate = useNavigate();
 
@@ -91,7 +90,7 @@ export default function Venue() {
     setVisibleCount(prev => prev + 12);
   };
 
-  // ✅ FIXED: Filter venues based on selected category
+  //Filter venues based on selected category
   const filteredVenues = filter === "all"
     ? venues
     : venues.filter(v => 
@@ -138,7 +137,7 @@ export default function Venue() {
         )}
       </div>
 
-      {/* ✅ FIXED: Filter Bar with Working Filters - Centered */}
+      {/* Filter Bar with Working Filters - Centered */}
       <div className="flex flex-wrap gap-3 text-[0.75rem] tracking-[0.2em] uppercase mb-6 justify-center">
         {["all", "Churches", "Gardens", "Resorts", "Conference", "Others"].map((f) => (
           <button
@@ -215,7 +214,7 @@ export default function Venue() {
 }
 
 /* =========================
-   VENUE CARD COMPONENT - ✅ FIXED: Gallery Support
+   VENUE CARD COMPONENT - 
 ========================= */
 function VenueCard({ venue, navigate }) {
   const [isFavorite, setIsFavorite] = useState(false);
@@ -251,14 +250,14 @@ function VenueCard({ venue, navigate }) {
       return;
     }
 
-    console.log("✅ Navigating to chat with UID:", firebaseUid);
+    console.log(" Navigating to chat with UID:", firebaseUid);
     navigate(`/chat?to=${encodeURIComponent(firebaseUid)}`);
   };
 
-  // ✅ FIXED: Get image from logo field or portfolio
+  //  Get image from logo field or portfolio
   const venueImage = venue.logo || venue.portfolio || venue.portfolio_image || venue.HeroImageUrl || "https://via.placeholder.com/400x300?text=Venue+Image";
 
-  // ✅ FIXED: Parse gallery if it's a JSON string
+  // Parse gallery if it's a JSON string
   let galleryImages = [];
   if (venue.gallery) {
     try {
@@ -322,7 +321,7 @@ function VenueCard({ venue, navigate }) {
         </div>
       </div>
 
-      {/* ✅ NEW: Gallery Preview Strip */}
+      {/* Gallery Preview Strip */}
       {galleryImages.length > 0 && (
         <div className="flex gap-1 p-2 bg-gray-50">
           {galleryImages.slice(0, 3).map((img, idx) => (

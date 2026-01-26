@@ -10,11 +10,6 @@ const API =
     ? "https://solennia.up.railway.app/api"
     : "/api");
 
-/**
- * VendorBookingRequests Component
- * Displays all booking requests for the logged-in vendor
- * Allows vendors to view details and accept/reject bookings
- */
 export default function VendorBookingRequests() {
   const navigate = useNavigate();
   const [bookings, setBookings] = useState([]);
@@ -164,6 +159,43 @@ export default function VendorBookingRequests() {
   };
 
   /**
+   * UC08: Mark a Confirmed booking as Completed
+   * This allows the client to leave feedback
+   */
+  const handleComplete = async (bookingId) => {
+    if (!confirm("Mark this booking as completed? The client will be able to leave feedback.")) {
+      return;
+    }
+
+    setProcessing(true);
+    try {
+      const token = localStorage.getItem("solennia_token");
+      
+      const response = await fetch(`${API}/bookings/${bookingId}/complete`, {
+        method: "PATCH",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to mark as completed");
+      }
+
+      toast.success("Booking marked as completed! Client can now leave feedback.", { duration: 5000 });
+      await loadBookings();
+    } catch (error) {
+      console.error("Complete booking error:", error);
+      toast.error(error.message || "Failed to mark as completed");
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  /**
    * Filter bookings by status
    */
   const filteredBookings = bookings.filter(booking => {
@@ -175,14 +207,14 @@ export default function VendorBookingRequests() {
    * Get status badge styling
    */
   const getStatusStyle = (status) => {
-    const styles = {
+    const statusStyles = {
       Pending: { bg: "#fef3c7", text: "#92400e", border: "#fbbf24" },
       Confirmed: { bg: "#d1fae5", text: "#065f46", border: "#34d399" },
       Cancelled: { bg: "#fee2e2", text: "#991b1b", border: "#f87171" },
       Rejected: { bg: "#fee2e2", text: "#991b1b", border: "#f87171" },
       Completed: { bg: "#e0e7ff", text: "#3730a3", border: "#818cf8" }
     };
-    return styles[status] || styles.Pending;
+    return statusStyles[status] || statusStyles.Pending;
   };
 
   /**
@@ -197,7 +229,7 @@ export default function VendorBookingRequests() {
         </div>
       </div>
     );
-  }
+  };
 
   /**
    * Main render
@@ -256,6 +288,7 @@ export default function VendorBookingRequests() {
           {filteredBookings.map((booking) => {
             const statusColors = getStatusStyle(booking.BookingStatus);
             const isPending = booking.BookingStatus === "Pending";
+            const isConfirmed = booking.BookingStatus === "Confirmed";
 
             return (
               <div key={booking.ID} style={styles.card}>
@@ -341,9 +374,7 @@ export default function VendorBookingRequests() {
                   {isPending && (
                     <>
                       <button
-                        onClick={() => {
-                          loadBookingDetails(booking.ID);
-                        }}
+                        onClick={() => loadBookingDetails(booking.ID)}
                         style={styles.viewBtn}
                       >
                         View Full Details
@@ -373,6 +404,17 @@ export default function VendorBookingRequests() {
                       View Details
                     </button>
                   )}
+                  
+                  {/* UC08: Mark as Completed button (only for Confirmed bookings) */}
+                  {isConfirmed && (
+                    <button
+                      onClick={() => handleComplete(booking.ID)}
+                      disabled={processing}
+                      style={styles.completeBtn}
+                    >
+                      {processing ? 'Processing...' : '✅ Mark as Completed'}
+                    </button>
+                  )}
                 </div>
 
                 {/* Card Footer */}
@@ -392,7 +434,7 @@ export default function VendorBookingRequests() {
         booking={selectedBooking}
         isOpen={!!selectedBooking}
         onClose={() => setSelectedBooking(null)}
-        userRole={1} // Vendor role
+        userRole={1}
         onAccept={handleAccept}
         onReject={handleReject}
         processing={processing}
@@ -655,6 +697,19 @@ const styles = {
     padding: "0.75rem 1.25rem",
     backgroundColor: "#dc2626",
     color: "white",
+    border: "none",
+    borderRadius: "8px",
+    fontSize: "0.9rem",
+    fontWeight: "600",
+    cursor: "pointer",
+    transition: "all 0.2s"
+  },
+  completeBtn: {
+    flex: "1",
+    minWidth: "150px",
+    padding: "0.75rem 1.25rem",
+    backgroundColor: "#7c3aed",
+    color: "#ffffff",
     border: "none",
     borderRadius: "8px",
     fontSize: "0.9rem",

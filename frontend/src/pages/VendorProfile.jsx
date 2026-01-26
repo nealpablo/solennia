@@ -23,19 +23,16 @@ export default function VendorProfile() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [availability, setAvailability] = useState([]);
   const [loadingAvailability, setLoadingAvailability] = useState(false);
-  const [isVendorOwner, setIsVendorOwner] = useState(false);
-  
-  // Availability modal states
-  const [showAvailabilityModal, setShowAvailabilityModal] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(null);
-  const [availabilityForm, setAvailabilityForm] = useState({
-    start_time: "09:00",
-    end_time: "17:00",
-    is_available: true,
-    notes: ""
-  });
-  const [editingAvailability, setEditingAvailability] = useState(null);
-  const [savingAvailability, setSavingAvailability] = useState(false);
+
+  /* =========================
+     FORMAT DATE TO LOCAL TIMEZONE
+  ========================= */
+  const formatDateToLocal = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
 
   /* =========================
      LOAD VENDOR
@@ -56,17 +53,6 @@ export default function VendorProfile() {
         if (!res.ok || !json.vendor) throw new Error("Vendor not found");
 
         setVendor(json.vendor);
-
-        // Check if current user is the vendor owner
-        const token = localStorage.getItem("solennia_token");
-        if (token) {
-          const profileStr = localStorage.getItem("solennia_profile");
-          if (profileStr) {
-            const profile = JSON.parse(profileStr);
-            const vendorUserId = json.vendor.UserID || json.vendor.user_id || json.vendor.id;
-            setIsVendorOwner(profile.id === vendorUserId);
-          }
-        }
       } catch (err) {
         toast.error("Unable to load vendor.");
         navigate("/vendors");
@@ -120,17 +106,17 @@ export default function VendorProfile() {
   };
 
   const getAvailabilityForDate = (date) => {
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = formatDateToLocal(date);
     return availability.filter(a => a.date === dateStr);
   };
 
   const isDateBooked = (date) => {
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = formatDateToLocal(date);
     return availability.some(a => a.date === dateStr && !a.is_available);
   };
 
   const isDateAvailable = (date) => {
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = formatDateToLocal(date);
     return availability.some(a => a.date === dateStr && a.is_available);
   };
 
@@ -159,139 +145,6 @@ export default function VendorProfile() {
 
   const nextMonth = () => {
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1));
-  };
-
-  /* =========================
-     AVAILABILITY MODAL
-  ========================= */
-  const openAvailabilityModal = (date, existingAvailability = null) => {
-    if (!isVendorOwner) return;
-    
-    setSelectedDate(date);
-    
-    if (existingAvailability) {
-      setEditingAvailability(existingAvailability);
-      setAvailabilityForm({
-        start_time: existingAvailability.start_time ? existingAvailability.start_time.substring(0, 5) : "09:00",
-        end_time: existingAvailability.end_time ? existingAvailability.end_time.substring(0, 5) : "17:00",
-        is_available: existingAvailability.is_available,
-        notes: existingAvailability.notes || ""
-      });
-    } else {
-      setEditingAvailability(null);
-      setAvailabilityForm({
-        start_time: "09:00",
-        end_time: "17:00",
-        is_available: true,
-        notes: ""
-      });
-    }
-    
-    setShowAvailabilityModal(true);
-  };
-
-  const closeAvailabilityModal = () => {
-    setShowAvailabilityModal(false);
-    setSelectedDate(null);
-    setEditingAvailability(null);
-    setAvailabilityForm({
-      start_time: "09:00",
-      end_time: "17:00",
-      is_available: true,
-      notes: ""
-    });
-  };
-
-  /* =========================
-     SAVE AVAILABILITY
-  ========================= */
-  const saveAvailability = async (e) => {
-    e.preventDefault();
-    
-    if (!selectedDate || !isVendorOwner) return;
-    
-    const token = localStorage.getItem("solennia_token");
-    if (!token) {
-      toast.error("Please log in");
-      return;
-    }
-
-    try {
-      setSavingAvailability(true);
-      
-      const dateStr = selectedDate.toISOString().split('T')[0];
-      const payload = {
-        date: dateStr,
-        ...availabilityForm
-      };
-
-      let url = `${API}/vendor/availability`;
-      let method = "POST";
-
-      if (editingAvailability) {
-        url = `${API}/vendor/availability/${editingAvailability.id}`;
-        method = "PATCH";
-      }
-
-      const res = await fetch(url, {
-        method: method,
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify(payload)
-      });
-
-      const json = await res.json();
-      
-      if (json.success) {
-        toast.success(editingAvailability ? "Availability updated!" : "Availability added!");
-        closeAvailabilityModal();
-        loadAvailability();
-      } else {
-        toast.error(json.error || "Failed to save availability");
-      }
-    } catch (err) {
-      console.error("Save availability error:", err);
-      toast.error("Failed to save availability");
-    } finally {
-      setSavingAvailability(false);
-    }
-  };
-
-  /* =========================
-     DELETE AVAILABILITY
-  ========================= */
-  const deleteAvailability = async (availabilityId) => {
-    if (!isVendorOwner || !confirm("Delete this availability entry?")) return;
-    
-    const token = localStorage.getItem("solennia_token");
-    if (!token) {
-      toast.error("Please log in");
-      return;
-    }
-
-    try {
-      const res = await fetch(`${API}/vendor/availability/${availabilityId}`, {
-        method: "DELETE",
-        headers: {
-          "Authorization": `Bearer ${token}`
-        }
-      });
-
-      const json = await res.json();
-      
-      if (json.success) {
-        toast.success("Availability deleted!");
-        closeAvailabilityModal();
-        loadAvailability();
-      } else {
-        toast.error(json.error || "Failed to delete availability");
-      }
-    } catch (err) {
-      console.error("Delete availability error:", err);
-      toast.error("Failed to delete availability");
-    }
   };
 
   /* =========================
@@ -505,17 +358,12 @@ export default function VendorProfile() {
           {/* AVAILABILITY CALENDAR */}
           <h3 className="section-title">
             Availability Calendar
-            {isVendorOwner && (
-              <span className="vendor-badge">You can edit your availability</span>
-            )}
           </h3>
 
           {/* UPCOMING AVAILABILITY SUMMARY */}
           {upcomingAvailability.length > 0 && (
             <div className="upcoming-availability">
-              <h4 className="upcoming-title">
-                {isVendorOwner ? "Your Upcoming Availability:" : "Upcoming Availability:"}
-              </h4>
+              <h4 className="upcoming-title">Upcoming Availability:</h4>
               <div className="upcoming-list">
                 {upcomingAvailability.map((avail, index) => (
                   <div 
@@ -546,14 +394,7 @@ export default function VendorProfile() {
           {/* NO AVAILABILITY MESSAGE */}
           {upcomingAvailability.length === 0 && !loadingAvailability && (
             <div className="no-availability">
-              {isVendorOwner ? (
-                <>
-                  <p>🗓️ You haven't set any availability yet.</p>
-                  <p>Click on future dates in the calendar below to add your availability!</p>
-                </>
-              ) : (
-                <p>📅 This vendor hasn't set their availability yet. Please contact them directly to check availability.</p>
-              )}
+              <p>📅 This vendor hasn't set their availability yet. Please contact them directly to check availability.</p>
             </div>
           )}
           
@@ -581,12 +422,6 @@ export default function VendorProfile() {
                 <span className="legend-dot legend-booked"></span>
                 <span>Booked/Unavailable</span>
               </div>
-              {isVendorOwner && (
-                <div className="legend-item">
-                  <span className="legend-dot legend-editable"></span>
-                  <span>Click to manage</span>
-                </div>
-              )}
             </div>
 
             {/* Calendar Grid */}
@@ -621,26 +456,14 @@ export default function VendorProfile() {
                 if (isPast) dayClass += " calendar-day-past";
                 if (isAvailable) dayClass += " calendar-day-available";
                 if (isBooked) dayClass += " calendar-day-booked";
-                if (isVendorOwner && !isPast) dayClass += " calendar-day-editable";
 
                 return (
                   <div
                     key={day}
                     className={dayClass}
-                    onClick={() => {
-                      if (isVendorOwner && !isPast) {
-                        if (availabilityData.length > 0) {
-                          openAvailabilityModal(date, availabilityData[0]);
-                        } else {
-                          openAvailabilityModal(date);
-                        }
-                      }
-                    }}
                     title={
                       availabilityData.length > 0
                         ? `${availabilityData[0].is_available ? 'Available' : 'Booked'} ${availabilityData[0].start_time} - ${availabilityData[0].end_time}${availabilityData[0].notes ? '\n' + availabilityData[0].notes : ''}`
-                        : isVendorOwner && !isPast
-                        ? 'Click to set availability'
                         : ''
                     }
                   >
@@ -702,120 +525,6 @@ export default function VendorProfile() {
 
         </section>
       </main>
-
-      {/* AVAILABILITY MODAL */}
-      {showAvailabilityModal && selectedDate && (
-        <div className="modal-backdrop" onClick={closeAvailabilityModal}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>
-                {editingAvailability ? 'Edit' : 'Set'} Availability
-              </h3>
-              <button onClick={closeAvailabilityModal} className="modal-close">
-                ×
-              </button>
-            </div>
-
-            <div className="modal-body">
-              <p className="modal-date">
-                {selectedDate.toLocaleDateString('en-US', { 
-                  weekday: 'long', 
-                  year: 'numeric', 
-                  month: 'long', 
-                  day: 'numeric' 
-                })}
-              </p>
-
-              <form onSubmit={saveAvailability}>
-                <div className="form-group">
-                  <label>Status</label>
-                  <div className="radio-group">
-                    <label className="radio-label">
-                      <input
-                        type="radio"
-                        name="is_available"
-                        checked={availabilityForm.is_available === true}
-                        onChange={() => setAvailabilityForm({ ...availabilityForm, is_available: true })}
-                      />
-                      <span>Available</span>
-                    </label>
-                    <label className="radio-label">
-                      <input
-                        type="radio"
-                        name="is_available"
-                        checked={availabilityForm.is_available === false}
-                        onChange={() => setAvailabilityForm({ ...availabilityForm, is_available: false })}
-                      />
-                      <span>Booked/Unavailable</span>
-                    </label>
-                  </div>
-                </div>
-
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Start Time</label>
-                    <input
-                      type="time"
-                      value={availabilityForm.start_time}
-                      onChange={(e) => setAvailabilityForm({ ...availabilityForm, start_time: e.target.value })}
-                      required
-                      className="form-input"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>End Time</label>
-                    <input
-                      type="time"
-                      value={availabilityForm.end_time}
-                      onChange={(e) => setAvailabilityForm({ ...availabilityForm, end_time: e.target.value })}
-                      required
-                      className="form-input"
-                    />
-                  </div>
-                </div>
-
-                <div className="form-group">
-                  <label>Notes (Optional)</label>
-                  <textarea
-                    value={availabilityForm.notes}
-                    onChange={(e) => setAvailabilityForm({ ...availabilityForm, notes: e.target.value })}
-                    placeholder="Add any notes about this time slot..."
-                    className="form-textarea"
-                    rows="3"
-                  />
-                </div>
-
-                <div className="modal-actions">
-                  {editingAvailability && (
-                    <button
-                      type="button"
-                      onClick={() => deleteAvailability(editingAvailability.id)}
-                      className="btn-delete"
-                    >
-                      Delete
-                    </button>
-                  )}
-                  <div style={{ flex: 1 }}></div>
-                  <button
-                    type="button"
-                    onClick={closeAvailabilityModal}
-                    className="btn-cancel"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={savingAvailability}
-                    className="btn-save"
-                  >
-                    {savingAvailability ? 'Saving...' : 'Save'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* LIGHTBOX */}
       {lightboxImg && (
@@ -926,17 +635,6 @@ const styles = `
     display: flex;
     align-items: center;
     gap: 0.5rem;
-  }
-
-  .vendor-badge {
-    font-size: 0.7rem;
-    background: #7a5d47;
-    color: white;
-    padding: 0.25rem 0.75rem;
-    border-radius: 9999px;
-    text-transform: none;
-    letter-spacing: 0.05em;
-    font-weight: 500;
   }
 
   /* UPCOMING AVAILABILITY */
@@ -1059,11 +757,6 @@ const styles = `
     color: #7a5d47;
   }
 
-  .no-availability p:first-child {
-    font-weight: 600;
-    font-size: 1rem;
-  }
-
   /* CALENDAR STYLES */
   .calendar-container {
     background: white;
@@ -1128,15 +821,11 @@ const styles = `
   }
 
   .legend-available {
-    background: #4ade80;
+    background: #22c55e;
   }
 
   .legend-booked {
-    background: #f87171;
-  }
-
-  .legend-editable {
-    background: #60a5fa;
+    background: #ef4444;
   }
 
   .calendar-weekdays {
@@ -1203,7 +892,7 @@ const styles = `
 
   .calendar-day-available {
     background: #dcfce7;
-    border-color: #4ade80;
+    border: 2px solid #22c55e;
     font-weight: 600;
   }
 
@@ -1213,7 +902,7 @@ const styles = `
 
   .calendar-day-booked {
     background: #fee2e2;
-    border-color: #f87171;
+    border: 2px solid #ef4444;
     font-weight: 600;
   }
 
@@ -1221,189 +910,11 @@ const styles = `
     color: #dc2626;
   }
 
-  .calendar-day-editable {
-    cursor: pointer;
-  }
-
-  .calendar-day-editable:hover {
-    transform: scale(1.05);
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-  }
-
   .calendar-loading {
     text-align: center;
     padding: 1rem;
     color: #666;
     font-size: 0.9rem;
-  }
-
-  /* MODAL STYLES */
-  .modal-backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 10000;
-    padding: 1rem;
-  }
-
-  .modal-content {
-    background: white;
-    border-radius: 12px;
-    max-width: 500px;
-    width: 100%;
-    max-height: 90vh;
-    overflow-y: auto;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-  }
-
-  .modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 1.5rem;
-    border-bottom: 1px solid #e5e5e5;
-  }
-
-  .modal-header h3 {
-    margin: 0;
-    font-size: 1.2rem;
-  }
-
-  .modal-close {
-    background: none;
-    border: none;
-    font-size: 2rem;
-    cursor: pointer;
-    color: #666;
-    line-height: 1;
-    padding: 0;
-    width: 32px;
-    height: 32px;
-  }
-
-  .modal-close:hover {
-    color: #000;
-  }
-
-  .modal-body {
-    padding: 1.5rem;
-  }
-
-  .modal-date {
-    font-weight: 600;
-    color: #7a5d47;
-    margin-bottom: 1.5rem;
-    font-size: 1rem;
-  }
-
-  .form-group {
-    margin-bottom: 1.5rem;
-  }
-
-  .form-group label {
-    display: block;
-    font-weight: 600;
-    margin-bottom: 0.5rem;
-    font-size: 0.9rem;
-  }
-
-  .form-input,
-  .form-textarea {
-    width: 100%;
-    padding: 0.75rem;
-    border: 1px solid #d9d0c3;
-    border-radius: 6px;
-    font-family: inherit;
-    font-size: 0.95rem;
-  }
-
-  .form-input:focus,
-  .form-textarea:focus {
-    outline: none;
-    border-color: #7a5d47;
-  }
-
-  .form-textarea {
-    resize: vertical;
-  }
-
-  .form-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1rem;
-  }
-
-  .radio-group {
-    display: flex;
-    gap: 1rem;
-  }
-
-  .radio-label {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    cursor: pointer;
-    font-weight: 400;
-  }
-
-  .radio-label input[type="radio"] {
-    cursor: pointer;
-  }
-
-  .modal-actions {
-    display: flex;
-    gap: 0.75rem;
-    margin-top: 2rem;
-    padding-top: 1.5rem;
-    border-top: 1px solid #e5e5e5;
-  }
-
-  .btn-cancel,
-  .btn-save,
-  .btn-delete {
-    padding: 0.75rem 1.5rem;
-    border-radius: 6px;
-    border: none;
-    cursor: pointer;
-    font-family: inherit;
-    font-size: 0.9rem;
-    font-weight: 600;
-    transition: 0.2s;
-  }
-
-  .btn-cancel {
-    background: #e5e5e5;
-    color: #333;
-  }
-
-  .btn-cancel:hover {
-    background: #d4d4d4;
-  }
-
-  .btn-save {
-    background: #7a5d47;
-    color: white;
-  }
-
-  .btn-save:hover {
-    background: #6a4f3a;
-  }
-
-  .btn-save:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .btn-delete {
-    background: #ef4444;
-    color: white;
-  }
-
-  .btn-delete:hover {
-    background: #dc2626;
   }
 
   /* GALLERY */
@@ -1552,10 +1063,6 @@ const styles = `
 
     .calendar-day-number {
       font-size: 0.8rem;
-    }
-
-    .form-row {
-      grid-template-columns: 1fr;
     }
 
     .upcoming-item {

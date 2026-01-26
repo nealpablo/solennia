@@ -20,9 +20,10 @@ import VendorDashboard from "./pages/VendorDashboard";
 import VenueDashboard from "./pages/VenueDashboard";
 import AboutUs from "./pages/AboutUs";
 
-// ✅ BOOKING PAGES - ADDED FOR UC05
+// ✅ BOOKING PAGES - ADDED FOR UC05 & UC08
 import CreateBooking from "./pages/CreateBooking";
 import MyBookings from "./pages/MyBookings";
+import VendorBookingRequests from "./pages/VendorBookingRequests"; // UC08 - Vendor booking management with Complete feature
 
 /* =========================
    LAYOUT WRAPPER
@@ -115,9 +116,11 @@ export default function App() {
         <Route path="/venue-dashboard" element={<VenueDashboard />} />
         <Route path="/about" element={<AboutUs />} />
         
-        {/* ✅ BOOKING ROUTES - ADDED FOR UC05 */}
+        {/* ✅ BOOKING ROUTES - UC05 & UC08 */}
         <Route path="/create-booking" element={<CreateBooking />} />
         <Route path="/my-bookings" element={<MyBookings />} />
+        <Route path="/vendor-bookings" element={<VendorBookingRequests />} /> {/* UC08 - NEW! Vendor booking management */}
+        <Route path="/manage-bookings" element={<VendorBookingRequests />} /> {/* Alternative route */}
       </Routes>
     </Layout>
   );

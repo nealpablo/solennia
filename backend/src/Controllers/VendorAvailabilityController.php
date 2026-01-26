@@ -23,9 +23,10 @@ class VendorAvailabilityController
             ], 400);
         }
         
+        //  Changed 'UserID' to 'id' - credential table uses 'id' column
         // Verify vendor exists
         $vendor = DB::table('credential')
-            ->where('UserID', $vendorId)
+            ->where('id', $vendorId)
             ->where('role', 1)
             ->first();
         

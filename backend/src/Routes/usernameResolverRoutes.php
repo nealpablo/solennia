@@ -21,7 +21,7 @@ return function (App $app) {
             return $res->withHeader("Content-Type", "application/json")->withStatus(400);
         }
 
-        // 🔥 FIX: Check BOTH username AND email
+        //  FIX: Check BOTH username AND email
         $row = DB::table('credential')
             ->where(function($query) use ($identifier) {
                 $query->where('username', $identifier)
