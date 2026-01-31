@@ -118,6 +118,7 @@ export default function App() {
         {/* ✅ BOOKING ROUTES - ADDED FOR UC05 */}
         <Route path="/create-booking" element={<CreateBooking />} />
         <Route path="/my-bookings" element={<MyBookings />} />
+
       </Routes>
     </Layout>
   );
