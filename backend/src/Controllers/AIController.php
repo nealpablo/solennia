@@ -682,6 +682,184 @@ class AIController
         }
     }
 
+    /**
+     * Generate FAQs - UC18
+     */
+    public function generateFAQs(Request $request, Response $response): Response
+    {
+        try {
+            $data = $request->getParsedBody();
+            $category = $data['category'] ?? 'general';
+            
+            // Get recent inquiries from database to analyze patterns
+            $inquiries = [];
+            try {
+                $recentBookings = DB::table('booking')
+                    ->select('AdditionalNotes')
+                    ->whereNotNull('AdditionalNotes')
+                    ->where('AdditionalNotes', '!=', '')
+                    ->orderBy('CreatedAt', 'desc')
+                    ->limit(100)
+                    ->get();
+                
+                foreach ($recentBookings as $booking) {
+                    if (!empty($booking->AdditionalNotes)) {
+                        $inquiries[] = $booking->AdditionalNotes;
+                    }
+                }
+            } catch (\Exception $e) {
+                // Continue without inquiry data
+            }
+
+            $result = $this->openAI->generateFAQs($inquiries, $category);
+
+            if (!$result['success']) {
+                return $this->jsonResponse($response, $result, 503);
+            }
+
+            return $this->jsonResponse($response, [
+                'success' => true,
+                'faqs' => $result['faqs'],
+                'summary' => $result['summary'],
+                'analyzed_inquiries' => count($inquiries)
+            ]);
+
+        } catch (\Exception $e) {
+            error_log("FAQ Generation Error: " . $e->getMessage());
+            return $this->jsonResponse($response, [
+                'success' => false,
+                'error' => 'Failed to generate FAQs: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Save FAQ to database
+     */
+    public function saveFAQ(Request $request, Response $response): Response
+    {
+        try {
+            $data = $request->getParsedBody();
+            
+            if (empty($data['question']) || empty($data['answer'])) {
+                return $this->jsonResponse($response, [
+                    'success' => false,
+                    'error' => 'Question and answer are required'
+                ], 400);
+            }
+            
+            $faqId = DB::table('faqs')->insertGetId([
+                'category' => $data['category'] ?? 'General',
+                'question' => $data['question'],
+                'answer' => $data['answer'],
+                'priority' => $data['priority'] ?? 5,
+                'is_published' => $data['is_published'] ?? false,
+                'created_at' => DB::raw('NOW()'),
+                'updated_at' => DB::raw('NOW()')
+            ]);
+
+            return $this->jsonResponse($response, [
+                'success' => true,
+                'message' => 'FAQ saved successfully',
+                'faq_id' => $faqId
+            ], 201);
+
+        } catch (\Exception $e) {
+            error_log("Save FAQ Error: " . $e->getMessage());
+            return $this->jsonResponse($response, [
+                'success' => false,
+                'error' => 'Failed to save FAQ: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get all FAQs
+     */
+    public function getFAQs(Request $request, Response $response): Response
+    {
+        try {
+            $params = $request->getQueryParams();
+            $publishedOnly = isset($params['published']) && $params['published'] === 'true';
+            
+            $query = DB::table('faqs')->orderBy('priority', 'desc')->orderBy('category');
+            
+            if ($publishedOnly) {
+                $query->where('is_published', true);
+            }
+            
+            $faqs = $query->get();
+
+            return $this->jsonResponse($response, [
+                'success' => true,
+                'faqs' => $faqs
+            ]);
+
+        } catch (\Exception $e) {
+            // Table might not exist yet
+            return $this->jsonResponse($response, [
+                'success' => true,
+                'faqs' => [],
+                'note' => 'FAQ table not found - please create it using the SQL in the README'
+            ]);
+        }
+    }
+
+    /**
+     * Update FAQ
+     */
+    public function updateFAQ(Request $request, Response $response, array $args): Response
+    {
+        try {
+            $faqId = $args['id'];
+            $data = $request->getParsedBody();
+            
+            $updateData = ['updated_at' => DB::raw('NOW()')];
+            
+            if (isset($data['category'])) $updateData['category'] = $data['category'];
+            if (isset($data['question'])) $updateData['question'] = $data['question'];
+            if (isset($data['answer'])) $updateData['answer'] = $data['answer'];
+            if (isset($data['priority'])) $updateData['priority'] = $data['priority'];
+            if (isset($data['is_published'])) $updateData['is_published'] = $data['is_published'];
+            
+            DB::table('faqs')->where('id', $faqId)->update($updateData);
+
+            return $this->jsonResponse($response, [
+                'success' => true,
+                'message' => 'FAQ updated successfully'
+            ]);
+
+        } catch (\Exception $e) {
+            return $this->jsonResponse($response, [
+                'success' => false,
+                'error' => 'Failed to update FAQ: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Delete FAQ
+     */
+    public function deleteFAQ(Request $request, Response $response, array $args): Response
+    {
+        try {
+            $faqId = $args['id'];
+            
+            DB::table('faqs')->where('id', $faqId)->delete();
+
+            return $this->jsonResponse($response, [
+                'success' => true,
+                'message' => 'FAQ deleted successfully'
+            ]);
+
+        } catch (\Exception $e) {
+            return $this->jsonResponse($response, [
+                'success' => false,
+                'error' => 'Failed to delete FAQ: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
     private function jsonResponse(Response $response, array $data, int $status = 200): Response
     {
         $response->getBody()->write(json_encode($data));

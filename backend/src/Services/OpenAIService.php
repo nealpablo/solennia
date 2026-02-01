@@ -677,5 +677,80 @@ Return your top 5 recommendations maximum, ranked by match_score.";
         error_log("Failed to parse JSON from OpenAI response: " . substr($response, 0, 200));
         
         return null;
+        return null;
+    }
+
+    /**
+     * Generate FAQs based on inquiry patterns
+     * UC18: Generate FAQs
+     */
+    public function generateFAQs(array $inquiries, string $category = 'general'): array
+    {
+        if (!$this->isConfigured()) {
+            return [
+                'success' => false,
+                'error' => 'OpenAI API key not configured'
+            ];
+        }
+
+        $systemPrompt = "You are an FAQ generator for Solennia, an event booking platform in the Philippines.
+
+Based on the provided user inquiries and questions, generate helpful FAQ entries.
+
+**Guidelines:**
+- Group similar questions together
+- Write clear, concise answers
+- Focus on event planning, vendor booking, and platform usage
+- Use Philippine context (₱ for currency, local terms)
+- Each FAQ should be practical and helpful
+- Generate FAQs that would help first-time users understand the platform
+
+Return ONLY valid JSON with this exact structure:
+{
+    \"faqs\": [
+        {
+            \"category\": \"Booking\" | \"Vendors\" | \"Payment\" | \"Account\" | \"Platform\" | \"Events\",
+            \"question\": \"The FAQ question\",
+            \"answer\": \"The helpful answer\",
+            \"priority\": 1-10
+        }
+    ],
+    \"summary\": \"Brief summary of FAQ themes\"
+}
+
+Generate 5-10 FAQs based on the patterns you identify.";
+
+        $inquiryText = !empty($inquiries) 
+            ? "User Inquiries to analyze:\n- " . implode("\n- ", array_slice($inquiries, 0, 50))
+            : "Generate general FAQs about event planning and booking vendors in the Philippines on the Solennia platform. Include questions about: how to book vendors, how to browse services, how to communicate with vendors, booking process, cancellation policy, and general platform usage.";
+
+        $userMessage = "Category focus: {$category}\n\n{$inquiryText}";
+
+        $messages = [
+            ['role' => 'system', 'content' => $systemPrompt],
+            ['role' => 'user', 'content' => $userMessage]
+        ];
+
+        $response = $this->chatCompletion($messages, 2000, 0.5);
+
+        if (!$response['success']) {
+            return $response;
+        }
+
+        $parsed = $this->parseJsonResponse($response['response']);
+        
+        if ($parsed) {
+            return [
+                'success' => true,
+                'faqs' => $parsed['faqs'] ?? [],
+                'summary' => $parsed['summary'] ?? ''
+            ];
+        }
+
+        return [
+            'success' => true,
+            'faqs' => [],
+            'summary' => 'Unable to parse FAQ response'
+        ];
     }
 }

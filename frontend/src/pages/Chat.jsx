@@ -19,7 +19,7 @@ const API =
   (import.meta.env.PROD 
     ? "https://solennia.up.railway.app/api" : "/api");
 
-// ✅ Format message time
+// ✅ Format message time in user's local timezone with context
 const formatMessageTime = (timestamp) => {
   const msgDate = new Date(timestamp);
   const now = new Date();
@@ -52,39 +52,27 @@ const formatMessageTime = (timestamp) => {
   }
 };
 
-// ✅ Parse AI response for supplier information and galleries
-const parseSupplierInfo = (text) => {
-  const suppliers = [];
-  
-  // Match supplier blocks (bold names followed by details)
-  const supplierPattern = /\*\*([^*]+)\*\*\s*\(([^)]+)\)/g;
-  let match;
-  
-  while ((match = supplierPattern.exec(text)) !== null) {
-    const name = match[1].trim();
-    const category = match[2].trim();
-    
-    // Extract info after the supplier name
-    const startIndex = match.index + match[0].length;
-    const nextSupplierMatch = supplierPattern.exec(text);
-    const endIndex = nextSupplierMatch ? nextSupplierMatch.index : text.length;
-    
-    // Reset regex
-    supplierPattern.lastIndex = match.index + match[0].length;
-    
-    const infoBlock = text.substring(startIndex, endIndex);
-    
-    suppliers.push({
-      name,
-      category,
-      info: infoBlock.trim()
-    });
-  }
-  
-  return suppliers;
-};
+// ✅ Clean SVG icons — no emoji rendering issues
+const IconPaperclip = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21.44 11.05l-9.19 9.19a4.5 4.5 0 0 1-6.36-6.36l9.19-9.19a3 3 0 0 1 4.24 4.24l-9.2 9.19a1.5 1.5 0 0 1-2.12-2.12l8.49-8.48"/>
+  </svg>
+);
 
-// ✅ AI Assistant Contact
+const IconX = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+    <path d="M18 6L6 18M6 6l12 12"/>
+  </svg>
+);
+
+const IconSend = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="22" y1="2" x2="11" y2="13"/>
+    <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+  </svg>
+);
+
+// ✅ AI Assistant Contact Object
 const AI_CONTACT = {
   id: 'ai-assistant',
   firebase_uid: 'ai-assistant',
@@ -116,21 +104,39 @@ export default function Chat() {
     return [{
       id: 'welcome',
       role: 'assistant',
-      text: "Hello! 👋 I'm Solennia AI, your event planning assistant.\n\nI can help with:\n• Finding vendors\n• Event planning tips\n• Budget advice\n• Checking availability\n• Creating bookings\n\nHow can I help you today?",
+      text: "Hello! 👋 I'm Solennia AI, your event planning assistant.\n\nI can help with:\n• Finding vendors\n• Event planning tips\n• Budget advice\n• Creating bookings\n\nHow can I help you today?",
       ts: Date.now()
     }];
   });
   const [aiLoading, setAiLoading] = useState(false);
-  
-  // ✅ NEW: Image upload state
-  const [selectedImage, setSelectedImage] = useState(null);
+
+  // ✅ Recommendation Form State
+  const [showRecForm, setShowRecForm] = useState(false);
+  const [recForm, setRecForm] = useState({
+    event_type: '',
+    event_date: '',
+    location: '',
+    budget: '',
+    guests: '',
+    category: '',
+    requirements: ''
+  });
+  const [categories] = useState([
+    'Photography & Videography',
+    'Catering',
+    'Venue',
+    'Coordination & Hosting',
+    'Decoration',
+    'Entertainment',
+    'Others'
+  ]);
+  const [recLoading, setRecLoading] = useState(false);
+
+  // ✅ Image upload state
   const [imagePreview, setImagePreview] = useState(null);
   const fileInputRef = useRef(null);
   
-  // ✅ NEW: Supplier galleries state
-  const [supplierGalleries, setSupplierGalleries] = useState({});
-  
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   
   const meUid = useRef(null);
@@ -138,9 +144,10 @@ export default function Chat() {
   const unsubscribeRef = useRef(null);
   const threadsUnsubscribeRef = useRef(null);
   const hasAutoOpened = useRef(false);
+  const hasProcessedAiMessage = useRef(false);
   const textareaRef = useRef(null);
 
-  // ✅ Save AI chat history
+  // ✅ Save AI chat history to localStorage whenever it changes
   useEffect(() => {
     try {
       localStorage.setItem('ai_chat_history', JSON.stringify(aiMessages));
@@ -148,6 +155,141 @@ export default function Chat() {
       console.error('Failed to save AI chat history:', e);
     }
   }, [aiMessages]);
+
+  // ✅ Handle ai_message from URL (from HomePage search)
+  useEffect(() => {
+    const aiMessage = searchParams.get('ai_message');
+    if (aiMessage && !hasProcessedAiMessage.current && !loading) {
+      hasProcessedAiMessage.current = true;
+      // Auto-open AI chat
+      setActive(AI_CONTACT);
+      // Clear the URL param
+      searchParams.delete('ai_message');
+      setSearchParams(searchParams, { replace: true });
+      // Send the message after a short delay
+      setTimeout(() => {
+        sendAIMessageDirect(aiMessage);
+      }, 500);
+    }
+  }, [searchParams, loading]);
+
+  // ✅ Direct AI message sender (for URL param messages)
+  async function sendAIMessageDirect(message) {
+    const userMsg = {
+      id: 'user-' + Date.now(),
+      role: 'user',
+      text: message,
+      ts: Date.now()
+    };
+    setAiMessages(prev => [...prev, userMsg]);
+    setAiLoading(true);
+
+    try {
+      const history = aiMessages.slice(-10).map(msg => ({
+        role: msg.role,
+        content: msg.text
+      }));
+
+      const response = await apiPost('/ai/chat', {
+        message: message,
+        history: history
+      });
+
+      if (response.success && response.response) {
+        setAiMessages(prev => [...prev, {
+          id: 'assistant-' + Date.now(),
+          role: 'assistant',
+          text: response.response,
+          ts: Date.now()
+        }]);
+      } else {
+        throw new Error(response.error || 'Failed');
+      }
+    } catch (error) {
+      console.error('AI chat error:', error);
+      setAiMessages(prev => [...prev, {
+        id: 'error-' + Date.now(),
+        role: 'assistant',
+        text: 'Sorry, I encountered an error. Please try again.',
+        ts: Date.now(),
+        isError: true
+      }]);
+      toast.error('Failed to get AI response');
+    } finally {
+      setAiLoading(false);
+    }
+  }
+
+  // ✅ Get Recommendations from form
+  async function handleGetRecommendations(e) {
+    e.preventDefault();
+    if (!recForm.event_type) {
+      toast.error('Please select an event type');
+      return;
+    }
+
+    setRecLoading(true);
+
+    try {
+      const response = await apiPost('/ai/recommendations', recForm);
+
+      if (response.success) {
+        let recMessage = `🎯 **Vendor Recommendations for your ${recForm.event_type}**\n\n`;
+        
+        if (response.summary) {
+          recMessage += response.summary + '\n\n';
+        }
+        
+        if (response.recommendations?.length > 0) {
+          response.recommendations.forEach((rec, idx) => {
+            recMessage += `**${idx + 1}. ${rec.business_name || rec.vendor_name}** (Match: ${rec.match_score}%)\n`;
+            if (rec.highlights) recMessage += `   ${rec.highlights}\n`;
+            if (rec.reasons?.length > 0) {
+              recMessage += `   ✓ ${rec.reasons.slice(0, 2).join('\n   ✓ ')}\n`;
+            }
+            recMessage += '\n';
+          });
+        } else {
+          recMessage += 'No vendors found matching your criteria. Try broadening your search.';
+        }
+
+        if (response.tips?.length > 0) {
+          recMessage += '\n💡 **Tips:**\n';
+          response.tips.forEach(tip => {
+            recMessage += `• ${tip}\n`;
+          });
+        }
+
+        setAiMessages(prev => [...prev, {
+          id: 'rec-' + Date.now(),
+          role: 'assistant',
+          text: recMessage,
+          ts: Date.now()
+        }]);
+
+        setShowRecForm(false);
+        toast.success('Recommendations generated!');
+      } else {
+        throw new Error(response.error);
+      }
+    } catch (error) {
+      toast.error('Failed to get recommendations');
+    } finally {
+      setRecLoading(false);
+    }
+  }
+
+  // ✅ Clear AI Chat History
+  function clearAIChat() {
+    setAiMessages([{
+      id: 'welcome',
+      role: 'assistant',
+      text: "Hello! 👋 I'm Solennia AI, your event planning assistant.\n\nI can help with:\n• Finding vendors\n• Event planning tips\n• Budget advice\n• Creating bookings\n\nHow can I help you today?",
+      ts: Date.now()
+    }]);
+    localStorage.removeItem('ai_chat_history');
+    toast.success('Chat cleared');
+  }
 
   useEffect(() => {
     async function init() {
@@ -183,73 +325,6 @@ export default function Chat() {
     
     init();
   }, []);
-
-  async function loadContacts() {
-    const token = localStorage.getItem("solennia_token");
-    if (!token) return;
-
-    const threads = await listThreadsForCurrentUser();
-    const contactMap = new Map();
-
-    for (const thread of threads) {
-      const { otherUid, lastMessageSnippet, lastTs } = thread;
-      
-      try {
-        const userRes = await fetch(`${API}/users/${otherUid}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        
-        if (userRes.ok) {
-          const userData = await userRes.json();
-          const user = userData.user;
-          
-          let displayName = `${user.first_name} ${user.last_name}`;
-          let avatar = user.avatar;
-          
-          if (user.role === 1) {
-            try {
-              const vendorRes = await fetch(`${API}/vendor/public/${user.id}`);
-              if (vendorRes.ok) {
-                const vendorData = await vendorRes.json();
-                displayName = vendorData.vendor?.business_name || displayName;
-                avatar = vendorData.vendor?.vendor_logo || avatar;
-              }
-            } catch (e) {
-              console.log("Could not fetch vendor info");
-            }
-          }
-          
-          contactMap.set(otherUid, {
-            id: user.id,
-            firebase_uid: otherUid,
-            first_name: user.first_name,
-            last_name: user.last_name,
-            role: user.role,
-            avatar: avatar,
-            displayName: displayName,
-            lastMessage: lastMessageSnippet,
-            lastTs: lastTs
-          });
-        }
-      } catch (e) {
-        console.error('Error fetching contact:', e);
-      }
-    }
-
-    const sortedContacts = Array.from(contactMap.values())
-      .sort((a, b) => (b.lastTs || 0) - (a.lastTs || 0));
-
-    setContacts(sortedContacts);
-
-    const openUidParam = searchParams.get("open");
-    if (openUidParam && !hasAutoOpened.current) {
-      hasAutoOpened.current = true;
-      const foundContact = sortedContacts.find(c => c.firebase_uid === openUidParam);
-      if (foundContact) {
-        setTimeout(() => openChat(foundContact), 500);
-      }
-    }
-  }
 
   async function updateContactsFromThreads(threads) {
     const token = localStorage.getItem("solennia_token");
@@ -325,12 +400,198 @@ export default function Chat() {
         setContacts(prev => {
           const exists = prev.find(c => c.firebase_uid === firebaseUid);
           if (exists) return prev;
-          
           return [newContact, ...prev].sort((a, b) => (b.lastTs || 0) - (a.lastTs || 0));
         });
       }
-    } catch (e) {
-      console.error('Error fetching contact:', e);
+    } catch (err) {
+      console.error("Failed to fetch contact:", err);
+    }
+  }
+
+  async function loadContacts() {
+    try {
+      const token = localStorage.getItem("solennia_token");
+      if (!token) return;
+
+      const res = await fetch(`${API}/chat/contacts`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (!res.ok) return;
+
+      const json = await res.json();
+      let mysqlContacts = json.contacts || [];
+      const threads = await listThreadsForCurrentUser();
+
+      const contactMap = new Map();
+      const userIdSet = new Set();
+
+      for (const contact of mysqlContacts) {
+        if (contact.firebase_uid && contact.id) {
+          userIdSet.add(contact.id);
+          
+          let displayName = `${contact.first_name} ${contact.last_name}`;
+          let avatar = contact.avatar;
+          
+          if (contact.role === 1) {
+            try {
+              const vendorRes = await fetch(`${API}/vendor/public/${contact.id}`);
+              if (vendorRes.ok) {
+                const vendorData = await vendorRes.json();
+                displayName = vendorData.vendor?.business_name || displayName;
+                avatar = vendorData.vendor?.vendor_logo || avatar;
+              }
+            } catch (e) {
+              console.log("Could not fetch vendor info for MySQL contact");
+            }
+          }
+          
+          contactMap.set(contact.firebase_uid, {
+            ...contact,
+            displayName: displayName,
+            avatar: avatar,
+            lastMessage: "",
+            lastTs: 0
+          });
+        }
+      }
+
+      for (const thread of threads) {
+        const { otherUid, lastMessageSnippet, lastTs } = thread;
+        
+        try {
+          const userRes = await fetch(`${API}/users/${otherUid}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          
+          if (userRes.ok) {
+            const userData = await userRes.json();
+            const user = userData.user;
+            
+            if (userIdSet.has(user.id)) {
+              const existingContact = contactMap.get(otherUid);
+              if (existingContact) {
+                existingContact.lastMessage = lastMessageSnippet;
+                existingContact.lastTs = lastTs;
+              }
+              continue;
+            }
+            
+            let displayName = `${user.first_name} ${user.last_name}`;
+            let avatar = user.avatar;
+            
+            if (user.role === 1) {
+              try {
+                const vendorRes = await fetch(`${API}/vendor/public/${user.id}`);
+                if (vendorRes.ok) {
+                  const vendorData = await vendorRes.json();
+                  displayName = vendorData.vendor?.business_name || displayName;
+                  avatar = vendorData.vendor?.vendor_logo || avatar;
+                }
+              } catch (e) {
+                console.log("Could not fetch vendor info");
+              }
+            }
+            
+            userIdSet.add(user.id);
+            contactMap.set(otherUid, {
+              id: user.id,
+              firebase_uid: otherUid,
+              first_name: user.first_name,
+              last_name: user.last_name,
+              role: user.role,
+              avatar: avatar,
+              displayName: displayName,
+              lastMessage: lastMessageSnippet,
+              lastTs: lastTs
+            });
+          }
+        } catch (e) {
+          console.error("Failed to fetch user:", e);
+        }
+      }
+
+      const finalContacts = Array.from(contactMap.values())
+        .sort((a, b) => (b.lastTs || 0) - (a.lastTs || 0));
+
+      setContacts(finalContacts);
+      
+    } catch (err) {
+      console.error("Failed to load contacts:", err);
+    }
+  }
+
+  useEffect(() => {
+    const toUid = searchParams.get('to');
+    
+    if (toUid && !hasAutoOpened.current && meUid.current && !loading) {
+      hasAutoOpened.current = true;
+      
+      let contact = contacts.find(c => c.firebase_uid === toUid);
+      
+      if (contact) {
+        openChat(contact);
+        navigate('/chat', { replace: true });
+      } else {
+        fetchUserAndOpenChat(toUid);
+      }
+    }
+  }, [searchParams, contacts, loading]);
+
+  async function fetchUserAndOpenChat(firebaseUid) {
+    try {
+      const token = localStorage.getItem("solennia_token");
+      
+      const res = await fetch(`${API}/users/${firebaseUid}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (!res.ok) {
+        toast.error("User not found");
+        navigate('/chat', { replace: true });
+        return;
+      }
+      
+      const json = await res.json();
+      const user = json.user;
+      
+      let displayName = `${user.first_name} ${user.last_name}`;
+      let avatar = user.avatar;
+      
+      if (user.role === 1) {
+        try {
+          const vendorRes = await fetch(`${API}/vendor/public/${user.id}`);
+          if (vendorRes.ok) {
+            const vendorJson = await vendorRes.json();
+            displayName = vendorJson.vendor?.business_name || displayName;
+            avatar = vendorJson.vendor?.vendor_logo || avatar;
+          }
+        } catch (e) {}
+      }
+      
+      const newContact = {
+        id: user.id,
+        firebase_uid: user.firebase_uid,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        role: user.role,
+        avatar: avatar,
+        displayName: displayName
+      };
+      
+      setContacts(prev => {
+        const exists = prev.find(c => c.firebase_uid === firebaseUid);
+        if (exists) return prev;
+        return [newContact, ...prev];
+      });
+      
+      openChat(newContact);
+      navigate('/chat', { replace: true });
+      
+    } catch (err) {
+      console.error("Failed to fetch user:", err);
+      toast.error("Failed to start conversation");
+      navigate('/chat', { replace: true });
     }
   }
 
@@ -406,97 +667,45 @@ export default function Chat() {
     });
   }
 
-  // ✅ NEW: Handle image selection
-  const handleImageSelect = (event) => {
-    const file = event.target.files[0];
+  // ✅ Image upload handlers
+  function handleImageSelect(e) {
+    const file = e.target.files[0];
     if (!file) return;
-
-    // Validate file type
     if (!file.type.startsWith('image/')) {
       toast.error('Please select an image file');
       return;
     }
-
-    // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
-      toast.error('Image size must be less than 5MB');
+      toast.error('Image must be under 5MB');
       return;
     }
-
-    setSelectedImage(file);
-    
-    // Create preview
     const reader = new FileReader();
-    reader.onloadend = () => {
-      setImagePreview(reader.result);
-    };
+    reader.onloadend = () => setImagePreview(reader.result);
     reader.readAsDataURL(file);
-  };
+  }
 
-  // ✅ NEW: Remove selected image
-  const removeImage = () => {
-    setSelectedImage(null);
+  function removeImage() {
     setImagePreview(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }
 
-  // ✅ NEW: Fetch supplier gallery
-  const fetchSupplierGallery = async (supplierName) => {
-    try {
-      const token = localStorage.getItem("solennia_token");
-      
-      // Search for supplier by name
-      const response = await fetch(`${API}/vendor/search?q=${encodeURIComponent(supplierName)}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data.vendors && data.vendors.length > 0) {
-          const vendor = data.vendors[0];
-          
-          // Parse gallery JSON
-          let gallery = [];
-          if (vendor.gallery) {
-            try {
-              gallery = JSON.parse(vendor.gallery);
-            } catch (e) {
-              console.error('Failed to parse gallery:', e);
-            }
-          }
-          
-          return {
-            vendorId: vendor.id,
-            businessName: vendor.business_name,
-            gallery: gallery,
-            avatar: vendor.vendor_logo,
-            category: vendor.category
-          };
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching supplier gallery:', error);
-    }
-    
-    return null;
-  };
-
+  // ✅ FIXED: allows send when there is an image even if text is empty
   async function handleSend() {
-    if ((!input.trim() && !selectedImage) || !active) return;
+    const hasText = input.trim().length > 0;
+    const hasImage = !!imagePreview;
+    if ((!hasText && !hasImage) || !active) return;
 
     if (active.isAI) {
       await handleAiMessage();
       return;
     }
 
+    // Regular Firebase message
     const threadId = (active.firebase_uid < meUid.current)
       ? `${active.firebase_uid}__${meUid.current}`
       : `${meUid.current}__${active.firebase_uid}`;
 
     try {
-      // TODO: Handle image upload for Firebase chat if needed
       await sendMessageToThread(threadId, { text: input });
       setInput("");
       removeImage();
@@ -513,23 +722,18 @@ export default function Chat() {
     }
   }
 
-  // ✅ IMPROVED: AI Chat Handler with supplier gallery fetching
+  // ✅ FIXED: AI message handler — captures image, attaches it to the message object
   async function handleAiMessage() {
     const userMessage = input.trim();
-    if (!userMessage && !selectedImage) return;
+    const capturedImage = imagePreview; // grab before clearing
 
-    let messageText = userMessage;
-    
-    // If image is selected, add image context
-    if (selectedImage) {
-      messageText += selectedImage ? ` [Image attached: ${selectedImage.name}]` : '';
-    }
+    if (!userMessage && !capturedImage) return;
 
     const userMsg = {
       id: 'user-' + Date.now(),
       role: 'user',
-      text: messageText,
-      image: imagePreview,
+      text: userMessage || '',
+      image: capturedImage || null,
       ts: Date.now()
     };
 
@@ -551,33 +755,15 @@ export default function Chat() {
       }));
 
       const response = await apiPost('/ai/chat', {
-        message: userMessage,
+        message: userMessage || (capturedImage ? '[User sent an image]' : ''),
         history: history
       });
 
       if (response.success && response.response) {
-        const aiResponse = response.response;
-        
-        // ✅ Parse for supplier information
-        const suppliers = parseSupplierInfo(aiResponse);
-        
-        // ✅ Fetch galleries for mentioned suppliers
-        const galleries = {};
-        for (const supplier of suppliers) {
-          const galleryData = await fetchSupplierGallery(supplier.name);
-          if (galleryData) {
-            galleries[supplier.name] = galleryData;
-          }
-        }
-        
-        setSupplierGalleries(prev => ({ ...prev, ...galleries }));
-        
         setAiMessages(prev => [...prev, {
           id: 'assistant-' + Date.now(),
           role: 'assistant',
-          text: aiResponse,
-          suppliers: suppliers,
-          galleries: galleries,
+          text: response.response,
           ts: Date.now()
         }]);
       } else {
@@ -595,34 +781,25 @@ export default function Chat() {
       toast.error('Failed to get AI response');
     } finally {
       setAiLoading(false);
-      
       setTimeout(() => {
         if (messagesRef.current) {
           messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
         }
-      }, 300);
+      }, 200);
     }
   }
 
-  // ✅ NEW: Handle keyboard shortcuts
-  const handleKeyDown = (e) => {
-    // Shift+Enter = new line
-    if (e.key === 'Enter' && e.shiftKey) {
-      return; // Let default behavior happen (new line)
-    }
-    
-    // Enter alone = send
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  };
+  // ✅ Textarea auto-resize helper
+  function autoResize(e) {
+    e.target.style.height = 'auto';
+    e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
+  }
 
   useEffect(() => {
     if (messagesRef.current) {
       messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
     }
-  }, [messages, aiMessages]);
+  }, [messages, aiMessages, imagePreview]);
 
   useEffect(() => {
     return () => {
@@ -639,7 +816,15 @@ export default function Chat() {
     return (
       <div className="chat-shell">
         <div style={{ margin: "auto", textAlign: "center", padding: "2rem" }}>
-          <div className="loading-spinner" />
+          <div style={{
+            width: '3rem',
+            height: '3rem',
+            border: '4px solid #e8ddae',
+            borderTopColor: 'transparent',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+            margin: '0 auto 1rem'
+          }} />
           <p>Loading chat...</p>
         </div>
       </div>
@@ -656,7 +841,7 @@ export default function Chat() {
         </div>
 
         <div className="chat-contact-list">
-          {/* ✅ AI Assistant */}
+          {/* ✅ AI Assistant - Always show first */}
           <button
             onClick={() => openChat(AI_CONTACT)}
             className={`chat-contact ${active?.isAI ? "active" : ""}`}
@@ -784,7 +969,153 @@ export default function Chat() {
                   </div>
                 </div>
               </div>
+              
+              {/* ✅ AI Action Buttons */}
+              {active.isAI && (
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button
+                    onClick={() => setShowRecForm(!showRecForm)}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      background: showRecForm ? '#f59e0b' : 'white',
+                      color: showRecForm ? 'white' : '#f59e0b',
+                      border: '1px solid #f59e0b',
+                      borderRadius: '0.5rem',
+                      fontSize: '0.75rem',
+                      fontWeight: '600',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    🎯 Get Recommendations
+                  </button>
+                  <button
+                    onClick={clearAIChat}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      background: 'white',
+                      color: '#666',
+                      border: '1px solid #ddd',
+                      borderRadius: '0.5rem',
+                      fontSize: '0.75rem',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    🗑️ Clear
+                  </button>
+                </div>
+              )}
             </div>
+
+            {/* ✅ Recommendation Form */}
+            {showRecForm && active.isAI && (
+              <div style={{ padding: '1rem', background: '#fef9e7', borderBottom: '1px solid #f0e6c8' }}>
+                <h4 style={{ marginBottom: '1rem', color: '#92400e', fontWeight: '600' }}>🎯 Get Vendor Recommendations</h4>
+                <form onSubmit={handleGetRecommendations} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.75rem' }}>
+                  <div>
+                    <label style={{ fontSize: '0.75rem', color: '#666', display: 'block', marginBottom: '0.25rem' }}>Event Type *</label>
+                    <select
+                      value={recForm.event_type}
+                      onChange={(e) => setRecForm({ ...recForm, event_type: e.target.value })}
+                      style={{ width: '100%', padding: '0.5rem', border: '1px solid #ddd', borderRadius: '0.375rem', fontSize: '0.875rem' }}
+                      required
+                    >
+                      <option value="">Select...</option>
+                      <option value="Wedding">Wedding</option>
+                      <option value="Birthday">Birthday</option>
+                      <option value="Corporate">Corporate Event</option>
+                      <option value="Debut">Debut</option>
+                      <option value="Anniversary">Anniversary</option>
+                      <option value="Baptism">Baptism</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label style={{ fontSize: '0.75rem', color: '#666', display: 'block', marginBottom: '0.25rem' }}>Event Date</label>
+                    <input
+                      type="date"
+                      value={recForm.event_date}
+                      onChange={(e) => setRecForm({ ...recForm, event_date: e.target.value })}
+                      style={{ width: '100%', padding: '0.5rem', border: '1px solid #ddd', borderRadius: '0.375rem', fontSize: '0.875rem' }}
+                    />
+                  </div>
+                  
+                  <div>
+                    <label style={{ fontSize: '0.75rem', color: '#666', display: 'block', marginBottom: '0.25rem' }}>Location</label>
+                    <input
+                      type="text"
+                      placeholder="e.g., Manila"
+                      value={recForm.location}
+                      onChange={(e) => setRecForm({ ...recForm, location: e.target.value })}
+                      style={{ width: '100%', padding: '0.5rem', border: '1px solid #ddd', borderRadius: '0.375rem', fontSize: '0.875rem' }}
+                    />
+                  </div>
+                  
+                  <div>
+                    <label style={{ fontSize: '0.75rem', color: '#666', display: 'block', marginBottom: '0.25rem' }}>Budget Range</label>
+                    <select
+                      value={recForm.budget}
+                      onChange={(e) => setRecForm({ ...recForm, budget: e.target.value })}
+                      style={{ width: '100%', padding: '0.5rem', border: '1px solid #ddd', borderRadius: '0.375rem', fontSize: '0.875rem' }}
+                    >
+                      <option value="">Select...</option>
+                      <option value="Under ₱50,000">Under ₱50,000</option>
+                      <option value="₱50,000 - ₱100,000">₱50,000 - ₱100,000</option>
+                      <option value="₱100,000 - ₱250,000">₱100,000 - ₱250,000</option>
+                      <option value="₱250,000 - ₱500,000">₱250,000 - ₱500,000</option>
+                      <option value="Over ₱500,000">Over ₱500,000</option>
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label style={{ fontSize: '0.75rem', color: '#666', display: 'block', marginBottom: '0.25rem' }}>Number of Guests</label>
+                    <input
+                      type="number"
+                      placeholder="e.g., 100"
+                      value={recForm.guests}
+                      onChange={(e) => setRecForm({ ...recForm, guests: e.target.value })}
+                      style={{ width: '100%', padding: '0.5rem', border: '1px solid #ddd', borderRadius: '0.375rem', fontSize: '0.875rem' }}
+                    />
+                  </div>
+                  
+                  <div>
+                    <label style={{ fontSize: '0.75rem', color: '#666', display: 'block', marginBottom: '0.25rem' }}>Vendor Category</label>
+                    <select
+                      value={recForm.category}
+                      onChange={(e) => setRecForm({ ...recForm, category: e.target.value })}
+                      style={{ width: '100%', padding: '0.5rem', border: '1px solid #ddd', borderRadius: '0.375rem', fontSize: '0.875rem' }}
+                    >
+                      <option value="">Any category</option>
+                      {categories.map((cat, idx) => (
+                        <option key={idx} value={cat}>{cat}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div style={{ gridColumn: 'span 2', display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowRecForm(false)}
+                      style={{ flex: 1, padding: '0.5rem', background: '#f3f4f6', border: 'none', borderRadius: '0.375rem', cursor: 'pointer' }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={recLoading}
+                      style={{
+                        flex: 1, padding: '0.5rem',
+                        background: recLoading ? '#ccc' : 'linear-gradient(135deg, #f59e0b, #ea580c)',
+                        color: 'white', border: 'none', borderRadius: '0.375rem',
+                        fontWeight: '600', cursor: recLoading ? 'not-allowed' : 'pointer'
+                      }}
+                    >
+                      {recLoading ? 'Finding...' : 'Get Recommendations'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
 
             <div className="chat-main-body" ref={messagesRef}>
               {displayMessages.length === 0 ? (
@@ -801,110 +1132,18 @@ export default function Chat() {
                   const isMe = active.isAI ? msg.role === 'user' : msg.senderUid === meUid.current;
                   return (
                     <div key={msg.id} className={`chat-message ${isMe ? "me" : "them"}`}>
-                      {/* ✅ Show image if present */}
+                      {/* ✅ Render attached image if present */}
                       {msg.image && (
-                        <div className="message-image">
-                          <img src={msg.image} alt="Attached" style={{
-                            maxWidth: '100%',
-                            borderRadius: '0.5rem',
-                            marginBottom: '0.5rem'
-                          }} />
+                        <div className="message-image-wrapper">
+                          <img src={msg.image} alt="attachment" className="message-image" />
                         </div>
                       )}
-                      
-                      <div className="message-text" style={msg.isError ? { color: '#dc2626' } : {}}>
-                        {msg.text}
-                      </div>
-                      
-                      {/* ✅ NEW: Display supplier galleries */}
-                      {msg.galleries && Object.keys(msg.galleries).length > 0 && (
-                        <div className="supplier-galleries" style={{
-                          marginTop: '1rem',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '1rem'
-                        }}>
-                          {Object.values(msg.galleries).map((gallery, idx) => (
-                            <div key={idx} className="supplier-gallery-card" style={{
-                              background: 'rgba(0,0,0,0.03)',
-                              padding: '0.75rem',
-                              borderRadius: '0.5rem',
-                              border: '1px solid rgba(0,0,0,0.1)'
-                            }}>
-                              <div style={{
-                                fontWeight: 600,
-                                marginBottom: '0.5rem',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.5rem',
-                                color: '#1c1b1a'
-                              }}>
-                                {gallery.avatar && (
-                                  <img src={gallery.avatar} alt="" style={{
-                                    width: '24px',
-                                    height: '24px',
-                                    borderRadius: '50%',
-                                    objectFit: 'cover'
-                                  }} />
-                                )}
-                                {gallery.businessName} Gallery
-                              </div>
-                              
-                              {gallery.gallery && gallery.gallery.length > 0 ? (
-                                <div style={{
-                                  display: 'grid',
-                                  gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))',
-                                  gap: '0.5rem',
-                                  marginTop: '0.5rem'
-                                }}>
-                                  {gallery.gallery.slice(0, 6).map((img, imgIdx) => (
-                                    <div key={imgIdx} style={{
-                                      aspectRatio: '1',
-                                      borderRadius: '0.375rem',
-                                      overflow: 'hidden',
-                                      border: '2px solid white',
-                                      boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-                                    }}>
-                                      <img 
-                                        src={img} 
-                                        alt={`${gallery.businessName} ${imgIdx + 1}`}
-                                        style={{
-                                          width: '100%',
-                                          height: '100%',
-                                          objectFit: 'cover'
-                                        }}
-                                        onError={(e) => {
-                                          e.target.style.display = 'none';
-                                        }}
-                                      />
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : (
-                                <div style={{
-                                  fontSize: '0.75rem',
-                                  color: '#666',
-                                  fontStyle: 'italic'
-                                }}>
-                                  No gallery images available
-                                </div>
-                              )}
-                              
-                              {gallery.gallery && gallery.gallery.length > 6 && (
-                                <div style={{
-                                  fontSize: '0.75rem',
-                                  color: '#666',
-                                  marginTop: '0.5rem',
-                                  textAlign: 'center'
-                                }}>
-                                  +{gallery.gallery.length - 6} more images
-                                </div>
-                              )}
-                            </div>
-                          ))}
+                      {/* Only render text block when there is actual text */}
+                      {msg.text && (
+                        <div className="message-text" style={msg.isError ? { color: '#dc2626' } : {}}>
+                          {msg.text}
                         </div>
                       )}
-                      
                       <div className="chat-meta">
                         {formatMessageTime(msg.ts)}
                       </div>
@@ -913,201 +1152,100 @@ export default function Chat() {
                 })
               )}
               
-              {/* ✅ FIXED: Thinking animation */}
+              {/* ✅ Thinking indicator */}
               {aiLoading && active?.isAI && (
                 <div className="chat-message them">
-                  <div className="message-text thinking-animation">
-                    <span className="thinking-dots">
-                      <span></span>
-                      <span></span>
-                      <span></span>
-                    </span>
-                    <span style={{ color: '#888', fontSize: '0.875rem', marginLeft: '0.5rem' }}>
-                      Thinking...
-                    </span>
+                  <div className="thinking-row">
+                    <span className="thinking-dot"></span>
+                    <span className="thinking-dot"></span>
+                    <span className="thinking-dot"></span>
+                    <span className="thinking-label">Thinking...</span>
                   </div>
                 </div>
               )}
             </div>
 
+            {/* ✅ Input area */}
             <div className="chat-input-bar">
-              {/* ✅ NEW: Image preview */}
+              {/* Image preview strip sits inside the bar, above the textarea row */}
               {imagePreview && (
-                <div className="image-preview" style={{
-                  position: 'absolute',
-                  bottom: '100%',
-                  left: '1rem',
-                  marginBottom: '0.5rem',
-                  background: 'white',
-                  padding: '0.5rem',
-                  borderRadius: '0.5rem',
-                  border: '2px solid #d4c9b2',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-                }}>
-                  <div style={{ position: 'relative' }}>
-                    <img 
-                      src={imagePreview} 
-                      alt="Preview" 
-                      style={{
-                        maxWidth: '150px',
-                        maxHeight: '150px',
-                        borderRadius: '0.375rem',
-                        display: 'block'
-                      }}
-                    />
-                    <button
-                      onClick={removeImage}
-                      style={{
-                        position: 'absolute',
-                        top: '-8px',
-                        right: '-8px',
-                        background: '#dc2626',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '50%',
-                        width: '24px',
-                        height: '24px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: 'pointer',
-                        fontSize: '0.875rem',
-                        fontWeight: 'bold'
-                      }}
-                    >
-                      ×
+                <div className="image-preview-strip">
+                  <div className="image-preview-thumb">
+                    <img src={imagePreview} alt="preview" />
+                    <button className="image-preview-remove" onClick={removeImage} type="button">
+                      <IconX />
                     </button>
                   </div>
                 </div>
               )}
-              
-              {/* ✅ NEW: Image upload button */}
-              {active.isAI && (
-                <div style={{ position: 'relative' }}>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageSelect}
-                    style={{ display: 'none' }}
-                  />
+
+              <div className="chat-input-row">
+                {/* Hidden file input */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageSelect}
+                  style={{ display: 'none' }}
+                />
+
+                {/* Paperclip button — only in AI chat */}
+                {active.isAI && (
                   <button
+                    className="attach-btn"
                     onClick={() => fileInputRef.current?.click()}
-                    className="image-upload-btn"
+                    type="button"
                     title="Attach image"
-                    style={{
-                      background: 'transparent',
-                      border: '2px solid #d4c9b2',
-                      borderRadius: '50%',
-                      width: '40px',
-                      height: '40px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s',
-                      fontSize: '1.25rem'
-                    }}
-                    onMouseOver={(e) => e.currentTarget.style.background = '#f5f5f5'}
-                    onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
                   >
-                    📎
+                    <IconPaperclip />
                   </button>
-                </div>
-              )}
-              
-              {/* ✅ IMPROVED: Textarea instead of input */}
-              <textarea
-                ref={textareaRef}
-                className="chat-input"
-                placeholder={active.isAI ? "Ask me anything about event planning... (Shift+Enter for new line)" : "Type a message..."}
-                value={input}
-                onChange={(e) => {
-                  setInput(e.target.value);
-                  // Auto-resize
-                  e.target.style.height = 'auto';
-                  e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
-                }}
-                onKeyDown={handleKeyDown}
-                disabled={aiLoading}
-                rows={1}
-                style={{
-                  resize: 'none',
-                  minHeight: '44px',
-                  maxHeight: '120px',
-                  overflow: 'auto'
-                }}
-              />
-              <button
-                className="chat-send-btn"
-                onClick={handleSend}
-                disabled={(!input.trim() && !selectedImage) || aiLoading}
-                style={active.isAI ? { 
-                  background: aiLoading ? '#ccc' : 'linear-gradient(135deg, #f59e0b, #ea580c)' 
-                } : {}}
-              >
-                {aiLoading ? '...' : '➤'}
-              </button>
+                )}
+
+                {/* ✅ FIXED: textarea replaces input so Shift+Enter works */}
+                <textarea
+                  ref={textareaRef}
+                  className="chat-input"
+                  rows={1}
+                  placeholder={active.isAI ? "Ask me anything about event planning..." : "Type a message..."}
+                  value={input}
+                  onChange={(e) => { setInput(e.target.value); autoResize(e); }}
+                  onInput={autoResize}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSend();
+                    }
+                    // Shift+Enter: do nothing extra, browser inserts newline naturally
+                  }}
+                  disabled={aiLoading}
+                />
+
+                {/* Send button */}
+                <button
+                  className="chat-send-btn"
+                  onClick={handleSend}
+                  disabled={(!input.trim() && !imagePreview) || aiLoading}
+                  style={active.isAI ? { 
+                    background: ((!input.trim() && !imagePreview) || aiLoading) 
+                      ? undefined 
+                      : 'linear-gradient(135deg, #f59e0b, #ea580c)' 
+                  } : {}}
+                >
+                  {aiLoading ? '...' : <IconSend />}
+                </button>
+              </div>
             </div>
           </>
         )}
       </main>
 
       <style>{`
-        .loading-spinner {
-          width: 3rem;
-          height: 3rem;
-          border: 4px solid #e8ddae;
-          border-top-color: transparent;
-          border-radius: 50%;
-          animation: spin 1s linear infinite;
-          margin: 0 auto 1rem;
-        }
-        
         @keyframes spin {
           to { transform: rotate(360deg); }
         }
-        
-        .thinking-animation {
-          display: flex;
-          align-items: center;
-        }
-        
-        .thinking-dots {
-          display: flex;
-          gap: 4px;
-        }
-        
-        .thinking-dots span {
-          width: 8px;
-          height: 8px;
-          background: #f59e0b;
-          borderRadius: 50%;
-          animation: bounce 1.4s infinite ease-in-out both;
-        }
-        
-        .thinking-dots span:nth-child(1) {
-          animation-delay: -0.32s;
-        }
-        
-        .thinking-dots span:nth-child(2) {
-          animation-delay: -0.16s;
-        }
-        
         @keyframes bounce {
-          0%, 80%, 100% { 
-            transform: scale(0);
-            opacity: 0.5;
-          }
-          40% { 
-            transform: scale(1);
-            opacity: 1;
-          }
-        }
-        
-        .chat-input {
-          font-family: inherit;
-          line-height: 1.5;
+          0%, 60%, 100% { transform: translateY(0); }
+          30% { transform: translateY(-5px); }
         }
       `}</style>
     </div>
