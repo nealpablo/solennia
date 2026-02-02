@@ -263,7 +263,7 @@ export default function MyBookings() {
             const statusColors = getStatusStyle(booking.BookingStatus);
             const canCancel = booking.BookingStatus === "Pending" && !booking.has_pending_reschedule;
             const canReschedule = booking.BookingStatus === "Confirmed" && !booking.has_pending_reschedule;
-            const canLeaveFeedback = booking.BookingStatus === "Completed"; // NEW
+            const canLeaveFeedback = booking.BookingStatus === "Completed" && !booking.has_feedback; 
             
             // Determine display date
             const displayDate = booking.has_pending_reschedule && booking.original_date 
