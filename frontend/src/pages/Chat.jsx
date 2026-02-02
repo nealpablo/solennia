@@ -90,25 +90,15 @@ export default function Chat() {
   const [loading, setLoading] = useState(true);
   const [myRole, setMyRole] = useState(0);
   
-  // ✅ AI Chat State
-  const [aiMessages, setAiMessages] = useState(() => {
-    try {
-      const saved = localStorage.getItem('ai_chat_history');
-      if (saved) {
-        return JSON.parse(saved);
-      }
-    } catch (e) {
-      console.error('Failed to load AI chat history:', e);
-    }
-    
-    return [{
-      id: 'welcome',
-      role: 'assistant',
-      text: "Hello! 👋 I'm Solennia AI, your event planning assistant.\n\nI can help with:\n• Finding vendors\n• Event planning tips\n• Budget advice\n• Creating bookings\n\nHow can I help you today?",
-      ts: Date.now()
-    }];
-  });
+  // ✅ AI Chat State - Initially empty, will load after user ID is known
+  const [aiMessages, setAiMessages] = useState([{
+    id: 'welcome',
+    role: 'assistant',
+    text: "Hello! 👋 I'm Solennia AI, your event planning assistant.\n\nI can help with:\n• Finding vendors\n• Event planning tips\n• Budget advice\n• Creating bookings\n\nHow can I help you today?",
+    ts: Date.now()
+  }]);
   const [aiLoading, setAiLoading] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState(null);
 
   // ✅ Recommendation Form State
   const [showRecForm, setShowRecForm] = useState(false);
@@ -147,14 +137,53 @@ export default function Chat() {
   const hasProcessedAiMessage = useRef(false);
   const textareaRef = useRef(null);
 
-  // ✅ Save AI chat history to localStorage whenever it changes
+  // ✅ Save AI chat history to localStorage with user-specific key
   useEffect(() => {
+    if (!currentUserId) return; // Don't save if no user ID yet
+    
     try {
-      localStorage.setItem('ai_chat_history', JSON.stringify(aiMessages));
+      const key = `ai_chat_history_${currentUserId}`;
+      localStorage.setItem(key, JSON.stringify(aiMessages));
     } catch (e) {
       console.error('Failed to save AI chat history:', e);
     }
-  }, [aiMessages]);
+  }, [aiMessages, currentUserId]);
+
+  // ✅ Load AI chat history when user ID changes
+  useEffect(() => {
+    if (!meUid.current) return;
+    
+    const userId = meUid.current;
+    setCurrentUserId(userId);
+    
+    // Load user-specific AI chat history
+    try {
+      const key = `ai_chat_history_${userId}`;
+      const saved = localStorage.getItem(key);
+      
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        setAiMessages(parsed);
+      } else {
+        // No saved history, use welcome message
+        setAiMessages([{
+          id: 'welcome',
+          role: 'assistant',
+          text: "Hello! 👋 I'm Solennia AI, your event planning assistant.\n\nI can help with:\n• Finding vendors\n• Event planning tips\n• Budget advice\n• Creating bookings\n\nHow can I help you today?",
+          ts: Date.now()
+        }]);
+      }
+    } catch (e) {
+      console.error('Failed to load AI chat history:', e);
+      // On error, reset to welcome message
+      setAiMessages([{
+        id: 'welcome',
+        role: 'assistant',
+        text: "Hello! 👋 I'm Solennia AI, your event planning assistant.\n\nI can help with:\n• Finding vendors\n• Event planning tips\n• Budget advice\n• Creating bookings\n\nHow can I help you today?",
+        ts: Date.now()
+      }]);
+    }
+  }, [loading]); // Run when loading completes (when meUid is set)
 
   // ✅ Handle ai_message from URL (from HomePage search)
   useEffect(() => {
@@ -365,6 +394,12 @@ export default function Chat() {
         headers: { Authorization: `Bearer ${token}` }
       });
       
+      if (!userRes.ok) {
+        // User not found or error - silently skip, don't show error
+        console.log(`User ${firebaseUid} not found in database (404)`);
+        return;
+      }
+      
       if (userRes.ok) {
         const userData = await userRes.json();
         const user = userData.user;
@@ -464,6 +499,12 @@ export default function Chat() {
             headers: { Authorization: `Bearer ${token}` }
           });
           
+          if (!userRes.ok) {
+            // User not found - silently skip
+            console.log(`Thread user ${otherUid} not found in database (404)`);
+            continue;
+          }
+          
           if (userRes.ok) {
             const userData = await userRes.json();
             const user = userData.user;
@@ -547,7 +588,8 @@ export default function Chat() {
       });
       
       if (!res.ok) {
-        toast.error("User not found");
+        console.log(`User ${firebaseUid} not found in database (${res.status})`);
+        toast.error("User not found in database");
         navigate('/chat', { replace: true });
         return;
       }
