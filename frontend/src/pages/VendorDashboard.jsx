@@ -225,16 +225,16 @@ export default function VendorDashboard() {
 
   /* ================= ✅ NEW: BOOKING STATUS BADGE ================= */
   const getStatusBadge = (status) => {
-    const statusMap = {
-      'Pending': 'background: #fef3c7; color: #92400e; border: 1px solid #fbbf24',
-      'Confirmed': 'background: #d1fae5; color: #065f46; border: 1px solid #10b981',
-      'Rejected': 'background: #fee2e2; color: #991b1b; border: 1px solid #ef4444',
-      'Cancelled': 'background: #f3f4f6; color: #374151; border: 1px solid #9ca3af',
-      'Completed': 'background: #dbeafe; color: #1e40af; border: 1px solid #3b82f6',
-    };
-    
-    return statusMap[status] || statusMap['Pending'];
+  const statusMap = {
+    'Pending': { background: '#fef3c7', color: '#92400e', border: '1px solid #fbbf24' },
+    'Confirmed': { background: '#d1fae5', color: '#065f46', border: '1px solid #10b981' },
+    'Rejected': { background: '#fee2e2', color: '#991b1b', border: '1px solid #ef4444' },
+    'Cancelled': { background: '#f3f4f6', color: '#374151', border: '1px solid #9ca3af' },
+    'Completed': { background: '#dbeafe', color: '#1e40af', border: '1px solid #3b82f6' },
   };
+  
+  return statusMap[status] || statusMap['Pending'];
+};
 
   /* ================= LOADING STATE ================= */
   if (loading) {

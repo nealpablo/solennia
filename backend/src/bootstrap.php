@@ -147,7 +147,7 @@ if ($APP_ENV !== 'production') {
 try {
     $capsule->getConnection()->getPdo();
     if ($APP_ENV !== 'production') {
-        error_log('✅ Database connected successfully');
+        error_log('Database connected successfully');
     }
 } catch (\Exception $e) {
     error_log('❌ Database connection failed: ' . $e->getMessage());

@@ -8,18 +8,45 @@ use Src\Middleware\AuthMiddleware;
 
 return function (App $app) {
 
+    // ✅ FIXED: Auto-create missing Firebase users in MySQL
     $app->get('/api/users/{uid}', function (Request $req, Response $res, array $args) {
         $uid = $args['uid'];
         try {
             $user = DB::table('credential')->where('firebase_uid', $uid)->first();
+            
+            // ✅ FIX: If user doesn't exist in MySQL but has Firebase UID, create basic record
+            if (!$user) {
+                error_log("User not found in MySQL for Firebase UID: {$uid}. Auto-creating placeholder...");
+                
+                // Create a placeholder user record
+                DB::table('credential')->insert([
+                    'first_name'   => 'User',
+                    'last_name'    => substr($uid, 0, 8), // Use part of Firebase UID as identifier
+                    'email'        => $uid . '@pending.local', // Temporary email
+                    'username'     => 'user_' . substr($uid, 0, 8),
+                    'firebase_uid' => $uid,
+                    'role'         => 0,
+                    'avatar'       => null,
+                    'is_verified'  => 0, // Mark as not fully registered
+                    'phone'        => null
+                ]);
+                
+                // Fetch the newly created user
+                $user = DB::table('credential')->where('firebase_uid', $uid)->first();
+                
+                error_log("✅ Auto-created user record for Firebase UID: {$uid}");
+            }
+            
             if (!$user) {
                 $res->getBody()->write(json_encode(['success' => false, 'error' => 'User not found']));
                 return $res->withHeader('Content-Type', 'application/json')->withStatus(404);
             }
+            
             $res->getBody()->write(json_encode(['success' => true, 'user' => $user]));
             return $res->withHeader('Content-Type', 'application/json');
         } catch (\Throwable $e) {
-            $res->getBody()->write(json_encode(['success' => false, 'error' => 'Server error']));
+            error_log("❌ Error in /api/users/{uid}: " . $e->getMessage());
+            $res->getBody()->write(json_encode(['success' => false, 'error' => 'Server error: ' . $e->getMessage()]));
             return $res->withHeader('Content-Type', 'application/json')->withStatus(500);
         }
     });

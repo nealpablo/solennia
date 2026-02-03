@@ -116,33 +116,24 @@ try {
 }
 
 // -------------------------------------------------------------
-// Routes with Enhanced Logging
+// Routes Loader
 // -------------------------------------------------------------
 $loadRoutes = function (string $rel) use ($app) {
     $file = BASE_PATH . $rel;
-    
-    // Log the attempt
-    error_log("Attempting to load route file: {$file}");
-    
+
     if (!is_file($file)) {
-        error_log("ERROR: Route file not found: {$file}");
-        return; // Don't throw, just skip
+        return;
     }
-    
-    error_log("Successfully found route file: {$file}");
-    
+
     try {
         $ret = require $file;
         if (is_callable($ret)) {
             $ret($app);
-            error_log("Route file loaded successfully: {$file}");
-        } else {
-            error_log("WARNING: Route file did not return a callable: {$file}");
         }
     } catch (Throwable $e) {
-        error_log("ERROR loading route file {$file}: " . $e->getMessage());
     }
 };
+
 
 // Load all routes (don't let one fail all others)
 $loadRoutes('/src/Routes/authRoutes.php');
@@ -156,6 +147,7 @@ $loadRoutes('/src/Routes/chatRoutes.php');
 $loadRoutes('/src/Routes/usernameResolverRoutes.php');
 $loadRoutes('/src/Routes/bookingRoutes.php');
 $loadRoutes('/src/Routes/availabilityRoutes.php');
+$loadRoutes('/src/Routes/aiRoutes.php');
 
 error_log("All route files loaded");
 

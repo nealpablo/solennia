@@ -334,6 +334,15 @@ export default function Header() {
                 </li>
                 <li>
                   <Link
+                    to="/ai-assistant"
+                    onClick={closeMobileMenu}
+                    className="block px-4 py-3 rounded-lg hover:bg-[#e8ddae] transition-colors flex items-center gap-2"
+                  >
+                    <span className="text-amber-600">✨</span> AI ASSISTANT
+                  </Link>
+                </li>
+                <li>
+                  <Link
                     to="/about"
                     onClick={closeMobileMenu}
                     className="block px-4 py-3 rounded-lg hover:bg-[#e8ddae] transition-colors"
