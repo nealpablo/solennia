@@ -35,7 +35,7 @@ if ($APP_ENV !== 'production' && is_file($ROOT . '/.env')) {
  */
 $driver = 'mysql';
 
-/** 1️⃣ Railway MySQL variables (PRIMARY) */
+/** Railway MySQL variables (PRIMARY) */
 $host = envx('MYSQLHOST');
 $db   = envx('MYSQLDATABASE');
 $user = envx('MYSQLUSER');
@@ -82,7 +82,7 @@ if (!$host || !$db || !$user) {
  */
 $capsule = new Capsule();
 
-// ✅ FIXED: PDO options (removed persistent connection for local dev)
+// PDO options (removed persistent connection for local dev)
 $pdoOptions = [
     // ✅ CHANGED: Disable persistent connections locally (prevents connection exhaustion)
     PDO::ATTR_PERSISTENT => ($APP_ENV === 'production'),
@@ -92,11 +92,11 @@ $pdoOptions = [
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_OBJ,
     PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci",
     
-    // ✅ IMPROVED: Timeout settings
+    // Timeout settings
     PDO::ATTR_TIMEOUT => 10, // Increased from 5 to 10 seconds
 ];
 
-// ✅ IMPROVED: Conditional timeout settings
+// Conditional timeout settings
 if (defined('PDO::MYSQL_ATTR_READ_TIMEOUT')) {
     $pdoOptions[PDO::MYSQL_ATTR_READ_TIMEOUT] = 15; // Increased from 10 to 15
 }
@@ -104,7 +104,7 @@ if (defined('PDO::MYSQL_ATTR_WRITE_TIMEOUT')) {
     $pdoOptions[PDO::MYSQL_ATTR_WRITE_TIMEOUT] = 15; // Increased from 10 to 15
 }
 
-// ✅ IMPROVED: Connection pooling settings
+// Connection pooling settings
 $connectionConfig = [
     'driver'    => $driver,
     'host'      => $host,
@@ -117,13 +117,13 @@ $connectionConfig = [
     'prefix'    => '',
     'options'   => $pdoOptions,
     
-    // ✅ IMPROVED: Connection management
+    // Connection management
     'sticky' => true,
     'read' => ['host' => [$host]],
     'write' => ['host' => [$host]],
 ];
 
-// ✅ NEW: Add connection pooling for production
+// Add connection pooling for production
 if ($APP_ENV === 'production') {
     $connectionConfig['pool'] = [
         'min' => 2,
@@ -136,13 +136,13 @@ $capsule->addConnection($connectionConfig);
 $capsule->setAsGlobal();
 $capsule->bootEloquent();
 
-// ✅ IMPROVED: Query logging only in development
+// Query logging only in development
 if ($APP_ENV !== 'production') {
     $capsule->getConnection()->enableQueryLog();
 }
 
 /**
- * ✅ NEW: Test database connection on boot
+ * Test database connection on boot
  */
 try {
     $capsule->getConnection()->getPdo();
@@ -155,7 +155,7 @@ try {
 }
 
 /**
- * ✅ IMPROVED: Timezone with validation
+ * Timezone with validation
  */
 $timezone = envx('APP_TIMEZONE', 'Asia/Manila'); // Changed default to match your .env
 try {
@@ -166,7 +166,42 @@ try {
 }
 
 /**
- * ✅ IMPROVED: Firebase config with validation
+ * Sync MySQL timezone with PHP timezone
+ * This ensures NOW(), CURDATE(), etc. in MySQL match PHP's time() and date()
+ */
+try {
+    $currentTimezone = date_default_timezone_get();
+    
+    // Convert PHP timezone to MySQL offset
+    $now = new DateTime('now', new DateTimeZone($currentTimezone));
+    $offset = $now->format('P'); // e.g., +08:00 for Manila
+    
+    // Set MySQL session timezone to match PHP
+    Capsule::statement("SET time_zone = '{$offset}'");
+    
+    if ($APP_ENV !== 'production') {
+        // Verify the sync worked
+        $mysqlTime = Capsule::selectOne('SELECT NOW() as now')->now;
+        $phpTime = date('Y-m-d H:i:s');
+        
+        error_log(" MySQL timezone synchronized to {$offset} ({$currentTimezone})");
+        error_log("   PHP time:   {$phpTime}");
+        error_log("   MySQL time: {$mysqlTime}");
+        
+        // Warn if times differ by more than 2 seconds
+        $diff = abs(strtotime($mysqlTime) - strtotime($phpTime));
+        if ($diff > 2) {
+            error_log("⚠️ WARNING: PHP and MySQL times differ by {$diff} seconds!");
+        }
+    }
+} catch (\Exception $e) {
+    error_log("❌ Failed to sync MySQL timezone: " . $e->getMessage());
+    error_log("⚠️ Database times may be in UTC instead of {$timezone}");
+    error_log("⚠️ This may cause booking validation issues!");
+}
+
+/**
+ *  Firebase config with validation
  */
 $firebaseApiKey = envx('FIREBASE_API_KEY');
 $firebaseProjectId = envx('FIREBASE_PROJECT_ID');
