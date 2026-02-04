@@ -1061,7 +1061,7 @@ const handleVendorFileChange = (e, fileType) => {
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex justify-between items-center p-6 border-b border-gray-300 bg-[#e8ddae] sticky top-0 z-10">
-            <h2 className="text-lg font-semibold">Register</h2>
+            <h2 className="text-lg font-semibold">Sign Up</h2>
             <button 
               onClick={closeAll}
               className="text-2xl font-light hover:text-gray-600" 
@@ -1228,7 +1228,7 @@ const handleVendorFileChange = (e, fileType) => {
               type="submit"
               className="w-full bg-[#e8ddae] hover:bg-[#dbcf9f] text-sm font-semibold uppercase py-2 rounded"
             >
-              Register
+              submit
             </button>
 
             <p className="text-center text-sm">
@@ -1824,7 +1824,7 @@ const handleVendorFileChange = (e, fileType) => {
                   </div>
                   <div className="bg-gray-50 rounded-lg p-3 flex items-start space-x-2">
                     <span className="text-green-600 mt-0.5">✓</span>
-                    <span>Matching clients with suitable vendors</span>
+                    <span>Matching clients with suitable suppliers</span>
                   </div>
                   <div className="bg-gray-50 rounded-lg p-3 flex items-start space-x-2">
                     <span className="text-green-600 mt-0.5">✓</span>
@@ -2148,7 +2148,7 @@ const handleVendorFileChange = (e, fileType) => {
                   4
                 </div>
                 <h3 className="text-lg font-bold text-gray-900 uppercase tracking-wide">
-                  Vendor Standards
+                  Supplier Standards
                 </h3>
               </div>
               <div className="pl-13 text-sm text-gray-700 leading-relaxed">

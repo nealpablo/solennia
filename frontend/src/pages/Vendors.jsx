@@ -65,7 +65,7 @@ export default function Vendors() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-[#e8ddae] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-gray-600">Loading vendors...</p>
+          <p className="text-gray-600">Loading Suppliers...</p>
         </div>
       </div>
     );
@@ -119,7 +119,7 @@ export default function Vendors() {
           <h3 className="text-xl font-semibold text-gray-700 mb-2">
             {filter === "all" ? "No Vendors Available Yet" : `No ${filter} Vendors Available`}
           </h3>
-          <p className="text-gray-500">Check back soon for amazing vendor listings.</p>
+          <p className="text-gray-500">Check back soon for amazing Supplier listings.</p>
         </div>
       ) : (
         <>
@@ -315,7 +315,7 @@ function VendorCard({ vendor, navigate }) {
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
           </svg>
-          Chat Vendor
+          Chat Supplier
         </button>
       </div>
     </div>

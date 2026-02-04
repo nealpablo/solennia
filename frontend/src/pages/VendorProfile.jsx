@@ -249,7 +249,7 @@ export default function VendorProfile() {
           fontSize: '1.2rem',
           color: '#666'
         }}>
-          Vendor not found
+          Supplier not found
         </div>
       </>
     );
@@ -394,7 +394,7 @@ export default function VendorProfile() {
           {/* NO AVAILABILITY MESSAGE */}
           {upcomingAvailability.length === 0 && !loadingAvailability && (
             <div className="no-availability">
-              <p>📅 This vendor hasn't set their availability yet. Please contact them directly to check availability.</p>
+              <p>📅 This Supplier hasn't set their availability yet. Please contact them directly to check availability.</p>
             </div>
           )}
           

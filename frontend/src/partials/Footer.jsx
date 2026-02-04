@@ -29,12 +29,12 @@ export default function Footer() {
             “One click closer to the perfect event.”
           </p>
 
-          <p className="text-[0.7rem] text-[#c9bda4]">
-            © 2025 Solennia. All rights reserved.
-          </p>
-
           <p className="text-xs">
             solenniainquires@gmail.com
+          </p>
+
+          <p className="text-[0.7rem] text-[#c9bda4]">
+            © 2025 Solennia. All rights reserved.
           </p>
         </div>
 
@@ -65,7 +65,7 @@ export default function Footer() {
 
           <li>
             <Link to="/vendors" className="hover:underline hover:text-[#f2e7c6] transition-colors">
-              Explore Vendors
+              Explore Suppliers
             </Link>
           </li>
 

@@ -283,7 +283,7 @@ export default function Header() {
                   onClick={openRegisterModal}
                   className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
                 >
-                  Register
+                  Sign Up
                 </button>
 
                 <button
@@ -291,7 +291,7 @@ export default function Header() {
                   className="hidden w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
                   onClick={() => window.solenniaLogout && window.solenniaLogout()}
                 >
-                  Logout
+                  Log out
                 </button>
               </div>
             </div>
@@ -381,7 +381,7 @@ export default function Header() {
                         }}
                         className="w-full text-left px-4 py-3 rounded-lg hover:bg-[#e8ddae] transition-colors"
                       >
-                        Logout
+                        Log out
                       </button>
                     </li>
                   </>
