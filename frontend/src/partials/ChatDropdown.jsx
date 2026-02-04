@@ -280,7 +280,7 @@ export default function ChatDropdown() {
                 </svg>
                 <p>No messages yet</p>
                 <p style={{ fontSize: '0.75rem', marginTop: '0.5rem', color: '#999' }}>
-                  Visit the Vendors page to start chatting
+                  Visit the Suppliers page to start chatting
                 </p>
               </div>
             ) : (
@@ -306,7 +306,7 @@ export default function ChatDropdown() {
                         <span className="role-badge admin-badge">ADMIN</span>
                       )}
                       {conv.role === 1 && (
-                        <span className="role-badge vendor-badge">VENDOR</span>
+                        <span className="role-badge vendor-badge">Supplier</span>
                       )}
                     </div>
                     <div className="chat-dropdown-message">

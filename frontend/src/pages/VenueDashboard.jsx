@@ -65,19 +65,19 @@ export default function VenueDashboard() {
       const data = await res.json();
       
       if (!data.success) {
-        toast.warning("Please apply as a vendor first");
+        toast.warning("Please apply as a supplier first");
         navigate("/profile");
         return;
       }
 
       if (data.category?.toLowerCase() !== "venue") {
-        toast.error("Access denied - This page is for venue vendors only");
+        toast.error("Access denied - This page is for venue suppliers only");
         navigate("/vendor-dashboard");
         return;
       }
 
       if (data.status !== "approved") {
-        toast.warning("Your venue vendor application is still pending approval");
+        toast.warning("Your venue supplier application is still pending approval");
         navigate("/profile");
         return;
       }
@@ -86,8 +86,8 @@ export default function VenueDashboard() {
       loadMyListings();
       
     } catch (err) {
-      console.error("Failed to check vendor status:", err);
-      toast.error("Error checking vendor status");
+      console.error("Failed to check supplier status:", err);
+      toast.error("Error checking supplier status");
       navigate("/");
     }
   };
@@ -561,7 +561,7 @@ export default function VenueDashboard() {
 
       {/* Welcome Card */}
       <div className="welcome-card">
-        <h2>Welcome, Venue Vendor!</h2>
+        <h2>Welcome, Venue Supplier!</h2>
         <p>Create stunning venue listings with a logo and gallery images to showcase your space.</p>
         <button onClick={() => setShowCreateListing(true)} className="btn btn-primary">
           ➕ Create New Venue Listing

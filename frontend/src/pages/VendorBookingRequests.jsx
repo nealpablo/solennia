@@ -22,7 +22,7 @@ export default function VendorBookingRequests() {
     // Check if user is a vendor
     const role = Number(localStorage.getItem("solennia_role") || 0);
     if (role !== 1) {
-      toast.error("Access denied. Vendors only.");
+      toast.error("Access denied. Suppliers only.");
       navigate("/");
       return;
     }

@@ -650,7 +650,7 @@ export default function Profile() {
       
       if (res.status === 409 && data.conflict) {
         toast.error(
-          data.message || "This vendor is already booked for the selected date and time.",
+          data.message || "This Supplier is already booked for the selected date and time.",
           { duration: 10000 }
         );
         return;
@@ -661,7 +661,7 @@ export default function Profile() {
       }
       
       toast.success(
-        "Reschedule request sent successfully! Your booking status has changed to Pending. The vendor will review and approve/reject your new schedule.",
+        "Reschedule request sent successfully! Your booking status has changed to Pending. The Supplier will review and approve/reject your new schedule.",
         { duration: 8000 }
       );
       
@@ -894,7 +894,7 @@ export default function Profile() {
       return;
     }
     if (role !== 0) {
-      toast.warning("You cannot apply as vendor.");
+      toast.warning("You cannot apply as Supplier.");
       return;
     }
     document.getElementById("vendorTerms")?.classList.remove("hidden");
@@ -1211,7 +1211,7 @@ export default function Profile() {
                                     <p className="text-xs text-yellow-700 mb-2">
                                       {role === 1 
                                         ? 'Client has requested a new schedule. Review below.' 
-                                        : 'Vendor is reviewing your reschedule request.'}
+                                        : 'Supplier is reviewing your reschedule request.'}
                                     </p>
                                     <div className="bg-white border border-yellow-200 rounded p-2 mt-2">
                                       <p className="text-xs text-gray-700">
@@ -1563,7 +1563,7 @@ export default function Profile() {
 
                 {role === 0 && (
                   <div>
-                    <label className="text-sm font-semibold text-gray-600">Vendor</label>
+                    <label className="text-sm font-semibold text-gray-600">Supplier</label>
                     <p>{selectedBooking.vendor_name}</p>
                   </div>
                 )}
@@ -1699,7 +1699,7 @@ export default function Profile() {
                   <div>
                     <p className="text-sm font-semibold text-amber-900">Note:</p>
                     <p className="text-xs text-amber-800 mt-1">
-                      Your booking status will change to "Pending" after rescheduling. The vendor must approve your new schedule.
+                      Your booking status will change to "Pending" after rescheduling. The Supplier must approve your new schedule.
                     </p>
                   </div>
                 </div>
@@ -1745,7 +1745,7 @@ export default function Profile() {
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-6 flex gap-3">
                 <span className="text-xl">ℹ️</span>
                 <p className="text-sm text-blue-800">
-                  The vendor will be notified of your reschedule request and must approve the new date and time.
+                  The Supplier will be notified of your reschedule request and must approve the new date and time.
                 </p>
               </div>
 

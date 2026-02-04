@@ -94,7 +94,7 @@ export default function Chat() {
   const [aiMessages, setAiMessages] = useState([{
     id: 'welcome',
     role: 'assistant',
-    text: "Hello! 👋 I'm Solennia AI, your event planning assistant.\n\nI can help with:\n• Finding vendors\n• Event planning tips\n• Budget advice\n• Creating bookings\n\nHow can I help you today?",
+    text: "Hello! 👋 I'm Solennia AI, your event planning assistant.\n\nI can help with:\n• Finding Suppliers\n• Event planning tips\n• Budget advice\n• Creating bookings\n\nHow can I help you today?",
     ts: Date.now()
   }]);
   const [aiLoading, setAiLoading] = useState(false);
@@ -169,7 +169,7 @@ export default function Chat() {
         setAiMessages([{
           id: 'welcome',
           role: 'assistant',
-          text: "Hello! 👋 I'm Solennia AI, your event planning assistant.\n\nI can help with:\n• Finding vendors\n• Event planning tips\n• Budget advice\n• Creating bookings\n\nHow can I help you today?",
+          text: "Hello! 👋 I'm Solennia AI, your event planning assistant.\n\nI can help with:\n• Finding Suppliers\n• Event planning tips\n• Budget advice\n• Creating bookings\n\nHow can I help you today?",
           ts: Date.now()
         }]);
       }
@@ -179,7 +179,7 @@ export default function Chat() {
       setAiMessages([{
         id: 'welcome',
         role: 'assistant',
-        text: "Hello! 👋 I'm Solennia AI, your event planning assistant.\n\nI can help with:\n• Finding vendors\n• Event planning tips\n• Budget advice\n• Creating bookings\n\nHow can I help you today?",
+        text: "Hello! 👋 I'm Solennia AI, your event planning assistant.\n\nI can help with:\n• Finding Suppliers\n• Event planning tips\n• Budget advice\n• Creating bookings\n\nHow can I help you today?",
         ts: Date.now()
       }]);
     }
@@ -263,7 +263,7 @@ export default function Chat() {
       const response = await apiPost('/ai/recommendations', recForm);
 
       if (response.success) {
-        let recMessage = `🎯 **Vendor Recommendations for your ${recForm.event_type}**\n\n`;
+        let recMessage = `🎯 **Supplier Recommendations for your ${recForm.event_type}**\n\n`;
         
         if (response.summary) {
           recMessage += response.summary + '\n\n';
@@ -279,7 +279,7 @@ export default function Chat() {
             recMessage += '\n';
           });
         } else {
-          recMessage += 'No vendors found matching your criteria. Try broadening your search.';
+          recMessage += 'No Suppliers found matching your criteria. Try broadening your search.';
         }
 
         if (response.tips?.length > 0) {
@@ -313,7 +313,7 @@ export default function Chat() {
     setAiMessages([{
       id: 'welcome',
       role: 'assistant',
-      text: "Hello! 👋 I'm Solennia AI, your event planning assistant.\n\nI can help with:\n• Finding vendors\n• Event planning tips\n• Budget advice\n• Creating bookings\n\nHow can I help you today?",
+      text: "Hello! 👋 I'm Solennia AI, your event planning assistant.\n\nI can help with:\n• Finding Suppliers\n• Event planning tips\n• Budget advice\n• Creating bookings\n\nHow can I help you today?",
       ts: Date.now()
     }]);
     localStorage.removeItem('ai_chat_history');
@@ -419,7 +419,7 @@ export default function Chat() {
               avatar = vendorData.vendor?.vendor_logo || avatar;
             }
           } catch (e) {
-            console.log("Could not fetch vendor info");
+            console.log("Could not fetch supplier info");
           }
         }
         
@@ -483,7 +483,7 @@ export default function Chat() {
                 avatar = vendorData.vendor?.vendor_logo || avatar;
               }
             } catch (e) {
-              console.log("Could not fetch vendor info for MySQL contact");
+              console.log("Could not fetch supplier info for MySQL contact");
             }
           }
           
@@ -538,7 +538,7 @@ export default function Chat() {
                   avatar = vendorData.vendor?.vendor_logo || avatar;
                 }
               } catch (e) {
-                console.log("Could not fetch vendor info");
+                console.log("Could not fetch supplier info");
               }
             }
             
@@ -936,7 +936,7 @@ export default function Chat() {
           {contacts.length === 0 ? (
             <div className="empty-state">
               <p style={{ textAlign: 'center', padding: '2rem 1rem', color: '#666', fontSize: '0.875rem' }}>
-                {myRole === 0 ? "Visit Vendors/Venue pages to start chatting." : 
+                {myRole === 0 ? "Visit Suppliers/Venue pages to start chatting." : 
                  myRole === 1 ? "Clients will appear when they message you." : 
                  "Users will appear when they message you."}
               </p>
@@ -966,7 +966,7 @@ export default function Chat() {
                         <span className="role-badge admin-badge">ADMIN</span>
                       )}
                       {contact.role === 1 && (
-                        <span className="role-badge vendor-badge">VENDOR</span>
+                        <span className="role-badge vendor-badge">SUPPLIER</span>
                       )}
                     </div>
                     
@@ -1072,7 +1072,7 @@ export default function Chat() {
             {/* ✅ Recommendation Form */}
             {showRecForm && active.isAI && (
               <div style={{ padding: '1rem', background: '#fef9e7', borderBottom: '1px solid #f0e6c8' }}>
-                <h4 style={{ marginBottom: '1rem', color: '#92400e', fontWeight: '600' }}>🎯 Get Vendor Recommendations</h4>
+                <h4 style={{ marginBottom: '1rem', color: '#92400e', fontWeight: '600' }}>🎯 Get Supplier Recommendations</h4>
                 <form onSubmit={handleGetRecommendations} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.75rem' }}>
                   <div>
                     <label style={{ fontSize: '0.75rem', color: '#666', display: 'block', marginBottom: '0.25rem' }}>Event Type *</label>
@@ -1142,7 +1142,7 @@ export default function Chat() {
                   </div>
                   
                   <div>
-                    <label style={{ fontSize: '0.75rem', color: '#666', display: 'block', marginBottom: '0.25rem' }}>Vendor Category</label>
+                    <label style={{ fontSize: '0.75rem', color: '#666', display: 'block', marginBottom: '0.25rem' }}>Supplier Category</label>
                     <select
                       value={recForm.category}
                       onChange={(e) => setRecForm({ ...recForm, category: e.target.value })}

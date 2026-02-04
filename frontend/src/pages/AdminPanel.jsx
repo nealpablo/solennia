@@ -337,7 +337,7 @@ export default function AdminPanel() {
         {/* ✅ TABS NAVIGATION - FAQ tab is the 5th button */}
         <div className="tab-buttons">
           <button className={`tab-btn ${activeTab === "vendors" ? "active" : ""}`} onClick={() => setActiveTab("vendors")}>
-            Vendor Applications
+            Supplier Applications
             {vendorApps.length > 0 && <span className="badge pending">{vendorApps.length}</span>}
           </button>
           <button className={`tab-btn ${activeTab === "venues" ? "active" : ""}`} onClick={() => setActiveTab("venues")}>
@@ -362,7 +362,7 @@ export default function AdminPanel() {
 
         {activeTab === "vendors" && (
           <>
-            <h2 className="text-2xl font-semibold mb-4">Vendor Applications</h2>
+            <h2 className="text-2xl font-semibold mb-4">Supplier Applications</h2>
             <p className="text-gray-600 mb-6">Service providers (Photography, Catering, Styling, etc.)</p>
 
             <div className="table-container">
@@ -382,7 +382,7 @@ export default function AdminPanel() {
                 </thead>
                 <tbody>
                   {vendorApps.length === 0 ? (
-                    <tr><td colSpan="9" className="text-center py-4">No pending vendor applications</td></tr>
+                    <tr><td colSpan="9" className="text-center py-4">No pending Supplier applications</td></tr>
                   ) : (
                     vendorApps.map((a) => {
                       const fullName = [a.first_name, a.last_name].filter(Boolean).join(" ") || a.username || "-";

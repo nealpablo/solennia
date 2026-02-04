@@ -54,7 +54,7 @@ export default function VendorProfile() {
 
         setVendor(json.vendor);
       } catch (err) {
-        toast.error("Unable to load vendor.");
+        toast.error("Unable to load supplier.");
         navigate("/vendors");
       } finally {
         setLoading(false);
@@ -192,7 +192,7 @@ export default function VendorProfile() {
     const vendorUserId = vendor.UserID || vendor.user_id || vendor.id;
 
     if (!vendorUserId) {
-      toast.error("Unable to identify vendor. Please try again.");
+      toast.error("Unable to identify supplier. Please try again.");
       return;
     }
 

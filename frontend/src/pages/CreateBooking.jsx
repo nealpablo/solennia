@@ -90,7 +90,7 @@ export default function CreateBooking() {
     }
 
     if (!vendorUserId || !vendorName) {
-      toast.error("Vendor information missing");
+      toast.error("Supplier information missing");
       navigate("/vendors");
       return;
     }
@@ -470,7 +470,7 @@ export default function CreateBooking() {
       if (response.status === 409 && data.conflict) {
         toast.error(
           data.message || 
-          "This vendor is already booked for the selected date and time. Please choose a different schedule.",
+          "This Supplier is already booked for the selected date and time. Please choose a different schedule.",
           { duration: 10000 }
         );
         setCurrentStep(1);
@@ -1040,7 +1040,7 @@ export default function CreateBooking() {
           <div style={styles.stepContent}>
             <h2 style={styles.stepTitle}>Step 1: Event Details</h2>
             <p style={styles.stepDescription}>
-              Tell us about your event. This helps the vendor prepare the best service for you.
+              Tell us about your event. This helps the supplier prepare the best service for you.
             </p>
 
             {/* Event Type Selection */}
@@ -1176,7 +1176,7 @@ export default function CreateBooking() {
               Step 2: {eventData.event_type} Information
             </h2>
             <p style={styles.stepDescription}>
-              Provide specific details for your {eventData.event_type.toLowerCase()} so the vendor can better prepare.
+              Provide specific details for your {eventData.event_type.toLowerCase()} so the supplier can better prepare.
             </p>
 
             {/* Contact Information (Common for all) */}
@@ -1317,7 +1317,7 @@ export default function CreateBooking() {
                   name="special_requests"
                   value={eventSpecificData.special_requests}
                   onChange={handleEventSpecificChange}
-                  placeholder="Any other details the vendor should know..."
+                  placeholder="Any other details the supplier should know..."
                   rows="4"
                   style={styles.textarea}
                 />

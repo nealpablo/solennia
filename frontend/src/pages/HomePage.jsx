@@ -112,7 +112,7 @@ export default function HomePage() {
           <div className="relative">
             <input
               type="text"
-              placeholder="Ask about weddings, vendors, budgets..."
+              placeholder="Ask about weddings, suppliers, budgets..."
               value={aiQuery}
               onChange={(e) => setAiQuery(e.target.value)}
               onKeyDown={handleAISearch}

@@ -256,8 +256,8 @@ export default function VendorDashboard() {
   if (!vendor) {
     return (
       <div className="vendor-dashboard" style={{ textAlign: "center", padding: "100px 20px" }}>
-        <h2>Vendor profile not found</h2>
-        <p>Please make sure you're logged in as an approved vendor.</p>
+        <h2>Supplier profile not found</h2>
+        <p>Please make sure you're logged in as an approved Supplier.</p>
         <button 
           onClick={() => navigate("/profile")}
           style={{

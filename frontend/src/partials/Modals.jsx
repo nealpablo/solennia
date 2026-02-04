@@ -888,7 +888,7 @@ const handleVendorFileChange = (e, fileType) => {
 
   const token = localStorage.getItem("solennia_token");
   if (!token) {
-    toast.warning("Please login to apply as a vendor.");
+    toast.warning("Please login to apply as a supplier.");
     setVendorLoading(false);
     return;
   }
@@ -936,14 +936,14 @@ const handleVendorFileChange = (e, fileType) => {
       throw new Error(data.error || data.message || "Application failed");
     }
 
-    toast.success("Vendor application submitted successfully!");
+    toast.success("Supplier application submitted successfully!");
     closeAllVendorModals();
 
     setTimeout(() => window.location.reload(), 1500);
 
   } catch (err) {
     console.error("Vendor application error:", err);
-    toast.error(err.message || "Vendor application failed");
+    toast.error(err.message || "Supplier application failed");
   } finally {
     setVendorLoading(false);
   }
@@ -1795,7 +1795,7 @@ const handleVendorFileChange = (e, fileType) => {
                   </div>
                   <div className="flex items-start space-x-2">
                     <span className="text-[#7a5d47] mt-0.5">•</span>
-                    <p><strong className="text-gray-900">Business Information:</strong> For vendors - business name, service categories, descriptions, portfolio images, and verification documents</p>
+                    <p><strong className="text-gray-900">Business Information:</strong> For suppliers - business name, service categories, descriptions, portfolio images, and verification documents</p>
                   </div>
                   <div className="flex items-start space-x-2">
                     <span className="text-[#7a5d47] mt-0.5">•</span>
@@ -2127,13 +2127,13 @@ const handleVendorFileChange = (e, fileType) => {
                       <p className="font-bold mb-2">Important Notice:</p>
                       <p>
                         Solennia operates solely as an <strong>intermediary platform</strong>. We facilitate connections 
-                        between users and vendors but do not participate in, control, or guarantee any transactions, 
+                        between users and suppliers but do not participate in, control, or guarantee any transactions, 
                         agreements, payments, or service outcomes.
                       </p>
                       <p className="mt-2">
                         All negotiations, contracts, and service arrangements are entered into directly between users 
-                        and vendors. Solennia shall not be held liable for disputes, losses, damages, delays, or 
-                        dissatisfaction arising from services provided by vendors.
+                        and suppliers. Solennia shall not be held liable for disputes, losses, damages, delays, or 
+                        dissatisfaction arising from services provided by suppliers.
                       </p>
                     </div>
                   </div>
@@ -2153,7 +2153,7 @@ const handleVendorFileChange = (e, fileType) => {
               </div>
               <div className="pl-13 text-sm text-gray-700 leading-relaxed">
                 <p className="mb-3">
-                  Vendors listed on Solennia are expected to maintain professional conduct, provide accurate 
+                  suppliers listed on Solennia are expected to maintain professional conduct, provide accurate 
                   information, and communicate transparently with users.
                 </p>
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4">

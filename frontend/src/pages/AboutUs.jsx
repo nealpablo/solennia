@@ -157,7 +157,7 @@ export default function AboutUs() {
       and execute events with confidence and efficiency.
     </p>
     <p>
-      From discovering reliable vendors to managing event details in one place, 
+      From discovering reliable Suppliers to managing event details in one place, 
       Solennia serves as your digital partner—where creativity, organization, and convenience meet.
     </p>
   </div>
@@ -171,7 +171,7 @@ export default function AboutUs() {
   <div className="mt-4 space-y-4 text-sm md:text-base leading-relaxed">
     <div>
       <p className="font-semibold text-base md:text-lg">
-        Curated Event Vendor Marketplace
+        Curated Event Supplier Marketplace
       </p>
       <p>
         Discover verified event service providers including venues, caterers,
@@ -186,7 +186,7 @@ export default function AboutUs() {
       </p>
       <p>
         Access planning tools such as task trackers, scheduling aids, budgeting
-        features, and vendor coordination tools through a unified dashboard.
+        features, and Supplier coordination tools through a unified dashboard.
       </p>
     </div>
 
@@ -226,7 +226,7 @@ export default function AboutUs() {
       loading="lazy"
     />
     <figcaption className="p-3 text-xs text-gray-700">
-      Solennia connects clients and trusted vendors.
+      Solennia connects clients and trusted Suppliers.
     </figcaption>
   </figure>
 
@@ -239,7 +239,7 @@ export default function AboutUs() {
       loading="lazy"
     />
     <figcaption className="p-3 text-xs text-gray-700">
-      Vendors showcase portfolios and grow their business.
+      Suppliers showcase portfolios and grow their business.
     </figcaption>
   </figure>
 

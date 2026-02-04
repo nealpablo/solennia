@@ -329,7 +329,7 @@ export default function Header() {
                     onClick={closeMobileMenu}
                     className="block px-4 py-3 rounded-lg hover:bg-[#e8ddae] transition-colors"
                   >
-                    VENDORS
+                    SUPPLIERS
                   </Link>
                 </li>
                 <li>

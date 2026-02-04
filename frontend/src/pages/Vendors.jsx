@@ -180,7 +180,7 @@ function VendorCard({ vendor, navigate }) {
     
     if (!firebaseUid) {
       console.error("Vendor missing firebase_uid:", vendor);
-      toast.error("Unable to start chat with this vendor");
+      toast.error("Unable to start chat with this Supplier");
       return;
     }
 
@@ -211,7 +211,7 @@ function VendorCard({ vendor, navigate }) {
     console.log("Booking vendor - UserID:", vendorUserId, "Name:", vendorName); // Debug log
 
     if (!vendorUserId) {
-      toast.error("Unable to identify vendor. Please try again.");
+      toast.error("Unable to identify supplier. Please try again.");
       console.error("Vendor missing UserID:", vendor);
       return;
     }

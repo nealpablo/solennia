@@ -151,7 +151,7 @@ export default function MyBookings() {
       const data = await res.json();
       
       if (res.status === 409 && data.conflict) {
-        toast.error("Vendor unavailable for that date/time", { duration: 8000 });
+        toast.error("Supplier unavailable for that date/time", { duration: 8000 });
         return;
       }
       
@@ -159,7 +159,7 @@ export default function MyBookings() {
         throw new Error(data.error || "Failed to reschedule");
       }
       
-      toast.success("Reschedule request sent! Waiting for vendor approval.", { duration: 6000 });
+      toast.success("Reschedule request sent! Waiting for Supplier approval.", { duration: 6000 });
       
       setShowRescheduleModal(false);
       setRescheduleBooking(null);
@@ -254,7 +254,7 @@ export default function MyBookings() {
             {filter === "all" ? "You haven't made any bookings yet." : `No ${filter.toLowerCase()} bookings found.`}
           </p>
           <button onClick={() => navigate("/vendors")} style={styles.browseButton}>
-            Browse Vendors
+            Browse Suppliers
           </button>
         </div>
       ) : (
@@ -283,7 +283,7 @@ export default function MyBookings() {
                   <div>
                     <h3 style={styles.cardTitle}>{booking.ServiceName}</h3>
                     <p style={styles.cardVendor}>
-                      Vendor: <strong>{booking.vendor_name || "Unknown"}</strong>
+                      Supplier: <strong>{booking.vendor_name || "Unknown"}</strong>
                     </p>
                   </div>
                   <span
@@ -382,7 +382,7 @@ export default function MyBookings() {
                           </div>
                         </div>
                         <p style={styles.waitingMessage}>
-                          ⏳ Waiting for vendor to approve your reschedule request...
+                          ⏳ Waiting for Supplier to approve your reschedule request...
                         </p>
                       </div>
                     </div>
@@ -549,7 +549,7 @@ export default function MyBookings() {
                   <p style={styles.warningTitle}>Note:</p>
                   <p style={styles.warningText}>
                     Booking status will change to "Pending" after rescheduling. 
-                    Vendor must approve your new schedule.
+                    Supplier must approve your new schedule.
                   </p>
                 </div>
               </div>
@@ -588,7 +588,7 @@ export default function MyBookings() {
                 <div style={styles.infoBox}>
                   <span style={styles.infoIcon}>ℹ️</span>
                   <p style={styles.infoText}>
-                    Vendor will be notified and must approve the new date and time.
+                    Supplier will be notified and must approve the new date and time.
                   </p>
                 </div>
 

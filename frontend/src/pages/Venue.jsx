@@ -78,7 +78,7 @@ export default function Venue() {
     }
 
     if (!isVenueVendor) {
-      toast.warning("Only approved venue vendors can create listings");
+      toast.warning("Only approved venue Suppliers can create listings");
       return;
     }
 
@@ -231,7 +231,7 @@ function VenueCard({ venue, navigate }) {
     
     const token = localStorage.getItem("solennia_token");
     if (!token) {
-      toast.warning("Please login to chat with venue vendors");
+      toast.warning("Please login to chat with venue suppliers");
       return;
     }
 
@@ -245,7 +245,7 @@ function VenueCard({ venue, navigate }) {
     console.log("🔍 Firebase UID found:", firebaseUid);
     
     if (!firebaseUid) {
-      console.error("❌ Venue vendor missing firebase_uid. Available fields:", Object.keys(venue));
+      console.error("❌ Venue supplier missing firebase_uid. Available fields:", Object.keys(venue));
       toast.error("This venue's contact information is incomplete. Please try again later or contact support.");
       return;
     }
