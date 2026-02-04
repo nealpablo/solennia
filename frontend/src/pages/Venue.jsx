@@ -43,7 +43,7 @@ export default function Venue() {
   };
 
   /* =========================
-     CHECK VENUE VENDOR STATUS
+     CHECK VENUE  VENDOR STATUS
   ========================= */
   const checkVenueVendorStatus = async () => {
     const token = localStorage.getItem("solennia_token");
@@ -65,7 +65,7 @@ export default function Venue() {
         setIsVenueVendor(true);
       }
     } catch (err) {
-      console.error("Failed to check vendor status:", err);
+      console.error("Failed to check supplier status:", err);
     } finally {
       setCheckingVendor(false);
     }
