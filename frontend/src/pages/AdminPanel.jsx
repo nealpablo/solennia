@@ -416,7 +416,7 @@ export default function AdminPanel() {
                           <td>
                             <div className="flex gap-2">
                               <button className="approve-btn" onClick={() => handleDecision(a.id, "approve")}>Approve</button>
-                              <button className="deny-btn" onClick={() => handleDecision(a.id, "deny")}>Deny</button>
+                              <button className="deny-btn" onClick={() => handleDecision(a.id, "deny")}>Reject</button>
                             </div>
                           </td>
                         </tr>

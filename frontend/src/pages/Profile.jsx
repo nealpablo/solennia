@@ -1897,15 +1897,33 @@ export default function Profile() {
 
               <div>
                 <label className="block text-sm font-semibold uppercase mb-2">
-                  Phone Number (For 2FA)
+                  Phone Number
                 </label>
-                <input
+               <input
                   type="tel"
                   value={editForm.phone}
-                  onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
-                  placeholder="+1234567890"
+                  onChange={(e) => {
+                    let digits = e.target.value.replace(/\D/g, ""); // numbers only
+
+                    // Remove 63 or 0 if user types them
+                    if (digits.startsWith("63")) digits = digits.slice(2);
+                    if (digits.startsWith("0")) digits = digits.slice(1);
+
+                    // Only 10 digits for PH mobile
+                    digits = digits.slice(0, 10);
+
+                    // Must start with 9
+                    if (digits.length > 0 && digits[0] !== "9") return;
+
+                    setEditForm({ ...editForm, phone: `+63 ${digits}` });
+                  }}
+                  placeholder="+63 9XXXXXXXXX"
+                  inputMode="numeric"
+                  pattern="^\+63 9\d{9}$"
+                  title="Enter a valid PH mobile number (e.g. +63 9123456789)"
                   className="w-full rounded-md bg-gray-100 border border-gray-300 p-2"
                 />
+
                 <p className="text-xs text-gray-600 mt-1">
                   {profile?.phone ? `Current: ${profile.phone}` : "Not set"}
                 </p>

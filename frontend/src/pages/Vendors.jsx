@@ -117,7 +117,7 @@ export default function Vendors() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
           </svg>
           <h3 className="text-xl font-semibold text-gray-700 mb-2">
-            {filter === "all" ? "No Vendors Available Yet" : `No ${filter} Vendors Available`}
+            {filter === "all" ? "No Suppliers Available Yet" : `No ${filter} Supplier Available`}
           </h3>
           <p className="text-gray-500">Check back soon for amazing Supplier listings.</p>
         </div>
@@ -179,7 +179,7 @@ function VendorCard({ vendor, navigate }) {
     const firebaseUid = vendor.firebase_uid || vendor.user_firebase_uid;
     
     if (!firebaseUid) {
-      console.error("Vendor missing firebase_uid:", vendor);
+      console.error("Supplier missing firebase_uid:", vendor);
       toast.error("Unable to start chat with this Supplier");
       return;
     }
@@ -211,8 +211,8 @@ function VendorCard({ vendor, navigate }) {
     console.log("Booking vendor - UserID:", vendorUserId, "Name:", vendorName); // Debug log
 
     if (!vendorUserId) {
-      toast.error("Unable to identify supplier. Please try again.");
-      console.error("Vendor missing UserID:", vendor);
+      toast.error("Unable to identify Supplier. Please try again.");
+      console.error("Supplier missing UserID:", vendor);
       return;
     }
 
@@ -229,10 +229,10 @@ function VendorCard({ vendor, navigate }) {
   const vendorImage = vendor.vendor_logo || vendor.hero_image_url || vendor.user_avatar || "https://via.placeholder.com/400x300?text=Vendor+Image";
 
   // Get description
-  const description = vendor.description || vendor.bio || "This vendor has not added a full description yet.";
+  const description = vendor.description || vendor.bio || "This Supplier has not added a full description yet.";
 
   return (
-    <div className="group bg-white rounded-lg overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 cursor-pointer">
+    <div className="group bg-white rounded-lg overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col h-full">
       {/* Image Container */}
       <div className="relative h-48 overflow-hidden bg-gray-200">
         <img
@@ -265,7 +265,7 @@ function VendorCard({ vendor, navigate }) {
       </div>
 
       {/* Card Content */}
-      <div className="p-4">
+      <div className="p-4 flex-1 flex flex-col">
         <h3 className="font-semibold text-gray-800 mb-1 line-clamp-2 group-hover:text-[#7a5d47] transition-colors">
           {vendor.business_name || "Vendor"}
         </h3>
@@ -290,18 +290,20 @@ function VendorCard({ vendor, navigate }) {
           {description}
         </p>
 
+        {/* Buttons container - pushed to bottom */}
+        <div className="mt-auto">
         {/* Three buttons - View Profile, Book Now, Chat */}
         <div className="flex gap-2 mb-2">
           <button
             onClick={handleViewProfile}
-            className="flex-1 px-3 py-2 bg-[#7a5d47] hover:bg-[#654a38] text-white text-xs font-medium rounded-lg transition-colors"
+            className="flex-1 px-3 bg-[#7a5d47] hover:bg-[#654a38] text-white text-xs font-medium rounded-lg transition-colors flex items-center justify-center h-9 whitespace-nowrap"
           >
             View Profile
           </button>
           
           <button
             onClick={handleBookNow}
-            className="flex-1 px-3 py-2 bg-[#8B4513] hover:bg-[#704010] text-white text-xs font-medium rounded-lg transition-colors"
+            className="flex-1 px-3 bg-[#8B4513] hover:bg-[#704010] text-white text-xs font-medium rounded-lg transition-colors flex items-center justify-center h-9 whitespace-nowrap"
           >
             Book Now
           </button>
@@ -310,13 +312,14 @@ function VendorCard({ vendor, navigate }) {
         {/* Chat button - full width below */}
         <button
           onClick={handleChatClick}
-          className="w-full px-3 py-2 bg-[#e8ddae] hover:bg-[#dbcf9f] text-gray-800 text-xs font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+          className="w-full px-3 bg-[#e8ddae] hover:bg-[#dbcf9f] text-gray-800 text-xs font-medium rounded-lg transition-colors flex items-center justify-center gap-2 h-9 whitespace-nowrap"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
           </svg>
           Chat Supplier
         </button>
+        </div>
       </div>
     </div>
   );

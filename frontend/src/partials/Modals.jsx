@@ -2563,12 +2563,19 @@ const handleVendorFileChange = (e, fileType) => {
               </div>
             </div>
 
-            <div className="flex justify-end">
+            <div className="flex justify-between pt-4">
+              <button 
+                type="button"
+                onClick={openVendorTerms}
+                className="px-6 py-2 bg-gray-200 hover:bg-gray-300 text-sm font-medium rounded flex items-center gap-2"
+              >
+                ← Back
+              </button>
               <button 
                 type="submit"
-                className="w-10 h-10 bg-[#7a5d47] rounded-full text-white flex items-center justify-center hover:bg-[#654a38]"
+                className="px-6 py-2 bg-[#7a5d47] hover:bg-[#654a38] text-white text-sm font-semibold rounded flex items-center gap-2"
               >
-                ➜
+                Next ➜
               </button>
             </div>
           </form>
@@ -2732,7 +2739,16 @@ const handleVendorFileChange = (e, fileType) => {
             </div>
 
             {/* Submit Button with Loading State */}
-            <div className="flex justify-end pt-4 border-t border-gray-300">
+            
+            <div className="flex justify-between pt-4 border-t border-gray-300">
+              <button 
+                type="button"
+                onClick={openVendorBackground}
+                disabled={vendorLoading}
+                className="px-6 py-2 bg-gray-200 hover:bg-gray-300 text-sm font-medium rounded flex items-center gap-2 disabled:opacity-50"
+              >
+                ← Back
+              </button>
               <button 
                 type="submit"
                 disabled={vendorLoading}

@@ -130,7 +130,7 @@ export default function Header() {
   };
 
   return (
-    <header className="bg-[#e8ddae] border-b border-gray-300">
+    <header className="sticky top-0 z-50 bg-[#e8ddae] border-b border-gray-300 shadow-sm">
       <nav className="max-w-7xl mx-auto px-4 flex items-center justify-between h-14">
 
         {/* LOGO */}
