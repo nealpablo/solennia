@@ -16,16 +16,16 @@ class VendorController
     {
         $this->cloud = new Cloudinary([
             'cloud' => [
-                'cloud_name' => getenv('CLOUDINARY_CLOUD'),
-                'api_key'    => getenv('CLOUDINARY_KEY'),
-                'api_secret' => getenv('CLOUDINARY_SECRET')
+                'cloud_name' => envx('CLOUDINARY_CLOUD'),
+                'api_key'    => envx('CLOUDINARY_KEY'),
+                'api_secret' => envx('CLOUDINARY_SECRET')
             ],
             'url' => ['secure' => true]
         ]);
     }
 
     /* ===========================================================
-     *   OPTIMIZED: CREATE VENDOR PROFILE with validation
+     *  CREATE VENDOR PROFILE with validation
      * =========================================================== */
     public function createVendorProfile(Request $request, Response $response)
     {

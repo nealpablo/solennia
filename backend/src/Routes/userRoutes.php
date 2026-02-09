@@ -9,13 +9,13 @@ use Cloudinary\Cloudinary;
 return function (App $app) {
 
     /* ===========================================================
-     *  CLOUDINARY INSTANCE (SAFE INIT — NO FATAL CRASH)
+     *  CLOUDINARY INSTANCE
      * =========================================================== */
     $cloudinary = null;
 
-    $cloudName = getenv('CLOUDINARY_CLOUD');
-    $apiKey    = getenv('CLOUDINARY_KEY');
-    $apiSecret = getenv('CLOUDINARY_SECRET');
+    $cloudName = envx('CLOUDINARY_CLOUD');
+    $apiKey    = envx('CLOUDINARY_KEY');
+    $apiSecret = envx('CLOUDINARY_SECRET');
 
     if ($cloudName && $apiKey && $apiSecret) {
         $cloudinary = new Cloudinary([

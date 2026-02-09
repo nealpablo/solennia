@@ -16,16 +16,16 @@ class VenueController
     {
         $this->cloud = new Cloudinary([
             'cloud' => [
-                'cloud_name' => getenv('CLOUDINARY_CLOUD'),
-                'api_key'    => getenv('CLOUDINARY_KEY'),
-                'api_secret' => getenv('CLOUDINARY_SECRET')
+                'cloud_name' => envx('CLOUDINARY_CLOUD'),
+                'api_key'    => envx('CLOUDINARY_KEY'),
+                'api_secret' => envx('CLOUDINARY_SECRET')
             ],
             'url' => ['secure' => true]
         ]);
     }
 
     /* =========================================================
-     *  OPTIMIZED CREATE VENUE LISTING with validation
+     *  CREATE VENUE LISTING with validation
      * ========================================================= */
     public function createListing(Request $request, Response $response)
     {
@@ -194,7 +194,7 @@ class VenueController
     }
 
     /* =========================================================
-     *  OPTIMIZED GET MY VENUE LISTINGS with pagination
+     *  GET VENUE LISTINGS
      * ========================================================= */
     public function getMyListings(Request $request, Response $response)
     {
@@ -278,7 +278,7 @@ class VenueController
     }
 
     /* =========================================================
-     *  OPTIMIZED UPDATE VENUE LISTING with validation
+     *  UPDATE VENUE LISTING
      * ========================================================= */
     public function updateListing(Request $request, Response $response, $args)
     {
@@ -449,7 +449,7 @@ class VenueController
     }
 
     /* =========================================================
-     *  OPTIMIZED DELETE VENUE LISTING
+     *  DELETE VENUE LISTING
      * ========================================================= */
     public function deleteListing(Request $request, Response $response, $args)
     {
