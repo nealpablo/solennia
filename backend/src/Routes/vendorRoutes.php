@@ -11,7 +11,7 @@ use Cloudinary\Cloudinary;
 return function (App $app) {
 
     /* ===========================================================
-     * CLOUDINARY INITIALIZATION
+     * SAFE CLOUDINARY INITIALIZATION 
      * =========================================================== */
     $cloudinary = null;
 
@@ -155,52 +155,31 @@ return function (App $app) {
         $apiSecret = envx('CLOUDINARY_SECRET');
 
         if (!$cloudName || !$apiKey || !$apiSecret) {
-            error_log("CLOUDINARY_CONFIG_MISSING: cloud={$cloudName}, key={$apiKey}");
             return $json($res, ['success' => false, 'error' => 'Cloudinary config missing'], 500);
         }
 
         $data     = (array)$req->getParsedBody();
         $fileType = $data['file_type'] ?? 'document';
 
-        // Determine resource type based on file type
-        // For PDFs and documents, use 'raw' endpoint, otherwise use 'image'
         $isRaw = in_array($fileType, ['permits', 'gov_id', 'portfolio'], true);
-        $resourceType = $isRaw ? 'raw' : 'image';
+        $uploadType = $isRaw ? 'raw' : 'image';
 
         $timestamp = time();
         $folder    = "solennia/vendor/{$auth->mysql_id}";
         $publicId  = "{$fileType}_{$timestamp}_" . bin2hex(random_bytes(4));
 
-        // Build parameters for signing
-        // DON'T include resource_type - it's determined by the endpoint URL!
         $params = [
             'folder'    => $folder,
             'public_id' => $publicId,
             'timestamp' => $timestamp
         ];
 
-        // Sort parameters alphabetically (required by Cloudinary)
         ksort($params);
-
-        // Build signature string correctly (key=value&key=value format, NO URL encoding)
-        $signatureParams = [];
-        foreach ($params as $key => $value) {
-            $signatureParams[] = "{$key}={$value}";
-        }
-        $signatureString = implode('&', $signatureParams) . $apiSecret;
-        $signature = sha1($signatureString);
-
-        // Log for debugging
-        error_log("CLOUDINARY_SIGNATURE_DEBUG:");
-        error_log("  File type: {$fileType}");
-        error_log("  Resource type: {$resourceType}");
-        error_log("  Params: " . json_encode($params));
-        error_log("  String to sign: " . str_replace($apiSecret, '[SECRET]', $signatureString));
-        error_log("  Signature: " . $signature);
+        $signature = sha1(implode('&', array_map(fn($k, $v) => "$k=$v", array_keys($params), $params)) . $apiSecret);
 
         return $json($res, [
             'success'    => true,
-            'upload_url' => "https://api.cloudinary.com/v1_1/{$cloudName}/{$resourceType}/upload",
+            'upload_url' => "https://api.cloudinary.com/v1_1/{$cloudName}/{$uploadType}/upload",
             'params'     => array_merge($params, [
                 'api_key'   => $apiKey,
                 'signature' => $signature
@@ -212,28 +191,25 @@ return function (App $app) {
      * VENDOR DASHBOARD
      * =========================================================== */
     $app->get('/api/vendor/dashboard', function (Request $req, Response $res) use ($json) {
+        $auth = $req->getAttribute('user');
+        if (!$auth || !isset($auth->mysql_id)) {
+            return $json($res, ['success' => false, 'error' => 'Unauthorized'], 401);
+        }
+
+        $userId = (int)$auth->mysql_id;
 
         try {
-            $auth = $req->getAttribute('user');
-            if (!$auth || !isset($auth->mysql_id)) {
-                return $json($res, ['success' => false, 'error' => 'Unauthorized'], 401);
-            }
-
-            $userId = (int) $auth->mysql_id;
-
-            $vendor = DB::table('vendor')
+            //  FIX: Use vendor_application instead of event_service_provider
+            $vendor = DB::table('vendor_application')
                 ->where('user_id', $userId)
+                ->where('status', 'Approved')
                 ->first();
 
             if (!$vendor) {
-                return $json($res, ['success' => false, 'error' => 'Vendor not found'], 404);
+                return $json($res, ['success' => false, 'error' => 'No approved vendor profile found'], 404);
             }
 
-            $listings = DB::table('vendor_listings')
-                ->where('user_id', $userId)
-                ->orderBy('created_at', 'desc')
-                ->get()
-                ->toArray();
+            $user = DB::table('credential')->where('id', $userId)->first();
 
             $gallery = DB::table('vendor_gallery')
                 ->where('user_id', $userId)
@@ -241,48 +217,68 @@ return function (App $app) {
                 ->pluck('image_url')
                 ->toArray();
 
-            $vendorData = [
-                'id' => $vendor->id,
-                'user_id' => $vendor->user_id,
-                'firebase_uid' => $vendor->firebase_uid,
-                'business_name' => $vendor->business_name,
-                'category' => $vendor->category,
-                'description' => $vendor->description,
-                'pricing' => $vendor->pricing,
-                'contact_email' => $vendor->contact_email,
-                'address' => $vendor->address,
-                'portfolio' => $vendor->portfolio,
-                'gallery' => $gallery,
-                'status' => $vendor->status
-            ];
-
             return $json($res, [
                 'success' => true,
-                'vendor' => $vendorData,
-                'listings' => $listings
+                'vendor' => $vendor,
+                'gallery' => $gallery
             ]);
 
         } catch (\Throwable $e) {
             error_log('VENDOR_DASHBOARD_ERROR: ' . $e->getMessage());
-            return $json($res, [
-                'success' => false,
-                'error' => 'Failed to load dashboard'
-            ], 500);
+            return $json($res, ['success' => false, 'error' => 'Failed to load dashboard'], 500);
         }
-
     })->add(new AuthMiddleware());
 
     /* ===========================================================
-     * FETCH PUBLIC VENDOR INFO
+     * PUBLIC VENDORS 
      * =========================================================== */
-    $app->get('/api/vendor/public/{userId}', function (Request $req, Response $res, $args) use ($json) {
+    $app->get('/api/vendors/public', function (Request $req, Response $res) use ($json) {
+        try {
+            //  Use vendor_application instead of event_service_provider
+            $vendors = DB::table('vendor_application as va')
+                ->leftJoin('credential as c', 'va.user_id', '=', 'c.id')
+                ->where('va.status', 'Approved')
+                ->orderByDesc('va.created_at')
+                ->select(
+                    'va.*',
+                    'c.first_name',
+                    'c.last_name',
+                    'c.email',
+                    'c.avatar as user_avatar'
+                )
+                ->get();
 
+            return $json($res, [
+                'success' => true,
+                'vendors' => $vendors
+            ]);
+
+        } catch (\Throwable $e) {
+            error_log('VENDORS_PUBLIC_ERROR: ' . $e->getMessage());
+            error_log('Stack trace: ' . $e->getTraceAsString());
+            return $json($res, ['success' => false, 'error' => 'Failed to load vendors'], 500);
+        }
+    });
+
+    /* ===========================================================
+     * GET SINGLE VENDOR (PUBLIC) 
+     * =========================================================== */
+    $app->get('/api/vendor/public/{userId}', function (Request $req, Response $res, array $args) use ($json) {
         try {
             $userId = (int) $args['userId'];
 
-            $vendor = DB::table('vendor')
-                ->where('user_id', $userId)
-                ->where('status', 'Approved')
+            //  FIX: Use vendor_application instead of event_service_provider
+            $vendor = DB::table('vendor_application as va')
+                ->leftJoin('credential as c', 'va.user_id', '=', 'c.id')
+                ->where('va.user_id', $userId)
+                ->where('va.status', 'Approved')
+                ->select(
+                    'va.*',
+                    'c.firebase_uid',
+                    'c.first_name',
+                    'c.last_name',
+                    'c.avatar as user_avatar'
+                )
                 ->first();
 
             if (!$vendor) {
@@ -292,6 +288,7 @@ return function (App $app) {
                 ], 404);
             }
 
+            //  GALLERY FIX: Fetch from vendor_gallery table
             $gallery = DB::table('vendor_gallery')
                 ->where('user_id', $userId)
                 ->orderBy('created_at', 'desc')
@@ -330,7 +327,7 @@ return function (App $app) {
     });
 
     /* ===========================================================
-     * VENDOR APPLICATION
+     * VENDOR APPLICATION (ULTRA FAST - URL ONLY)
      * =========================================================== */
     $app->post('/api/vendor/apply', function (Request $req, Response $res) use ($json, $sendNotification, $sendToAdmins) {
 
@@ -458,7 +455,7 @@ return function (App $app) {
     })->add(new AuthMiddleware());
 
     /* ===========================================================
-     * VENDOR ROUTES
+     * VENDOR UPDATE ROUTES
      * =========================================================== */
     $app->post('/api/vendor/profile', function (Request $req, Response $res) {
         $controller = new VendorController();
