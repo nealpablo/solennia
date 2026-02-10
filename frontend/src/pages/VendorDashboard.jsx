@@ -50,8 +50,22 @@ export default function VendorDashboard() {
     
     const res = await fetch(url, { ...opts, headers });
     const data = await res.json().catch(() => ({}));
+    const data = await res.json().catch(() => ({}));
     
-    if (!res.ok) throw new Error(data.error || data.message || "Error");
+    // Check if profile setup is needed
+    if (!res.ok && data.needs_setup) {
+      navigate("/vendor-profile-setup");
+      return data;
+    }
+    
+    const data = await res.json().catch(() => ({}));
+    
+    // Check if profile setup is needed
+    if (!res.ok && data.needs_setup) {
+      navigate("/vendor-profile-setup");
+      return data;
+    }
+    
     return data;
   }
 
