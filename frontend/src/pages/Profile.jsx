@@ -180,7 +180,7 @@ export default function Profile() {
 
   /* ================= VENDOR STATUS  ================= */
   useEffect(() => {
-    if (!token || role !== 0) return;
+    if (!token || role !== 0 && role !== 1) return;
 
     fetch(`${API}/vendor/status`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -195,7 +195,7 @@ export default function Profile() {
       })
       .then((j) => {
         if (j && j.status) {
-          setVendorStatus(j.status);
+          setVendorStatus(j);
           if (j.status === 'pending') {
             console.log('Vendor application is pending review');
           }
@@ -903,7 +903,13 @@ export default function Profile() {
   /* ================= DASHBOARD ================= */
   function dashboardHref() {
     if (role === 2) return "/admin";
-    if (role === 1) return "/vendor-dashboard";
+    if (role === 1) {
+      // Check if vendor needs profile setup
+      if (vendorStatus && vendorStatus.needs_setup) {
+        return "/vendor-profile-setup";
+      }
+      return "/vendor-dashboard";
+    }
     return null;
   }
 
@@ -1041,12 +1047,12 @@ export default function Profile() {
                   {role === 0 && (
                     <button
                       onClick={joinVendor}
-                      disabled={vendorStatus === "pending"}
+                      disabled={vendorStatus && vendorStatus.status === "pending"}
                       className={`w-full bg-gradient-to-r from-[#7a5d47] to-[#5d4436] text-white px-4 py-3 rounded-lg text-sm font-semibold hover:opacity-90 shadow-md ${
-                        vendorStatus === "pending" ? "opacity-50 cursor-not-allowed" : ""
+                        vendorStatus && vendorStatus.status === "pending" ? "opacity-50 cursor-not-allowed" : ""
                       }`}
                     >
-                      {vendorStatus === "pending" ? "Application Pending" : "Join as Supplier"}
+                      {vendorStatus && vendorStatus.status === "pending" ? "Application Pending" : "Join as Supplier"}
                     </button>
                   )}
                 </div>

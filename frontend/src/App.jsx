@@ -17,6 +17,7 @@ import Profile from "./pages/Profile";
 import Chat from "./pages/Chat";
 import AdminPanel from "./pages/AdminPanel";
 import VendorDashboard from "./pages/VendorDashboard";
+import VendorProfileSetup from "./pages/VendorProfileSetup";
 import VenueDashboard from "./pages/VenueDashboard";
 import AboutUs from "./pages/AboutUs";
 
@@ -113,6 +114,7 @@ export default function App() {
         <Route path="/chat" element={<Chat />} />
         <Route path="/admin" element={<AdminPanel />} />
         <Route path="/vendor-dashboard" element={<VendorDashboard />} />
+        <Route path="/vendor-profile-setup" element={<VendorProfileSetup />} />
         <Route path="/venue-dashboard" element={<VenueDashboard />} />
         <Route path="/about" element={<AboutUs />} />
         

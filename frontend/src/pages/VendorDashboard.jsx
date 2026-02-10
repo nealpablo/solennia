@@ -50,7 +50,6 @@ export default function VendorDashboard() {
     
     const res = await fetch(url, { ...opts, headers });
     const data = await res.json().catch(() => ({}));
-    const data = await res.json().catch(() => ({}));
     
     // Check if profile setup is needed
     if (!res.ok && data.needs_setup) {
@@ -58,14 +57,7 @@ export default function VendorDashboard() {
       return data;
     }
     
-    const data = await res.json().catch(() => ({}));
-    
-    // Check if profile setup is needed
-    if (!res.ok && data.needs_setup) {
-      navigate("/vendor-profile-setup");
-      return data;
-    }
-    
+    if (!res.ok) throw new Error(data.error || data.message || "Error");
     return data;
   }
 
@@ -490,15 +482,30 @@ export default function VendorDashboard() {
       <div className="profile-card">
         <div className="profile-header">
           <img 
-            src={vendor.portfolio || "/default-logo.png"} 
+            src={vendor.avatar || "/default-logo.png"} 
             alt="Business Logo"
             className="profile-logo"
           />
           <div className="profile-info">
-            <h3>{vendor.business_name}</h3>
-            <p><strong>Category:</strong> {vendor.category}</p>
-            <p><strong>Email:</strong> {vendor.contact_email}</p>
-            <p><strong>Address:</strong> {vendor.address}</p>
+            <h3>{vendor.BusinessName}</h3>
+            <p><strong>Category:</strong> {vendor.Category}</p>
+            <p><strong>Email:</strong> {vendor.BusinessEmail}</p>
+            <p><strong>Address:</strong> {vendor.BusinessAddress}</p>
+            {vendor.bio && (
+              <p style={{ marginTop: "10px", color: "#666", fontSize: "14px" }}>
+                <strong>Bio:</strong> {vendor.bio}
+              </p>
+            )}
+            {vendor.services && (
+              <p style={{ marginTop: "5px", color: "#666", fontSize: "14px" }}>
+                <strong>Services:</strong> {vendor.services}
+              </p>
+            )}
+            {vendor.service_areas && (
+              <p style={{ marginTop: "5px", color: "#666", fontSize: "14px" }}>
+                <strong>Service Areas:</strong> {vendor.service_areas}
+              </p>
+            )}
             
             <div className="profile-actions">
               <button onClick={openEdit} className="btn btn-primary">

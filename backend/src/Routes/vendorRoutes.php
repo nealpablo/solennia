@@ -199,13 +199,27 @@ return function (App $app) {
         $userId = (int)$auth->mysql_id;
 
         try {
-            //  FIX: Use vendor_application instead of event_service_provider
-            $vendor = DB::table('vendor_application')
-                ->where('user_id', $userId)
-                ->where('status', 'Approved')
+            //  Check if vendor profile exists in event_service_provider
+            $vendor = DB::table('event_service_provider')
+                ->where('UserID', $userId)
+                ->where('ApplicationStatus', 'Approved')
                 ->first();
 
             if (!$vendor) {
+                // Check if they have an approved application but no profile yet
+                $application = DB::table('vendor_application')
+                    ->where('user_id', $userId)
+                    ->where('status', 'Approved')
+                    ->first();
+                
+                if ($application) {
+                    return $json($res, [
+                        'success' => false, 
+                        'error' => 'Profile setup required',
+                        'needs_setup' => true
+                    ], 403);
+                }
+                
                 return $json($res, ['success' => false, 'error' => 'No approved vendor profile found'], 404);
             }
 
@@ -229,18 +243,19 @@ return function (App $app) {
         }
     })->add(new AuthMiddleware());
 
+
     /* ===========================================================
      * PUBLIC VENDORS 
      * =========================================================== */
     $app->get('/api/vendors/public', function (Request $req, Response $res) use ($json) {
         try {
-            //  Use vendor_application instead of event_service_provider
-            $vendors = DB::table('vendor_application as va')
-                ->leftJoin('credential as c', 'va.user_id', '=', 'c.id')
-                ->where('va.status', 'Approved')
-                ->orderByDesc('va.created_at')
+            //  Use event_service_provider for vendors with complete profiles
+            $vendors = DB::table('event_service_provider as esp')
+                ->leftJoin('credential as c', 'esp.UserID', '=', 'c.id')
+                ->where('esp.ApplicationStatus', 'Approved')
+                ->orderByDesc('esp.DateApproved')
                 ->select(
-                    'va.*',
+                    'esp.*',
                     'c.first_name',
                     'c.last_name',
                     'c.email',
@@ -459,7 +474,7 @@ return function (App $app) {
      * =========================================================== */
     $app->post('/api/vendor/profile', function (Request $req, Response $res) {
         $controller = new VendorController();
-        return $controller->updateProfile($req, $res);
+        return $controller->createVendorProfile($req, $res);
     })->add(new AuthMiddleware());
 
     $app->post('/api/vendor/logo', function (Request $req, Response $res) {

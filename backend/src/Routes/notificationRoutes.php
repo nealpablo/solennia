@@ -7,89 +7,192 @@ use Illuminate\Database\Capsule\Manager as DB;
 use Src\Middleware\AuthMiddleware;
 
 return function (App $app) {
-
-    // Get user notifications
-    $app->get('/api/notifications', function (Request $request, Response $response) {
-        $auth = $request->getAttribute('user');
+    
+    /* ===========================================================
+     * GET USER NOTIFICATIONS
+     * =========================================================== */
+    $app->get('/api/notifications', function (Request $req, Response $res) {
+        $auth = $req->getAttribute('user');
+        
         if (!$auth || !isset($auth->mysql_id)) {
-            $response->getBody()->write(json_encode(['error' => 'Unauthorized']));
-            return $response->withStatus(401)->withHeader('Content-Type', 'application/json');
+            $res->getBody()->write(json_encode([
+                'success' => false,
+                'error' => 'Unauthorized'
+            ]));
+            return $res->withStatus(401)->withHeader('Content-Type', 'application/json');
         }
-        
-        $userId = (int) $auth->mysql_id;
-        
+
+        $userId = (int)$auth->mysql_id;
+
         try {
             $notifications = DB::table('notifications')
                 ->where('user_id', $userId)
                 ->orderBy('created_at', 'desc')
                 ->limit(50)
-                ->get()
-                ->toArray();
-            
-            $response->getBody()->write(json_encode([
+                ->get();
+
+            $res->getBody()->write(json_encode([
+                'success' => true,
                 'notifications' => $notifications
             ]));
-            return $response->withHeader('Content-Type', 'application/json');
+
+            return $res->withHeader('Content-Type', 'application/json');
+
+        } catch (\Throwable $e) {
+            error_log('NOTIFICATIONS_ERROR: ' . $e->getMessage());
             
-        } catch (Exception $e) {
-            $response->getBody()->write(json_encode([
-                'error' => 'Failed to load notifications'
+            $res->getBody()->write(json_encode([
+                'success' => false,
+                'error' => 'Failed to fetch notifications'
             ]));
-            return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
+
+            return $res->withStatus(500)->withHeader('Content-Type', 'application/json');
         }
+
     })->add(new AuthMiddleware());
 
-    // Mark notification as read
-    $app->post('/api/notifications/{id}/read', function (Request $request, Response $response, array $args) {
-        $auth = $request->getAttribute('user');
+    /* ===========================================================
+     * MARK NOTIFICATION AS READ
+     * =========================================================== */
+    $app->patch('/api/notifications/{id}/read', function (Request $req, Response $res, array $args) {
+        $auth = $req->getAttribute('user');
+        
         if (!$auth || !isset($auth->mysql_id)) {
-            $response->getBody()->write(json_encode(['error' => 'Unauthorized']));
-            return $response->withStatus(401)->withHeader('Content-Type', 'application/json');
+            $res->getBody()->write(json_encode([
+                'success' => false,
+                'error' => 'Unauthorized'
+            ]));
+            return $res->withStatus(401)->withHeader('Content-Type', 'application/json');
         }
-        
-        $userId = (int) $auth->mysql_id;
-        $notificationId = (int) $args['id'];
-        
+
+        $userId = (int)$auth->mysql_id;
+        $notificationId = (int)($args['id'] ?? 0);
+
+        if (!$notificationId) {
+            $res->getBody()->write(json_encode([
+                'success' => false,
+                'error' => 'Invalid notification ID'
+            ]));
+            return $res->withStatus(400)->withHeader('Content-Type', 'application/json');
+        }
+
         try {
-            DB::table('notifications')
+            $updated = DB::table('notifications')
                 ->where('id', $notificationId)
                 ->where('user_id', $userId)
                 ->update(['read' => true]);
-            
-            $response->getBody()->write(json_encode(['success' => true]));
-            return $response->withHeader('Content-Type', 'application/json');
-            
-        } catch (Exception $e) {
-            $response->getBody()->write(json_encode([
-                'error' => 'Failed to mark as read'
+
+            $res->getBody()->write(json_encode([
+                'success' => true,
+                'message' => 'Notification marked as read'
             ]));
-            return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
+
+            return $res->withHeader('Content-Type', 'application/json');
+
+        } catch (\Throwable $e) {
+            error_log('NOTIFICATION_READ_ERROR: ' . $e->getMessage());
+            
+            $res->getBody()->write(json_encode([
+                'success' => false,
+                'error' => 'Failed to update notification'
+            ]));
+
+            return $res->withStatus(500)->withHeader('Content-Type', 'application/json');
         }
+
     })->add(new AuthMiddleware());
 
-    // Mark all as read
-    $app->post('/api/notifications/mark-all-read', function (Request $request, Response $response) {
-        $auth = $request->getAttribute('user');
+    /* ===========================================================
+     * MARK ALL NOTIFICATIONS AS READ
+     * =========================================================== */
+    $app->post('/api/notifications/read-all', function (Request $req, Response $res) {
+        $auth = $req->getAttribute('user');
+        
         if (!$auth || !isset($auth->mysql_id)) {
-            $response->getBody()->write(json_encode(['error' => 'Unauthorized']));
-            return $response->withStatus(401)->withHeader('Content-Type', 'application/json');
+            $res->getBody()->write(json_encode([
+                'success' => false,
+                'error' => 'Unauthorized'
+            ]));
+            return $res->withStatus(401)->withHeader('Content-Type', 'application/json');
         }
-        
-        $userId = (int) $auth->mysql_id;
-        
+
+        $userId = (int)$auth->mysql_id;
+
         try {
             DB::table('notifications')
                 ->where('user_id', $userId)
+                ->where('read', false)
                 ->update(['read' => true]);
-            
-            $response->getBody()->write(json_encode(['success' => true]));
-            return $response->withHeader('Content-Type', 'application/json');
-            
-        } catch (Exception $e) {
-            $response->getBody()->write(json_encode([
-                'error' => 'Failed to mark all as read'
+
+            $res->getBody()->write(json_encode([
+                'success' => true,
+                'message' => 'All notifications marked as read'
             ]));
-            return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
+
+            return $res->withHeader('Content-Type', 'application/json');
+
+        } catch (\Throwable $e) {
+            error_log('NOTIFICATIONS_READ_ALL_ERROR: ' . $e->getMessage());
+            
+            $res->getBody()->write(json_encode([
+                'success' => false,
+                'error' => 'Failed to update notifications'
+            ]));
+
+            return $res->withStatus(500)->withHeader('Content-Type', 'application/json');
         }
+
     })->add(new AuthMiddleware());
+
+    /* ===========================================================
+     * DELETE NOTIFICATION
+     * =========================================================== */
+    $app->delete('/api/notifications/{id}', function (Request $req, Response $res, array $args) {
+        $auth = $req->getAttribute('user');
+        
+        if (!$auth || !isset($auth->mysql_id)) {
+            $res->getBody()->write(json_encode([
+                'success' => false,
+                'error' => 'Unauthorized'
+            ]));
+            return $res->withStatus(401)->withHeader('Content-Type', 'application/json');
+        }
+
+        $userId = (int)$auth->mysql_id;
+        $notificationId = (int)($args['id'] ?? 0);
+
+        if (!$notificationId) {
+            $res->getBody()->write(json_encode([
+                'success' => false,
+                'error' => 'Invalid notification ID'
+            ]));
+            return $res->withStatus(400)->withHeader('Content-Type', 'application/json');
+        }
+
+        try {
+            $deleted = DB::table('notifications')
+                ->where('id', $notificationId)
+                ->where('user_id', $userId)
+                ->delete();
+
+            $res->getBody()->write(json_encode([
+                'success' => true,
+                'message' => 'Notification deleted'
+            ]));
+
+            return $res->withHeader('Content-Type', 'application/json');
+
+        } catch (\Throwable $e) {
+            error_log('NOTIFICATION_DELETE_ERROR: ' . $e->getMessage());
+            
+            $res->getBody()->write(json_encode([
+                'success' => false,
+                'error' => 'Failed to delete notification'
+            ]));
+
+            return $res->withStatus(500)->withHeader('Content-Type', 'application/json');
+        }
+
+    })->add(new AuthMiddleware());
+
 };
