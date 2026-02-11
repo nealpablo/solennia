@@ -27,12 +27,14 @@ export default function VendorDashboard() {
   const [showEdit, setShowEdit] = useState(false);
   const [showHero, setShowHero] = useState(false);
   const [showLogo, setShowLogo] = useState(false);
+  const [lightboxImage, setLightboxImage] = useState(null); // For gallery lightbox
 
   // Edit form
   const [form, setForm] = useState({
     bio: "",
     services: "",
     service_areas: "",
+    address: "", // ✅ Added address field
   });
 
   const chartRef = useRef(null);
@@ -131,6 +133,7 @@ export default function VendorDashboard() {
       service_areas: Array.isArray(vendor.service_areas)
         ? vendor.service_areas.join(", ")
         : vendor.service_areas || "",
+      address: vendor.BusinessAddress || "", // ✅ Added address
     });
     setShowEdit(true);
   }
@@ -418,6 +421,12 @@ export default function VendorDashboard() {
           aspect-ratio: 1;
           border-radius: 8px;
           overflow: hidden;
+          position: relative;
+          transition: transform 0.2s;
+        }
+        .gallery-item:hover {
+          transform: scale(1.05);
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         }
         .gallery-item img {
           width: 100%;
@@ -515,7 +524,7 @@ export default function VendorDashboard() {
                 Update Logo
               </button>
               <button onClick={() => setShowHero(true)} className="btn btn-secondary">
-                Update Banner Image
+                Update Hero Image
               </button>
             </div>
           </div>
@@ -605,13 +614,72 @@ export default function VendorDashboard() {
       {gallery && gallery.length > 0 ? (
         <div className="gallery-grid">
           {gallery.map((img, i) => (
-            <div key={i} className="gallery-item">
+            <div 
+              key={i} 
+              className="gallery-item"
+              onClick={() => setLightboxImage(img)}
+              style={{ cursor: 'pointer' }}
+            >
               <img src={img} alt={`Gallery ${i + 1}`} />
             </div>
           ))}
         </div>
       ) : (
         <p>No gallery images yet. Add some to showcase your work!</p>
+      )}
+
+      {/* ✅ Gallery Lightbox Modal */}
+      {lightboxImage && (
+        <div 
+          className="modal-backdrop" 
+          onClick={() => setLightboxImage(null)}
+          style={{ zIndex: 9999 }}
+        >
+          <div 
+            className="lightbox-content" 
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'relative',
+              maxWidth: '90vw',
+              maxHeight: '90vh',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            <img 
+              src={lightboxImage} 
+              alt="Gallery preview" 
+              style={{
+                maxWidth: '100%',
+                maxHeight: '90vh',
+                objectFit: 'contain',
+                borderRadius: '8px'
+              }}
+            />
+            <button
+              onClick={() => setLightboxImage(null)}
+              style={{
+                position: 'absolute',
+                top: '10px',
+                right: '10px',
+                background: 'rgba(0, 0, 0, 0.7)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '50%',
+                width: '40px',
+                height: '40px',
+                fontSize: '24px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              ×
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Edit Modal */}
@@ -645,6 +713,16 @@ export default function VendorDashboard() {
                   value={form.service_areas}
                   onChange={(e) => setForm({ ...form, service_areas: e.target.value })}
                   placeholder="Where do you serve?"
+                />
+              </label>
+              
+              <label>
+                Business Address
+                <input
+                  type="text"
+                  value={form.address}
+                  onChange={(e) => setForm({ ...form, address: e.target.value })}
+                  placeholder="Your business address"
                 />
               </label>
               

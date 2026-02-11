@@ -494,7 +494,7 @@ class VendorController
         $data = (array)$request->getParsedBody();
 
         $updateData = [];
-        $allowedFields = ['bio', 'services', 'service_areas', 'Description', 'Pricing'];
+        $allowedFields = ['bio', 'services', 'service_areas', 'Description', 'Pricing', 'BusinessAddress']; // ✅ Added BusinessAddress
 
         foreach ($allowedFields as $field) {
             if (isset($data[strtolower($field)]) || isset($data[$field])) {
