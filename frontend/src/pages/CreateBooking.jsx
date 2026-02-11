@@ -30,6 +30,13 @@ export default function CreateBooking() {
     budget_amount: ""
   });
 
+  // ✅ Separate time component state
+  const [timeComponents, setTimeComponents] = useState({
+    hour: "2",      // 1-12
+    minute: "00",   // 00, 15, 30, 45
+    ampm: "PM"      // AM or PM
+  });
+
   // STEP 2: Event-Specific Data (changes based on event type)
   const [eventSpecificData, setEventSpecificData] = useState({
     // Common fields
@@ -190,6 +197,37 @@ export default function CreateBooking() {
     setEventData(prev => ({
       ...prev,
       [name]: value
+    }));
+  };
+
+  // ✅ Handle time component changes (hour, minute, am/pm)
+  const handleTimeComponentChange = (e) => {
+    const { name, value } = e.target;
+    const newTimeComponents = {
+      ...timeComponents,
+      [name]: value
+    };
+    setTimeComponents(newTimeComponents);
+
+    // Convert to 24-hour format for event_time
+    let hour = parseInt(newTimeComponents.hour);
+    const minute = newTimeComponents.minute;
+    const ampm = newTimeComponents.ampm;
+
+    // Convert 12-hour to 24-hour
+    if (ampm === "AM") {
+      if (hour === 12) hour = 0; // 12 AM = 00:00
+    } else {
+      if (hour !== 12) hour += 12; // PM adds 12 (except 12 PM stays 12)
+    }
+
+    // Format as HH:MM
+    const formattedTime = `${String(hour).padStart(2, '0')}:${minute}`;
+    
+    // Update eventData.event_time
+    setEventData(prev => ({
+      ...prev,
+      event_time: formattedTime
     }));
   };
 
@@ -1096,14 +1134,53 @@ export default function CreateBooking() {
                   <label style={styles.label}>
                     Event Time <span style={styles.required}>*</span>
                   </label>
-                  <input
-                    type="time"
-                    name="event_time"
-                    value={eventData.event_time}
-                    onChange={handleEventChange}
-                    style={styles.input}
-                    required
-                  />
+                  
+                  {/* Time selector with separate hour, minute, and AM/PM */}
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    {/* Hour selector */}
+                    <select
+                      name="hour"
+                      value={timeComponents.hour}
+                      onChange={handleTimeComponentChange}
+                      style={{ ...styles.input, flex: 1 }}
+                      required
+                    >
+                      {Array.from({ length: 12 }, (_, i) => {
+                        const hour = i + 1;
+                        return (
+                          <option key={hour} value={String(hour)}>
+                            {hour}
+                          </option>
+                        );
+                      })}
+                    </select>
+
+                    {/* Minute selector - 15 minute intervals */}
+                    <select
+                      name="minute"
+                      value={timeComponents.minute}
+                      onChange={handleTimeComponentChange}
+                      style={{ ...styles.input, flex: 1 }}
+                      required
+                    >
+                      <option value="00">00</option>
+                      <option value="15">15</option>
+                      <option value="30">30</option>
+                      <option value="45">45</option>
+                    </select>
+
+                    {/* AM/PM selector */}
+                    <select
+                      name="ampm"
+                      value={timeComponents.ampm}
+                      onChange={handleTimeComponentChange}
+                      style={{ ...styles.input, flex: 1 }}
+                      required
+                    >
+                      <option value="AM">AM</option>
+                      <option value="PM">PM</option>
+                    </select>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1364,7 +1441,9 @@ export default function CreateBooking() {
                 </div>
                 <div style={styles.summaryItem}>
                   <span style={styles.summaryLabel}>Time:</span>
-                  <span style={styles.summaryValue}>{eventData.event_time}</span>
+                  <span style={styles.summaryValue}>
+                    {timeComponents.hour}:{timeComponents.minute} {timeComponents.ampm}
+                  </span>
                 </div>
                 <div style={styles.summaryItem}>
                   <span style={styles.summaryLabel}>Location:</span>

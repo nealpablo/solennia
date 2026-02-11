@@ -312,6 +312,11 @@ export default function VendorProfile() {
         <img
           src={displayHero}
           alt="Vendor hero"
+          onError={(e) => {
+            console.error("Hero image failed to load:", displayHero);
+            e.target.src = "/images/default-hero.jpg";
+            e.target.onerror = null; // Prevent infinite loop
+          }}
         />
       </div>
 
@@ -323,6 +328,11 @@ export default function VendorProfile() {
             <img
               src={displayLogo}
               alt="Vendor logo"
+              onError={(e) => {
+                console.error("Logo failed to load:", displayLogo);
+                e.target.src = "/images/default-avatar.png";
+                e.target.onerror = null; // Prevent infinite loop
+              }}
             />
           </div>
 
@@ -342,17 +352,27 @@ export default function VendorProfile() {
           {/* SERVICES */}
           <h3 className="section-title">Services Offered</h3>
           <p>
-            {Array.isArray(services)
-              ? services.join(", ")
-              : services || "Not specified"}
+            {(() => {
+              if (Array.isArray(services) && services.length > 0) {
+                return services.join(", ");
+              } else if (services && typeof services === 'string' && services.trim()) {
+                return services;
+              }
+              return "Not specified";
+            })()}
           </p>
 
           {/* AREAS */}
           <h3 className="section-title">Service Areas</h3>
           <p>
-            {Array.isArray(service_areas)
-              ? service_areas.join(", ")
-              : service_areas || "Not specified"}
+            {(() => {
+              if (Array.isArray(service_areas) && service_areas.length > 0) {
+                return service_areas.join(", ");
+              } else if (service_areas && typeof service_areas === 'string' && service_areas.trim()) {
+                return service_areas;
+              }
+              return "Not specified";
+            })()}
           </p>
 
           {/* AVAILABILITY CALENDAR */}
@@ -499,6 +519,13 @@ export default function VendorProfile() {
                   src={img}
                   onClick={() => openLightbox(img)}
                   alt={`Gallery image ${i + 1}`}
+                  onError={(e) => {
+                    console.error(`Gallery image ${i} failed to load:`, img);
+                    e.target.src = "https://via.placeholder.com/300x200?text=Image+Not+Available";
+                    e.target.style.cursor = "default";
+                    e.target.onclick = null;
+                    e.target.onerror = null;
+                  }}
                 />
               ))
             )}

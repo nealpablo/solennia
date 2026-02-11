@@ -282,16 +282,17 @@ return function (App $app) {
         try {
             $userId = (int) $args['userId'];
 
-            //  FIX: Use vendor_application instead of event_service_provider
-            $vendor = DB::table('vendor_application as va')
-                ->leftJoin('credential as c', 'va.user_id', '=', 'c.id')
-                ->where('va.user_id', $userId)
-                ->where('va.status', 'Approved')
+            //  ✅ FIX: Query event_service_provider for complete vendor profile
+            $vendor = DB::table('event_service_provider as esp')
+                ->leftJoin('credential as c', 'esp.UserID', '=', 'c.id')
+                ->where('esp.UserID', $userId)
+                ->where('esp.ApplicationStatus', 'Approved')
                 ->select(
-                    'va.*',
+                    'esp.*',
                     'c.firebase_uid',
                     'c.first_name',
                     'c.last_name',
+                    'c.email as user_email',
                     'c.avatar as user_avatar'
                 )
                 ->first();
@@ -303,28 +304,58 @@ return function (App $app) {
                 ], 404);
             }
 
-            //  GALLERY FIX: Fetch from vendor_gallery table
+            //  GALLERY: Fetch from vendor_gallery table
             $gallery = DB::table('vendor_gallery')
                 ->where('user_id', $userId)
                 ->orderBy('created_at', 'desc')
                 ->pluck('image_url')
                 ->toArray();
 
+            // ✅ Return all fields from event_service_provider
             $vendorData = [
-                'id' => $vendor->id,
-                'user_id' => $vendor->user_id,
+                'id' => $vendor->ID,
+                'user_id' => $vendor->UserID,
+                'UserID' => $vendor->UserID,
                 'firebase_uid' => $vendor->firebase_uid,
                 'owner_name' => trim(($vendor->first_name ?? '') . ' ' . ($vendor->last_name ?? '')),
-                'business_name' => $vendor->business_name,
-                'category' => $vendor->category,
-                'description' => $vendor->description,
-                'pricing' => $vendor->pricing,
-                'contact_email' => $vendor->contact_email,
-                'address' => $vendor->address,
+                
+                // Business info from event_service_provider
+                'business_name' => $vendor->BusinessName,
+                'BusinessName' => $vendor->BusinessName,
+                'category' => $vendor->Category,
+                'Category' => $vendor->Category,
+                'description' => $vendor->Description,
+                'Description' => $vendor->Description,
+                'pricing' => $vendor->Pricing,
+                'Pricing' => $vendor->Pricing,
+                
+                // Contact info
+                'contact_email' => $vendor->BusinessEmail,
+                'BusinessEmail' => $vendor->BusinessEmail,
+                'address' => $vendor->BusinessAddress,
+                'BusinessAddress' => $vendor->BusinessAddress,
+                
+                // ✅ IMPORTANT: Include services, service_areas, bio
+                'bio' => $vendor->bio,
+                'services' => $vendor->services,
+                'service_areas' => $vendor->service_areas,
+                
+                // Images - Cloudinary URLs
+                'avatar' => $vendor->avatar,                    // Business logo
+                'vendor_logo' => $vendor->avatar,                // Alias for business logo
+                'HeroImageUrl' => $vendor->HeroImageUrl,         // Hero/cover image
+                'hero_image_url' => $vendor->HeroImageUrl,       // Alias
                 'portfolio' => $vendor->portfolio,
+                
+                // User avatar (personal picture - different from business logo)
                 'user_avatar' => $vendor->user_avatar,
+                
+                // Gallery
                 'gallery' => $gallery,
-                'status' => $vendor->status
+                
+                // Status
+                'status' => $vendor->ApplicationStatus,
+                'ApplicationStatus' => $vendor->ApplicationStatus
             ];
 
             return $json($res, [
@@ -334,6 +365,7 @@ return function (App $app) {
 
         } catch (\Throwable $e) {
             error_log('VENDOR_PUBLIC_ERROR: ' . $e->getMessage());
+            error_log('Stack trace: ' . $e->getTraceAsString());
             return $json($res, [
                 'success' => false,
                 'error' => 'Failed to load vendor'

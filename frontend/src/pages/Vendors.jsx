@@ -206,12 +206,12 @@ function VendorCard({ vendor, navigate }) {
     navigate(`/create-booking?vendor=${encodeURIComponent(vendor.UserID || vendor.ID)}`);
   };
 
-  // ✅ FIX: Use vendor.avatar (business logo) instead of user_avatar (personal picture)
+  // Use vendor.avatar (business logo) instead of user_avatar (personal picture)
   const vendorImage = vendor.avatar || vendor.HeroImageUrl || "https://via.placeholder.com/400x300?text=Vendor+Image";
 
   return (
     <div 
-      className="vendor-card group cursor-pointer"
+      className="vendor-card group cursor-pointer flex flex-col h-full"
       onClick={handleViewProfile}
     >
       {/* Vendor Image */}
@@ -253,7 +253,7 @@ function VendorCard({ vendor, navigate }) {
       </div>
 
       {/* Vendor Info */}
-      <div className="p-4 bg-white rounded-b-lg">
+      <div className="p-4 bg-white rounded-b-lg flex-1 flex flex-col">
         <h3 className="font-bold text-lg mb-1 text-gray-800 line-clamp-1">
           {vendor.BusinessName || "Unnamed Supplier"}
         </h3>
@@ -273,8 +273,8 @@ function VendorCard({ vendor, navigate }) {
           </div>
         )}
 
-        {/* Action Buttons */}
-        <div className="flex gap-2">
+        {/* Action Buttons - Pushed to bottom */}
+        <div className="flex gap-2 mt-auto">
           <button
             onClick={handleViewProfile}
             className="flex-1 px-4 py-2 bg-[#7a5d47] text-white text-sm font-semibold rounded-lg hover:bg-[#5d4436] transition-colors"

@@ -202,6 +202,31 @@ export default function Modals() {
     return { score, label, color };
   };
 
+  // ✅ NEW: Validate password meets minimum requirements
+  const validatePasswordRequirements = (password) => {
+    if (!password || password.length < 8) {
+      return { valid: false, message: "Password must be at least 8 characters long" };
+    }
+    
+    const hasLetter = /[a-zA-Z]/.test(password);
+    const hasNumber = /[0-9]/.test(password);
+    const hasSymbol = /[^A-Za-z0-9]/.test(password);
+    
+    if (!hasLetter) {
+      return { valid: false, message: "Password must contain letters" };
+    }
+    
+    if (!hasNumber) {
+      return { valid: false, message: "Password must contain numbers" };
+    }
+    
+    if (!hasSymbol) {
+      return { valid: false, message: "Password must contain symbols (e.g., !@#$%^&*)" };
+    }
+    
+    return { valid: true, message: "Password meets requirements" };
+  };
+
   // Update password strength when password changes
   useEffect(() => {
     const strength = checkPasswordStrength(register.password);
@@ -525,9 +550,10 @@ const handleVendorFileChange = (e, fileType) => {
     e.preventDefault();
 
     try {
-      // Validate password strength
-      if (passwordStrength.score <= 2) {
-        toast.warning("Please use a stronger password");
+      // ✅ Validate password meets minimum requirements (8+ chars, letters, numbers, symbols)
+      const passwordValidation = validatePasswordRequirements(register.password);
+      if (!passwordValidation.valid) {
+        toast.warning(passwordValidation.message);
         return;
       }
 
@@ -2636,14 +2662,7 @@ const handleVendorFileChange = (e, fileType) => {
                 Required Documents (Max 5MB each)
               </h3>
 
-              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-xs text-blue-900 font-semibold flex items-center gap-2">
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"/>
-                  </svg>
-                  ⚡ Files will upload directly to cloud (super fast!)
-                </p>
-              </div>
+              
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* Permits */}

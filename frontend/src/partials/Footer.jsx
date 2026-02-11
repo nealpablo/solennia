@@ -51,29 +51,7 @@ export default function Footer() {
             md:justify-self-center
           "
         >
-          <li>
-            <Link to="/" className="hover:underline hover:text-[#f2e7c6] transition-colors">
-              Home
-            </Link>
-          </li>
-
-          <li>
-            <Link to="/about" className="hover:underline hover:text-[#f2e7c6] transition-colors">
-              About Us
-            </Link>
-          </li>
-
-          <li>
-            <Link to="/vendors" className="hover:underline hover:text-[#f2e7c6] transition-colors">
-              Explore Suppliers
-            </Link>
-          </li>
-
-          <li>
-            <Link to="/" className="hover:underline hover:text-[#f2e7c6] transition-colors">
-              Wedding Planner AI
-            </Link>
-          </li>
+         
         </ul>
 
         {/* ================= LEGAL (RIGHT) ================= */}

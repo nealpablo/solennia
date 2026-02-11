@@ -45,7 +45,7 @@ export default function VendorProfileSetup() {
       const data = await res.json();
       
       if (!data.success) {
-        toast.error("Unable to load vendor status");
+        toast.error("Unable to load supplier status");
         navigate("/profile");
         return;
       }
@@ -73,7 +73,7 @@ export default function VendorProfileSetup() {
       
     } catch (err) {
       console.error("Status check error:", err);
-      toast.error("Failed to load vendor status");
+      toast.error("Failed to load supplier status");
       navigate("/profile");
     }
   }
@@ -137,7 +137,7 @@ export default function VendorProfileSetup() {
       const data = await res.json();
       
       if (data.success) {
-        toast.success("Vendor profile created successfully! 🎉");
+        toast.success("Supplier profile created successfully! 🎉");
         
         // Update role in localStorage to ensure proper navigation
         localStorage.setItem("solennia_role", "1");
@@ -173,7 +173,7 @@ export default function VendorProfileSetup() {
               <svg className="w-10 h-10" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
               </svg>
-              <h1 className="text-3xl font-bold">Complete Your Vendor Profile 🎉</h1>
+              <h1 className="text-3xl font-bold">Complete Your Supplier Profile 🎉</h1>
             </div>
             <p className="text-white/90">
               Congratulations! Your application has been approved. 
@@ -215,7 +215,7 @@ export default function VendorProfileSetup() {
                 required
               />
               <p className="mt-1 text-xs text-gray-500">
-                This will be displayed on your vendor profile
+                This will be displayed on your Supplier profile
               </p>
             </div>
 
@@ -306,7 +306,7 @@ export default function VendorProfileSetup() {
             {/* Hero Image Upload */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Cover/Hero Image (Optional)
+                Cover/Header Image (Optional)
               </label>
               <div className="space-y-4">
                 {heroPreview ? (
@@ -333,7 +333,7 @@ export default function VendorProfileSetup() {
                       <svg className="mx-auto w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                       </svg>
-                      <p className="mt-2 text-sm text-gray-500">Hero/Cover Image</p>
+                      <p className="mt-2 text-sm text-gray-500">Header/Cover Image</p>
                     </div>
                   </div>
                 )}
@@ -349,7 +349,7 @@ export default function VendorProfileSetup() {
                     htmlFor="hero-upload"
                     className="inline-block px-4 py-2 bg-[#7a5d47] text-white rounded-lg hover:opacity-90 cursor-pointer"
                   >
-                    Choose Hero Image
+                    Choose Banner Image
                   </label>
                   <p className="mt-2 text-xs text-gray-500">
                     Recommended: Wide landscape image (16:9), max 10MB
@@ -381,7 +381,7 @@ export default function VendorProfileSetup() {
                     Creating Profile...
                   </span>
                 ) : (
-                  "Create Vendor Profile"
+                  "Submit"
                 )}
               </button>
             </div>
@@ -397,8 +397,8 @@ export default function VendorProfileSetup() {
             <div>
               <h3 className="text-sm font-semibold text-blue-900 mb-1">What happens next?</h3>
               <ul className="text-sm text-blue-700 space-y-1">
-                <li>• After creating your profile, you'll be able to access your vendor dashboard</li>
-                <li>• Clients will be able to see your profile in the vendor directory</li>
+                <li>• After creating your profile, you'll be able to access your Supplier dashboard</li>
+                <li>• Clients will be able to see your profile in the Supplier directory</li>
                 <li>• You can start receiving and managing booking requests</li>
                 <li>• You can upload more photos to your gallery from the dashboard</li>
               </ul>

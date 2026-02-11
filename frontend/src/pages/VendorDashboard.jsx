@@ -515,7 +515,7 @@ export default function VendorDashboard() {
                 Update Logo
               </button>
               <button onClick={() => setShowHero(true)} className="btn btn-secondary">
-                Update Hero Image
+                Update Banner Image
               </button>
             </div>
           </div>
