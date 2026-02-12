@@ -63,17 +63,31 @@ export default function MyBookings() {
         return;
       }
 
-      const response = await fetch(`${API}/bookings/user`, {
-        headers: { "Authorization": `Bearer ${token}` }
-      });
+      const [supplierRes, venueRes] = await Promise.all([
+        fetch(`${API}/bookings/user`, { headers: { "Authorization": `Bearer ${token}` } }),
+        fetch(`${API}/venue-bookings/user`, { headers: { "Authorization": `Bearer ${token}` } })
+      ]);
 
-      const data = await response.json();
+      const supplierData = await supplierRes.json();
+      const venueData = await venueRes.json();
 
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to load bookings");
-      }
+      const supplierBookings = ((supplierRes.ok ? supplierData.bookings : null) || []).map(b => ({
+        ...b,
+        ID: b.ID ?? b.id,
+        isVenueBooking: false
+      }));
+      const venueBookings = ((venueRes.ok ? venueData.bookings : null) || []).map(b => ({
+        ...b,
+        ID: b.ID ?? b.id ?? b.BookingID,
+        ServiceName: b.ServiceName ?? b.venue_name,
+        vendor_name: b.vendor_name ?? b.venue_owner_name,
+        isVenueBooking: true
+      }));
 
-      setBookings(data.bookings || []);
+      const merged = [...supplierBookings, ...venueBookings].sort(
+        (a, b) => new Date(b.CreatedAt || b.BookingDate || 0) - new Date(a.CreatedAt || a.BookingDate || 0)
+      );
+      setBookings(merged);
     } catch (error) {
       console.error("Load bookings error:", error);
       toast.error(error.message || "Failed to load bookings");
@@ -82,14 +96,17 @@ export default function MyBookings() {
     }
   };
 
-  const handleCancel = async (bookingId) => {
+  const handleCancel = async (bookingId, isVenueBooking = false) => {
     if (!confirm("Cancel this booking?")) return;
 
     setProcessing(true);
     try {
       const token = localStorage.getItem("solennia_token");
+      const endpoint = isVenueBooking
+        ? `${API}/venue-bookings/${bookingId}/cancel`
+        : `${API}/bookings/${bookingId}/cancel`;
       
-      const response = await fetch(`${API}/bookings/${bookingId}/cancel`, {
+      const response = await fetch(endpoint, {
         method: "PATCH",
         headers: { "Authorization": `Bearer ${token}` }
       });
@@ -136,22 +153,32 @@ export default function MyBookings() {
     try {
       setProcessing(true);
       
-      const newEventDateTime = `${rescheduleForm.new_date} ${rescheduleForm.new_time}:00`;
       const token = localStorage.getItem("solennia_token");
+      const isVenue = rescheduleBooking?.isVenueBooking;
+      const endpoint = isVenue
+        ? `${API}/venue-bookings/${rescheduleBooking.ID}/reschedule`
+        : `${API}/bookings/${rescheduleBooking.ID}/reschedule`;
       
-      const res = await fetch(`${API}/bookings/${rescheduleBooking.ID}/reschedule`, {
+      const body = isVenue
+        ? {
+            new_start_date: rescheduleForm.new_date,
+            new_end_date: rescheduleForm.new_date
+          }
+        : { new_event_date: `${rescheduleForm.new_date} ${rescheduleForm.new_time}:00` };
+      
+      const res = await fetch(endpoint, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ new_event_date: newEventDateTime })
+        body: JSON.stringify(body)
       });
       
       const data = await res.json();
       
-      if (res.status === 409 && data.conflict) {
-        toast.error("Supplier unavailable for that date/time", { duration: 8000 });
+      if (res.status === 409 && (data.conflict || data.error)) {
+        toast.error(isVenue ? "Venue unavailable for that date" : "Supplier unavailable for that date/time", { duration: 8000 });
         return;
       }
       
@@ -159,7 +186,7 @@ export default function MyBookings() {
         throw new Error(data.error || "Failed to reschedule");
       }
       
-      toast.success("Reschedule request sent! Waiting for Supplier approval.", { duration: 6000 });
+      toast.success(isVenue ? "Reschedule request sent! Waiting for venue owner approval." : "Reschedule request sent! Waiting for Supplier approval.", { duration: 6000 });
       
       setShowRescheduleModal(false);
       setRescheduleBooking(null);
@@ -283,7 +310,7 @@ export default function MyBookings() {
                   <div>
                     <h3 style={styles.cardTitle}>{booking.ServiceName}</h3>
                     <p style={styles.cardVendor}>
-                      Supplier: <strong>{booking.vendor_name || "Unknown"}</strong>
+                      {booking.isVenueBooking ? "Venue" : "Supplier"}: <strong>{booking.vendor_name || booking.venue_owner_name || "Unknown"}</strong>
                     </p>
                   </div>
                   <span
@@ -505,7 +532,7 @@ export default function MyBookings() {
                   
                   {canCancel && (
                     <button
-                      onClick={() => handleCancel(booking.ID)}
+                      onClick={() => handleCancel(booking.ID, booking.isVenueBooking)}
                       disabled={processing}
                       style={styles.cancelButton}
                     >

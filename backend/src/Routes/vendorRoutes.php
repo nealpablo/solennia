@@ -256,6 +256,7 @@ return function (App $app) {
                 ->orderByDesc('esp.DateApproved')
                 ->select(
                     'esp.*',
+                    'c.firebase_uid',
                     'c.first_name',
                     'c.last_name',
                     'c.email',

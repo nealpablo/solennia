@@ -10,11 +10,13 @@ const API =
   (import.meta.env.PROD 
     ? "https://solennia.up.railway.app/api" : "/api");
 
+const PER_PAGE = 8;
+
 export default function Vendors() {
   const [vendors, setVendors] = useState([]);
   const [filter, setFilter] = useState("all");
   const [loading, setLoading] = useState(true);
-  const [visibleCount, setVisibleCount] = useState(12);
+  const [currentPage, setCurrentPage] = useState(1);
   const navigate = useNavigate();
 
   /* =========================
@@ -45,20 +47,23 @@ export default function Vendors() {
     load();
   }, []);
 
-  /* =========================
-     FILTERED LIST (NO VENUE CATEGORY)
-  ========================= */
   const filteredVendors = filter === "all"
     ? vendors
     : vendors.filter(v => 
         (v.Category || "").toLowerCase() === filter.toLowerCase()
       );
 
-  const visibleVendors = filteredVendors.slice(0, visibleCount);
+  const totalPages = Math.max(1, Math.ceil(filteredVendors.length / PER_PAGE));
+  const startIdx = (currentPage - 1) * PER_PAGE;
+  const visibleVendors = filteredVendors.slice(startIdx, startIdx + PER_PAGE);
 
-  const handleShowMore = () => {
-    setVisibleCount(prev => prev + 12);
+  const handlePageChange = (page) => {
+    setCurrentPage(Math.max(1, Math.min(page, totalPages)));
   };
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filter]);
 
   if (loading) {
     return (
@@ -95,10 +100,7 @@ export default function Vendors() {
         ].map((f) => (
           <button
             key={f}
-            onClick={() => {
-              setFilter(f);
-              setVisibleCount(12);
-            }}
+            onClick={() => setFilter(f)}
             className={`px-4 py-2 border border-[#c9bda4] rounded-full transition-colors ${
               filter === f 
                 ? 'bg-[#7a5d47] text-white border-[#7a5d47]' 
@@ -130,22 +132,47 @@ export default function Vendors() {
             ))}
           </div>
 
-          {/* Show More Button */}
-          {visibleCount < filteredVendors.length && (
-            <div className="text-center">
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex flex-wrap items-center justify-center gap-2 mt-8">
               <button
-                onClick={handleShowMore}
-                className="px-8 py-3 bg-[#e8ddae] hover:bg-[#dbcf9f] text-sm font-semibold uppercase rounded-lg transition-colors"
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage <= 1}
+                className="px-4 py-2 border border-[#c9bda4] rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#e8ddae] transition-colors"
               >
-                Show More
+                ← Previous
               </button>
-            </div>
-          )}
-
-          {/* End of Results */}
-          {visibleCount >= filteredVendors.length && filteredVendors.length > 12 && (
-            <div className="text-center text-gray-500 text-sm">
-              You've reached the end of the list
+              <div className="flex items-center gap-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 2)
+                  .map((p, idx, arr) => (
+                    <React.Fragment key={p}>
+                      {idx > 0 && arr[idx - 1] !== p - 1 && (
+                        <span className="px-2 text-gray-400">…</span>
+                      )}
+                      <button
+                        onClick={() => handlePageChange(p)}
+                        className={`w-10 h-10 rounded-lg text-sm font-medium transition-colors ${
+                          currentPage === p
+                            ? "bg-[#7a5d47] text-white border border-[#7a5d47]"
+                            : "border border-[#c9bda4] hover:bg-[#e8ddae]"
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    </React.Fragment>
+                  ))}
+              </div>
+              <button
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage >= totalPages}
+                className="px-4 py-2 border border-[#c9bda4] rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#e8ddae] transition-colors"
+              >
+                Next →
+              </button>
+              <span className="text-sm text-gray-600 ml-2">
+                Page {currentPage} of {totalPages} ({filteredVendors.length} suppliers)
+              </span>
             </div>
           )}
         </>
@@ -192,7 +219,6 @@ function VendorCard({ vendor, navigate }) {
     navigate(`/vendor-profile?id=${encodeURIComponent(vendor.UserID || vendor.ID)}`);
   };
 
-  // Book Now Handler
   const handleBookNow = (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -203,7 +229,14 @@ function VendorCard({ vendor, navigate }) {
       return;
     }
 
-    navigate(`/create-booking?vendor=${encodeURIComponent(vendor.UserID || vendor.ID)}`);
+    const vendorUserId = vendor.UserID || vendor.ID;
+    navigate('/create-booking', {
+      state: {
+        vendorUserId,
+        vendorName: vendor.BusinessName,
+        serviceName: vendor.BusinessName
+      }
+    });
   };
 
   // Use vendor.avatar (business logo) instead of user_avatar (personal picture)
@@ -225,10 +258,11 @@ function VendorCard({ vendor, navigate }) {
           }}
         />
         
-        {/* Favorite Button */}
+        {/* Overlay Icons */}
+        <div className="absolute top-3 right-3 flex gap-2">
         <button
           onClick={toggleFavorite}
-          className="absolute top-3 right-3 w-10 h-10 rounded-full bg-white/90 hover:bg-white flex items-center justify-center transition-colors shadow-md"
+          className="w-9 h-9 rounded-full bg-white/90 hover:bg-white flex items-center justify-center transition-colors shadow-md"
         >
           <svg
             className={`w-5 h-5 ${isFavorite ? 'fill-red-500 text-red-500' : 'fill-none text-gray-600'}`}
@@ -243,6 +277,16 @@ function VendorCard({ vendor, navigate }) {
             />
           </svg>
         </button>
+        <button
+          onClick={handleChatClick}
+          className="w-9 h-9 rounded-full bg-white/90 hover:bg-white flex items-center justify-center transition-colors shadow-md"
+          title="Chat with supplier"
+        >
+          <svg className="w-5 h-5 stroke-gray-700" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 15a4 4 0 01-4 4H7l-4 3V7a4 4 0 014-4h10a4 4 0 014 4z" />
+          </svg>
+        </button>
+        </div>
 
         {/* Category Badge */}
         <div className="absolute bottom-3 left-3">

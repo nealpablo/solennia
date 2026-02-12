@@ -1,13 +1,15 @@
-// src/pages/VenueDetail.jsx -  Gallery Support
+// src/pages/VenueDetail.jsx - Gallery Support + Availability Calendar
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import toast from "../utils/toast";
+import "../style.css";
 
 const API_BASE =
   import.meta.env.VITE_API_BASE ||
   import.meta.env.VITE_API_URL ||
   (import.meta.env.PROD
     ? "https://solennia.up.railway.app" : "");
+const API = API_BASE && !String(API_BASE).endsWith('/api') ? `${API_BASE}/api` : (API_BASE || '/api');
 
 export default function VenueDetail() {
   const { id } = useParams();
@@ -16,6 +18,11 @@ export default function VenueDetail() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
   const [selectedImage, setSelectedImage] = useState(0);
+
+  // Calendar states (static, read-only)
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [availability, setAvailability] = useState([]);
+  const [loadingAvailability, setLoadingAvailability] = useState(false);
 
   /* =========================
      FETCH VENUE DATA FROM API
@@ -93,6 +100,83 @@ export default function VenueDetail() {
 
     fetchVenue();
   }, [id]);
+
+  /* =========================
+     LOAD AVAILABILITY (static calendar)
+  ========================= */
+  useEffect(() => {
+    if (!id) return;
+    loadAvailability();
+  }, [id, currentMonth]);
+
+  const loadAvailability = async () => {
+    try {
+      setLoadingAvailability(true);
+      const year = currentMonth.getFullYear();
+      const month = currentMonth.getMonth() + 1;
+      const res = await fetch(`${API}/venue/availability/${id}?year=${year}&month=${month}`);
+      const json = await res.json();
+      if (json.success) {
+        setAvailability(json.availability || []);
+      }
+    } catch (err) {
+      console.error("Failed to load venue availability:", err);
+    } finally {
+      setLoadingAvailability(false);
+    }
+  };
+
+  /* =========================
+     CALENDAR HELPERS
+  ========================= */
+  const formatDateToLocal = (date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
+  const getAvailabilityForDate = (date) => {
+    const dateStr = formatDateToLocal(date);
+    return availability.filter((a) => a.date === dateStr);
+  };
+
+  const isDateBooked = (date) => {
+    const dateStr = formatDateToLocal(date);
+    return availability.some((a) => a.date === dateStr && !a.is_available);
+  };
+
+  const isDateAvailable = (date) => {
+    const dateStr = formatDateToLocal(date);
+    return availability.some((a) => a.date === dateStr && a.is_available);
+  };
+
+  const getUpcomingAvailability = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return availability
+      .filter((a) => new Date(a.date) >= today)
+      .sort((a, b) => new Date(a.date) - new Date(b.date))
+      .slice(0, 5);
+  };
+
+  const previousMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1));
+  };
+  const nextMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1));
+  };
+
+  const formatDate = (dateStr) => {
+    return new Date(dateStr).toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+  };
+
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
   const handleBookNow = () => {
     const token = localStorage.getItem("solennia_token");
@@ -288,7 +372,7 @@ export default function VenueDetail() {
           {/* Tabs */}
           <div className="border-b border-gray-300 mb-6">
             <div className="flex gap-6">
-              {["overview", "packages", "amenities"].map((tab) => (
+              {["overview", "packages", "amenities", "availability"].map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
@@ -356,6 +440,119 @@ export default function VenueDetail() {
               ) : (
                 <p className="text-gray-600">Contact venue for amenities information.</p>
               )}
+            </div>
+          )}
+
+          {activeTab === "availability" && (
+            <div>
+              <h3 className="text-lg font-semibold mb-4">Availability Calendar</h3>
+
+              {(() => {
+                const upcomingAvailability = getUpcomingAvailability();
+                const { daysInMonth, startingDayOfWeek, year, month } = (() => {
+                  const d = currentMonth;
+                  const first = new Date(d.getFullYear(), d.getMonth(), 1);
+                  const last = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+                  return {
+                    daysInMonth: last.getDate(),
+                    startingDayOfWeek: first.getDay(),
+                    year: d.getFullYear(),
+                    month: d.getMonth()
+                  };
+                })();
+                return (
+                  <>
+                    {upcomingAvailability.length > 0 && (
+                      <div className="upcoming-availability mb-4">
+                        <h4 className="upcoming-title">Upcoming Availability</h4>
+                        <div className="upcoming-list">
+                          {upcomingAvailability.map((avail, idx) => (
+                            <div
+                              key={idx}
+                              className={`upcoming-item ${avail.is_available ? 'upcoming-available' : 'upcoming-booked'}`}
+                            >
+                              <div className="upcoming-date">
+                                <span className="upcoming-icon">{avail.is_available ? '✓' : '✕'}</span>
+                                {formatDate(avail.date)}
+                              </div>
+                              <div className="upcoming-time">
+                                {avail.start_time?.substring(0, 5)} - {avail.end_time?.substring(0, 5)}
+                              </div>
+                              <div className="upcoming-status">{avail.is_available ? 'Available' : 'Booked'}</div>
+                              {avail.notes && <div className="upcoming-notes">{avail.notes}</div>}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {upcomingAvailability.length === 0 && !loadingAvailability && (
+                      <div className="no-availability mb-4">
+                        <p>This venue has not set availability yet. Contact them directly to check dates.</p>
+                      </div>
+                    )}
+
+                    <div className="calendar-container">
+                      <div className="calendar-header">
+                        <button type="button" onClick={previousMonth} className="calendar-nav-btn">←</button>
+                        <h4 className="calendar-month">{monthNames[month]} {year}</h4>
+                        <button type="button" onClick={nextMonth} className="calendar-nav-btn">→</button>
+                      </div>
+                      <div className="calendar-legend">
+                        <div className="legend-item">
+                          <span className="legend-dot legend-available"></span>
+                          <span>Available</span>
+                        </div>
+                        <div className="legend-item">
+                          <span className="legend-dot legend-booked"></span>
+                          <span>Booked/Unavailable</span>
+                        </div>
+                      </div>
+                      <div className="calendar-weekdays">
+                        <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+                      </div>
+                      <div className="calendar-grid">
+                        {Array.from({ length: startingDayOfWeek }).map((_, i) => (
+                          <div key={`empty-${i}`} className="calendar-day calendar-day-empty"></div>
+                        ))}
+                        {Array.from({ length: daysInMonth }).map((_, i) => {
+                          const day = i + 1;
+                          const date = new Date(year, month, day);
+                          const isToday = date.toDateString() === new Date().toDateString();
+                          const isPast = date < new Date().setHours(0, 0, 0, 0);
+                          const availabilityData = getAvailabilityForDate(date);
+                          const isAvailable = isDateAvailable(date);
+                          const isBooked = isDateBooked(date);
+                          let dayClass = "calendar-day";
+                          if (isToday) dayClass += " calendar-day-today";
+                          if (isPast) dayClass += " calendar-day-past";
+                          if (isAvailable) dayClass += " calendar-day-available";
+                          if (isBooked) dayClass += " calendar-day-booked";
+                          return (
+                            <div
+                              key={day}
+                              className={dayClass}
+                              title={
+                                availabilityData.length > 0
+                                  ? `${availabilityData[0].is_available ? 'Available' : 'Booked'} ${availabilityData[0].start_time} - ${availabilityData[0].end_time}`
+                                  : ''
+                              }
+                            >
+                              <span className="calendar-day-number">{day}</span>
+                              {availabilityData.length > 0 && (
+                                <div className="calendar-day-indicator">
+                                  {availabilityData[0].is_available ? '✓' : '✕'}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {loadingAvailability && <div className="calendar-loading">Loading availability...</div>}
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           )}
         </div>

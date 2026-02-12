@@ -22,6 +22,23 @@ export default function VenueDashboard() {
   const [showCreateListing, setShowCreateListing] = useState(false);
   const [editingListing, setEditingListing] = useState(null);
 
+  // Availability Calendar (per venue)
+  const [selectedVenueForCalendar, setSelectedVenueForCalendar] = useState(null);
+  const [showCalendarModal, setShowCalendarModal] = useState(false);
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [availability, setAvailability] = useState([]);
+  const [loadingAvailability, setLoadingAvailability] = useState(false);
+  const [showAvailabilityModal, setShowAvailabilityModal] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [availabilityForm, setAvailabilityForm] = useState({
+    start_time: "09:00",
+    end_time: "17:00",
+    is_available: true,
+    notes: ""
+  });
+  const [editingAvailability, setEditingAvailability] = useState(null);
+  const [savingAvailability, setSavingAvailability] = useState(false);
+
   // Form state 
   const [listingForm, setListingForm] = useState({
     venue_name: "",
@@ -90,6 +107,188 @@ export default function VenueDashboard() {
       toast.error("Error checking supplier status");
       navigate("/");
     }
+  };
+
+  /* ================= AVAILABILITY: LOAD ================= */
+  useEffect(() => {
+    if (!showCalendarModal || !selectedVenueForCalendar?.id) return;
+    loadVenueAvailability();
+  }, [showCalendarModal, selectedVenueForCalendar?.id, currentMonth]);
+
+  const loadVenueAvailability = async () => {
+    if (!selectedVenueForCalendar?.id) return;
+    try {
+      setLoadingAvailability(true);
+      const year = currentMonth.getFullYear();
+      const month = currentMonth.getMonth() + 1;
+      const res = await fetch(`${API}/venue/availability/${selectedVenueForCalendar.id}?year=${year}&month=${month}`);
+      const json = await res.json();
+      if (json.success) setAvailability(json.availability || []);
+    } catch (err) {
+      console.error("Failed to load venue availability:", err);
+    } finally {
+      setLoadingAvailability(false);
+    }
+  };
+
+  const formatDateToLocal = (date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
+  const getDaysInMonth = (date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    return {
+      daysInMonth: lastDay.getDate(),
+      startingDayOfWeek: firstDay.getDay(),
+      year,
+      month
+    };
+  };
+
+  const getAvailabilityForDate = (date) => {
+    const dateStr = formatDateToLocal(date);
+    return availability.filter((a) => a.date === dateStr);
+  };
+
+  const isDateBooked = (date) => {
+    const dateStr = formatDateToLocal(date);
+    return availability.some((a) => a.date === dateStr && !a.is_available);
+  };
+
+  const isDateAvailable = (date) => {
+    const dateStr = formatDateToLocal(date);
+    return availability.some((a) => a.date === dateStr && a.is_available);
+  };
+
+  const getUpcomingAvailability = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return availability
+      .filter((a) => new Date(a.date) >= today)
+      .sort((a, b) => new Date(a.date) - new Date(b.date))
+      .slice(0, 5);
+  };
+
+  const previousMonth = () => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1));
+  const nextMonth = () => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1));
+
+  const formatDate = (dateStr) =>
+    new Date(dateStr).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+
+  const openAvailabilityModal = (date, existingAvailability = null) => {
+    setSelectedDate(date);
+    if (existingAvailability) {
+      setEditingAvailability(existingAvailability);
+      setAvailabilityForm({
+        start_time: existingAvailability.start_time ? String(existingAvailability.start_time).substring(0, 5) : "09:00",
+        end_time: existingAvailability.end_time ? String(existingAvailability.end_time).substring(0, 5) : "17:00",
+        is_available: existingAvailability.is_available,
+        notes: existingAvailability.notes || ""
+      });
+    } else {
+      setEditingAvailability(null);
+      setAvailabilityForm({ start_time: "09:00", end_time: "17:00", is_available: true, notes: "" });
+    }
+    setShowAvailabilityModal(true);
+  };
+
+  const closeAvailabilityModal = () => {
+    setShowAvailabilityModal(false);
+    setSelectedDate(null);
+    setEditingAvailability(null);
+    setAvailabilityForm({ start_time: "09:00", end_time: "17:00", is_available: true, notes: "" });
+  };
+
+  const saveAvailability = async (e) => {
+    e.preventDefault();
+    if (!selectedDate || !selectedVenueForCalendar?.id) return;
+    if (!token) {
+      toast.error("Please log in");
+      return;
+    }
+    try {
+      setSavingAvailability(true);
+      const dateStr = formatDateToLocal(selectedDate);
+      const payload = editingAvailability
+        ? {
+            start_time: availabilityForm.start_time,
+            end_time: availabilityForm.end_time,
+            is_available: availabilityForm.is_available,
+            notes: availabilityForm.notes || ""
+          }
+        : {
+            venue_id: selectedVenueForCalendar.id,
+            date: dateStr,
+            start_time: availabilityForm.start_time,
+            end_time: availabilityForm.end_time,
+            is_available: availabilityForm.is_available,
+            notes: availabilityForm.notes || ""
+          };
+      const url = editingAvailability
+        ? `${API}/venue/availability/${editingAvailability.id}`
+        : `${API}/venue/availability`;
+      const method = editingAvailability ? "PATCH" : "POST";
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload)
+      });
+      const json = await res.json();
+      if (json.success) {
+        toast.success(editingAvailability ? "Availability updated!" : "Availability added!");
+        closeAvailabilityModal();
+        loadVenueAvailability();
+      } else {
+        toast.error(json.error || "Failed to save availability");
+      }
+    } catch (err) {
+      console.error("Save availability error:", err);
+      toast.error("Failed to save availability");
+    } finally {
+      setSavingAvailability(false);
+    }
+  };
+
+  const deleteAvailability = async (availabilityId) => {
+    if (!confirm("Delete this availability entry?")) return;
+    if (!token) {
+      toast.error("Please log in");
+      return;
+    }
+    try {
+      const res = await fetch(`${API}/venue/availability/${availabilityId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const json = await res.json();
+      if (json.success) {
+        toast.success("Availability deleted!");
+        closeAvailabilityModal();
+        loadVenueAvailability();
+      } else {
+        toast.error(json.error || "Failed to delete availability");
+      }
+    } catch (err) {
+      console.error("Delete availability error:", err);
+      toast.error("Failed to delete availability");
+    }
+  };
+
+  const openCalendarModal = (listing) => {
+    setSelectedVenueForCalendar(listing);
+    setCurrentMonth(new Date());
+    setShowCalendarModal(true);
+  };
+
+  const closeCalendarModal = () => {
+    setShowCalendarModal(false);
+    setSelectedVenueForCalendar(null);
   };
 
   /* ================= LOAD VENUE LISTINGS ================= */
@@ -622,6 +821,9 @@ export default function VenueDashboard() {
                     <p><strong>Images:</strong> {gallery.length} gallery photos</p>
                     
                     <div className="listing-actions">
+                      <button onClick={() => openCalendarModal(listing)} className="btn btn-secondary">
+                        📅 Manage Availability
+                      </button>
                       <button onClick={() => handleEditListing(listing)} className="btn btn-secondary">
                         ✏️ Edit
                       </button>
@@ -666,15 +868,15 @@ export default function VenueDashboard() {
                   onChange={(e) => setListingForm({ ...listingForm, venue_subcategory: e.target.value })}
                 >
                   <option value="">Select type...</option>
-                  <option value="Ballroom">Ballroom</option>
+                  <option value="Church">Church</option>
                   <option value="Garden">Garden</option>
+                  <option value="Resort">Resort</option>
+                  <option value="Conference">Conference</option>
+                  <option value="Other">Other</option>
+                  <option value="Ballroom">Ballroom</option>
                   <option value="Beach">Beach</option>
                   <option value="Restaurant">Restaurant</option>
                   <option value="Hotel">Hotel</option>
-                  <option value="Church">Church</option>
-                  <option value="Resort">Resort</option>
-                  <option value="Conference">Conference Center</option>
-                  <option value="Other">Other</option>
                 </select>
               </div>
 
@@ -875,6 +1077,158 @@ export default function VenueDashboard() {
                 </button>
                 <button type="submit" className="btn btn-primary">
                   {editingListing ? "💾 Update Listing" : "✨ Create Listing"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* CALENDAR MODAL - Manage Venue Availability */}
+      {showCalendarModal && selectedVenueForCalendar && (
+        <div className="modal-backdrop" style={{ zIndex: 10002 }} onClick={closeCalendarModal}>
+          <div className="modal-content" style={{ maxWidth: 800 }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, paddingBottom: 16, borderBottom: '1px solid #ddd' }}>
+              <div>
+                <h2 style={{ margin: 0, color: '#7a5d47' }}>📅 Manage Availability</h2>
+                <p style={{ margin: '4px 0 0', fontSize: 14, color: '#666' }}>{selectedVenueForCalendar.venue_name}</p>
+              </div>
+              <button onClick={closeCalendarModal} className="btn btn-secondary">✕ Close</button>
+            </div>
+
+            {getUpcomingAvailability().length > 0 && (
+              <div style={{ background: '#f9f9f9', padding: 16, borderRadius: 8, marginBottom: 20 }}>
+                <h4 style={{ margin: '0 0 12px', fontSize: 14, color: '#7a5d47' }}>Upcoming Availability</h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {getUpcomingAvailability().map((avail, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        padding: 12,
+                        borderRadius: 8,
+                        background: avail.is_available ? '#dcfce7' : '#fee2e2',
+                        border: `1px solid ${avail.is_available ? '#86efac' : '#fca5a5'}`
+                      }}
+                    >
+                      <span style={{ fontWeight: 600 }}>{avail.is_available ? '✓' : '✕'} {formatDate(avail.date)}</span>
+                      <span style={{ marginLeft: 12, fontSize: 13 }}>{avail.start_time?.substring(0, 5)} - {avail.end_time?.substring(0, 5)}</span>
+                      <span style={{ marginLeft: 8, fontSize: 12, fontWeight: 600 }}>{avail.is_available ? 'Available' : 'Booked'}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <button type="button" onClick={previousMonth} className="btn btn-secondary">← Previous</button>
+                <h4 style={{ margin: 0 }}>{currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</h4>
+                <button type="button" onClick={nextMonth} className="btn btn-secondary">Next →</button>
+              </div>
+              <div style={{ display: 'flex', gap: 16, marginBottom: 12, fontSize: 13 }}>
+                <span><span style={{ display: 'inline-block', width: 14, height: 14, background: '#22c55e', borderRadius: 2, marginRight: 6 }}></span>Available</span>
+                <span><span style={{ display: 'inline-block', width: 14, height: 14, background: '#ef4444', borderRadius: 2, marginRight: 6 }}></span>Booked</span>
+                <span><span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid #3b82f6', borderRadius: 2, marginRight: 6 }}></span>Click to manage</span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
+                  <div key={d} style={{ textAlign: 'center', fontWeight: 600, fontSize: 12, padding: 8 }}>{d}</div>
+                ))}
+                {(() => {
+                  const { daysInMonth, startingDayOfWeek, year, month } = getDaysInMonth(currentMonth);
+                  const cells = [];
+                  for (let i = 0; i < startingDayOfWeek; i++) cells.push(<div key={`e-${i}`} />);
+                  for (let day = 1; day <= daysInMonth; day++) {
+                    const date = new Date(year, month, day);
+                    const isPast = date < new Date().setHours(0, 0, 0, 0);
+                    const availabilityData = getAvailabilityForDate(date);
+                    const isAvailable = isDateAvailable(date);
+                    const isBooked = isDateBooked(date);
+                    const isToday = date.toDateString() === new Date().toDateString();
+                    cells.push(
+                      <div
+                        key={day}
+                        onClick={() => {
+                          if (!isPast) {
+                            if (availabilityData.length > 0) openAvailabilityModal(date, availabilityData[0]);
+                            else openAvailabilityModal(date);
+                          }
+                        }}
+                        style={{
+                          aspectRatio: 1,
+                          padding: 8,
+                          borderRadius: 8,
+                          border: `2px solid ${isPast ? '#ddd' : isAvailable ? '#22c55e' : isBooked ? '#ef4444' : '#e5e7eb'}`,
+                          background: isPast ? '#f3f4f6' : isAvailable ? '#dcfce7' : isBooked ? '#fee2e2' : '#fff',
+                          cursor: isPast ? 'not-allowed' : 'pointer',
+                          opacity: isPast ? 0.6 : 1,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                      >
+                        <span style={{ fontWeight: 600 }}>{day}</span>
+                        {availabilityData.length > 0 && (
+                          <span style={{ fontSize: 11 }}>{availabilityData[0].is_available ? '✓' : '✕'}</span>
+                        )}
+                      </div>
+                    );
+                  }
+                  return cells;
+                })()}
+              </div>
+              {loadingAvailability && <p style={{ textAlign: 'center', marginTop: 12, color: '#666' }}>Loading...</p>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AVAILABILITY EDIT MODAL */}
+      {showAvailabilityModal && selectedDate && (
+        <div className="modal-backdrop" style={{ zIndex: 10003 }} onClick={closeAvailabilityModal}>
+          <div className="modal-content" style={{ maxWidth: 420 }} onClick={(e) => e.stopPropagation()}>
+            <h2 style={{ marginTop: 0, color: '#7a5d47' }}>{editingAvailability ? 'Edit' : 'Set'} Availability</h2>
+            <p style={{ fontSize: 14, color: '#666', marginBottom: 20 }}>
+              {selectedDate.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+            </p>
+            <form onSubmit={saveAvailability}>
+              <div className="form-group">
+                <label>Status</label>
+                <div style={{ display: 'flex', gap: 24 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                    <input type="radio" checked={availabilityForm.is_available === true} onChange={() => setAvailabilityForm({ ...availabilityForm, is_available: true })} />
+                    Available
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                    <input type="radio" checked={availabilityForm.is_available === false} onChange={() => setAvailabilityForm({ ...availabilityForm, is_available: false })} />
+                    Booked/Unavailable
+                  </label>
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }} className="form-group">
+                <div>
+                  <label>Start Time</label>
+                  <input type="time" value={availabilityForm.start_time} onChange={(e) => setAvailabilityForm({ ...availabilityForm, start_time: e.target.value })} required className="form-group input" style={{ width: '100%', padding: 10, border: '1px solid #ddd', borderRadius: 6 }} />
+                </div>
+                <div>
+                  <label>End Time</label>
+                  <input type="time" value={availabilityForm.end_time} onChange={(e) => setAvailabilityForm({ ...availabilityForm, end_time: e.target.value })} required className="form-group input" style={{ width: '100%', padding: 10, border: '1px solid #ddd', borderRadius: 6 }} />
+                </div>
+              </div>
+              <div className="form-group">
+                <label>Notes (optional)</label>
+                <input type="text" value={availabilityForm.notes} onChange={(e) => setAvailabilityForm({ ...availabilityForm, notes: e.target.value })} placeholder="e.g. Blocked for private event" style={{ width: '100%', padding: 10, border: '1px solid #ddd', borderRadius: 6 }} />
+              </div>
+              <div className="modal-actions" style={{ marginTop: 20 }}>
+                {editingAvailability && (
+                  <button type="button" onClick={() => deleteAvailability(editingAvailability.id)} className="btn btn-danger" style={{ marginRight: 'auto' }}>
+                    Delete
+                  </button>
+                )}
+                <button type="button" onClick={closeAvailabilityModal} className="btn btn-secondary">Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={savingAvailability}>
+                  {savingAvailability ? 'Saving...' : 'Save'}
                 </button>
               </div>
             </form>

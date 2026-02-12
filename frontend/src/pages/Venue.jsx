@@ -6,15 +6,26 @@ const API_BASE =
   import.meta.env.VITE_API_BASE ||
   import.meta.env.VITE_API_URL ||
   (import.meta.env.PROD
-    ? "https://solennia.up.railway.app" : "");
+    ? "https://solennia.up.railway.app/api" : "/api");
+
+const VENUE_CATEGORIES = [
+  { value: "all", label: "All Venues" },
+  { value: "Church", label: "Churches" },
+  { value: "Garden", label: "Gardens" },
+  { value: "Resort", label: "Resorts" },
+  { value: "Conference", label: "Conference" },
+  { value: "Other", label: "Others" }
+];
+
+const PER_PAGE = 8;
 
 export default function Venue() {
   const [venues, setVenues] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [visibleCount, setVisibleCount] = useState(12);
   const [isVenueVendor, setIsVenueVendor] = useState(false);
   const [checkingVendor, setCheckingVendor] = useState(true);
   const [filter, setFilter] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
 
   const navigate = useNavigate();
 
@@ -82,22 +93,32 @@ export default function Venue() {
       return;
     }
 
-    // Navigate to venue dashboard
     navigate("/venue-dashboard");
   };
 
-  const handleShowMore = () => {
-    setVisibleCount(prev => prev + 12);
-  };
-
-  //Filter venues based on selected category
+  // Filter venues by category (DB values: Church, Garden, Resort, Conference, Other)
   const filteredVenues = filter === "all"
     ? venues
-    : venues.filter(v =>
-      (v.venue_subcategory || "").toLowerCase() === filter.toLowerCase()
-    );
+    : venues.filter(v => {
+        const sub = (v.venue_subcategory || "").trim().toLowerCase();
+        const f = filter.toLowerCase();
+        if (!sub) return false;
+        if (sub === f) return true;
+        if (f === "conference" && (sub === "conference" || sub === "conference center")) return true;
+        return false;
+      });
 
-  const visibleVenues = filteredVenues.slice(0, visibleCount);
+  const totalPages = Math.max(1, Math.ceil(filteredVenues.length / PER_PAGE));
+  const startIdx = (currentPage - 1) * PER_PAGE;
+  const visibleVenues = filteredVenues.slice(startIdx, startIdx + PER_PAGE);
+
+  const handlePageChange = (page) => {
+    setCurrentPage(Math.max(1, Math.min(page, totalPages)));
+  };
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filter]);
 
   if (loading || checkingVendor) {
     return (
@@ -137,21 +158,18 @@ export default function Venue() {
         )}
       </div>
 
-      {/* Filter Bar with Working Filters - Centered */}
+      {/* Filter Bar - Uses DB values (Church, Garden, etc.) for filtering */}
       <div className="flex flex-wrap gap-3 text-[0.75rem] tracking-[0.2em] uppercase mb-6 justify-center">
-        {["all", "Churches", "Gardens", "Resorts", "Conference", "Others"].map((f) => (
+        {VENUE_CATEGORIES.map(({ value, label }) => (
           <button
-            key={f}
-            onClick={() => {
-              setFilter(f);
-              setVisibleCount(12); // Reset visible count when filtering
-            }}
-            className={`px-4 py-2 border border-[#c9bda4] rounded-full transition-colors ${filter === f
+            key={value}
+            onClick={() => setFilter(value)}
+            className={`px-4 py-2 border border-[#c9bda4] rounded-full transition-colors ${filter === value
               ? "bg-[#7a5d47] text-white border-[#7a5d47]"
               : "bg-[#f6f0e8] hover:bg-[#e8ddae]"
               }`}
           >
-            {f === "all" ? "All Venues" : f}
+            {label}
           </button>
         ))}
       </div>
@@ -163,7 +181,7 @@ export default function Venue() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
           </svg>
           <h3 className="text-xl font-semibold text-gray-700 mb-2">
-            {filter === "all" ? "No Venues Available Yet" : `No ${filter} Available`}
+            {filter === "all" ? "No Venues Available Yet" : `No ${VENUE_CATEGORIES.find(c => c.value === filter)?.label || filter} Available`}
           </h3>
           <p className="text-gray-500 mb-6">
             {isVenueVendor
@@ -188,22 +206,46 @@ export default function Venue() {
             ))}
           </div>
 
-          {/* Show More Button */}
-          {visibleCount < filteredVenues.length && (
-            <div className="text-center">
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex flex-wrap items-center justify-center gap-2 mt-8">
               <button
-                onClick={handleShowMore}
-                className="px-8 py-3 bg-[#e8ddae] hover:bg-[#dbcf9f] text-sm font-semibold uppercase rounded-lg transition-colors"
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage <= 1}
+                className="px-4 py-2 border border-[#c9bda4] rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#e8ddae]"
               >
-                Show More
+                ← Previous
               </button>
-            </div>
-          )}
-
-          {/* End of Results */}
-          {visibleCount >= filteredVenues.length && filteredVenues.length > 12 && (
-            <div className="text-center text-gray-500 text-sm">
-              You've reached the end of the list
+              <div className="flex items-center gap-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 2)
+                  .map((p, idx, arr) => (
+                    <React.Fragment key={p}>
+                      {idx > 0 && arr[idx - 1] !== p - 1 && (
+                        <span className="px-2 text-gray-400">…</span>
+                      )}
+                      <button
+                        onClick={() => handlePageChange(p)}
+                        className={`w-10 h-10 rounded-lg text-sm font-medium transition-colors ${currentPage === p
+                          ? "bg-[#7a5d47] text-white"
+                          : "border border-[#c9bda4] hover:bg-[#e8ddae]"
+                          }`}
+                      >
+                        {p}
+                      </button>
+                    </React.Fragment>
+                  ))}
+              </div>
+              <button
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage >= totalPages}
+                className="px-4 py-2 border border-[#c9bda4] rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#e8ddae]"
+              >
+                Next →
+              </button>
+              <span className="text-sm text-gray-600 ml-2">
+                Page {currentPage} of {totalPages} ({filteredVenues.length} venues)
+              </span>
             </div>
           )}
         </>

@@ -6,6 +6,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 use Src\Middleware\AuthMiddleware;
 use Src\Controllers\VenueController;
 use Src\Controllers\VenueBookingController;
+use Src\Controllers\VenueAvailabilityController;
 use Illuminate\Database\Capsule\Manager as DB;
 
 return function (App $app) {
@@ -106,4 +107,29 @@ return function (App $app) {
 
     // Check venue availability (public)
     $app->get('/api/venues/{id}/availability', [$venueBookingController, 'checkVenueAvailability']);
+
+    // =========================================================
+    // VENUE AVAILABILITY CALENDAR ROUTES
+    // =========================================================
+
+    $venueAvailabilityController = new VenueAvailabilityController();
+
+    // PUBLIC: Get availability for a venue (read-only calendar)
+    $app->get('/api/venue/availability/{venue_id}', function (Request $r, Response $s, $a) use ($venueAvailabilityController) {
+        return $venueAvailabilityController->index($r, $s, $a);
+    });
+
+    // PROTECTED: Create availability (venue owner only)
+    $app->post('/api/venue/availability', [$venueAvailabilityController, 'store'])
+        ->add(new AuthMiddleware());
+
+    // PROTECTED: Update availability (venue owner only)
+    $app->patch('/api/venue/availability/{id}', function (Request $r, Response $s, $a) use ($venueAvailabilityController) {
+        return $venueAvailabilityController->update($r, $s, $a);
+    })->add(new AuthMiddleware());
+
+    // PROTECTED: Delete availability (venue owner only)
+    $app->delete('/api/venue/availability/{id}', function (Request $r, Response $s, $a) use ($venueAvailabilityController) {
+        return $venueAvailabilityController->destroy($r, $s, $a);
+    })->add(new AuthMiddleware());
 };

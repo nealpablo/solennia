@@ -995,9 +995,9 @@ export default function Profile() {
                         setActiveTab("original");
                         loadBookings();
                       }}
-                      className="w-full bg-[#e8ddae] text-[#3b2f25] px-4 py-3 rounded-lg text-sm font-semibold hover:opacity-90 flex items-center justify-center gap-2 shadow-md"
+                      className="w-full bg-[#e8ddae] text-[#3b2f25] px-3 py-2 rounded-md text-xs font-semibold hover:bg-[#dbcf9f] flex items-center justify-center gap-1.5 transition-colors border border-[#c9bda4]"
                     >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                       </svg>
                       My Bookings
@@ -1011,9 +1011,9 @@ export default function Profile() {
                         setActiveTab("original");
                         loadBookings();
                       }}
-                      className="w-full bg-[#e8ddae] text-[#3b2f25] px-4 py-3 rounded-lg text-sm font-semibold hover:opacity-90 flex items-center justify-center gap-2 shadow-md"
+                      className="w-full bg-[#e8ddae] text-[#3b2f25] px-3 py-2 rounded-md text-xs font-semibold hover:bg-[#dbcf9f] flex items-center justify-center gap-1.5 transition-colors border border-[#c9bda4]"
                     >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
                       </svg>
                       Booking Requests
@@ -1023,9 +1023,9 @@ export default function Profile() {
                   {role === 1 && (
                     <button
                       onClick={() => setShowCalendarModal(true)}
-                      className="w-full bg-[#e8ddae] text-[#3b2f25] px-4 py-3 rounded-lg text-sm font-semibold hover:opacity-90 flex items-center justify-center gap-2 shadow-md"
+                      className="w-full bg-[#e8ddae] text-[#3b2f25] px-3 py-2 rounded-md text-xs font-semibold hover:bg-[#dbcf9f] flex items-center justify-center gap-1.5 transition-colors border border-[#c9bda4]"
                     >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                       </svg>
                       Manage Calendar
@@ -1035,9 +1035,9 @@ export default function Profile() {
                   {dashboardHref() && dashboardLabel() && (
                     <a
                       href={dashboardHref()}
-                      className="w-full bg-[#e8ddae] text-[#3b2f25] px-4 py-3 rounded-lg text-sm font-semibold hover:opacity-90 flex items-center justify-center gap-2 shadow-md"
+                      className="w-full bg-[#e8ddae] text-[#3b2f25] px-3 py-2 rounded-md text-xs font-semibold hover:bg-[#dbcf9f] flex items-center justify-center gap-1.5 transition-colors border border-[#c9bda4]"
                     >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
                       </svg>
                       {dashboardLabel()}
@@ -1265,12 +1265,12 @@ export default function Profile() {
                               </div>
                             </div>
 
-                            <div className="flex gap-2 mt-3 flex-wrap">
+                            <div className="flex gap-1.5 mt-3 flex-wrap">
                               {role === 0 && booking.BookingStatus === 'Pending' && !pendingData.hasPending && (
                                 <button
                                   onClick={() => cancelBooking(booking.ID)}
                                   disabled={processingBooking}
-                                  className="flex-1 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 disabled:opacity-50 text-sm font-semibold"
+                                  className="px-3 py-1.5 bg-[#c9bda4] text-[#3b2f25] rounded-md hover:bg-[#b8ab95] disabled:opacity-50 text-xs font-semibold transition-colors"
                                 >
                                   Cancel
                                 </button>
@@ -1280,30 +1280,26 @@ export default function Profile() {
                                 <button
                                   onClick={() => openRescheduleModal(booking)}
                                   disabled={processingBooking}
-                                  className="flex-1 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 disabled:opacity-50 text-sm font-semibold"
+                                  className="px-3 py-1.5 bg-[#e8ddae] text-[#3b2f25] rounded-md hover:bg-[#dbcf9f] disabled:opacity-50 text-xs font-semibold transition-colors"
                                 >
                                   📅 Reschedule
                                 </button>
                               )}
 
-                              {/* NEW: COMPLETE BUTTON FOR VENDORS */}
                               {canComplete && (
                                 <button
                                   onClick={() => completeBooking(booking.ID)}
                                   disabled={processingBooking}
-                                 className="flex-1 bg-[#7a5d47] text-white px-4 py-2 rounded-lg hover:bg-[#5d4436] disabled:opacity-50 text-sm font-semibold"
-
-
+                                  className="px-3 py-1.5 bg-[#7a5d47] text-white rounded-md hover:bg-[#654a38] disabled:opacity-50 text-xs font-semibold transition-colors"
                                 >
-                                   Mark Completed
+                                  Mark Completed
                                 </button>
                               )}
 
-                              {/*  NEW: FEEDBACK BUTTON FOR CLIENTS */}
                               {canLeaveFeedback && (
                                 <button
                                   onClick={() => openFeedbackModal(booking)}
-                                  className="flex-1 bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600 text-sm font-semibold"
+                                  className="px-3 py-1.5 bg-[#e8ddae] text-[#3b2f25] rounded-md hover:bg-[#dbcf9f] text-xs font-semibold transition-colors"
                                 >
                                   ⭐ Leave Feedback
                                 </button>
@@ -1314,14 +1310,14 @@ export default function Profile() {
                                   <button
                                     onClick={() => acceptBooking(booking.ID)}
                                     disabled={processingBooking}
-                                    className="flex-1 bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 disabled:opacity-50 text-sm font-semibold"
+                                    className="px-3 py-1.5 bg-[#7a5d47] text-white rounded-md hover:bg-[#654a38] disabled:opacity-50 text-xs font-semibold transition-colors"
                                   >
                                     {pendingData.hasPending ? '✓ Approve' : 'Accept'}
                                   </button>
                                   <button
                                     onClick={() => rejectBooking(booking.ID)}
                                     disabled={processingBooking}
-                                    className="flex-1 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 disabled:opacity-50 text-sm font-semibold"
+                                    className="px-3 py-1.5 bg-[#c9bda4] text-[#3b2f25] rounded-md hover:bg-[#b8ab95] disabled:opacity-50 text-xs font-semibold transition-colors"
                                   >
                                     {pendingData.hasPending ? '✗ Reject' : 'Reject'}
                                   </button>
@@ -1330,7 +1326,7 @@ export default function Profile() {
 
                               <button
                                 onClick={() => setSelectedBooking(booking)}
-                                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 text-sm font-semibold"
+                                className="px-3 py-1.5 bg-[#f6f0e8] text-[#7a5d47] rounded-md hover:bg-[#e8ddae] text-xs font-semibold transition-colors border border-[#c9bda4]"
                               >
                                 View
                               </button>

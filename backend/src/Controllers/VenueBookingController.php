@@ -205,8 +205,18 @@ class VenueBookingController
                 ->orderByDesc('b.BookingDate')
                 ->get();
 
+            // Normalize for frontend: ensure ID, ServiceName, vendor_name (align with supplier booking format)
+            $normalized = $bookings->map(function ($b) {
+                $arr = (array) $b;
+                $arr['ID'] = $arr['id'] ?? $arr['BookingID'] ?? null;
+                $arr['ServiceName'] = $arr['venue_name'] ?? $arr['ServiceName'] ?? 'Venue';
+                $arr['vendor_name'] = $arr['venue_owner_name'] ?? $arr['vendor_name'] ?? null;
+                $arr['isVenueBooking'] = true;
+                return $arr;
+            });
+
             return $this->json($res, true, "Bookings retrieved", 200, [
-                'bookings' => $bookings
+                'bookings' => $normalized
             ]);
 
         } catch (\Exception $e) {
@@ -270,7 +280,9 @@ class VenueBookingController
                 ->leftJoin('venue_listings as v', 'b.venue_id', '=', 'v.id')
                 ->leftJoin('credential as client', 'b.UserID', '=', 'client.id')
                 ->leftJoin('credential as owner', 'v.user_id', '=', 'owner.id')
-                ->where('b.BookingID', $bookingId)
+                ->where(function($q) use ($bookingId) {
+                    $q->where('b.id', $bookingId)->orWhere('b.BookingID', $bookingId);
+                })
                 ->whereNotNull('b.venue_id')
                 ->where(function($query) use ($userId) {
                     $query->where('b.UserID', $userId)
@@ -327,7 +339,9 @@ class VenueBookingController
             // Verify ownership
             $booking = DB::table('booking as b')
                 ->join('venue_listings as v', 'b.venue_id', '=', 'v.id')
-                ->where('b.BookingID', $bookingId)
+                ->where(function($q) use ($bookingId) {
+                    $q->where('b.id', $bookingId)->orWhere('b.BookingID', $bookingId);
+                })
                 ->where('v.user_id', $userId)
                 ->select('b.*', 'v.venue_name', 'v.user_id as venue_owner_id')
                 ->first();
@@ -338,7 +352,9 @@ class VenueBookingController
 
             // Update status
             DB::table('booking')
-                ->where('BookingID', $bookingId)
+                ->where(function($q) use ($bookingId) {
+                    $q->where('id', $bookingId)->orWhere('BookingID', $bookingId);
+                })
                 ->update([
                     'BookingStatus' => $status,
                     'UpdatedAt' => DB::raw('NOW()')
@@ -375,7 +391,9 @@ class VenueBookingController
 
             $booking = DB::table('booking as b')
                 ->leftJoin('venue_listings as v', 'b.venue_id', '=', 'v.id')
-                ->where('b.BookingID', $bookingId)
+                ->where(function($q) use ($bookingId) {
+                    $q->where('b.id', $bookingId)->orWhere('b.BookingID', $bookingId);
+                })
                 ->where('b.UserID', $userId)
                 ->select('b.*', 'v.venue_name', 'v.user_id as venue_owner_id')
                 ->first();
@@ -389,7 +407,9 @@ class VenueBookingController
             }
 
             DB::table('booking')
-                ->where('BookingID', $bookingId)
+                ->where(function($q) use ($bookingId) {
+                    $q->where('id', $bookingId)->orWhere('BookingID', $bookingId);
+                })
                 ->update([
                     'BookingStatus' => 'Cancelled',
                     'UpdatedAt' => DB::raw('NOW()')
@@ -435,7 +455,9 @@ class VenueBookingController
             }
 
             $booking = DB::table('booking')
-                ->where('BookingID', $bookingId)
+                ->where(function($q) use ($bookingId) {
+                    $q->where('id', $bookingId)->orWhere('BookingID', $bookingId);
+                })
                 ->where('UserID', $userId)
                 ->first();
 
@@ -446,7 +468,7 @@ class VenueBookingController
             // Check new date availability
             $conflict = DB::table('booking')
                 ->where('venue_id', $booking->venue_id)
-                ->where('BookingID', '!=', $bookingId)
+                ->whereRaw('COALESCE(id, BookingID) != ?', [$bookingId])
                 ->where(function($query) use ($newStartDate, $newEndDate) {
                     $query->whereBetween('start_date', [$newStartDate, $newEndDate])
                           ->orWhereBetween('end_date', [$newStartDate, $newEndDate])
@@ -464,7 +486,9 @@ class VenueBookingController
 
             // Update booking
             DB::table('booking')
-                ->where('BookingID', $bookingId)
+                ->where(function($q) use ($bookingId) {
+                    $q->where('id', $bookingId)->orWhere('BookingID', $bookingId);
+                })
                 ->update([
                     'EventDate' => $newStartDate,
                     'start_date' => $newStartDate,
