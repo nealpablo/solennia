@@ -2,7 +2,10 @@ import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import toast from "../utils/toast";
 
-const API = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL || "";
+const API = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL ||
+    (import.meta.env.PROD
+        ? "https://solennia.up.railway.app/api"
+        : "/api");
 
 const EVENT_TYPES = [
     "Wedding",
@@ -28,8 +31,9 @@ export default function CreateVenueBooking() {
         start_date: "",
         end_date: "",
         guest_count: "",
-        event_time: "",
-        event_location: venueData.address || ""
+        event_time: "14:00", // Default to 2:00 PM (15-min interval)
+        event_location: venueData.address || "",
+        budget: ""
     });
 
     // Step 2: Venue Configuration
@@ -104,6 +108,10 @@ export default function CreateVenueBooking() {
             toast.error("Please select an event time");
             return false;
         }
+        if (!eventDetails.budget || eventDetails.budget <= 0) {
+            toast.error("Please enter your budget");
+            return false;
+        }
 
         // Capacity warning
         if (venueData.capacity && parseInt(eventDetails.guest_count) > parseInt(venueData.capacity)) {
@@ -169,7 +177,7 @@ export default function CreateVenueBooking() {
             event_location: eventDetails.event_location,
             selected_amenities: venueConfig.selected_amenities,
             additional_notes: buildAdditionalNotes(),
-            total_amount: 0 //  Will be determined by venue owner
+            total_amount: parseFloat(eventDetails.budget) || 0
         };
 
         try {
@@ -373,26 +381,108 @@ export default function CreateVenueBooking() {
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
                                         Event Time *
                                     </label>
-                                    <input
-                                        type="time"
-                                        value={eventDetails.event_time}
-                                        onChange={(e) => handleEventDetailsChange("event_time", e.target.value)}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#7a5d47] focus:border-transparent"
-                                    />
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {/* Hour */}
+                                        <select
+                                            value={(() => {
+                                                if (!eventDetails.event_time) return "";
+                                                const [hours] = eventDetails.event_time.split(':');
+                                                const h = parseInt(hours);
+                                                return h === 0 ? "12" : h > 12 ? (h - 12).toString() : h.toString();
+                                            })()}
+                                            onChange={(e) => {
+                                                const hour12 = parseInt(e.target.value);
+                                                const [, mins] = (eventDetails.event_time || "14:00").split(':');
+                                                const currentHour24 = eventDetails.event_time ? parseInt(eventDetails.event_time.split(':')[0]) : 14;
+                                                const isPM = currentHour24 >= 12;
+                                                let hour24 = hour12;
+                                                if (isPM && hour12 !== 12) hour24 = hour12 + 12;
+                                                if (!isPM && hour12 === 12) hour24 = 0;
+                                                handleEventDetailsChange("event_time", `${hour24.toString().padStart(2, '0')}:${mins || '00'}`);
+                                            }}
+                                            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#7a5d47] focus:border-transparent"
+                                        >
+                                            <option value="">Hr</option>
+                                            {Array.from({ length: 12 }, (_, i) => i + 1).map(h => (
+                                                <option key={h} value={h}>{h}</option>
+                                            ))}
+                                        </select>
+
+                                        {/* Minute */}
+                                        <select
+                                            value={eventDetails.event_time ? eventDetails.event_time.split(':')[1] : ""}
+                                            onChange={(e) => {
+                                                const [hours] = (eventDetails.event_time || "14:00").split(':');
+                                                handleEventDetailsChange("event_time", `${hours || '14'}:${e.target.value}`);
+                                            }}
+                                            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#7a5d47] focus:border-transparent"
+                                        >
+                                            <option value="">Min</option>
+                                            {['00', '15', '30', '45'].map(m => (
+                                                <option key={m} value={m}>{m}</option>
+                                            ))}
+                                        </select>
+
+                                        {/* AM/PM */}
+                                        <select
+                                            value={(() => {
+                                                if (!eventDetails.event_time) return "";
+                                                const [hours] = eventDetails.event_time.split(':');
+                                                return parseInt(hours) >= 12 ? "PM" : "AM";
+                                            })()}
+                                            onChange={(e) => {
+                                                const [hours, mins] = (eventDetails.event_time || "14:00").split(':');
+                                                let hour24 = parseInt(hours);
+                                                const wasPM = hour24 >= 12;
+                                                const nowPM = e.target.value === "PM";
+
+                                                if (wasPM && !nowPM) {
+                                                    hour24 = hour24 === 12 ? 0 : hour24 - 12;
+                                                } else if (!wasPM && nowPM) {
+                                                    hour24 = hour24 === 12 ? 12 : hour24 + 12;
+                                                }
+
+                                                handleEventDetailsChange("event_time", `${hour24.toString().padStart(2, '0')}:${mins || '00'}`);
+                                            }}
+                                            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#7a5d47] focus:border-transparent"
+                                        >
+                                            <option value="">--</option>
+                                            <option value="AM">AM</option>
+                                            <option value="PM">PM</option>
+                                        </select>
+                                    </div>
                                 </div>
                             </div>
 
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Event Location *
-                                </label>
-                                <input
-                                    type="text"
-                                    value={eventDetails.event_location}
-                                    onChange={(e) => handleEventDetailsChange("event_location", e.target.value)}
-                                    placeholder="e.g., Manila, Philippines"
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#7a5d47] focus:border-transparent"
-                                />
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Event Location *
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={eventDetails.event_location}
+                                        onChange={(e) => handleEventDetailsChange("event_location", e.target.value)}
+                                        placeholder="e.g., Manila, Philippines"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#7a5d47] focus:border-transparent"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Budget *
+                                    </label>
+                                    <input
+                                        type="number"
+                                        value={eventDetails.budget}
+                                        onChange={(e) => handleEventDetailsChange("budget", e.target.value)}
+                                        min="0"
+                                        step="0.01"
+                                        placeholder="e.g., 50000"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#7a5d47] focus:border-transparent"
+                                    />
+                                    <p className="text-xs text-gray-500 mt-1">Enter your budget in PHP (₱)</p>
+                                </div>
                             </div>
                         </div>
                     )}

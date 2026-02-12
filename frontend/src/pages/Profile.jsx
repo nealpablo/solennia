@@ -6,10 +6,10 @@ import toast from "../utils/toast";
 import FeedbackModal from "../components/FeedbackModal";
 import "../style.css";
 
-const API = 
-  import.meta.env.VITE_API_BASE || 
+const API =
+  import.meta.env.VITE_API_BASE ||
   import.meta.env.VITE_API_URL ||
-  (import.meta.env.PROD 
+  (import.meta.env.PROD
     ? "https://solennia.up.railway.app/api" : "/api");
 
 export default function Profile() {
@@ -106,7 +106,7 @@ export default function Profile() {
     // Method 2: Extract from reschedule_history array (fallback)
     const rescheduleHistory = booking.reschedule_history || [];
     const pendingReschedule = rescheduleHistory.find(r => r.Status === 'Pending');
-    
+
     if (pendingReschedule) {
       return {
         originalDate: pendingReschedule.OriginalEventDate,
@@ -125,7 +125,7 @@ export default function Profile() {
     }
 
     let score = 0;
-    
+
     if (password.length >= 8) score++;
     if (password.length >= 12) score++;
     if (/[a-z]/.test(password)) score++;
@@ -135,7 +135,7 @@ export default function Profile() {
 
     let label = "";
     let color = "";
-    
+
     if (score <= 2) {
       label = "Weak";
       color = "#dc2626";
@@ -173,7 +173,7 @@ export default function Profile() {
         }));
         localStorage.setItem("solennia_role", j.user.role ?? 0);
         setRole(j.user.role ?? 0);
-        
+
         localStorage.setItem("solennia_profile", JSON.stringify(j.user));
       });
   }, [token]);
@@ -215,15 +215,15 @@ export default function Profile() {
 
   const loadAvailability = async () => {
     if (!profile?.id) return;
-    
+
     try {
       setLoadingAvailability(true);
       const year = currentMonth.getFullYear();
       const month = currentMonth.getMonth() + 1;
-      
+
       const res = await fetch(`${API}/vendor/availability/${profile.id}?year=${year}&month=${month}`);
       const json = await res.json();
-      
+
       if (json.success) {
         setAvailability(json.availability || []);
       }
@@ -242,7 +242,7 @@ export default function Profile() {
     const lastDay = new Date(year, month + 1, 0);
     const daysInMonth = lastDay.getDate();
     const startingDayOfWeek = firstDay.getDay();
-    
+
     return { daysInMonth, startingDayOfWeek, year, month };
   };
 
@@ -264,7 +264,7 @@ export default function Profile() {
   const getUpcomingAvailability = () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
+
     return availability
       .filter(a => {
         const availDate = new Date(a.date);
@@ -284,9 +284,9 @@ export default function Profile() {
 
   const formatDate = (dateStr) => {
     const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', { 
-      weekday: 'short', 
-      month: 'short', 
+    return date.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
       day: 'numeric',
       year: 'numeric'
     });
@@ -295,7 +295,7 @@ export default function Profile() {
   /* ================= CALENDAR: AVAILABILITY MODAL ================= */
   const openAvailabilityModal = (date, existingAvailability = null) => {
     setSelectedDate(date);
-    
+
     if (existingAvailability) {
       setEditingAvailability(existingAvailability);
       setAvailabilityForm({
@@ -313,7 +313,7 @@ export default function Profile() {
         notes: ""
       });
     }
-    
+
     setShowAvailabilityModal(true);
   };
 
@@ -332,9 +332,9 @@ export default function Profile() {
   /* ================= CALENDAR: SAVE AVAILABILITY ================= */
   const saveAvailability = async (e) => {
     e.preventDefault();
-    
+
     if (!selectedDate) return;
-    
+
     if (!token) {
       toast.error("Please log in");
       return;
@@ -342,7 +342,7 @@ export default function Profile() {
 
     try {
       setSavingAvailability(true);
-      
+
       const dateStr = formatDateToLocal(selectedDate);
       const payload = {
         date: dateStr,
@@ -367,7 +367,7 @@ export default function Profile() {
       });
 
       const json = await res.json();
-      
+
       if (json.success) {
         toast.success(editingAvailability ? "Availability updated!" : "Availability added!");
         closeAvailabilityModal();
@@ -386,7 +386,7 @@ export default function Profile() {
   /* ================= CALENDAR: DELETE AVAILABILITY ================= */
   const deleteAvailability = async (availabilityId) => {
     if (!confirm("Delete this availability entry?")) return;
-    
+
     if (!token) {
       toast.error("Please log in");
       return;
@@ -401,7 +401,7 @@ export default function Profile() {
       });
 
       const json = await res.json();
-      
+
       if (json.success) {
         toast.success("Availability deleted!");
         closeAvailabilityModal();
@@ -418,40 +418,74 @@ export default function Profile() {
   /* ================= HELPER: FORMAT DATE AND TIME ================= */
   const formatDateTime = (dateString) => {
     if (!dateString) return { date: 'N/A', time: 'N/A', full: 'N/A' };
-    
+
     const date = new Date(dateString);
-    const dateFormatted = date.toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
+    const dateFormatted = date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
     });
-    const timeFormatted = date.toLocaleTimeString('en-US', { 
-      hour: '2-digit', 
+    const timeFormatted = date.toLocaleTimeString('en-US', {
+      hour: '2-digit',
       minute: '2-digit',
-      hour12: true 
+      hour12: true
     });
-    
+
     return { date: dateFormatted, time: timeFormatted, full: `${dateFormatted} at ${timeFormatted}` };
   };
 
   /* ================= LOAD BOOKINGS ================= */
   const loadBookings = async () => {
     if (!token) return;
-    
+
     setLoadingBookings(true);
     try {
-      const endpoint = role === 1 ? '/bookings/vendor' : '/bookings/user';
-      
-      const res = await fetch(`${API}${endpoint}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      if (role === 1) {
+        // VENDOR: Get booking requests
+        const res = await fetch(`${API}/bookings/vendor`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
 
-      const data = await res.json();
-      
-      if (data.success) {
-        setBookings(data.bookings || []);
+        const data = await res.json();
+
+        if (data.success) {
+          setBookings(data.bookings || []);
+        } else {
+          toast.error(data.error || 'Failed to load bookings');
+        }
       } else {
-        toast.error(data.error || 'Failed to load bookings');
+        // CLIENT: Get BOTH supplier and venue bookings
+        const [supplierRes, venueRes] = await Promise.all([
+          fetch(`${API}/bookings/user`, { headers: { Authorization: `Bearer ${token}` } }),
+          fetch(`${API}/venue-bookings/user`, { headers: { Authorization: `Bearer ${token}` } })
+        ]);
+
+        const supplierData = await supplierRes.json();
+        const venueData = await venueRes.json();
+
+        const supplierBookings = ((supplierRes.ok ? supplierData.bookings : null) || [])
+          .filter(b => !b.venue_id) // Exclude venue bookings from supplier list
+          .map(b => ({
+            ...b,
+            ID: b.ID ?? b.id,
+            isVenueBooking: false,
+            booking_type: 'supplier'
+          }));
+
+        const venueBookings = ((venueRes.ok ? venueData.bookings : null) || []).map(b => ({
+          ...b,
+          ID: b.ID ?? b.id ?? b.BookingID,
+          ServiceName: b.ServiceName ?? b.venue_name,
+          vendor_name: b.venue_name, // For venue bookings, show venue name
+          isVenueBooking: true,
+          booking_type: 'venue'
+        }));
+
+        const merged = [...supplierBookings, ...venueBookings].sort(
+          (a, b) => new Date(b.CreatedAt || b.BookingDate || 0) - new Date(a.CreatedAt || a.BookingDate || 0)
+        );
+
+        setBookings(merged);
       }
     } catch (err) {
       console.error('Load bookings error:', err);
@@ -464,7 +498,7 @@ export default function Profile() {
   /* ================= ACCEPT BOOKING (VENDOR) ================= */
   const acceptBooking = async (bookingId) => {
     if (!confirm('Accept this booking request?')) return;
-    
+
     setProcessingBooking(true);
     try {
       const res = await fetch(`${API}/bookings/${bookingId}/status`, {
@@ -477,7 +511,7 @@ export default function Profile() {
       });
 
       const data = await res.json();
-      
+
       if (data.success) {
         toast.success('Booking accepted!', { duration: 5000 });
         loadBookings();
@@ -496,7 +530,7 @@ export default function Profile() {
   /* ================= REJECT BOOKING (VENDOR) ================= */
   const rejectBooking = async (bookingId) => {
     if (!confirm('Reject this booking request?')) return;
-    
+
     setProcessingBooking(true);
     try {
       const res = await fetch(`${API}/bookings/${bookingId}/status`, {
@@ -509,7 +543,7 @@ export default function Profile() {
       });
 
       const data = await res.json();
-      
+
       if (data.success) {
         toast.success('Booking rejected', { duration: 5000 });
         loadBookings();
@@ -528,7 +562,7 @@ export default function Profile() {
   /* =================  COMPLETE BOOKING (VENDOR) ================= */
   const completeBooking = async (bookingId) => {
     if (!confirm('Mark this booking as completed? The client will be able to leave feedback.')) return;
-    
+
     setProcessingBooking(true);
     try {
       const res = await fetch(`${API}/bookings/${bookingId}/complete`, {
@@ -540,7 +574,7 @@ export default function Profile() {
       });
 
       const data = await res.json();
-      
+
       if (data.success) {
         toast.success('Booking marked as completed! Client can now leave feedback.', { duration: 5000 });
         loadBookings();
@@ -559,7 +593,7 @@ export default function Profile() {
   /* ================= CANCEL BOOKING (CLIENT) ================= */
   const cancelBooking = async (bookingId) => {
     if (!confirm('Cancel this booking?')) return;
-    
+
     setProcessingBooking(true);
     try {
       const res = await fetch(`${API}/bookings/${bookingId}/cancel`, {
@@ -570,7 +604,7 @@ export default function Profile() {
       });
 
       const data = await res.json();
-      
+
       if (data.success) {
         toast.success('Booking cancelled', { duration: 5000 });
         loadBookings();
@@ -602,33 +636,33 @@ export default function Profile() {
   /* ================= OPEN RESCHEDULE MODAL ================= */
   const openRescheduleModal = (booking) => {
     setRescheduleBooking(booking);
-    
+
     const currentDate = new Date(booking.EventDate);
     const dateStr = currentDate.toISOString().split('T')[0];
     const timeStr = currentDate.toTimeString().slice(0, 5);
-    
+
     setRescheduleForm({
       new_date: dateStr,
       new_time: timeStr
     });
-    
+
     setShowRescheduleModal(true);
   };
 
   /* ================= HANDLE RESCHEDULE SUBMISSION ================= */
   const handleReschedule = async (e) => {
     e.preventDefault();
-    
+
     if (!rescheduleForm.new_date || !rescheduleForm.new_time) {
       toast.error("Please select both date and time");
       return;
     }
-    
+
     try {
       setProcessingBooking(true);
-      
+
       const newEventDateTime = `${rescheduleForm.new_date} ${rescheduleForm.new_time}:00`;
-      
+
       const res = await fetch(`${API}/bookings/${rescheduleBooking.ID}/reschedule`, {
         method: "PATCH",
         headers: {
@@ -639,15 +673,15 @@ export default function Profile() {
           new_event_date: newEventDateTime
         })
       });
-      
+
       const data = await res.json();
-      
+
       if (res.status === 400 && data.past_event) {
         toast.error(data.message || "Cannot reschedule. Event date has passed.", { duration: 8000 });
         setShowRescheduleModal(false);
         return;
       }
-      
+
       if (res.status === 409 && data.conflict) {
         toast.error(
           data.message || "This Supplier is already booked for the selected date and time.",
@@ -655,21 +689,21 @@ export default function Profile() {
         );
         return;
       }
-      
+
       if (!data.success) {
         throw new Error(data.error || "Failed to reschedule booking");
       }
-      
+
       toast.success(
         "Reschedule request sent successfully! Your booking status has changed to Pending. The Supplier will review and approve/reject your new schedule.",
         { duration: 8000 }
       );
-      
+
       setShowRescheduleModal(false);
       setRescheduleBooking(null);
       setRescheduleForm({ new_date: "", new_time: "14:00" });
       loadBookings();
-      
+
     } catch (error) {
       console.error("Reschedule error:", error);
       toast.error(error.message || "Failed to reschedule booking");
@@ -687,7 +721,7 @@ export default function Profile() {
       'Cancelled': 'bg-gray-100 text-gray-800 border-gray-300',
       'Completed': 'bg-purple-100 text-purple-800 border-purple-300', // ✅ CHANGED to purple
     };
-    
+
     return statusMap[status] || 'bg-gray-100 text-gray-800 border-gray-300';
   };
 
@@ -755,8 +789,8 @@ export default function Profile() {
         })
       );
 
-      window.dispatchEvent(new CustomEvent("profileUpdated", { 
-        detail: { avatar: newAvatar } 
+      window.dispatchEvent(new CustomEvent("profileUpdated", {
+        detail: { avatar: newAvatar }
       }));
 
       toast.success("Profile picture updated successfully!");
@@ -796,7 +830,7 @@ export default function Profile() {
 
         const phoneData = await phoneRes.json();
         if (!phoneRes.ok) throw new Error(phoneData.message || "Failed to update phone");
-        
+
         updatedFields.phone = editForm.phone;
         toast.success("Phone number updated!");
       }
@@ -832,7 +866,7 @@ export default function Profile() {
 
           await reauthenticateWithCredential(user, credential);
           await updatePassword(user, editForm.newPassword);
-          
+
           passwordChanged = true;
           toast.success("Password changed successfully!");
 
@@ -844,7 +878,7 @@ export default function Profile() {
           }));
         } catch (firebaseError) {
           console.error("Firebase password change error:", firebaseError);
-          
+
           if (firebaseError.code === 'auth/invalid-credential' || firebaseError.code === 'auth/wrong-password') {
             throw new Error("Current password is incorrect. Please try again.");
           } else if (firebaseError.code === 'auth/weak-password') {
@@ -859,7 +893,7 @@ export default function Profile() {
 
       if (Object.keys(updatedFields).length > 0) {
         setProfile(prev => ({ ...prev, ...updatedFields }));
-        
+
         const existingProfile = JSON.parse(localStorage.getItem("solennia_profile") || "{}");
         localStorage.setItem(
           "solennia_profile",
@@ -930,7 +964,7 @@ export default function Profile() {
       <main className="pb-24 bg-[#f6f0e8] text-[#1c1b1a] min-h-screen">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6">
-            
+
             {/* LEFT COLUMN - PROFILE INFO */}
             <div className="lg:col-span-2">
               <div className="flex flex-col items-center justify-center" style={{ height: 'calc(100vh - 180px)' }}>
@@ -968,7 +1002,7 @@ export default function Profile() {
                 </div>
 
                 <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">{name}</h1>
-                
+
                 {profile?.username && (
                   <p className="text-sm text-gray-600 mb-4">@{profile.username}</p>
                 )}
@@ -1048,9 +1082,8 @@ export default function Profile() {
                     <button
                       onClick={joinVendor}
                       disabled={vendorStatus && vendorStatus.status === "pending"}
-                      className={`w-full bg-gradient-to-r from-[#7a5d47] to-[#5d4436] text-white px-4 py-3 rounded-lg text-sm font-semibold hover:opacity-90 shadow-md ${
-                        vendorStatus && vendorStatus.status === "pending" ? "opacity-50 cursor-not-allowed" : ""
-                      }`}
+                      className={`w-full bg-gradient-to-r from-[#7a5d47] to-[#5d4436] text-white px-4 py-3 rounded-lg text-sm font-semibold hover:opacity-90 shadow-md ${vendorStatus && vendorStatus.status === "pending" ? "opacity-50 cursor-not-allowed" : ""
+                        }`}
                     >
                       {vendorStatus && vendorStatus.status === "pending" ? "Application Pending" : "Join as Supplier"}
                     </button>
@@ -1065,7 +1098,7 @@ export default function Profile() {
                 <div className="flex justify-between items-center px-4 py-3 border-b border-gray-200 flex-shrink-0">
                   <h2 className="text-base sm:text-lg font-bold text-gray-900 flex items-center gap-2">
                     <svg className="w-5 h-5 text-[#7a5d47]" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                      <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
                     </svg>
                     Favorites
                   </h2>
@@ -1146,21 +1179,19 @@ export default function Profile() {
             <div className="flex border-b border-gray-200 bg-gray-50">
               <button
                 onClick={() => setActiveTab("original")}
-                className={`flex-1 px-6 py-3 font-semibold text-sm transition-colors ${
-                  activeTab === "original"
-                    ? "bg-white text-[#7a5d47] border-b-2 border-[#7a5d47]"
-                    : "text-gray-600 hover:text-gray-900"
-                }`}
+                className={`flex-1 px-6 py-3 font-semibold text-sm transition-colors ${activeTab === "original"
+                  ? "bg-white text-[#7a5d47] border-b-2 border-[#7a5d47]"
+                  : "text-gray-600 hover:text-gray-900"
+                  }`}
               >
                 📋 Original Bookings
               </button>
               <button
                 onClick={() => setActiveTab("rescheduled")}
-                className={`flex-1 px-6 py-3 font-semibold text-sm transition-colors ${
-                  activeTab === "rescheduled"
-                    ? "bg-white text-[#7a5d47] border-b-2 border-[#7a5d47]"
-                    : "text-gray-600 hover:text-gray-900"
-                }`}
+                className={`flex-1 px-6 py-3 font-semibold text-sm transition-colors ${activeTab === "rescheduled"
+                  ? "bg-white text-[#7a5d47] border-b-2 border-[#7a5d47]"
+                  : "text-gray-600 hover:text-gray-900"
+                  }`}
               >
                 🔄 Rescheduled Bookings
               </button>
@@ -1177,8 +1208,8 @@ export default function Profile() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                   </svg>
                   <p className="text-gray-500">
-                    {activeTab === "original" 
-                      ? "No original bookings found" 
+                    {activeTab === "original"
+                      ? "No original bookings found"
                       : "No rescheduled bookings found"}
                   </p>
                 </div>
@@ -1186,17 +1217,17 @@ export default function Profile() {
                 <div className="space-y-4">
                   {filteredBookings.map((booking) => {
                     const pendingData = getPendingRescheduleData(booking);
-                    const displayDate = pendingData.hasPending 
-                      ? pendingData.originalDate 
+                    const displayDate = pendingData.hasPending
+                      ? pendingData.originalDate
                       : booking.EventDate;
                     const { date, time } = formatDateTime(displayDate);
-                    
+
                     const canReschedule = role === 0 && booking.BookingStatus === 'Confirmed' && !pendingData.hasPending;
                     const canComplete = role === 1 && booking.BookingStatus === 'Confirmed'; // ✅ NEW
                     const canLeaveFeedback = role === 0 && booking.BookingStatus === 'Completed'; // ✅ NEW
-                    
+
                     const rescheduleHistory = booking.reschedule_history || [];
-                    
+
                     return (
                       <div
                         key={booking.ID}
@@ -1215,8 +1246,8 @@ export default function Profile() {
                                       {role === 1 ? '⏳ Pending Reschedule Request' : '⏳ Awaiting Reschedule Approval'}
                                     </p>
                                     <p className="text-xs text-yellow-700 mb-2">
-                                      {role === 1 
-                                        ? 'Client has requested a new schedule. Review below.' 
+                                      {role === 1
+                                        ? 'Client has requested a new schedule. Review below.'
                                         : 'Supplier is reviewing your reschedule request.'}
                                     </p>
                                     <div className="bg-white border border-yellow-200 rounded p-2 mt-2">
@@ -1238,7 +1269,7 @@ export default function Profile() {
                               <div>
                                 <h3 className="font-semibold text-lg">{booking.ServiceName}</h3>
                                 <p className="text-sm text-gray-600">
-                                  {role === 1 ? `Client: ${booking.client_name}` : `Vendor: ${booking.vendor_name}`}
+                                  {role === 1 ? `Client: ${booking.client_name}` : (booking.isVenueBooking || booking.booking_type === "venue" ? `Venue: ${booking.venue_name || booking.ServiceName}` : `Vendor: ${booking.vendor_name}`)}
                                 </p>
                               </div>
                               <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusBadge(booking.BookingStatus)}`}>
@@ -1340,7 +1371,7 @@ export default function Profile() {
                               <div>
                                 <h3 className="font-semibold text-lg">{booking.ServiceName}</h3>
                                 <p className="text-sm text-gray-600">
-                                  {role === 1 ? `Client: ${booking.client_name}` : `Vendor: ${booking.vendor_name}`}
+                                  {role === 1 ? `Client: ${booking.client_name}` : (booking.isVenueBooking || booking.booking_type === "venue" ? `Venue: ${booking.venue_name || booking.ServiceName}` : `Vendor: ${booking.vendor_name}`)}
                                 </p>
                               </div>
                               <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusBadge(booking.BookingStatus)}`}>
@@ -1351,17 +1382,16 @@ export default function Profile() {
                             {rescheduleHistory.map((reschedule) => (
                               <div
                                 key={reschedule.ID}
-                                className={`mb-3 p-3 rounded border-l-4 ${
-                                  reschedule.Status === 'Approved'
-                                    ? 'bg-green-50 border-green-500'
-                                    : 'bg-red-50 border-red-500'
-                                }`}
+                                className={`mb-3 p-3 rounded border-l-4 ${reschedule.Status === 'Approved'
+                                  ? 'bg-green-50 border-green-500'
+                                  : 'bg-red-50 border-red-500'
+                                  }`}
                               >
                                 <div className="flex items-start gap-2">
                                   <div className="flex-1">
                                     <p className="text-sm font-semibold mb-2">
-                                      {reschedule.Status === 'Approved' 
-                                        ? '✅ Approved Reschedule' 
+                                      {reschedule.Status === 'Approved'
+                                        ? '✅ Approved Reschedule'
                                         : '❌ Rejected Reschedule'}
                                     </p>
                                     <div className="bg-white border rounded p-2 space-y-1">
@@ -1484,11 +1514,10 @@ export default function Profile() {
                   {selectedBooking.reschedule_history.map((reschedule) => (
                     <div
                       key={reschedule.ID}
-                      className={`mb-3 p-3 rounded border-l-4 ${
-                        reschedule.Status === 'Pending' ? 'bg-yellow-50 border-yellow-500' :
+                      className={`mb-3 p-3 rounded border-l-4 ${reschedule.Status === 'Pending' ? 'bg-yellow-50 border-yellow-500' :
                         reschedule.Status === 'Approved' ? 'bg-green-50 border-green-500' :
-                        'bg-red-50 border-red-500'
-                      }`}
+                          'bg-red-50 border-red-500'
+                        }`}
                     >
                       <p className="text-sm font-semibold mb-2">
                         {reschedule.Status === 'Pending' && '⏳ Pending'}
@@ -1537,17 +1566,17 @@ export default function Profile() {
                     <label className="text-sm font-semibold text-gray-600">Current Time</label>
                     <p className="text-base">{formatDateTime(selectedBooking.EventDate).time}</p>
                   </div>
-                  
+
                   <div>
                     <label className="text-sm font-semibold text-gray-600">Location</label>
                     <p className="text-base">{selectedBooking.EventLocation || 'Not specified'}</p>
                   </div>
-                  
+
                   <div>
                     <label className="text-sm font-semibold text-gray-600">Event Type</label>
                     <p className="text-base">{selectedBooking.EventType || 'Not specified'}</p>
                   </div>
-                  
+
                   <div>
                     <label className="text-sm font-semibold text-gray-600">Budget</label>
                     <p className="text-base font-semibold text-green-600">
@@ -1565,15 +1594,50 @@ export default function Profile() {
 
                 {role === 0 && (
                   <div>
-                    <label className="text-sm font-semibold text-gray-600">Supplier</label>
-                    <p>{selectedBooking.vendor_name}</p>
+                    <label className="text-sm font-semibold text-gray-600">
+                      {(selectedBooking.isVenueBooking || selectedBooking.booking_type === 'venue') ? 'Venue' : 'Supplier'}
+                    </label>
+                    <p>
+                      {(selectedBooking.isVenueBooking || selectedBooking.booking_type === 'venue')
+                        ? (selectedBooking.venue_name || selectedBooking.vendor_name || selectedBooking.ServiceName)
+                        : selectedBooking.vendor_name}
+                    </p>
                   </div>
                 )}
 
                 {selectedBooking.AdditionalNotes && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <label className="text-sm font-semibold text-blue-900">Additional Notes</label>
-                    <p className="text-sm mt-2 text-blue-800 whitespace-pre-wrap">{selectedBooking.AdditionalNotes}</p>
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mt-4">
+                    <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                      <span>📝</span> Booking Details & Notes
+                    </h4>
+                    <div className="space-y-3 text-sm text-gray-600">
+                      {selectedBooking.AdditionalNotes.split('---').map((section, idx) => {
+                        const trimmed = section.trim();
+                        if (!trimmed) return null;
+
+                        // Check for section headers
+                        if (trimmed === 'Contact Information') {
+                          return <h5 key={idx} className="font-semibold text-gray-800 mt-2 border-b pb-1">Contact Information</h5>;
+                        }
+
+                        // Split by key-value pairs using a heuristic regex
+                        // Matches "Key Name:"
+                        const parts = trimmed.split(/([A-Z][a-zA-Z\s/-]+:)/g);
+
+                        return (
+                          <div key={idx} className="leading-relaxed">
+                            {parts.map((part, pIdx) => {
+                              // If it looks like a key (ends in :)
+                              if (part.match(/^[A-Z][a-zA-Z\s/-]+:$/)) {
+                                // Don't put a newline on the very first item if it's just a key
+                                return <span key={pIdx} className="font-semibold text-gray-800 block mt-1">{part} </span>;
+                              }
+                              return <span key={pIdx}>{part}</span>;
+                            })}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </div>
@@ -1635,7 +1699,7 @@ export default function Profile() {
                     className="flex-1 bg-[#7a5d47] text-white px-4 py-2 rounded-lg hover:bg-[#5d4436] disabled:opacity-50 text-sm font-semibold"
 
                   >
-                     Mark as Completed
+                    Mark as Completed
                   </button>
                 </div>
               )}
@@ -1830,8 +1894,8 @@ export default function Profile() {
               <p className="text-xs text-gray-600 mt-2">
                 Recommended: Square image, max 5MB
               </p>
-              
-              <button 
+
+              <button
                 type="submit"
                 disabled={uploadingAvatar}
                 className="bg-[#7a5d47] text-white w-full py-2 rounded-lg mt-4 disabled:opacity-50"
@@ -1901,7 +1965,7 @@ export default function Profile() {
                 <label className="block text-sm font-semibold uppercase mb-2">
                   Phone Number
                 </label>
-               <input
+                <input
                   type="tel"
                   value={editForm.phone}
                   onChange={(e) => {
@@ -1933,7 +1997,7 @@ export default function Profile() {
 
               <div className="border-t border-gray-300 pt-6">
                 <h3 className="text-base font-semibold mb-4">Change Password</h3>
-                
+
                 <div className="mb-4">
                   <label className="block text-sm font-semibold uppercase mb-2">
                     Current Password
@@ -1981,7 +2045,7 @@ export default function Profile() {
                     <div className="mt-2">
                       <div className="flex items-center gap-2 mb-1">
                         <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
-                          <div 
+                          <div
                             className="h-full transition-all duration-300"
                             style={{
                               width: `${(passwordStrength.score / 6) * 100}%`,
@@ -1989,7 +2053,7 @@ export default function Profile() {
                             }}
                           />
                         </div>
-                        <span 
+                        <span
                           className="text-xs font-semibold"
                           style={{ color: passwordStrength.color }}
                         >
@@ -2091,13 +2155,12 @@ export default function Profile() {
                     <h4 className="font-semibold text-gray-700 mb-3">Your Upcoming Availability:</h4>
                     <div className="space-y-2">
                       {upcomingAvailability.map((avail, index) => (
-                        <div 
-                          key={index} 
-                          className={`p-3 rounded-lg border ${
-                            avail.is_available 
-                              ? 'bg-green-50 border-green-200' 
-                              : 'bg-red-50 border-red-200'
-                          }`}
+                        <div
+                          key={index}
+                          className={`p-3 rounded-lg border ${avail.is_available
+                            ? 'bg-green-50 border-green-200'
+                            : 'bg-red-50 border-red-200'
+                            }`}
                         >
                           <div className="flex justify-between items-center">
                             <div>
@@ -2111,11 +2174,10 @@ export default function Profile() {
                                 <p className="text-xs text-gray-500 mt-1">{avail.notes}</p>
                               )}
                             </div>
-                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                              avail.is_available 
-                                ? 'bg-green-500 text-white' 
-                                : 'bg-red-500 text-white'
-                            }`}>
+                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${avail.is_available
+                              ? 'bg-green-500 text-white'
+                              : 'bg-red-500 text-white'
+                              }`}>
                               {avail.is_available ? 'Available' : 'Booked'}
                             </span>
                           </div>
@@ -2130,19 +2192,19 @@ export default function Profile() {
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
                 {/* Calendar Header */}
                 <div className="flex justify-between items-center mb-6">
-                  <button 
+                  <button
                     onClick={previousMonth}
                     className="bg-[#7a5d47] text-white px-4 py-2 rounded-lg hover:opacity-90"
                   >
                     ← Previous
                   </button>
                   <h4 className="text-xl font-bold">
-                    {new Date(currentMonth).toLocaleDateString('en-US', { 
-                      month: 'long', 
-                      year: 'numeric' 
+                    {new Date(currentMonth).toLocaleDateString('en-US', {
+                      month: 'long',
+                      year: 'numeric'
                     })}
                   </h4>
-                  <button 
+                  <button
                     onClick={nextMonth}
                     className="bg-[#7a5d47] text-white px-4 py-2 rounded-lg hover:opacity-90"
                   >
@@ -2179,12 +2241,12 @@ export default function Profile() {
                   {(() => {
                     const { daysInMonth, startingDayOfWeek, year, month } = getDaysInMonth(currentMonth);
                     const days = [];
-                    
+
                     // Empty cells before month starts
                     for (let i = 0; i < startingDayOfWeek; i++) {
                       days.push(<div key={`empty-${i}`} className="aspect-square"></div>);
                     }
-                    
+
                     // Days of month
                     for (let day = 1; day <= daysInMonth; day++) {
                       const date = new Date(year, month, day);
@@ -2206,15 +2268,14 @@ export default function Profile() {
                               }
                             }
                           }}
-                          className={`aspect-square p-2 rounded-lg border-2 flex flex-col items-center justify-center cursor-pointer transition-all ${
-                            isPast 
-                              ? 'bg-gray-100 opacity-50 cursor-not-allowed' 
-                              : isAvailable
+                          className={`aspect-square p-2 rounded-lg border-2 flex flex-col items-center justify-center cursor-pointer transition-all ${isPast
+                            ? 'bg-gray-100 opacity-50 cursor-not-allowed'
+                            : isAvailable
                               ? 'bg-green-50 border-green-500 hover:bg-green-100'
                               : isBooked
-                              ? 'bg-red-50 border-red-500 hover:bg-red-100'
-                              : 'bg-white border-gray-300 hover:border-blue-500 hover:bg-blue-50'
-                          } ${isToday ? 'ring-2 ring-[#7a5d47]' : ''}`}
+                                ? 'bg-red-50 border-red-500 hover:bg-red-100'
+                                : 'bg-white border-gray-300 hover:border-blue-500 hover:bg-blue-50'
+                            } ${isToday ? 'ring-2 ring-[#7a5d47]' : ''}`}
                           title={availabilityData.length > 0 ? `${availabilityData[0].is_available ? 'Available' : 'Booked'}` : 'Click to set availability'}
                         >
                           <span className="font-semibold">{day}</span>
@@ -2226,7 +2287,7 @@ export default function Profile() {
                         </div>
                       );
                     }
-                    
+
                     return days;
                   })()}
                 </div>
@@ -2251,11 +2312,11 @@ export default function Profile() {
                 {editingAvailability ? 'Edit' : 'Set'} Availability
               </h3>
               <p className="text-sm text-white/80 mt-1">
-                {selectedDate.toLocaleDateString('en-US', { 
-                  weekday: 'long', 
-                  year: 'numeric', 
-                  month: 'long', 
-                  day: 'numeric' 
+                {selectedDate.toLocaleDateString('en-US', {
+                  weekday: 'long',
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric'
                 })}
               </p>
             </div>

@@ -35,20 +35,20 @@ export default function MyBookings() {
 
   const formatDateTime = (dateString) => {
     if (!dateString) return { date: 'N/A', time: 'N/A', full: 'N/A' };
-    
+
     const date = new Date(dateString);
-    const dateFormatted = date.toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
+    const dateFormatted = date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
     });
-    const timeFormatted = date.toLocaleTimeString('en-US', { 
-      hour: '2-digit', 
+    const timeFormatted = date.toLocaleTimeString('en-US', {
+      hour: '2-digit',
       minute: '2-digit',
-      hour12: true 
+      hour12: true
     });
     const full = `${dateFormatted} at ${timeFormatted}`;
-    
+
     return { date: dateFormatted, time: timeFormatted, full };
   };
 
@@ -56,7 +56,7 @@ export default function MyBookings() {
     try {
       setLoading(true);
       const token = localStorage.getItem("solennia_token");
-      
+
       if (!token) {
         toast.error("Please log in");
         navigate("/");
@@ -71,11 +71,13 @@ export default function MyBookings() {
       const supplierData = await supplierRes.json();
       const venueData = await venueRes.json();
 
-      const supplierBookings = ((supplierRes.ok ? supplierData.bookings : null) || []).map(b => ({
-        ...b,
-        ID: b.ID ?? b.id,
-        isVenueBooking: false
-      }));
+      const supplierBookings = ((supplierRes.ok ? supplierData.bookings : null) || [])
+        .filter(b => !b.venue_id)
+        .map(b => ({
+          ...b,
+          ID: b.ID ?? b.id,
+          isVenueBooking: false
+        }));
       const venueBookings = ((venueRes.ok ? venueData.bookings : null) || []).map(b => ({
         ...b,
         ID: b.ID ?? b.id ?? b.BookingID,
@@ -105,7 +107,7 @@ export default function MyBookings() {
       const endpoint = isVenueBooking
         ? `${API}/venue-bookings/${bookingId}/cancel`
         : `${API}/bookings/${bookingId}/cancel`;
-      
+
       const response = await fetch(endpoint, {
         method: "PATCH",
         headers: { "Authorization": `Bearer ${token}` }
@@ -129,43 +131,43 @@ export default function MyBookings() {
 
   const openRescheduleModal = (booking) => {
     setRescheduleBooking(booking);
-    
+
     const currentDate = new Date(booking.EventDate);
     const dateStr = currentDate.toISOString().split('T')[0];
     const timeStr = currentDate.toTimeString().slice(0, 5);
-    
+
     setRescheduleForm({
       new_date: dateStr,
       new_time: timeStr
     });
-    
+
     setShowRescheduleModal(true);
   };
 
   const handleReschedule = async (e) => {
     e.preventDefault();
-    
+
     if (!rescheduleForm.new_date || !rescheduleForm.new_time) {
       toast.error("Please select date and time");
       return;
     }
-    
+
     try {
       setProcessing(true);
-      
+
       const token = localStorage.getItem("solennia_token");
       const isVenue = rescheduleBooking?.isVenueBooking;
       const endpoint = isVenue
         ? `${API}/venue-bookings/${rescheduleBooking.ID}/reschedule`
         : `${API}/bookings/${rescheduleBooking.ID}/reschedule`;
-      
+
       const body = isVenue
         ? {
-            new_start_date: rescheduleForm.new_date,
-            new_end_date: rescheduleForm.new_date
-          }
+          new_start_date: rescheduleForm.new_date,
+          new_end_date: rescheduleForm.new_date
+        }
         : { new_event_date: `${rescheduleForm.new_date} ${rescheduleForm.new_time}:00` };
-      
+
       const res = await fetch(endpoint, {
         method: "PATCH",
         headers: {
@@ -174,25 +176,25 @@ export default function MyBookings() {
         },
         body: JSON.stringify(body)
       });
-      
+
       const data = await res.json();
-      
+
       if (res.status === 409 && (data.conflict || data.error)) {
         toast.error(isVenue ? "Venue unavailable for that date" : "Supplier unavailable for that date/time", { duration: 8000 });
         return;
       }
-      
+
       if (!data.success) {
         throw new Error(data.error || "Failed to reschedule");
       }
-      
+
       toast.success(isVenue ? "Reschedule request sent! Waiting for venue owner approval." : "Reschedule request sent! Waiting for Supplier approval.", { duration: 6000 });
-      
+
       setShowRescheduleModal(false);
       setRescheduleBooking(null);
       setRescheduleForm({ new_date: "", new_time: "14:00" });
       loadBookings();
-      
+
     } catch (error) {
       console.error("Reschedule error:", error);
       toast.error(error.message || "Failed to reschedule");
@@ -291,10 +293,10 @@ export default function MyBookings() {
             const canCancel = booking.BookingStatus === "Pending" && !booking.has_pending_reschedule;
             const canReschedule = booking.BookingStatus === "Confirmed" && !booking.has_pending_reschedule;
             const canLeaveFeedback = booking.BookingStatus === "Completed"; // NEW
-            
+
             // Determine display date
-            const displayDate = booking.has_pending_reschedule && booking.original_date 
-              ? booking.original_date 
+            const displayDate = booking.has_pending_reschedule && booking.original_date
+              ? booking.original_date
               : booking.EventDate;
             const display = formatDateTime(displayDate);
 
@@ -310,7 +312,11 @@ export default function MyBookings() {
                   <div>
                     <h3 style={styles.cardTitle}>{booking.ServiceName}</h3>
                     <p style={styles.cardVendor}>
-                      {booking.isVenueBooking ? "Venue" : "Supplier"}: <strong>{booking.vendor_name || booking.venue_owner_name || "Unknown"}</strong>
+                      {booking.isVenueBooking || booking.booking_type === 'venue' || booking.venue_id ? (
+                        <>Venue: <strong>{booking.venue_name || booking.ServiceName || "Unknown"}</strong></>
+                      ) : (
+                        <>Supplier: <strong>{booking.vendor_name || booking.venue_owner_name || "Unknown"}</strong></>
+                      )}
                     </p>
                   </div>
                   <span
@@ -377,9 +383,9 @@ export default function MyBookings() {
                   const badgeStyle = getRescheduleStatusBadge('Pending');
                   const originalFormatted = formatDateTime(reschedule.OriginalEventDate);
                   const requestedFormatted = formatDateTime(reschedule.RequestedEventDate);
-                  
+
                   return (
-                    <div key={reschedule.ID} style={{...styles.sectionContainer, ...styles.pendingSection}}>
+                    <div key={reschedule.ID} style={{ ...styles.sectionContainer, ...styles.pendingSection }}>
                       <div style={styles.sectionHeader}>
                         <h4 style={styles.sectionTitle}>
                           {badgeStyle.icon} Pending Reschedule Request
@@ -403,7 +409,7 @@ export default function MyBookings() {
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                             </svg>
                           </div>
-                          <div style={{...styles.dateComparisonBox, ...styles.requestedDateBox}}>
+                          <div style={{ ...styles.dateComparisonBox, ...styles.requestedDateBox }}>
                             <p style={styles.dateLabel}>Requested New Schedule:</p>
                             <p style={styles.dateValue}>{requestedFormatted.full}</p>
                           </div>
@@ -418,7 +424,7 @@ export default function MyBookings() {
 
                 {/* Approved Reschedules */}
                 {hasApprovedReschedules.length > 0 && (
-                  <div style={{...styles.sectionContainer, ...styles.approvedSection}}>
+                  <div style={{ ...styles.sectionContainer, ...styles.approvedSection }}>
                     <div style={styles.sectionHeader}>
                       <h4 style={styles.sectionTitle}> Approved Reschedules</h4>
                     </div>
@@ -428,7 +434,7 @@ export default function MyBookings() {
                         const originalFormatted = formatDateTime(reschedule.OriginalEventDate);
                         const requestedFormatted = formatDateTime(reschedule.RequestedEventDate);
                         const processedFormatted = formatDateTime(reschedule.ProcessedAt);
-                        
+
                         return (
                           <div key={reschedule.ID} style={styles.historyItem}>
                             <div style={styles.historyHeader}>
@@ -460,7 +466,7 @@ export default function MyBookings() {
 
                 {/* Rejected Reschedules */}
                 {hasRejectedReschedules.length > 0 && (
-                  <div style={{...styles.sectionContainer, ...styles.rejectedSection}}>
+                  <div style={{ ...styles.sectionContainer, ...styles.rejectedSection }}>
                     <div style={styles.sectionHeader}>
                       <h4 style={styles.sectionTitle}>❌ Rejected Reschedules</h4>
                     </div>
@@ -470,7 +476,7 @@ export default function MyBookings() {
                         const originalFormatted = formatDateTime(reschedule.OriginalEventDate);
                         const requestedFormatted = formatDateTime(reschedule.RequestedEventDate);
                         const processedFormatted = formatDateTime(reschedule.ProcessedAt);
-                        
+
                         return (
                           <div key={reschedule.ID} style={styles.historyItem}>
                             <div style={styles.historyHeader}>
@@ -503,8 +509,14 @@ export default function MyBookings() {
                 {/* Additional Notes */}
                 {booking.AdditionalNotes && (
                   <div style={styles.notesContainer}>
-                    <strong>📝 Additional Notes:</strong>
-                    <p style={styles.notesText}>{booking.AdditionalNotes}</p>
+                    <strong style={{ color: '#7a5d47' }}>📝 Additional Notes</strong>
+                    <div style={styles.notesText}>
+                      {booking.AdditionalNotes.split('\n').map((line, idx) => (
+                        <div key={idx} style={{ marginBottom: line.trim() === '' ? '0.5rem' : '0.25rem' }}>
+                          {line.trim() || '\u00A0'}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
 
@@ -529,7 +541,7 @@ export default function MyBookings() {
                       ⭐ Leave Feedback
                     </button>
                   )}
-                  
+
                   {canCancel && (
                     <button
                       onClick={() => handleCancel(booking.ID, booking.isVenueBooking)}
@@ -575,7 +587,7 @@ export default function MyBookings() {
                 <div>
                   <p style={styles.warningTitle}>Note:</p>
                   <p style={styles.warningText}>
-                    Booking status will change to "Pending" after rescheduling. 
+                    Booking status will change to "Pending" after rescheduling.
                     Supplier must approve your new schedule.
                   </p>
                 </div>
@@ -927,16 +939,17 @@ const styles = {
   },
   notesContainer: {
     marginTop: "1rem",
-    padding: "1rem",
-    backgroundColor: "#f0f9ff",
-    border: "1px solid #bae6fd",
-    borderRadius: "8px",
-    fontSize: "0.9rem"
+    padding: "1.25rem",
+    background: "linear-gradient(135deg, #fef9f3 0%, #faf6f0 100%)",
+    border: "2px solid #e8ddca",
+    borderRadius: "12px",
+    boxShadow: "0 2px 4px rgba(122, 93, 71, 0.08)"
   },
   notesText: {
-    marginTop: "0.5rem",
-    color: "#444",
-    lineHeight: "1.5"
+    marginTop: "0.75rem",
+    color: "#4a4a4a",
+    lineHeight: "1.7",
+    fontSize: "0.925rem"
   },
   cardActions: {
     display: "flex",

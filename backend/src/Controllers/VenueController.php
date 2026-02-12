@@ -1,486 +1,24 @@
 <?php
+
 namespace Src\Controllers;
 
-use Cloudinary\Cloudinary;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Illuminate\Database\Capsule\Manager as DB;
 
-class VenueController
+/**
+ * ============================================
+ * VENUE BOOKING CONTROLLER
+ * ============================================
+ * Handles venue booking operations including:
+ * - Creating venue bookings with capacity validation
+ * - Managing booking status
+ * - Checking venue availability
+ * - Handling multi-day bookings
+ * ============================================
+ */
+class VenueBookingController
 {
-    private Cloudinary $cloud;
-    private const MAX_FILE_SIZE = 10485760; // 10MB
-    private const UPLOAD_TIMEOUT = 20; // Reduced from 60 to 20 seconds
-
-    public function __construct()
-    {
-        $this->cloud = new Cloudinary([
-            'cloud' => [
-                'cloud_name' => envx('CLOUDINARY_CLOUD'),
-                'api_key'    => envx('CLOUDINARY_KEY'),
-                'api_secret' => envx('CLOUDINARY_SECRET')
-            ],
-            'url' => ['secure' => true]
-        ]);
-    }
-
-    /* =========================================================
-     *  CREATE VENUE LISTING with validation
-     * ========================================================= */
-    public function createListing(Request $request, Response $response)
-    {
-        try {
-            $u = $request->getAttribute('user');
-            if (!$u || !isset($u->mysql_id)) {
-                return $this->json($response, false, "Unauthorized", 401);
-            }
-            $userId = $u->mysql_id;
-
-            $data = (array) $request->getParsedBody();
-            $files = $request->getUploadedFiles();
-
-            // Validate required fields
-            if (empty($data['venue_name']) || empty($data['address']) || empty($data['pricing'])) {
-                return $this->json($response, false, "Missing required fields", 422);
-            }
-
-            //  Start transaction
-            DB::beginTransaction();
-
-            try {
-                //  Upload Logo (Main Image) with validation
-                $logoUrl = null;
-                if (isset($files['logo']) && $files['logo']->getError() === UPLOAD_ERR_OK) {
-                    // Validate file size
-                    if ($files['logo']->getSize() > self::MAX_FILE_SIZE) {
-                        DB::rollBack();
-                        return $this->json($response, false, "Logo file too large (max 10MB)", 400);
-                    }
-
-                    try {
-                        $tmp = $files['logo']->getStream()->getMetadata('uri');
-                        $upload = $this->cloud->uploadApi()->upload($tmp, [
-                            'folder' => "solennia/venues/logo/{$userId}",
-                            'resource_type' => 'image',
-                            'public_id' => 'logo_' . time(),
-                            'transformation' => [
-                                [
-                                    'width' => 1200,
-                                    'height' => 800,
-                                    'crop' => 'limit',
-                                    'quality' => 'auto:eco',
-                                    'fetch_format' => 'auto'
-                                ]
-                            ],
-                            'timeout' => self::UPLOAD_TIMEOUT
-                        ]);
-                        $logoUrl = $upload['secure_url'];
-                    } catch (\Exception $e) {
-                        error_log("LOGO_UPLOAD_ERROR: " . $e->getMessage());
-                        DB::rollBack();
-                        return $this->json($response, false, "Failed to upload logo image: " . $e->getMessage(), 500);
-                    }
-                }
-
-                //  Upload Gallery Images with validation
-                $galleryUrls = [];
-                $galleryKeys = ['gallery_1', 'gallery_2', 'gallery_3'];
-                
-                foreach ($galleryKeys as $key) {
-                    if (isset($files[$key]) && $files[$key]->getError() === UPLOAD_ERR_OK) {
-                        // Validate file size
-                        if ($files[$key]->getSize() > self::MAX_FILE_SIZE) {
-                            error_log("GALLERY_FILE_TOO_LARGE: {$key}");
-                            continue; // Skip but don't fail
-                        }
-
-                        try {
-                            $tmp = $files[$key]->getStream()->getMetadata('uri');
-                            $upload = $this->cloud->uploadApi()->upload($tmp, [
-                                'folder' => "solennia/venues/gallery/{$userId}",
-                                'resource_type' => 'image',
-                                'public_id' => $key . '_' . time() . '_' . bin2hex(random_bytes(4)),
-                                'transformation' => [
-                                    [
-                                        'width' => 800,
-                                        'height' => 600,
-                                        'crop' => 'limit',
-                                        'quality' => 'auto:eco',
-                                        'fetch_format' => 'auto'
-                                    ]
-                                ],
-                                'timeout' => self::UPLOAD_TIMEOUT
-                            ]);
-                            $galleryUrls[] = $upload['secure_url'];
-                        } catch (\Exception $e) {
-                            error_log("GALLERY_UPLOAD_ERROR_{$key}: " . $e->getMessage());
-                        }
-                    }
-                }
-
-                //  Build insert data
-                $insertData = [
-                    'user_id' => $userId,
-                    'venue_name' => $data['venue_name'],
-                    'venue_subcategory' => $data['venue_subcategory'] ?? null,
-                    'venue_capacity' => $data['venue_capacity'] ?? null,
-                    'venue_amenities' => $data['venue_amenities'] ?? null,
-                    'venue_operating_hours' => $data['venue_operating_hours'] ?? null,
-                    'venue_parking' => $data['venue_parking'] ?? null,
-                    'address' => $data['address'],
-                    'description' => $data['description'] ?? null,
-                    'pricing' => $data['pricing'],
-                    'contact_email' => $data['contact_email'] ?? null,
-                    'status' => 'Active',
-                    'created_at' => DB::raw('NOW()')
-                ];
-
-                //  Cached column check (only once)
-                static $tableColumns = null;
-                static $columnNames = null;
-                
-                if ($tableColumns === null) {
-                    $tableColumns = DB::select("SHOW COLUMNS FROM venue_listings");
-                    $columnNames = array_column($tableColumns, 'Field');
-                }
-                
-                // Add logo to the correct column
-                if ($logoUrl) {
-                    $possibleImageColumns = [
-                        'portfolio_image', 'portfolio', 'hero_image', 
-                        'HeroImageUrl', 'main_image', 'image_url', 'venue_image'
-                    ];
-                    
-                    foreach ($possibleImageColumns as $col) {
-                        if (in_array($col, $columnNames)) {
-                            $insertData[$col] = $logoUrl;
-                            break;
-                        }
-                    }
-                }
-
-                // Add gallery if column exists
-                if (!empty($galleryUrls)) {
-                    if (in_array('gallery', $columnNames)) {
-                        $insertData['gallery'] = json_encode($galleryUrls);
-                    } elseif (in_array('gallery_images', $columnNames)) {
-                        $insertData['gallery_images'] = json_encode($galleryUrls);
-                    }
-                }
-
-                //  Insert listing
-                $listingId = DB::table('venue_listings')->insertGetId($insertData);
-
-                DB::commit();
-
-                error_log("VENUE_LISTING_CREATED: ID={$listingId}, Logo={$logoUrl}, Gallery=" . count($galleryUrls));
-
-                return $this->json($response, true, "Listing created successfully!", 201, [
-                    'listing_id' => $listingId,
-                    'logo' => $logoUrl,
-                    'gallery' => $galleryUrls,
-                    'gallery_count' => count($galleryUrls)
-                ]);
-
-            } catch (\Exception $e) {
-                DB::rollBack();
-                throw $e;
-            }
-
-        } catch (\Exception $e) {
-            error_log("CREATE_LISTING_ERROR: " . $e->getMessage());
-            return $this->json($response, false, "Failed to create listing: " . $e->getMessage(), 500);
-        }
-    }
-
-    /* =========================================================
-     *  GET VENUE LISTINGS
-     * ========================================================= */
-    public function getMyListings(Request $request, Response $response)
-    {
-        try {
-            $u = $request->getAttribute('user');
-            if (!$u || !isset($u->mysql_id)) {
-                return $this->json($response, false, "Unauthorized", 401);
-            }
-            $userId = $u->mysql_id;
-
-            //  Add pagination support
-            $params = $request->getQueryParams();
-            $page = max(1, (int)($params['page'] ?? 1));
-            $perPage = min(50, max(1, (int)($params['per_page'] ?? 20)));
-            $offset = ($page - 1) * $perPage;
-
-            //  Optimized query with pagination
-            $listings = DB::table('venue_listings')
-                ->where('user_id', $userId)
-                ->orderBy('created_at', 'desc')
-                ->offset($offset) 
-                ->limit($perPage)
-                ->get();
-
-            // Get total count for pagination
-            $total = DB::table('venue_listings')
-                ->where('user_id', $userId)
-                ->count();
-
-            //  Determine which image column exists
-            static $imageColumn = null;
-            if ($imageColumn === null && !$listings->isEmpty()) {
-                $first = $listings->first();
-                $imageColumn = $first->portfolio_image ?? 
-                              $first->portfolio ?? 
-                              $first->hero_image ?? 
-                              $first->HeroImageUrl ?? 
-                              $first->main_image ?? 
-                              null;
-            }
-
-            $formatted = $listings->map(function($listing) {
-                return [
-                    'id' => $listing->id,
-                    'venue_name' => $listing->venue_name,
-                    'venue_subcategory' => $listing->venue_subcategory,
-                    'venue_capacity' => $listing->venue_capacity,
-                    'venue_amenities' => $listing->venue_amenities,
-                    'venue_operating_hours' => $listing->venue_operating_hours,
-                    'venue_parking' => $listing->venue_parking,
-                    'address' => $listing->address,
-                    'description' => $listing->description,
-                    'pricing' => $listing->pricing,
-                    'contact_email' => $listing->contact_email,
-                    'status' => $listing->status,
-                    'main_image' => $listing->portfolio_image ?? 
-                                   $listing->portfolio ?? 
-                                   $listing->hero_image ?? 
-                                   $listing->HeroImageUrl ?? 
-                                   $listing->main_image ?? 
-                                   null,
-                    'gallery' => json_decode($listing->gallery ?? $listing->gallery_images ?? '[]', true),
-                    'created_at' => $listing->created_at
-                ];
-            })->toArray();
-
-            return $this->json($response, true, "Listings retrieved", 200, [
-                'listings' => $formatted,
-                'pagination' => [
-                    'page' => $page,
-                    'per_page' => $perPage,
-                    'total' => $total,
-                    'total_pages' => ceil($total / $perPage)
-                ]
-            ]);
-
-        } catch (\Exception $e) {
-            error_log("GET_MY_LISTINGS_ERROR: " . $e->getMessage());
-            return $this->json($response, false, "Failed to get listings", 500);
-        }
-    }
-
-    /* =========================================================
-     *  UPDATE VENUE LISTING
-     * ========================================================= */
-    public function updateListing(Request $request, Response $response, $args)
-    {
-        try {
-            $u = $request->getAttribute('user');
-            if (!$u || !isset($u->mysql_id)) {
-                return $this->json($response, false, "Unauthorized", 401);
-            }
-            $userId = $u->mysql_id;
-            $listingId = (int) $args['id'];
-
-            //  Start transaction
-            DB::beginTransaction();
-
-            try {
-                // Verify ownership
-                $listing = DB::table('venue_listings')
-                    ->where('id', $listingId)
-                    ->where('user_id', $userId)
-                    ->first();
-
-                if (!$listing) {
-                    DB::rollBack();
-                    return $this->json($response, false, "Listing not found or access denied", 404);
-                }
-
-                $data = (array) $request->getParsedBody();
-                $files = $request->getUploadedFiles();
-
-                $updateData = [];
-
-                // Text fields
-                $textFields = ['venue_name', 'venue_subcategory', 'venue_capacity', 
-                              'venue_amenities', 'venue_operating_hours', 'venue_parking',
-                              'description', 'pricing', 'address', 'contact_email'];
-                
-                foreach ($textFields as $field) {
-                    if (isset($data[$field])) {
-                        $updateData[$field] = $data[$field];
-                    }
-                }
-
-                //  Upload new logo if provided with validation
-                if (isset($files['logo']) && $files['logo']->getError() === UPLOAD_ERR_OK) {
-                    // Validate file size
-                    if ($files['logo']->getSize() > self::MAX_FILE_SIZE) {
-                        DB::rollBack();
-                        return $this->json($response, false, "Logo file too large (max 10MB)", 400);
-                    }
-
-                    try {
-                        $tmp = $files['logo']->getStream()->getMetadata('uri');
-                        $upload = $this->cloud->uploadApi()->upload($tmp, [
-                            'folder' => "solennia/venues/logo/{$userId}",
-                            'resource_type' => 'image',
-                            'transformation' => [
-                                ['width' => 1200, 'height' => 800, 'crop' => 'limit', 'quality' => 'auto:eco', 'fetch_format' => 'auto']
-                            ],
-                            'timeout' => self::UPLOAD_TIMEOUT
-                        ]);
-                        
-                        // Find which column to update
-                        static $tableColumns = null;
-                        static $columnNames = null;
-                        
-                        if ($tableColumns === null) {
-                            $tableColumns = DB::select("SHOW COLUMNS FROM venue_listings");
-                            $columnNames = array_column($tableColumns, 'Field');
-                        }
-                        
-                        $possibleImageColumns = ['portfolio_image', 'portfolio', 'hero_image', 'HeroImageUrl', 'main_image'];
-                        foreach ($possibleImageColumns as $col) {
-                            if (in_array($col, $columnNames)) {
-                                $updateData[$col] = $upload['secure_url'];
-                                break;
-                            }
-                        }
-                    } catch (\Exception $e) {
-                        error_log("LOGO_UPDATE_ERROR: " . $e->getMessage());
-                        DB::rollBack();
-                        return $this->json($response, false, "Failed to upload logo: " . $e->getMessage(), 500);
-                    }
-                }
-
-                //  Upload new gallery images if provided with validation
-                $existingGallery = [];
-                $galleryField = $listing->gallery ?? $listing->gallery_images ?? null;
-                if ($galleryField) {
-                    $existingGallery = json_decode($galleryField, true) ?? [];
-                }
-                
-                $newGalleryUrls = [];
-                $galleryKeys = ['gallery_1', 'gallery_2', 'gallery_3'];
-                
-                foreach ($galleryKeys as $idx => $key) {
-                    if (isset($files[$key]) && $files[$key]->getError() === UPLOAD_ERR_OK) {
-                        // Validate file size
-                        if ($files[$key]->getSize() > self::MAX_FILE_SIZE) {
-                            error_log("GALLERY_FILE_TOO_LARGE: {$key}");
-                            if (isset($existingGallery[$idx])) {
-                                $newGalleryUrls[$idx] = $existingGallery[$idx];
-                            }
-                            continue;
-                        }
-
-                        try {
-                            $tmp = $files[$key]->getStream()->getMetadata('uri');
-                            $upload = $this->cloud->uploadApi()->upload($tmp, [
-                                'folder' => "solennia/venues/gallery/{$userId}",
-                                'resource_type' => 'image',
-                                'transformation' => [
-                                    ['width' => 800, 'height' => 600, 'crop' => 'limit', 'quality' => 'auto:eco', 'fetch_format' => 'auto']
-                                ],
-                                'timeout' => self::UPLOAD_TIMEOUT
-                            ]);
-                            $newGalleryUrls[$idx] = $upload['secure_url'];
-                        } catch (\Exception $e) {
-                            error_log("GALLERY_UPDATE_ERROR_{$key}: " . $e->getMessage());
-                            if (isset($existingGallery[$idx])) {
-                                $newGalleryUrls[$idx] = $existingGallery[$idx];
-                            }
-                        }
-                    } else {
-                        if (isset($existingGallery[$idx])) {
-                            $newGalleryUrls[$idx] = $existingGallery[$idx];
-                        }
-                    }
-                }
-
-                if (!empty($newGalleryUrls)) {
-                    static $tableColumns = null;
-                    static $columnNames = null;
-                    
-                    if ($tableColumns === null) {
-                        $tableColumns = DB::select("SHOW COLUMNS FROM venue_listings");
-                        $columnNames = array_column($tableColumns, 'Field');
-                    }
-                    
-                    if (in_array('gallery', $columnNames)) {
-                        $updateData['gallery'] = json_encode(array_values($newGalleryUrls));
-                    } elseif (in_array('gallery_images', $columnNames)) {
-                        $updateData['gallery_images'] = json_encode(array_values($newGalleryUrls));
-                    }
-                }
-
-                if (empty($updateData)) {
-                    DB::rollBack();
-                    return $this->json($response, false, "No data to update", 400);
-                }
-
-                DB::table('venue_listings')
-                    ->where('id', $listingId)
-                    ->update($updateData);
-
-                DB::commit();
-
-                return $this->json($response, true, "Listing updated successfully!", 200);
-
-            } catch (\Exception $e) {
-                DB::rollBack();
-                throw $e;
-            }
-
-        } catch (\Exception $e) {
-            error_log("UPDATE_LISTING_ERROR: " . $e->getMessage());
-            return $this->json($response, false, "Failed to update listing: " . $e->getMessage(), 500);
-        }
-    }
-
-    /* =========================================================
-     *  DELETE VENUE LISTING
-     * ========================================================= */
-    public function deleteListing(Request $request, Response $response, $args)
-    {
-        try {
-            $u = $request->getAttribute('user');
-            if (!$u || !isset($u->mysql_id)) {
-                return $this->json($response, false, "Unauthorized", 401);
-            }
-            $userId = $u->mysql_id;
-            $listingId = (int) $args['id'];
-
-            $deleted = DB::table('venue_listings')
-                ->where('id', $listingId)
-                ->where('user_id', $userId)
-                ->delete();
-
-            if (!$deleted) {
-                return $this->json($response, false, "Listing not found", 404);
-            }
-
-            return $this->json($response, true, "Listing deleted successfully!", 200);
-
-        } catch (\Exception $e) {
-            error_log("DELETE_LISTING_ERROR: " . $e->getMessage());
-            return $this->json($response, false, "Failed to delete listing", 500);
-        }
-    }
-
-    /* =========================================================
-     * HELPER
-     * ========================================================= */
     private function json(Response $res, bool $success, string $message, int $status = 200, array $extra = [])
     {
         $payload = array_merge([
@@ -491,5 +29,572 @@ class VenueController
         $res->getBody()->write(json_encode($payload, JSON_UNESCAPED_UNICODE));
         return $res->withHeader('Content-Type', 'application/json')
                    ->withStatus($status);
+    }
+
+    private function sendNotification($userId, $type, $title, $message)
+    {
+        try {
+            DB::table('notifications')->insert([
+                'user_id' => $userId,
+                'type' => $type,
+                'title' => $title,
+                'message' => $message,
+                'read' => false,
+                'created_at' => date('Y-m-d H:i:s')
+            ]);
+        } catch (\Throwable $e) {
+            error_log("Notification Error: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Get EventServiceProviderID for a venue owner
+     * Returns NULL if venue owner is not in event_service_provider table
+     * 
+     * CRITICAL FIX: Venue owners are not always event service providers!
+     * This function checks if the venue owner exists in event_service_provider
+     * and returns NULL if they don't, allowing the booking to proceed.
+     */
+    private function getEventServiceProviderID($venueOwnerId)
+    {
+        $provider = DB::table('event_service_provider')
+            ->where('UserID', $venueOwnerId)
+            ->first();
+        
+        if (!$provider) {
+            error_log("INFO: Venue owner (user_id: {$venueOwnerId}) is not in event_service_provider table. Using NULL for EventServiceProviderID.");
+        }
+        
+        return $provider ? $provider->ID : null;
+    }
+
+    /* =========================================================
+     * CREATE VENUE BOOKING
+     * ========================================================= */
+    public function createBooking(Request $req, Response $res)
+    {
+        try {
+            $user = $req->getAttribute('user');
+            if (!$user || !isset($user->mysql_id)) {
+                return $this->json($res, false, "Unauthorized", 401);
+            }
+            $userId = $user->mysql_id;
+
+            $data = (array) $req->getParsedBody();
+
+            // Validate required fields
+            $required = ['venue_id', 'event_type', 'start_date', 'guest_count', 'event_location'];
+            foreach ($required as $field) {
+                if (empty($data[$field])) {
+                    return $this->json($res, false, "Missing required field: {$field}", 422);
+                }
+            }
+
+            $venueId = (int) $data['venue_id'];
+            $startDate = $data['start_date'];
+            $endDate = $data['end_date'] ?? $startDate; // Default to single day
+            $guestCount = (int) $data['guest_count'];
+
+            // Get venue details
+            $venue = DB::table('venue_listings')
+                ->where('id', $venueId)
+                ->where('status', 'Active')
+                ->first();
+
+            if (!$venue) {
+                return $this->json($res, false, "Venue not found or inactive", 404);
+            }
+
+            // Check capacity (soft warning - allow booking with note)
+            $capacityWarning = null;
+            if (!empty($venue->venue_capacity) && $guestCount > (int)$venue->venue_capacity) {
+                $capacityWarning = "Guest count ({$guestCount}) exceeds venue capacity ({$venue->venue_capacity})";
+            }
+
+            // Check availability
+            $conflictingBooking = DB::table('booking')
+                ->where('venue_id', $venueId)
+                ->where(function($query) use ($startDate, $endDate) {
+                    $query->whereBetween('start_date', [$startDate, $endDate])
+                          ->orWhereBetween('end_date', [$startDate, $endDate])
+                          ->orWhere(function($q) use ($startDate, $endDate) {
+                              $q->where('start_date', '<=', $startDate)
+                                ->where('end_date', '>=', $endDate);
+                          });
+                })
+                ->whereNotIn('BookingStatus', ['Cancelled', 'Rejected'])
+                ->first();
+
+            if ($conflictingBooking) {
+                return $this->json($res, false, "Venue is already booked for the selected dates", 409, [
+                    'conflict' => true
+                ]);
+            }
+
+            // Build booking notes
+            $notes = "🏛️ Venue Booking\n\n";
+            $notes .= "Guest Count: {$guestCount}\n";
+            
+            if ($data['event_time'] ?? null) {
+                $notes .= "Event Time: {$data['event_time']}\n";
+            }
+            
+            if (!empty($data['selected_amenities'])) {
+                $amenities = is_array($data['selected_amenities']) 
+                    ? implode(', ', $data['selected_amenities'])
+                    : $data['selected_amenities'];
+                $notes .= "Selected Amenities: {$amenities}\n";
+            }
+            
+            if ($capacityWarning) {
+                $notes .= "\n⚠️ {$capacityWarning}\n";
+            }
+            
+            if (!empty($data['additional_notes'])) {
+                $notes .= "\nAdditional Notes:\n{$data['additional_notes']}\n";
+            }
+
+            // CRITICAL FIX: Get EventServiceProviderID safely
+            // This checks if the venue owner is also an event service provider
+            // Returns NULL if they're not, which is now allowed by the database
+            $eventServiceProviderId = $this->getEventServiceProviderID($venue->user_id);
+
+            // Create booking with FIXED EventServiceProviderID handling
+            $bookingId = DB::table('booking')->insertGetId([
+                'UserID' => $userId,
+                'venue_id' => $venueId,
+                'EventServiceProviderID' => $eventServiceProviderId, // FIX: Can be NULL now
+                'ServiceName' => $venue->venue_name,
+                'EventDate' => $startDate,
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+                'EventLocation' => $data['event_location'],
+                'EventType' => $data['event_type'],
+                'guest_count' => $guestCount,
+                'PackageSelected' => $data['package_selected'] ?? 'Standard',
+                'AdditionalNotes' => $notes,
+                'TotalAmount' => floatval($data['total_amount'] ?? 0),
+                'BookingStatus' => 'Pending',
+                'BookingDate' => DB::raw('NOW()'),
+                'CreatedAt' => DB::raw('NOW()'),
+                'CreatedBy' => $userId
+            ]);
+
+            // Send notification to venue owner
+            $client = DB::table('credential')->where('id', $userId)->first();
+            $clientName = trim(($client->first_name ?? '') . ' ' . ($client->last_name ?? ''));
+            
+            $this->sendNotification(
+                $venue->user_id,
+                'venue_booking_request',
+                '🏛️ New Venue Booking Request',
+                "{$clientName} requested to book {$venue->venue_name} for {$data['event_type']}"
+            );
+
+            return $this->json($res, true, "Venue booking request created successfully!", 201, [
+                'booking_id' => $bookingId,
+                'capacity_warning' => $capacityWarning
+            ]);
+
+        } catch (\Exception $e) {
+            error_log("CREATE_VENUE_BOOKING_ERROR: " . $e->getMessage());
+            return $this->json($res, false, "Failed to create booking: " . $e->getMessage(), 500);
+        }
+    }
+
+    /* =========================================================
+     * GET USER'S VENUE BOOKINGS
+     * ========================================================= */
+    public function getUserVenueBookings(Request $req, Response $res)
+    {
+        try {
+            $user = $req->getAttribute('user');
+            if (!$user || !isset($user->mysql_id)) {
+                return $this->json($res, false, "Unauthorized", 401);
+            }
+            $userId = $user->mysql_id;
+
+            $bookings = DB::table('booking as b')
+                ->leftJoin('venue_listings as v', 'b.venue_id', '=', 'v.id')
+                ->leftJoin('credential as owner', 'v.user_id', '=', 'owner.id')
+                ->where('b.UserID', $userId)
+                ->whereNotNull('b.venue_id')
+                ->select(
+                    'b.*',
+                    'v.venue_name',
+                    'v.address as venue_address',
+                    'v.venue_capacity',
+                    'v.logo as venue_image',
+                    DB::raw('CONCAT(owner.first_name, " ", owner.last_name) as venue_owner_name'),
+                    'owner.firebase_uid as venue_owner_firebase_uid'
+                )
+                ->orderByDesc('b.BookingDate')
+                ->get();
+
+            // Normalize for frontend: ensure ID, ServiceName, vendor_name (align with supplier booking format)
+            $normalized = $bookings->map(function ($b) {
+                $arr = (array) $b;
+                $arr['ID'] = $arr['id'] ?? $arr['BookingID'] ?? null;
+                $arr['ServiceName'] = $arr['venue_name'] ?? $arr['ServiceName'] ?? 'Venue';
+                $arr['vendor_name'] = $arr['venue_owner_name'] ?? $arr['vendor_name'] ?? null;
+                $arr['isVenueBooking'] = true;
+                return $arr;
+            });
+
+            return $this->json($res, true, "Bookings retrieved", 200, [
+                'bookings' => $normalized
+            ]);
+
+        } catch (\Exception $e) {
+            error_log("GET_USER_VENUE_BOOKINGS_ERROR: " . $e->getMessage());
+            return $this->json($res, false, "Failed to get bookings", 500);
+        }
+    }
+
+    /* =========================================================
+     * GET VENUE OWNER'S BOOKINGS
+     * ========================================================= */
+    public function getVenueOwnerBookings(Request $req, Response $res)
+    {
+        try {
+            $user = $req->getAttribute('user');
+            if (!$user || !isset($user->mysql_id)) {
+                return $this->json($res, false, "Unauthorized", 401);
+            }
+            $userId = $user->mysql_id;
+
+            $bookings = DB::table('booking as b')
+                ->leftJoin('venue_listings as v', 'b.venue_id', '=', 'v.id')
+                ->leftJoin('credential as client', 'b.UserID', '=', 'client.id')
+                ->where('v.user_id', $userId)
+                ->whereNotNull('b.venue_id')
+                ->select(
+                    'b.*',
+                    'v.venue_name',
+                    'v.address as venue_address',
+                    DB::raw('CONCAT(client.first_name, " ", client.last_name) as client_name'),
+                    'client.email as client_email',
+                    'client.phone as client_phone'
+                )
+                ->orderByDesc('b.BookingDate')
+                ->get();
+
+            return $this->json($res, true, "Bookings retrieved", 200, [
+                'bookings' => $bookings
+            ]);
+
+        } catch (\Exception $e) {
+            error_log("GET_VENUE_OWNER_BOOKINGS_ERROR: " . $e->getMessage());
+            return $this->json($res, false, "Failed to get bookings", 500);
+        }
+    }
+
+    /* =========================================================
+     * GET VENUE BOOKING DETAILS
+     * ========================================================= */
+    public function getVenueBookingDetails(Request $req, Response $res, array $args)
+    {
+        try {
+            $user = $req->getAttribute('user');
+            if (!$user || !isset($user->mysql_id)) {
+                return $this->json($res, false, "Unauthorized", 401);
+            }
+            $userId = $user->mysql_id;
+            $bookingId = (int) $args['id'];
+
+            $booking = DB::table('booking as b')
+                ->leftJoin('venue_listings as v', 'b.venue_id', '=', 'v.id')
+                ->leftJoin('credential as client', 'b.UserID', '=', 'client.id')
+                ->leftJoin('credential as owner', 'v.user_id', '=', 'owner.id')
+                ->where(function($q) use ($bookingId) {
+                    $q->where('b.id', $bookingId)->orWhere('b.BookingID', $bookingId);
+                })
+                ->whereNotNull('b.venue_id')
+                ->where(function($query) use ($userId) {
+                    $query->where('b.UserID', $userId)
+                          ->orWhere('v.user_id', $userId);
+                })
+                ->select(
+                    'b.*',
+                    'v.venue_name',
+                    'v.address as venue_address',
+                    'v.venue_capacity',
+                    'v.logo as venue_image',
+                    DB::raw('CONCAT(client.first_name, " ", client.last_name) as client_name'),
+                    'client.email as client_email',
+                    'client.phone as client_phone',
+                    DB::raw('CONCAT(owner.first_name, " ", owner.last_name) as venue_owner_name'),
+                    'owner.firebase_uid as venue_owner_firebase_uid'
+                )
+                ->first();
+
+            if (!$booking) {
+                return $this->json($res, false, "Booking not found", 404);
+            }
+
+            return $this->json($res, true, "Booking details retrieved", 200, [
+                'booking' => $booking
+            ]);
+
+        } catch (\Exception $e) {
+            error_log("GET_VENUE_BOOKING_DETAILS_ERROR: " . $e->getMessage());
+            return $this->json($res, false, "Failed to get booking details", 500);
+        }
+    }
+
+    /* =========================================================
+     * UPDATE BOOKING STATUS (VENUE OWNER)
+     * ========================================================= */
+    public function updateBookingStatus(Request $req, Response $res, array $args)
+    {
+        try {
+            $user = $req->getAttribute('user');
+            if (!$user || !isset($user->mysql_id)) {
+                return $this->json($res, false, "Unauthorized", 401);
+            }
+            $userId = $user->mysql_id;
+            $bookingId = (int) $args['id'];
+
+            $data = (array) $req->getParsedBody();
+            $status = $data['status'] ?? null;
+
+            if (!in_array($status, ['Confirmed', 'Rejected'])) {
+                return $this->json($res, false, "Invalid status", 400);
+            }
+
+            // Verify ownership
+            $booking = DB::table('booking as b')
+                ->join('venue_listings as v', 'b.venue_id', '=', 'v.id')
+                ->where(function($q) use ($bookingId) {
+                    $q->where('b.id', $bookingId)->orWhere('b.BookingID', $bookingId);
+                })
+                ->where('v.user_id', $userId)
+                ->select('b.*', 'v.venue_name', 'v.user_id as venue_owner_id')
+                ->first();
+
+            if (!$booking) {
+                return $this->json($res, false, "Booking not found or access denied", 404);
+            }
+
+            // Update status
+            DB::table('booking')
+                ->where(function($q) use ($bookingId) {
+                    $q->where('id', $bookingId)->orWhere('BookingID', $bookingId);
+                })
+                ->update([
+                    'BookingStatus' => $status,
+                    'UpdatedAt' => DB::raw('NOW()')
+                ]);
+
+            // Notify client
+            $this->sendNotification(
+                $booking->UserID,
+                'booking_status_update',
+                "Venue Booking {$status}",
+                "Your booking for {$booking->venue_name} has been {$status}"
+            );
+
+            return $this->json($res, true, "Booking status updated to {$status}", 200);
+
+        } catch (\Exception $e) {
+            error_log("UPDATE_VENUE_BOOKING_STATUS_ERROR: " . $e->getMessage());
+            return $this->json($res, false, "Failed to update booking status", 500);
+        }
+    }
+
+    /* =========================================================
+     * CANCEL BOOKING (CLIENT)
+     * ========================================================= */
+    public function cancelBooking(Request $req, Response $res, array $args)
+    {
+        try {
+            $user = $req->getAttribute('user');
+            if (!$user || !isset($user->mysql_id)) {
+                return $this->json($res, false, "Unauthorized", 401);
+            }
+            $userId = $user->mysql_id;
+            $bookingId = (int) $args['id'];
+
+            $booking = DB::table('booking as b')
+                ->leftJoin('venue_listings as v', 'b.venue_id', '=', 'v.id')
+                ->where(function($q) use ($bookingId) {
+                    $q->where('b.id', $bookingId)->orWhere('b.BookingID', $bookingId);
+                })
+                ->where('b.UserID', $userId)
+                ->select('b.*', 'v.venue_name', 'v.user_id as venue_owner_id')
+                ->first();
+
+            if (!$booking) {
+                return $this->json($res, false, "Booking not found", 404);
+            }
+
+            if ($booking->BookingStatus === 'Cancelled') {
+                return $this->json($res, false, "Booking already cancelled", 400);
+            }
+
+            DB::table('booking')
+                ->where(function($q) use ($bookingId) {
+                    $q->where('id', $bookingId)->orWhere('BookingID', $bookingId);
+                })
+                ->update([
+                    'BookingStatus' => 'Cancelled',
+                    'UpdatedAt' => DB::raw('NOW()')
+                ]);
+
+            // Notify venue owner
+            if ($booking->venue_owner_id) {
+                $this->sendNotification(
+                    $booking->venue_owner_id,
+                    'booking_cancelled',
+                    'Venue Booking Cancelled',
+                    "A booking for {$booking->venue_name} has been cancelled by the client"
+                );
+            }
+
+            return $this->json($res, true, "Booking cancelled successfully", 200);
+
+        } catch (\Exception $e) {
+            error_log("CANCEL_VENUE_BOOKING_ERROR: " . $e->getMessage());
+            return $this->json($res, false, "Failed to cancel booking", 500);
+        }
+    }
+
+    /* =========================================================
+     * RESCHEDULE BOOKING (CLIENT)
+     * ========================================================= */
+    public function rescheduleBooking(Request $req, Response $res, array $args)
+    {
+        try {
+            $user = $req->getAttribute('user');
+            if (!$user || !isset($user->mysql_id)) {
+                return $this->json($res, false, "Unauthorized", 401);
+            }
+            $userId = $user->mysql_id;
+            $bookingId = (int) $args['id'];
+
+            $data = (array) $req->getParsedBody();
+            $newStartDate = $data['new_start_date'] ?? null;
+            $newEndDate = $data['new_end_date'] ?? $newStartDate;
+
+            if (!$newStartDate) {
+                return $this->json($res, false, "New date is required", 422);
+            }
+
+            $booking = DB::table('booking')
+                ->where(function($q) use ($bookingId) {
+                    $q->where('id', $bookingId)->orWhere('BookingID', $bookingId);
+                })
+                ->where('UserID', $userId)
+                ->first();
+
+            if (!$booking) {
+                return $this->json($res, false, "Booking not found", 404);
+            }
+
+            // Check new date availability
+            $conflict = DB::table('booking')
+                ->where('venue_id', $booking->venue_id)
+                ->whereRaw('COALESCE(id, BookingID) != ?', [$bookingId])
+                ->where(function($query) use ($newStartDate, $newEndDate) {
+                    $query->whereBetween('start_date', [$newStartDate, $newEndDate])
+                          ->orWhereBetween('end_date', [$newStartDate, $newEndDate])
+                          ->orWhere(function($q) use ($newStartDate, $newEndDate) {
+                              $q->where('start_date', '<=', $newStartDate)
+                                ->where('end_date', '>=', $newEndDate);
+                          });
+                })
+                ->whereNotIn('BookingStatus', ['Cancelled', 'Rejected'])
+                ->exists();
+
+            if ($conflict) {
+                return $this->json($res, false, "Venue is not available for the new dates", 409);
+            }
+
+            // Update booking
+            DB::table('booking')
+                ->where(function($q) use ($bookingId) {
+                    $q->where('id', $bookingId)->orWhere('BookingID', $bookingId);
+                })
+                ->update([
+                    'EventDate' => $newStartDate,
+                    'start_date' => $newStartDate,
+                    'end_date' => $newEndDate,
+                    'BookingStatus' => 'Pending', // Reset to pending for owner approval
+                    'UpdatedAt' => DB::raw('NOW()')
+                ]);
+
+            // Notify venue owner - FIX: Get the actual venue owner ID from venue_listings
+            $venue = DB::table('venue_listings')->where('id', $booking->venue_id)->first();
+            if ($venue && $venue->user_id) {
+                $this->sendNotification(
+                    $venue->user_id, // FIX: Use venue owner ID, not EventServiceProviderID
+                    'booking_rescheduled',
+                    'Venue Booking Rescheduled',
+                    "A booking has been rescheduled to {$newStartDate}"
+                );
+            }
+
+            return $this->json($res, true, "Booking rescheduled successfully. Awaiting venue owner approval.", 200);
+
+        } catch (\Exception $e) {
+            error_log("RESCHEDULE_VENUE_BOOKING_ERROR: " . $e->getMessage());
+            return $this->json($res, false, "Failed to reschedule booking", 500);
+        }
+    }
+
+    /* =========================================================
+     * CHECK VENUE AVAILABILITY
+     * ========================================================= */
+    public function checkVenueAvailability(Request $req, Response $res, array $args)
+    {
+        try {
+            $venueId = (int) $args['id'];
+            $params = $req->getQueryParams();
+            $startDate = $params['start_date'] ?? null;
+            $endDate = $params['end_date'] ?? $startDate;
+
+            if (!$startDate) {
+                return $this->json($res, false, "Start date is required", 422);
+            }
+
+            $venue = DB::table('venue_listings')
+                ->where('id', $venueId)
+                ->first();
+
+            if (!$venue) {
+                return $this->json($res, false, "Venue not found", 404);
+            }
+
+            // Check for conflicting bookings
+            $bookings = DB::table('booking')
+                ->where('venue_id', $venueId)
+                ->where(function($query) use ($startDate, $endDate) {
+                    $query->whereBetween('start_date', [$startDate, $endDate])
+                          ->orWhereBetween('end_date', [$startDate, $endDate])
+                          ->orWhere(function($q) use ($startDate, $endDate) {
+                              $q->where('start_date', '<=', $startDate)
+                                ->where('end_date', '>=', $endDate);
+                          });
+                })
+                ->whereNotIn('BookingStatus', ['Cancelled', 'Rejected'])
+                ->select('start_date', 'end_date', 'BookingStatus')
+                ->get();
+
+            $available = $bookings->isEmpty();
+
+            return $this->json($res, true, "Availability checked", 200, [
+                'available' => $available,
+                'venue' => [
+                    'id' => $venue->id,
+                    'name' => $venue->venue_name,
+                    'capacity' => $venue->venue_capacity
+                ],
+                'conflicting_bookings' => $bookings
+            ]);
+
+        } catch (\Exception $e) {
+            error_log("CHECK_VENUE_AVAILABILITY_ERROR: " . $e->getMessage());
+            return $this->json($res, false, "Failed to check availability", 500);
+        }
     }
 }

@@ -12,7 +12,7 @@ const API =
 export default function CreateBooking() {
   const navigate = useNavigate();
   const location = useLocation();
-  
+
   // Get vendor info passed from VendorProfile
   const { vendorUserId, vendorName, serviceName } = location.state || {};
 
@@ -45,42 +45,42 @@ export default function CreateBooking() {
     contact_phone: "",
     number_of_guests: "",
     special_requests: "",
-    
+
     // Wedding-specific
     bride_name: "",
     groom_name: "",
     wedding_theme: "",
     reception_venue: "",
-    
+
     // Birthday-specific
     celebrant_name: "",
     celebrant_age: "",
     birthday_theme: "",
     cake_preference: "",
-    
+
     // Corporate-specific
     company_name: "",
     department: "",
     position: "",
     event_purpose: "",
-    
+
     // Anniversary-specific
     couple_names: "",
     years_together: "",
     anniversary_theme: "",
-    
+
     // Debut-specific
     debutante_name: "",
     debut_theme: "",
     number_of_roses: "",
     number_of_candles: "",
-    
+
     // Graduation-specific
     graduate_name: "",
     school_name: "",
     degree_program: "",
     graduation_year: "",
-    
+
     // Shared optional fields
     dietary_restrictions: "",
     accessibility_requirements: "",
@@ -121,72 +121,72 @@ export default function CreateBooking() {
 
   // Event types with icons
   const eventTypes = [
-    { 
-      value: "Wedding", 
+    {
+      value: "Wedding",
       icon: (
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+          <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
         </svg>
       )
     },
-    { 
-      value: "Birthday", 
+    {
+      value: "Birthday",
       icon: (
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <path d="M12 6v6m0 0l-3-3m3 3l3-3"/>
-          <rect x="2" y="12" width="20" height="10" rx="1"/>
-          <path d="M7 12v-2a2 2 0 012-2h6a2 2 0 012 2v2"/>
-          <circle cx="7" cy="17" r="1"/>
-          <circle cx="12" cy="17" r="1"/>
-          <circle cx="17" cy="17" r="1"/>
+          <path d="M12 6v6m0 0l-3-3m3 3l3-3" />
+          <rect x="2" y="12" width="20" height="10" rx="1" />
+          <path d="M7 12v-2a2 2 0 012-2h6a2 2 0 012 2v2" />
+          <circle cx="7" cy="17" r="1" />
+          <circle cx="12" cy="17" r="1" />
+          <circle cx="17" cy="17" r="1" />
         </svg>
       )
     },
-    { 
-      value: "Corporate Event", 
+    {
+      value: "Corporate Event",
       icon: (
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <rect x="3" y="7" width="18" height="13" rx="2"/>
-          <path d="M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2"/>
-          <path d="M12 12v4"/>
-          <path d="M3 13h18"/>
+          <rect x="3" y="7" width="18" height="13" rx="2" />
+          <path d="M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2" />
+          <path d="M12 12v4" />
+          <path d="M3 13h18" />
         </svg>
       )
     },
-    { 
-      value: "Anniversary", 
+    {
+      value: "Anniversary",
       icon: (
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
         </svg>
       )
     },
-    { 
-      value: "Debut", 
+    {
+      value: "Debut",
       icon: (
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <path d="M12 20v-6m0 0V8m0 6h6m-6 0H6"/>
-          <circle cx="12" cy="12" r="10"/>
+          <path d="M12 20v-6m0 0V8m0 6h6m-6 0H6" />
+          <circle cx="12" cy="12" r="10" />
         </svg>
       )
     },
-    { 
-      value: "Graduation", 
+    {
+      value: "Graduation",
       icon: (
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <path d="M12 14L2 9l10-5 10 5-10 5z"/>
-          <path d="M12 14v7"/>
-          <path d="M7 11.5v5.5a2 2 0 002 2h6a2 2 0 002-2v-5.5"/>
+          <path d="M12 14L2 9l10-5 10 5-10 5z" />
+          <path d="M12 14v7" />
+          <path d="M7 11.5v5.5a2 2 0 002 2h6a2 2 0 002-2v-5.5" />
         </svg>
       )
     },
-    { 
-      value: "Other", 
+    {
+      value: "Other",
       icon: (
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <circle cx="12" cy="12" r="10"/>
-          <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/>
-          <circle cx="12" cy="17" r="0.5" fill="currentColor"/>
+          <circle cx="12" cy="12" r="10" />
+          <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3" />
+          <circle cx="12" cy="17" r="0.5" fill="currentColor" />
         </svg>
       )
     }
@@ -223,7 +223,7 @@ export default function CreateBooking() {
 
     // Format as HH:MM
     const formattedTime = `${String(hour).padStart(2, '0')}:${minute}`;
-    
+
     // Update eventData.event_time
     setEventData(prev => ({
       ...prev,
@@ -298,7 +298,7 @@ export default function CreateBooking() {
     }
 
     // Event-specific validations
-    switch(eventData.event_type) {
+    switch (eventData.event_type) {
       case "Wedding":
         if (!eventSpecificData.bride_name.trim()) {
           toast.error("Please enter the bride's name");
@@ -309,35 +309,35 @@ export default function CreateBooking() {
           return false;
         }
         break;
-      
+
       case "Birthday":
         if (!eventSpecificData.celebrant_name.trim()) {
           toast.error("Please enter the celebrant's name");
           return false;
         }
         break;
-      
+
       case "Corporate Event":
         if (!eventSpecificData.company_name.trim()) {
           toast.error("Please enter the company name");
           return false;
         }
         break;
-      
+
       case "Anniversary":
         if (!eventSpecificData.couple_names.trim()) {
           toast.error("Please enter the couple's names");
           return false;
         }
         break;
-      
+
       case "Debut":
         if (!eventSpecificData.debutante_name.trim()) {
           toast.error("Please enter the debutante's name");
           return false;
         }
         break;
-      
+
       case "Graduation":
         if (!eventSpecificData.graduate_name.trim()) {
           toast.error("Please enter the graduate's name");
@@ -353,7 +353,7 @@ export default function CreateBooking() {
   const goToNextStep = () => {
     if (currentStep === 1 && !validateStep1()) return;
     if (currentStep === 2 && !validateStep2()) return;
-    
+
     if (currentStep < 3) {
       setCurrentStep(currentStep + 1);
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -370,22 +370,22 @@ export default function CreateBooking() {
   // Build event-specific notes
   const buildEventSpecificNotes = () => {
     let notes = `Event Type: ${eventData.event_type}\n`;
-    
+
     if (eventData.additional_notes) {
       notes += `\nEvent Notes: ${eventData.additional_notes}\n`;
     }
-    
+
     notes += `\n--- Contact Information ---\n`;
     notes += `Name: ${eventSpecificData.contact_name}\n`;
     notes += `Email: ${eventSpecificData.contact_email}\n`;
     notes += `Phone: ${eventSpecificData.contact_phone}\n`;
-    
+
     if (eventSpecificData.number_of_guests) {
       notes += `\nNumber of Guests: ${eventSpecificData.number_of_guests}\n`;
     }
-    
+
     // Add event-specific information
-    switch(eventData.event_type) {
+    switch (eventData.event_type) {
       case "Wedding":
         notes += `\n--- Wedding Details ---\n`;
         notes += `Bride: ${eventSpecificData.bride_name}\n`;
@@ -393,7 +393,7 @@ export default function CreateBooking() {
         if (eventSpecificData.wedding_theme) notes += `Theme: ${eventSpecificData.wedding_theme}\n`;
         if (eventSpecificData.reception_venue) notes += `Reception Venue: ${eventSpecificData.reception_venue}\n`;
         break;
-      
+
       case "Birthday":
         notes += `\n--- Birthday Details ---\n`;
         notes += `Celebrant: ${eventSpecificData.celebrant_name}\n`;
@@ -401,7 +401,7 @@ export default function CreateBooking() {
         if (eventSpecificData.birthday_theme) notes += `Theme: ${eventSpecificData.birthday_theme}\n`;
         if (eventSpecificData.cake_preference) notes += `Cake Preference: ${eventSpecificData.cake_preference}\n`;
         break;
-      
+
       case "Corporate Event":
         notes += `\n--- Corporate Event Details ---\n`;
         notes += `Company: ${eventSpecificData.company_name}\n`;
@@ -409,14 +409,14 @@ export default function CreateBooking() {
         if (eventSpecificData.position) notes += `Position: ${eventSpecificData.position}\n`;
         if (eventSpecificData.event_purpose) notes += `Purpose: ${eventSpecificData.event_purpose}\n`;
         break;
-      
+
       case "Anniversary":
         notes += `\n--- Anniversary Details ---\n`;
         notes += `Couple: ${eventSpecificData.couple_names}\n`;
         if (eventSpecificData.years_together) notes += `Years Together: ${eventSpecificData.years_together}\n`;
         if (eventSpecificData.anniversary_theme) notes += `Theme: ${eventSpecificData.anniversary_theme}\n`;
         break;
-      
+
       case "Debut":
         notes += `\n--- Debut Details ---\n`;
         notes += `Debutante: ${eventSpecificData.debutante_name}\n`;
@@ -424,7 +424,7 @@ export default function CreateBooking() {
         if (eventSpecificData.number_of_roses) notes += `Number of Roses: ${eventSpecificData.number_of_roses}\n`;
         if (eventSpecificData.number_of_candles) notes += `Number of Candles: ${eventSpecificData.number_of_candles}\n`;
         break;
-      
+
       case "Graduation":
         notes += `\n--- Graduation Details ---\n`;
         notes += `Graduate: ${eventSpecificData.graduate_name}\n`;
@@ -433,7 +433,7 @@ export default function CreateBooking() {
         if (eventSpecificData.graduation_year) notes += `Year: ${eventSpecificData.graduation_year}\n`;
         break;
     }
-    
+
     // Add common optional fields
     if (eventSpecificData.dietary_restrictions) {
       notes += `\nDietary Restrictions: ${eventSpecificData.dietary_restrictions}\n`;
@@ -451,7 +451,7 @@ export default function CreateBooking() {
     if (eventSpecificData.special_requests) {
       notes += `\nSpecial Requests: ${eventSpecificData.special_requests}\n`;
     }
-    
+
     return notes.trim();
   };
 
@@ -495,7 +495,7 @@ export default function CreateBooking() {
 
       const contentType = response.headers.get("content-type");
       let data;
-      
+
       if (contentType && contentType.includes("application/json")) {
         const text = await response.text();
         data = text ? JSON.parse(text) : {};
@@ -507,7 +507,7 @@ export default function CreateBooking() {
 
       if (response.status === 409 && data.conflict) {
         toast.error(
-          data.message || 
+          data.message ||
           "This Supplier is already booked for the selected date and time. Please choose a different schedule.",
           { duration: 10000 }
         );
@@ -521,7 +521,7 @@ export default function CreateBooking() {
       }
 
       toast.success(data.message || "Booking request sent successfully!");
-      
+
       setTimeout(() => {
         navigate("/my-bookings");
       }, 1500);
@@ -547,13 +547,13 @@ export default function CreateBooking() {
 
   // Render event-specific fields based on selected event type
   const renderEventSpecificFields = () => {
-    switch(eventData.event_type) {
+    switch (eventData.event_type) {
       case "Wedding":
         return (
           <>
             <div style={styles.subsection}>
               <h3 style={styles.subsectionTitle}>💑 Wedding Details</h3>
-              
+
               <div style={styles.row}>
                 <div style={styles.formGroup}>
                   <label style={styles.label}>
@@ -618,7 +618,7 @@ export default function CreateBooking() {
           <>
             <div style={styles.subsection}>
               <h3 style={styles.subsectionTitle}>🎂 Birthday Details</h3>
-              
+
               <div style={styles.row}>
                 <div style={styles.formGroup}>
                   <label style={styles.label}>
@@ -681,7 +681,7 @@ export default function CreateBooking() {
           <>
             <div style={styles.subsection}>
               <h3 style={styles.subsectionTitle}>🏢 Corporate Event Details</h3>
-              
+
               <div style={styles.section}>
                 <label style={styles.label}>
                   Company Name <span style={styles.required}>*</span>
@@ -742,7 +742,7 @@ export default function CreateBooking() {
           <>
             <div style={styles.subsection}>
               <h3 style={styles.subsectionTitle}>💕 Anniversary Details</h3>
-              
+
               <div style={styles.section}>
                 <label style={styles.label}>
                   Couple's Names <span style={styles.required}>*</span>
@@ -792,7 +792,7 @@ export default function CreateBooking() {
           <>
             <div style={styles.subsection}>
               <h3 style={styles.subsectionTitle}>👗 Debut Details</h3>
-              
+
               <div style={styles.section}>
                 <label style={styles.label}>
                   Debutante's Name <span style={styles.required}>*</span>
@@ -855,7 +855,7 @@ export default function CreateBooking() {
           <>
             <div style={styles.subsection}>
               <h3 style={styles.subsectionTitle}>🎓 Graduation Details</h3>
-              
+
               <div style={styles.section}>
                 <label style={styles.label}>
                   Graduate's Name <span style={styles.required}>*</span>
@@ -932,7 +932,7 @@ export default function CreateBooking() {
   const renderEventSpecificSummary = () => {
     const items = [];
 
-    switch(eventData.event_type) {
+    switch (eventData.event_type) {
       case "Wedding":
         if (eventSpecificData.bride_name) {
           items.push({ label: "Bride", value: eventSpecificData.bride_name });
@@ -1026,11 +1026,45 @@ export default function CreateBooking() {
 
   return (
     <div style={styles.wrapper}>
-      {/* Header */}
-      <div style={styles.headerContainer}>
+      {/* Enhanced CSS for hover and focus states */}
+      <style>{`
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* Event box hover effect (non-selected) */
+        [data-event-box]:not([data-selected="true"]):hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+          border-color: #A0785A;
+        }
+        
+        /* Input focus states */
+        input:focus, textarea:focus, select:focus {
+          border-color: #A0785A !important;
+          box-shadow: 0 0 0 3px rgba(160, 120, 90, 0.1);
+        }
+        
+        /* Progress line animation */
+        @keyframes progressGrow {
+          from { width: 0; }
+          to { width: 100%; }
+        }
+      `}</style>
+
+      {/* Header with gradient */}
+      <div style={{
+        ...styles.headerContainer,
+        background: 'linear-gradient(135deg, #A0785A 0%, #74583E 100%)',
+        padding: '2.5rem 1rem',
+        borderRadius: '16px 16px 0 0',
+        marginBottom: '2rem',
+        boxShadow: '0 4px 12px rgba(116, 88, 62, 0.15)'
+      }}>
         <div style={styles.headerContent}>
-          <h1 style={styles.title}>Book a Service</h1>
-          <p style={styles.subtitle}>
+          <h1 style={{ ...styles.title, color: '#fff', fontSize: '2rem' }}>Book a Service</h1>
+          <p style={{ ...styles.subtitle, color: 'rgba(255,255,255,0.95)', fontSize: '1.1rem' }}>
             with <strong>{vendorName}</strong>
           </p>
         </div>
@@ -1072,7 +1106,7 @@ export default function CreateBooking() {
 
       {/* Form Container */}
       <div style={styles.formContainer}>
-        
+
         {/* STEP 1: EVENT DETAILS */}
         {currentStep === 1 && (
           <div style={styles.stepContent}>
@@ -1090,6 +1124,8 @@ export default function CreateBooking() {
                 {eventTypes.map((type) => (
                   <div
                     key={type.value}
+                    data-event-box="true"
+                    data-selected={eventData.event_type === type.value}
                     onClick={() => handleEventTypeSelect(type.value)}
                     style={{
                       ...styles.eventBox,
@@ -1134,7 +1170,7 @@ export default function CreateBooking() {
                   <label style={styles.label}>
                     Event Time <span style={styles.required}>*</span>
                   </label>
-                  
+
                   {/* Time selector with separate hour, minute, and AM/PM */}
                   <div style={{ display: 'flex', gap: '8px' }}>
                     {/* Hour selector */}
@@ -1259,7 +1295,7 @@ export default function CreateBooking() {
             {/* Contact Information (Common for all) */}
             <div style={styles.subsection}>
               <h3 style={styles.subsectionTitle}>📞 Contact Details</h3>
-              
+
               <div style={styles.section}>
                 <label style={styles.label}>
                   Full Name <span style={styles.required}>*</span>
@@ -1328,7 +1364,7 @@ export default function CreateBooking() {
             {/* Common Optional Fields */}
             <div style={styles.subsection}>
               <h3 style={styles.subsectionTitle}>ℹ️ Additional Information</h3>
-              
+
               <div style={styles.section}>
                 <label style={styles.label}>
                   Dietary Restrictions or Preferences
@@ -1415,8 +1451,8 @@ export default function CreateBooking() {
             <div style={styles.summarySection}>
               <div style={styles.summarySectionHeader}>
                 <h3 style={styles.summarySectionTitle}>📅 Event Details</h3>
-                <button 
-                  onClick={() => setCurrentStep(1)} 
+                <button
+                  onClick={() => setCurrentStep(1)}
                   style={styles.editButton}
                   type="button"
                 >
@@ -1431,11 +1467,11 @@ export default function CreateBooking() {
                 <div style={styles.summaryItem}>
                   <span style={styles.summaryLabel}>Date:</span>
                   <span style={styles.summaryValue}>
-                    {new Date(eventData.event_date).toLocaleDateString('en-US', { 
-                      weekday: 'long', 
-                      year: 'numeric', 
-                      month: 'long', 
-                      day: 'numeric' 
+                    {new Date(eventData.event_date).toLocaleDateString('en-US', {
+                      weekday: 'long',
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric'
                     })}
                   </span>
                 </div>
@@ -1474,8 +1510,8 @@ export default function CreateBooking() {
             <div style={styles.summarySection}>
               <div style={styles.summarySectionHeader}>
                 <h3 style={styles.summarySectionTitle}>👤 {eventData.event_type} Information</h3>
-                <button 
-                  onClick={() => setCurrentStep(2)} 
+                <button
+                  onClick={() => setCurrentStep(2)}
                   style={styles.editButton}
                   type="button"
                 >
@@ -1501,7 +1537,7 @@ export default function CreateBooking() {
                     <span style={styles.summaryValue}>{eventSpecificData.number_of_guests}</span>
                   </div>
                 )}
-                
+
                 {/* Event-Specific Summary Items */}
                 {renderEventSpecificSummary().map((item, index) => (
                   <div key={index} style={styles.summaryItem}>
@@ -1545,7 +1581,7 @@ export default function CreateBooking() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               <p style={styles.infoText}>
-                Your booking request will be sent to <strong>{vendorName}</strong> for review. 
+                Your booking request will be sent to <strong>{vendorName}</strong> for review.
                 You will be notified once they respond.
               </p>
             </div>
@@ -1564,7 +1600,7 @@ export default function CreateBooking() {
               ← Back
             </button>
           )}
-          
+
           <button
             type="button"
             onClick={handleCancel}
@@ -1608,7 +1644,7 @@ const styles = {
     padding: "1.5rem 0.5rem",
     minHeight: "100vh"
   },
-  
+
   headerContainer: {
     backgroundColor: "transparent",
     marginBottom: "2rem"
@@ -1693,7 +1729,7 @@ const styles = {
   progressLineActive: {
     backgroundColor: "#74583E"
   },
-  
+
   formContainer: {
     backgroundColor: "#fff",
     borderRadius: "16px",
@@ -1724,7 +1760,7 @@ const styles = {
     fontStyle: "italic",
     marginTop: "0.5rem"
   },
-  
+
   section: {
     marginBottom: "2rem"
   },
@@ -1746,47 +1782,51 @@ const styles = {
     fontWeight: "600",
     color: "#1c1b1a"
   },
-  
+
   eventTypeGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
-    gap: "0.75rem"
+    gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+    gap: "1rem"
   },
-  
+
   eventBox: {
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
     justifyContent: "center",
-    padding: "1rem",
-    backgroundColor: "#f9f9f9",
+    padding: "1.5rem 1rem",
+    backgroundColor: "linear-gradient(135deg, #fff 0%, #f9f9f9 100%)",
     border: "2px solid #e5e5e5",
-    borderRadius: "12px",
+    borderRadius: "16px",
     cursor: "pointer",
-    transition: "all 0.2s ease",
-    minHeight: "110px"
+    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+    minHeight: "130px",
+    position: "relative",
+    overflow: "hidden"
   },
   selectedEventBox: {
-    backgroundColor: "#74583E",
+    background: "linear-gradient(135deg, #A0785A 0%, #74583E 100%)",
     borderColor: "#74583E",
-    transform: "scale(1.02)",
-    boxShadow: "0 4px 12px rgba(116, 88, 62, 0.2)"
+    transform: "translateY(-4px) scale(1.02)",
+    boxShadow: "0 8px 24px rgba(116, 88, 62, 0.25), 0 4px 8px rgba(116, 88, 62, 0.15)"
   },
   iconContainer: {
-    marginBottom: "0.5rem",
+    marginBottom: "0.75rem",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    transition: "color 0.2s ease"
+    transition: "all 0.3s ease",
+    transform: "scale(1)"
   },
   boxLabel: {
-    fontSize: "0.85rem",
-    fontWeight: "500",
+    fontSize: "0.9rem",
+    fontWeight: "600",
     textAlign: "center",
-    lineHeight: "1.2",
-    color: "#333"
+    lineHeight: "1.3",
+    color: "#333",
+    transition: "color 0.2s ease"
   },
-  
+
   formGroup: {
     flex: 1,
     minWidth: "200px"
@@ -1806,17 +1846,18 @@ const styles = {
   required: {
     color: "#dc2626"
   },
-  
+
   input: {
     width: "100%",
-    padding: "0.875rem",
+    padding: "0.875rem 1rem",
     fontSize: "1rem",
     border: "2px solid #e5e5e5",
-    borderRadius: "10px",
+    borderRadius: "12px",
     outline: "none",
-    transition: "border-color 0.2s",
+    transition: "all 0.3s ease",
     boxSizing: "border-box",
-    backgroundColor: "#fff"
+    backgroundColor: "#fff",
+    fontFamily: "inherit"
   },
   textarea: {
     width: "100%",
@@ -1882,7 +1923,7 @@ const styles = {
     color: "#1c1b1a",
     fontWeight: "600"
   },
-  
+
   infoBox: {
     display: "flex",
     alignItems: "flex-start",
@@ -1906,7 +1947,7 @@ const styles = {
     color: "#1e40af",
     lineHeight: "1.6"
   },
-  
+
   buttonGroup: {
     display: "flex",
     gap: "1rem",
@@ -1940,27 +1981,27 @@ const styles = {
     marginRight: "auto"
   },
   nextButton: {
-    padding: "0.875rem 2.5rem",
-    fontSize: "1rem",
+    padding: "1rem 3rem",
+    fontSize: "1.05rem",
     fontWeight: "600",
     border: "none",
-    borderRadius: "10px",
-    backgroundColor: "#74583E",
+    borderRadius: "12px",
+    background: "linear-gradient(135deg, #A0785A 0%, #74583E 100%)",
     color: "#fff",
     cursor: "pointer",
-    transition: "all 0.2s",
-    boxShadow: "0 2px 8px rgba(116, 88, 62, 0.2)"
+    transition: "all 0.3s ease",
+    boxShadow: "0 4px 12px rgba(116, 88, 62, 0.25)"
   },
   submitButton: {
-    padding: "0.875rem 2.5rem",
-    fontSize: "1rem",
+    padding: "1rem 3rem",
+    fontSize: "1.05rem",
     fontWeight: "600",
     border: "none",
-    borderRadius: "10px",
-    backgroundColor: "#16a34a",
+    borderRadius: "12px",
+    background: "linear-gradient(135deg, #16a34a 0%, #15803d 100%)",
     color: "#fff",
     cursor: "pointer",
-    transition: "all 0.2s",
-    boxShadow: "0 2px 8px rgba(22, 163, 74, 0.3)"
+    transition: "all 0.3s ease",
+    boxShadow: "0 4px 12px rgba(22, 163, 74, 0.3)"
   }
 };

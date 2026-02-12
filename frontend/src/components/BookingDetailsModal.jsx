@@ -1,20 +1,20 @@
 import React from 'react';
 
-export default function BookingDetailsModal({ 
-  booking, 
-  isOpen, 
-  onClose, 
-  userRole, 
-  onAccept, 
-  onReject, 
+export default function BookingDetailsModal({
+  booking,
+  isOpen,
+  onClose,
+  userRole,
+  onAccept,
+  onReject,
   onCancel,
-  processing 
+  processing
 }) {
   if (!isOpen || !booking) return null;
 
   const isVendor = userRole === 1;
   const isClient = userRole === 0;
-  
+
   // Status color coding
   const getStatusStyle = (status) => {
     const styles = {
@@ -32,20 +32,20 @@ export default function BookingDetailsModal({
   //  UPDATED: Format date and time SEPARATELY
   const formatDateTime = (dateStr) => {
     if (!dateStr) return { date: 'Not specified', time: 'Not specified' };
-    
+
     try {
       const date = new Date(dateStr);
-      const dateFormatted = date.toLocaleDateString('en-US', { 
-        year: 'numeric', 
-        month: 'long', 
+      const dateFormatted = date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
         day: 'numeric'
       });
-      const timeFormatted = date.toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
+      const timeFormatted = date.toLocaleTimeString('en-US', {
+        hour: '2-digit',
         minute: '2-digit',
-        hour12: true 
+        hour12: true
       });
-      
+
       return { date: dateFormatted, time: timeFormatted };
     } catch {
       return { date: dateStr, time: 'N/A' };
@@ -56,9 +56,9 @@ export default function BookingDetailsModal({
   const formatDate = (dateStr) => {
     if (!dateStr) return 'Not specified';
     try {
-      return new Date(dateStr).toLocaleDateString('en-US', { 
-        year: 'numeric', 
-        month: 'long', 
+      return new Date(dateStr).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
         day: 'numeric',
         hour: '2-digit',
         minute: '2-digit'
@@ -79,7 +79,7 @@ export default function BookingDetailsModal({
   return (
     <div style={styles.overlay} onClick={onClose}>
       <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
-        
+
         {/* Header */}
         <div style={styles.header}>
           <h2 style={styles.title}>Booking Details</h2>
@@ -90,7 +90,7 @@ export default function BookingDetailsModal({
 
         {/* Status Badge */}
         <div style={styles.statusSection}>
-          <span 
+          <span
             style={{
               ...styles.statusBadge,
               backgroundColor: statusStyle.bg,
@@ -104,29 +104,29 @@ export default function BookingDetailsModal({
 
         {/* Content */}
         <div style={styles.content}>
-          
+
           {/* Service Information */}
           <section style={styles.section}>
             <h3 style={styles.sectionTitle}>💼 Service Information</h3>
             <div style={styles.infoGrid}>
-              <InfoItem 
+              <InfoItem
                 icon="🎯"
-                label="Service" 
-                value={booking.ServiceName || 'Not specified'} 
+                label="Service"
+                value={booking.ServiceName || 'Not specified'}
               />
-              <InfoItem 
+              <InfoItem
                 icon="🎉"
-                label="Event Type" 
-                value={booking.EventType || 'Not specified'} 
+                label="Event Type"
+                value={booking.EventType || 'Not specified'}
               />
-              <InfoItem 
+              <InfoItem
                 icon="📦"
-                label="Package Selected" 
-                value={booking.PackageSelected || 'Not specified'} 
+                label="Package Selected"
+                value={booking.PackageSelected || 'Not specified'}
               />
-              <InfoItem 
+              <InfoItem
                 icon="💰"
-                label="Estimated Budget" 
+                label="Estimated Budget"
                 value={booking.TotalAmount ? `₱${parseFloat(booking.TotalAmount).toLocaleString()}` : 'Not specified'}
                 highlight
               />
@@ -137,38 +137,62 @@ export default function BookingDetailsModal({
           <section style={styles.section}>
             <h3 style={styles.sectionTitle}>📅 Event Details</h3>
             <div style={styles.infoGrid}>
-              <InfoItem 
+              <InfoItem
                 icon="📅"
-                label="Event Date" 
-                value={eventDate} 
+                label="Event Date"
+                value={eventDate}
               />
-              <InfoItem 
+              <InfoItem
                 icon="⏰"
-                label="Event Time" 
-                value={eventTime} 
+                label="Event Time"
+                value={eventTime}
               />
-              <InfoItem 
+              <InfoItem
                 icon="📍"
-                label="Event Location" 
-                value={booking.EventLocation || 'Not specified'} 
+                label="Event Location"
+                value={booking.EventLocation || 'Not specified'}
               />
               {booking.NumberOfGuests && (
-                <InfoItem 
+                <InfoItem
                   icon="👥"
-                  label="Number of Guests" 
-                  value={booking.NumberOfGuests.toString()} 
+                  label="Number of Guests"
+                  value={booking.NumberOfGuests.toString()}
                 />
               )}
             </div>
-            
+
             {/*  UPDATED: Enhanced Additional Notes Display */}
             {booking.AdditionalNotes && (
               <div style={styles.notesContainer}>
                 <label style={styles.notesLabel}>
                   <span style={styles.notesIcon}>📝</span>
-                  Additional Notes
+                  Booking Details & Notes
                 </label>
-                <p style={styles.notes}>{booking.AdditionalNotes}</p>
+                <div style={styles.notes}>
+                  {booking.AdditionalNotes.split('---').map((section, idx) => {
+                    const trimmed = section.trim();
+                    if (!trimmed) return null;
+
+                    // Check for section headers
+                    if (trimmed === 'Contact Information') {
+                      return <h5 key={idx} style={{ fontWeight: '600', color: '#1f2937', marginTop: '0.5rem', borderBottom: '1px solid #e5e7eb', paddingBottom: '0.25rem' }}>Contact Information</h5>;
+                    }
+
+                    // Split by key-value pairs
+                    const parts = trimmed.split(/([A-Z][a-zA-Z\s/-]+:)/g);
+
+                    return (
+                      <div key={idx} style={{ marginBottom: '0.5rem' }}>
+                        {parts.map((part, pIdx) => {
+                          if (part.match(/^[A-Z][a-zA-Z\s/-]+:$/)) {
+                            return <span key={pIdx} style={{ fontWeight: '600', color: '#374151', display: 'block', marginTop: '0.25rem' }}>{part} </span>;
+                          }
+                          return <span key={pIdx}>{part}</span>;
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </section>
@@ -178,41 +202,47 @@ export default function BookingDetailsModal({
             <section style={styles.section}>
               <h3 style={styles.sectionTitle}>👤 Client Information</h3>
               <div style={styles.infoGrid}>
-                <InfoItem 
+                <InfoItem
                   icon="👤"
-                  label="Client Name" 
-                  value={booking.client_name || booking.client_first_name + ' ' + booking.client_last_name || 'Not available'} 
+                  label="Client Name"
+                  value={booking.client_name || booking.client_first_name + ' ' + booking.client_last_name || 'Not available'}
                 />
-                <InfoItem 
+                <InfoItem
                   icon="📧"
-                  label="Email" 
-                  value={booking.client_email || 'Not available'} 
+                  label="Email"
+                  value={booking.client_email || 'Not available'}
                 />
                 {booking.client_phone && (
-                  <InfoItem 
+                  <InfoItem
                     icon="📱"
-                    label="Phone" 
-                    value={booking.client_phone} 
+                    label="Phone"
+                    value={booking.client_phone}
                   />
                 )}
               </div>
             </section>
           )}
 
-          {/* Vendor Information (Client View) */}
+          {/* Vendor/Venue Information (Client View) */}
           {isClient && (
             <section style={styles.section}>
-              <h3 style={styles.sectionTitle}>🏢 Vendor Information</h3>
+              <h3 style={styles.sectionTitle}>
+                {(booking.isVenueBooking || booking.booking_type === 'venue') ? '🏛️ Venue Information' : '🏢 Vendor Information'}
+              </h3>
               <div style={styles.infoGrid}>
-                <InfoItem 
-                  icon="🏢"
-                  label="Business Name" 
-                  value={booking.vendor_business_name || booking.vendor_name || 'Not available'} 
+                <InfoItem
+                  icon={(booking.isVenueBooking || booking.booking_type === 'venue') ? '🏛️' : '🏢'}
+                  label={(booking.isVenueBooking || booking.booking_type === 'venue') ? 'Venue Name' : 'Business Name'}
+                  value={
+                    (booking.isVenueBooking || booking.booking_type === 'venue')
+                      ? (booking.venue_name || booking.ServiceName || 'Not available')
+                      : (booking.vendor_business_name || booking.vendor_name || 'Not available')
+                  }
                 />
-                <InfoItem 
+                <InfoItem
                   icon="📧"
-                  label="Contact Email" 
-                  value={booking.vendor_email || 'Not available'} 
+                  label="Contact Email"
+                  value={(booking.isVenueBooking || booking.booking_type === 'venue') ? (booking.venue_email || booking.vendor_email || 'Not available') : (booking.vendor_email || 'Not available')}
                 />
               </div>
             </section>
@@ -222,21 +252,21 @@ export default function BookingDetailsModal({
           <section style={styles.section}>
             <h3 style={styles.sectionTitle}>ℹ️ Booking Information</h3>
             <div style={styles.infoGrid}>
-              <InfoItem 
+              <InfoItem
                 icon="🔖"
-                label="Booking ID" 
-                value={`#${booking.ID}`} 
+                label="Booking ID"
+                value={`#${booking.ID}`}
               />
-              <InfoItem 
+              <InfoItem
                 icon="📅"
-                label="Booked On" 
-                value={formatDate(booking.CreatedAt)} 
+                label="Booked On"
+                value={formatDate(booking.CreatedAt)}
               />
               {booking.UpdatedAt && booking.UpdatedAt !== booking.CreatedAt && (
-                <InfoItem 
+                <InfoItem
                   icon="🔄"
-                  label="Last Updated" 
-                  value={formatDate(booking.UpdatedAt)} 
+                  label="Last Updated"
+                  value={formatDate(booking.UpdatedAt)}
                 />
               )}
             </div>
@@ -246,7 +276,7 @@ export default function BookingDetailsModal({
 
         {/* Actions */}
         <div style={styles.actions}>
-          
+
           {/* Vendor Actions */}
           {isVendor && (canAccept || canReject) && (
             <>

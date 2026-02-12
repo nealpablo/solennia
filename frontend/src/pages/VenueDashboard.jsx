@@ -4,10 +4,10 @@ import { useNavigate } from "react-router-dom";
 import toast from "../utils/toast";
 import "../style.css";
 
-const API = 
-  import.meta.env.VITE_API_BASE || 
+const API =
+  import.meta.env.VITE_API_BASE ||
   import.meta.env.VITE_API_URL ||
-  (import.meta.env.PROD 
+  (import.meta.env.PROD
     ? "https://solennia.up.railway.app/api" : "/api");
 
 export default function VenueDashboard() {
@@ -64,6 +64,20 @@ export default function VenueDashboard() {
     gallery_3: null,
   });
 
+  // Bookings Modal
+  const [selectedVenueForBookings, setSelectedVenueForBookings] = useState(null);
+  const [showBookingsModal, setShowBookingsModal] = useState(false);
+
+  const openVenueBookingsModal = (listing) => {
+    setSelectedVenueForBookings(listing);
+    setShowBookingsModal(true);
+  };
+
+  const closeBookingsModal = () => {
+    setShowBookingsModal(false);
+    setSelectedVenueForBookings(null);
+  };
+
   /* ================= CHECK VENUE VENDOR STATUS ================= */
   useEffect(() => {
     if (!token) {
@@ -78,9 +92,9 @@ export default function VenueDashboard() {
       const res = await fetch(`${API}/vendor/status`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      
+
       const data = await res.json();
-      
+
       if (!data.success) {
         toast.warning("Please apply as a supplier first");
         navigate("/profile");
@@ -101,7 +115,7 @@ export default function VenueDashboard() {
 
       setVendorStatus(data);
       loadMyListings();
-      
+
     } catch (err) {
       console.error("Failed to check supplier status:", err);
       toast.error("Error checking supplier status");
@@ -217,19 +231,19 @@ export default function VenueDashboard() {
       const dateStr = formatDateToLocal(selectedDate);
       const payload = editingAvailability
         ? {
-            start_time: availabilityForm.start_time,
-            end_time: availabilityForm.end_time,
-            is_available: availabilityForm.is_available,
-            notes: availabilityForm.notes || ""
-          }
+          start_time: availabilityForm.start_time,
+          end_time: availabilityForm.end_time,
+          is_available: availabilityForm.is_available,
+          notes: availabilityForm.notes || ""
+        }
         : {
-            venue_id: selectedVenueForCalendar.id,
-            date: dateStr,
-            start_time: availabilityForm.start_time,
-            end_time: availabilityForm.end_time,
-            is_available: availabilityForm.is_available,
-            notes: availabilityForm.notes || ""
-          };
+          venue_id: selectedVenueForCalendar.id,
+          date: dateStr,
+          start_time: availabilityForm.start_time,
+          end_time: availabilityForm.end_time,
+          is_available: availabilityForm.is_available,
+          notes: availabilityForm.notes || ""
+        };
       const url = editingAvailability
         ? `${API}/venue/availability/${editingAvailability.id}`
         : `${API}/venue/availability`;
@@ -297,13 +311,13 @@ export default function VenueDashboard() {
       const res = await fetch(`${API}/venue/my-listings`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      
+
       const data = await res.json();
-      
+
       if (data.success) {
         setListings(data.listings || []);
       }
-      
+
     } catch (err) {
       console.error("Failed to load venue listings:", err);
     } finally {
@@ -341,12 +355,12 @@ export default function VenueDashboard() {
 
     try {
       const formData = new FormData();
-      
+
       // Add text fields
-      const textFields = ['venue_name', 'venue_subcategory', 'venue_capacity', 
-                         'venue_amenities', 'venue_operating_hours', 'venue_parking',
-                         'description', 'pricing', 'address', 'contact_email'];
-      
+      const textFields = ['venue_name', 'venue_subcategory', 'venue_capacity',
+        'venue_amenities', 'venue_operating_hours', 'venue_parking',
+        'description', 'pricing', 'address', 'contact_email'];
+
       textFields.forEach(field => {
         if (listingForm[field]) {
           formData.append(field, listingForm[field]);
@@ -367,10 +381,10 @@ export default function VenueDashboard() {
         formData.append('gallery_3', listingForm.gallery_3);
       }
 
-      const endpoint = editingListing 
+      const endpoint = editingListing
         ? `${API}/venue/listings/${editingListing.id}`
         : `${API}/venue/listings`;
-        
+
       const method = editingListing ? "PUT" : "POST";
 
       const res = await fetch(endpoint, {
@@ -386,12 +400,12 @@ export default function VenueDashboard() {
       }
 
       toast.success(editingListing ? "Listing updated successfully!" : "Listing created successfully!");
-      
+
       resetForm();
       setShowCreateListing(false);
       setEditingListing(null);
       loadMyListings();
-      
+
     } catch (err) {
       console.error("Error submitting listing:", err);
       toast.error(err.message);
@@ -418,7 +432,7 @@ export default function VenueDashboard() {
 
       toast.success("Listing deleted successfully!");
       loadMyListings();
-      
+
     } catch (err) {
       console.error("Error deleting listing:", err);
       toast.error(err.message);
@@ -444,7 +458,7 @@ export default function VenueDashboard() {
       gallery_2: null,
       gallery_3: null,
     });
-    
+
     // Set existing images for preview
     const gallery = Array.isArray(listing.gallery) ? listing.gallery : [];
     setImagePreviews({
@@ -453,7 +467,7 @@ export default function VenueDashboard() {
       gallery_2: gallery[1] || null,
       gallery_3: gallery[2] || null,
     });
-    
+
     setShowCreateListing(true);
   };
 
@@ -487,11 +501,11 @@ export default function VenueDashboard() {
   /* ================= LOADING STATE ================= */
   if (loading) {
     return (
-      <div style={{ 
-        display: "flex", 
-        justifyContent: "center", 
-        alignItems: "center", 
-        height: "100vh" 
+      <div style={{
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        height: "100vh"
       }}>
         <p>Loading venue dashboard...</p>
       </div>
@@ -770,7 +784,7 @@ export default function VenueDashboard() {
       {/* Listings Section */}
       <div className="listings-section">
         <h2>Your Venue Listings ({listings.length})</h2>
-        
+
         {listings.length === 0 ? (
           <div className="no-listings">
             <h3>No venue listings yet</h3>
@@ -789,9 +803,9 @@ export default function VenueDashboard() {
                   {/* Logo */}
                   <div className="listing-logo-container">
                     {(listing.portfolio || listing.HeroImageUrl) ? (
-                      <img 
-                        src={listing.portfolio || listing.HeroImageUrl} 
-                        alt={listing.venue_name} 
+                      <img
+                        src={listing.portfolio || listing.HeroImageUrl}
+                        alt={listing.venue_name}
                         className="listing-logo"
                       />
                     ) : (
@@ -811,7 +825,7 @@ export default function VenueDashboard() {
                       ))}
                     </div>
                   )}
-                  
+
                   <div className="listing-content">
                     <h3>{listing.venue_name}</h3>
                     <p><strong>Type:</strong> {listing.venue_subcategory || "Not specified"}</p>
@@ -819,16 +833,19 @@ export default function VenueDashboard() {
                     <p><strong>Capacity:</strong> {listing.venue_capacity || "Not specified"}</p>
                     <p><strong>Pricing:</strong> {listing.pricing}</p>
                     <p><strong>Images:</strong> {gallery.length} gallery photos</p>
-                    
-                    <div className="listing-actions">
-                      <button onClick={() => openCalendarModal(listing)} className="btn btn-secondary">
-                        📅 Manage Availability
+
+                    <div className="listing-actions" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      <button onClick={() => openCalendarModal(listing)} className="btn btn-secondary" style={{ flex: 1, fontSize: '0.8rem', padding: '8px' }}>
+                        📅 Availability
                       </button>
-                      <button onClick={() => handleEditListing(listing)} className="btn btn-secondary">
+                      <button onClick={() => openVenueBookingsModal(listing)} className="btn btn-secondary" style={{ flex: 1, fontSize: '0.8rem', padding: '8px', background: '#e0e7ff', color: '#3730a3' }}>
+                        📋 Bookings
+                      </button>
+                      <button onClick={() => handleEditListing(listing)} className="btn btn-secondary" style={{ flex: 1, fontSize: '0.8rem', padding: '8px' }}>
                         ✏️ Edit
                       </button>
-                      <button onClick={() => handleDeleteListing(listing.id)} className="btn btn-danger">
-                        🗑️ Delete
+                      <button onClick={() => handleDeleteListing(listing.id)} className="btn btn-danger" style={{ flex: 0, padding: '8px 12px' }}>
+                        🗑️
                       </button>
                     </div>
                   </div>
@@ -847,7 +864,7 @@ export default function VenueDashboard() {
         }}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h2>{editingListing ? "✏️ Edit Venue Listing" : "➕ Create New Venue Listing"}</h2>
-            
+
             <form onSubmit={handleSubmitListing}>
               {/* Basic Info */}
               <div className="form-group">
@@ -965,7 +982,7 @@ export default function VenueDashboard() {
                 <label>
                   Venue Logo {!editingListing && <span className="required">*</span>}
                 </label>
-                <div 
+                <div
                   className={`image-upload-box ${imagePreviews.logo ? 'has-image' : ''}`}
                   onClick={() => document.getElementById('logo-input').click()}
                 >
@@ -995,7 +1012,7 @@ export default function VenueDashboard() {
                 <label>Gallery Images (up to 3 photos)</label>
                 <div className="gallery-upload-grid">
                   {/* Gallery 1 */}
-                  <div 
+                  <div
                     className={`image-upload-box ${imagePreviews.gallery_1 ? 'has-image' : ''}`}
                     onClick={() => document.getElementById('gallery-1-input').click()}
                   >
@@ -1018,7 +1035,7 @@ export default function VenueDashboard() {
                   </div>
 
                   {/* Gallery 2 */}
-                  <div 
+                  <div
                     className={`image-upload-box ${imagePreviews.gallery_2 ? 'has-image' : ''}`}
                     onClick={() => document.getElementById('gallery-2-input').click()}
                   >
@@ -1041,7 +1058,7 @@ export default function VenueDashboard() {
                   </div>
 
                   {/* Gallery 3 */}
-                  <div 
+                  <div
                     className={`image-upload-box ${imagePreviews.gallery_3 ? 'has-image' : ''}`}
                     onClick={() => document.getElementById('gallery-3-input').click()}
                   >
@@ -1235,6 +1252,125 @@ export default function VenueDashboard() {
           </div>
         </div>
       )}
+      {/* Venue Bookings Modal */}
+      {showBookingsModal && selectedVenueForBookings && (
+        <VenueBookingsModal
+          venue={selectedVenueForBookings}
+          onClose={closeBookingsModal}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ================= VENUE BOOKINGS MODAL ================= */
+function VenueBookingsModal({ venue, onClose }) {
+  const [bookings, setBookings] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadBookings();
+  }, [venue]);
+
+  const loadBookings = async () => {
+    try {
+      const token = localStorage.getItem("solennia_token");
+      const res = await fetch(`${API}/bookings/vendor`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        // Filter for this venue only
+        const venueBookings = (data.bookings || []).filter(b =>
+          (b.booking_type === 'venue' || b.isVenueBooking) &&
+          Number(b.venue_id) === Number(venue.id)
+        );
+        setBookings(venueBookings);
+      }
+    } catch (err) {
+      console.error("Failed to load venue bookings:", err);
+      toast.error("Failed to load bookings");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const statusColors = {
+    Pending: { bg: "#fef3c7", text: "#92400e" },
+    Confirmed: { bg: "#d1fae5", text: "#065f46" },
+    Rejected: { bg: "#fee2e2", text: "#991b1b" },
+    Cancelled: { bg: "#fee2e2", text: "#991b1b" },
+    Completed: { bg: "#e0e7ff", text: "#3730a3" }
+  };
+
+  return (
+    <div className="modal-backdrop" onClick={onClose} style={{ zIndex: 10004 }}>
+      <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '800px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <h2 style={{ margin: 0 }}>📅 Bookings for {venue.venue_name}</h2>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}>×</button>
+        </div>
+
+        {loading ? (
+          <p>Loading bookings...</p>
+        ) : bookings.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px', color: '#666', background: '#f9f9f9', borderRadius: '8px' }}>
+            <p style={{ marginBottom: '10px', fontSize: '1.1rem' }}>No bookings found for this venue yet.</p>
+            <p style={{ fontSize: '0.9rem' }}>Bookings will appear here when clients request your venue.</p>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', maxHeight: '60vh', overflowY: 'auto' }}>
+            {bookings.map(booking => {
+              const statusStyle = statusColors[booking.BookingStatus] || statusColors.Pending;
+              return (
+                <div key={booking.ID} style={{
+                  border: '1px solid #eee',
+                  borderRadius: '8px',
+                  padding: '15px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  background: '#fff',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+                }}>
+                  <div>
+                    <h4 style={{ margin: '0 0 5px 0', fontSize: '1.1rem', color: '#7a5d47' }}>
+                      {booking.EventType || 'Event Booking'}
+                    </h4>
+                    <p style={{ margin: '0 0 3px 0', color: '#555', fontSize: '0.9rem' }}>
+                      <strong>Client:</strong> {booking.client_name}
+                    </p>
+                    <p style={{ margin: '0', color: '#555', fontSize: '0.9rem' }}>
+                      <strong>Date:</strong> {new Date(booking.EventDate).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                    </p>
+                  </div>
+                  <div style={{ textAlign: 'right', minWidth: '120px' }}>
+                    <span style={{
+                      padding: '4px 12px',
+                      borderRadius: '20px',
+                      fontSize: '0.85rem',
+                      fontWeight: '600',
+                      backgroundColor: statusStyle.bg,
+                      color: statusStyle.text,
+                      display: 'inline-block',
+                      marginBottom: '8px'
+                    }}>
+                      {booking.BookingStatus}
+                    </span>
+                    <p style={{ margin: '0', fontWeight: '500', color: '#666', fontSize: '0.85rem' }}>
+                      {booking.guest_count ? `Guests: ${booking.guest_count}` : ''}
+                    </p>
+                    <p style={{ margin: '2px 0 0 0', fontWeight: '600', color: '#1c1b1a' }}>
+                      ₱{parseFloat(booking.TotalAmount || 0).toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

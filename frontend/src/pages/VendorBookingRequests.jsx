@@ -15,6 +15,7 @@ export default function VendorBookingRequests() {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
+  const [selectedVenue, setSelectedVenue] = useState("all");
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [processing, setProcessing] = useState(false);
 
@@ -26,7 +27,7 @@ export default function VendorBookingRequests() {
       navigate("/");
       return;
     }
-    
+
     loadBookings();
   }, [navigate]);
 
@@ -37,7 +38,7 @@ export default function VendorBookingRequests() {
     try {
       setLoading(true);
       const token = localStorage.getItem("solennia_token");
-      
+
       if (!token) {
         toast.error("Please log in to view booking requests");
         navigate("/login");
@@ -97,7 +98,7 @@ export default function VendorBookingRequests() {
     setProcessing(true);
     try {
       const token = localStorage.getItem("solennia_token");
-      
+
       const response = await fetch(`${API}/bookings/${bookingId}/status`, {
         method: "PATCH",
         headers: {
@@ -131,7 +132,7 @@ export default function VendorBookingRequests() {
     setProcessing(true);
     try {
       const token = localStorage.getItem("solennia_token");
-      
+
       const response = await fetch(`${API}/bookings/${bookingId}/status`, {
         method: "PATCH",
         headers: {
@@ -170,7 +171,7 @@ export default function VendorBookingRequests() {
     setProcessing(true);
     try {
       const token = localStorage.getItem("solennia_token");
-      
+
       const response = await fetch(`${API}/bookings/${bookingId}/complete`, {
         method: "PATCH",
         headers: {
@@ -199,6 +200,11 @@ export default function VendorBookingRequests() {
    * Filter bookings by status
    */
   const filteredBookings = bookings.filter(booking => {
+    // Filter by Venue
+    if (selectedVenue !== "all" && booking.venue_name !== selectedVenue) {
+      return false;
+    }
+    // Filter by Status
     if (filter === "all") return true;
     return booking.BookingStatus === filter;
   });
@@ -243,7 +249,7 @@ export default function VendorBookingRequests() {
           <span style={styles.statBadge}>
             Total: {bookings.length}
           </span>
-          <span style={{...styles.statBadge, ...styles.pendingBadge}}>
+          <span style={{ ...styles.statBadge, ...styles.pendingBadge }}>
             Pending: {bookings.filter(b => b.BookingStatus === 'Pending').length}
           </span>
         </div>
@@ -251,6 +257,33 @@ export default function VendorBookingRequests() {
 
       {/* Filter Tabs */}
       <div style={styles.filterContainer}>
+        {/* Venue Filter Dropdown (Only if there are venue bookings) */}
+        {bookings.some(b => b.booking_type === 'venue' || b.isVenueBooking) && (
+          <select
+            value={selectedVenue}
+            onChange={(e) => setSelectedVenue(e.target.value)}
+            style={{
+              padding: "0.5rem 1rem",
+              border: "1px solid #c9bda4",
+              borderRadius: "8px",
+              background: "#fff",
+              color: "#1c1b1a",
+              fontSize: "0.9rem",
+              outline: "none",
+              cursor: "pointer",
+              marginRight: "1rem"
+            }}
+          >
+            <option value="all">All Venues & Services</option>
+            {[...new Set(bookings
+              .filter(b => (b.booking_type === 'venue' || b.isVenueBooking) && b.venue_name)
+              .map(b => b.venue_name)
+            )].map(venueName => (
+              <option key={venueName} value={venueName}>{venueName}</option>
+            ))}
+          </select>
+        )}
+
         {["all", "Pending", "Confirmed", "Rejected", "Cancelled", "Completed"].map((f) => (
           <button
             key={f}
@@ -260,10 +293,10 @@ export default function VendorBookingRequests() {
               ...(filter === f ? styles.filterButtonActive : {})
             }}
           >
-            {f === "all" ? "All" : f}
+            {f === "all" ? "All Statuses" : f}
             {f !== "all" && (
               <span style={styles.filterCount}>
-                {bookings.filter(b => b.BookingStatus === f).length}
+                {bookings.filter(b => b.BookingStatus === f && (selectedVenue === 'all' || b.venue_name === selectedVenue)).length}
               </span>
             )}
           </button>
@@ -278,7 +311,7 @@ export default function VendorBookingRequests() {
           </svg>
           <h3 style={styles.emptyTitle}>No Booking Requests</h3>
           <p style={styles.emptyText}>
-            {filter === "all" 
+            {filter === "all"
               ? "You haven't received any booking requests yet."
               : `No ${filter.toLowerCase()} bookings found.`}
           </p>
@@ -292,11 +325,32 @@ export default function VendorBookingRequests() {
 
             return (
               <div key={booking.ID} style={styles.card}>
-                
+
                 {/* Card Header */}
                 <div style={styles.cardHeader}>
                   <div>
-                    <h3 style={styles.cardTitle}>{booking.ServiceName}</h3>
+                    {/* Show venue category for venue bookings */}
+                    {(booking.type === 'venue' || booking.booking_type === 'venue' || booking.venue_id) && (
+                      <p style={styles.venueCategory}>
+                        {booking.venue_subcategory || 'Venue'}
+                      </p>
+                    )}
+
+                    {/* Title with proper label */}
+                    <h3 style={styles.cardTitle}>
+                      {(booking.type === 'venue' || booking.booking_type === 'venue' || booking.venue_id) ? (
+                        <>
+                          <span style={styles.labelText}>Venue: </span>
+                          {booking.venue_name || booking.ServiceName}
+                        </>
+                      ) : (
+                        <>
+                          <span style={styles.labelText}>Vendor: </span>
+                          {booking.ServiceName}
+                        </>
+                      )}
+                    </h3>
+
                     <p style={styles.cardClient}>
                       Client: <strong>{booking.client_name || "Unknown"}</strong>
                     </p>
@@ -326,10 +380,10 @@ export default function VendorBookingRequests() {
                       <div>
                         <label style={styles.infoLabel}>Event Date</label>
                         <span style={styles.infoValue}>
-                          {new Date(booking.EventDate).toLocaleDateString('en-US', { 
-                            year: 'numeric', 
-                            month: 'long', 
-                            day: 'numeric' 
+                          {new Date(booking.EventDate).toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
                           })}
                         </span>
                       </div>
@@ -363,8 +417,14 @@ export default function VendorBookingRequests() {
 
                   {booking.AdditionalNotes && (
                     <div style={styles.notesSection}>
-                      <label style={styles.notesLabel}>Additional Notes:</label>
-                      <p style={styles.notesText}>{booking.AdditionalNotes}</p>
+                      <label style={styles.notesLabel}>📝 Additional Notes</label>
+                      <div style={styles.notesText}>
+                        {booking.AdditionalNotes.split('\n').map((line, idx) => (
+                          <div key={idx} style={{ marginBottom: line.trim() === '' ? '0.5rem' : '0.25rem' }}>
+                            {line.trim() || '\u00A0'}
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -395,7 +455,7 @@ export default function VendorBookingRequests() {
                       </button>
                     </>
                   )}
-                  
+
                   {!isPending && (
                     <button
                       onClick={() => loadBookingDetails(booking.ID)}
@@ -404,7 +464,7 @@ export default function VendorBookingRequests() {
                       View Details
                     </button>
                   )}
-                  
+
                   {/* UC08: Mark as Completed button (only for Confirmed bookings) */}
                   {isConfirmed && (
                     <button
@@ -577,6 +637,19 @@ const styles = {
     paddingBottom: "1rem",
     borderBottom: "1px solid #f0f0f0"
   },
+  venueCategory: {
+    fontSize: "0.85rem",
+    fontWeight: "600",
+    color: "#7a5d47",
+    textTransform: "capitalize",
+    marginBottom: "0.5rem",
+    margin: "0 0 0.5rem 0"
+  },
+  labelText: {
+    fontSize: "0.9rem",
+    fontWeight: "500",
+    color: "#666"
+  },
   cardTitle: {
     fontSize: "1.25rem",
     fontWeight: "600",
@@ -639,24 +712,25 @@ const styles = {
   },
   notesSection: {
     marginTop: "1rem",
-    padding: "1rem",
-    backgroundColor: "#f9f9f9",
-    borderRadius: "8px",
-    border: "1px solid #e5e5e5"
+    padding: "1.25rem",
+    background: "linear-gradient(135deg, #fef9f3 0%, #faf6f0 100%)",
+    borderRadius: "12px",
+    border: "2px solid #e8ddca",
+    boxShadow: "0 2px 4px rgba(122, 93, 71, 0.08)"
   },
   notesLabel: {
-    fontSize: "0.75rem",
-    fontWeight: "600",
-    color: "#666",
-    textTransform: "uppercase",
-    letterSpacing: "0.05em"
+    display: "block",
+    fontSize: "0.85rem",
+    fontWeight: "700",
+    color: "#7a5d47",
+    marginBottom: "0.75rem",
+    letterSpacing: "0.025em"
   },
   notesText: {
-    fontSize: "0.9rem",
-    color: "#333",
-    marginTop: "0.5rem",
-    lineHeight: "1.6",
-    margin: "0.5rem 0 0 0"
+    fontSize: "0.925rem",
+    color: "#4a4a4a",
+    lineHeight: "1.7",
+    fontFamily: "inherit"
   },
   cardActions: {
     display: "flex",

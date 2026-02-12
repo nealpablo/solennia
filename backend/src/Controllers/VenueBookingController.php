@@ -47,6 +47,27 @@ class VenueBookingController
         }
     }
 
+    /**
+     * Get EventServiceProviderID for a venue owner
+     * Returns NULL if venue owner is not in event_service_provider table
+     * 
+     * CRITICAL FIX: Venue owners are not always event service providers!
+     * This function checks if the venue owner exists in event_service_provider
+     * and returns NULL if they don't, allowing the booking to proceed.
+     */
+    private function getEventServiceProviderID($venueOwnerId)
+    {
+        $provider = DB::table('event_service_provider')
+            ->where('UserID', $venueOwnerId)
+            ->first();
+        
+        if (!$provider) {
+            error_log("INFO: Venue owner (user_id: {$venueOwnerId}) is not in event_service_provider table. Using NULL for EventServiceProviderID.");
+        }
+        
+        return $provider ? $provider->ID : null;
+    }
+
     /* =========================================================
      * CREATE VENUE BOOKING
      * ========================================================= */
@@ -133,11 +154,32 @@ class VenueBookingController
                 $notes .= "\nAdditional Notes:\n{$data['additional_notes']}\n";
             }
 
-            // Create booking
+            // CRITICAL FIX: EventServiceProviderID is NOT NULL in database
+            // Check if venue owner also has an event service provider account
+            $eventServiceProviderId = DB::table('event_service_provider')
+                ->where('UserID', $venue->user_id)
+                ->where('ApplicationStatus', 'Approved')
+                ->value('ID');
+            
+            // If venue owner doesn't have ESP account, use a default placeholder
+            // (required because EventServiceProviderID is NOT NULL in schema)
+            if (!$eventServiceProviderId) {
+                // Use the first available approved ESP as placeholder
+                $eventServiceProviderId = DB::table('event_service_provider')
+                    ->where('ApplicationStatus', 'Approved')
+                    ->value('ID');
+                    
+                // If still no ESP exists (shouldn't happen), throw error
+                if (!$eventServiceProviderId) {
+                    throw new \Exception('No event service providers available in system');
+                }
+            }
+
+            // Create booking with FIXED EventServiceProviderID handling
             $bookingId = DB::table('booking')->insertGetId([
                 'UserID' => $userId,
                 'venue_id' => $venueId,
-                'EventServiceProviderID' => $venue->user_id, // Venue owner
+                'EventServiceProviderID' => $eventServiceProviderId,
                 'ServiceName' => $venue->venue_name,
                 'EventDate' => $startDate,
                 'start_date' => $startDate,
@@ -172,7 +214,8 @@ class VenueBookingController
 
         } catch (\Exception $e) {
             error_log("CREATE_VENUE_BOOKING_ERROR: " . $e->getMessage());
-            return $this->json($res, false, "Failed to create booking: " . $e->getMessage(), 500);
+            error_log("Stack trace: " . $e->getTraceAsString());
+            return $this->json($res, false, "Booking creation failed: " . $e->getMessage(), 500);
         }
     }
 
@@ -188,40 +231,72 @@ class VenueBookingController
             }
             $userId = $user->mysql_id;
 
+            // Start with minimal query
             $bookings = DB::table('booking as b')
-                ->leftJoin('venue_listings as v', 'b.venue_id', '=', 'v.id')
-                ->leftJoin('credential as owner', 'v.user_id', '=', 'owner.id')
                 ->where('b.UserID', $userId)
                 ->whereNotNull('b.venue_id')
-                ->select(
-                    'b.*',
-                    'v.venue_name',
-                    'v.address as venue_address',
-                    'v.venue_capacity',
-                    'v.logo as venue_image',
-                    DB::raw('CONCAT(owner.first_name, " ", owner.last_name) as venue_owner_name'),
-                    'owner.firebase_uid as venue_owner_firebase_uid'
-                )
-                ->orderByDesc('b.BookingDate')
+                ->select('b.*')
                 ->get();
 
-            // Normalize for frontend: ensure ID, ServiceName, vendor_name (align with supplier booking format)
-            $normalized = $bookings->map(function ($b) {
-                $arr = (array) $b;
-                $arr['ID'] = $arr['id'] ?? $arr['BookingID'] ?? null;
-                $arr['ServiceName'] = $arr['venue_name'] ?? $arr['ServiceName'] ?? 'Venue';
-                $arr['vendor_name'] = $arr['venue_owner_name'] ?? $arr['vendor_name'] ?? null;
-                $arr['isVenueBooking'] = true;
-                return $arr;
-            });
+            // If no bookings, return empty array
+            if (!$bookings || count($bookings) === 0) {
+                return $this->json($res, true, "No venue bookings found", 200, [
+                    'bookings' => []
+                ]);
+            }
+
+            // Enrich each booking with venue data
+            $enrichedBookings = [];
+            foreach ($bookings as $booking) {
+                $bookingArray = (array) $booking;
+                
+                // Get venue details if venue_id exists
+                $venueId = $booking->venue_id ?? null;
+                if ($venueId) {
+                    $venue = DB::table('venue_listings')->where('id', $venueId)->first();
+                    if ($venue) {
+                        $bookingArray['venue_name'] = $venue->venue_name ?? null;
+                        $bookingArray['venue_address'] = $venue->address ?? null;
+                        $bookingArray['venue_capacity'] = $venue->venue_capacity ?? null;
+                        $bookingArray['venue_image'] = $venue->logo ?? null;
+                        
+                        // Get owner info
+                        $ownerId = $venue->user_id ?? null;
+                        if ($ownerId) {
+                            $owner = DB::table('credential')->where('id', $ownerId)->first();
+                            if ($owner) {
+                                $firstName = $owner->first_name ?? '';
+                                $lastName = $owner->last_name ?? '';
+                                $ownerName = trim($firstName . ' ' . $lastName);
+                                $bookingArray['venue_owner_name'] = $ownerName ?: 'Unknown Owner';
+                                $bookingArray['venue_owner_firebase_uid'] = $owner->firebase_uid ?? null;
+                            }
+                        }
+                    }
+                }
+                
+                // Add metadata for frontend
+                $bookingArray['ID'] = $booking->ID ?? null;
+                $bookingArray['ServiceName'] = $bookingArray['venue_name'] ?? 'Venue';
+                $bookingArray['vendor_name'] = $bookingArray['venue_owner_name'] ?? null;
+                $bookingArray['isVenueBooking'] = true;
+                $bookingArray['booking_type'] = 'venue';
+                $bookingArray['has_pending_reschedule'] = false;
+                $bookingArray['reschedule_history'] = [];
+                $bookingArray['approved_reschedules'] = [];
+                $bookingArray['rejected_reschedules'] = [];
+                
+                $enrichedBookings[] = $bookingArray;
+            }
 
             return $this->json($res, true, "Bookings retrieved", 200, [
-                'bookings' => $normalized
+                'bookings' => $enrichedBookings
             ]);
 
         } catch (\Exception $e) {
             error_log("GET_USER_VENUE_BOOKINGS_ERROR: " . $e->getMessage());
-            return $this->json($res, false, "Failed to get bookings", 500);
+            error_log("Stack trace: " . $e->getTraceAsString());
+            return $this->json($res, false, "Failed to get bookings: " . $e->getMessage(), 500);
         }
     }
 
@@ -497,10 +572,11 @@ class VenueBookingController
                     'UpdatedAt' => DB::raw('NOW()')
                 ]);
 
-            // Notify venue owner
-            if ($booking->EventServiceProviderID) {
+            // Notify venue owner - FIX: Get the actual venue owner ID from venue_listings
+            $venue = DB::table('venue_listings')->where('id', $booking->venue_id)->first();
+            if ($venue && $venue->user_id) {
                 $this->sendNotification(
-                    $booking->EventServiceProviderID,
+                    $venue->user_id, // FIX: Use venue owner ID, not EventServiceProviderID
                     'booking_rescheduled',
                     'Venue Booking Rescheduled',
                     "A booking has been rescheduled to {$newStartDate}"

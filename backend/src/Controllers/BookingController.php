@@ -8,10 +8,15 @@ use Illuminate\Database\Capsule\Manager as DB;
 
 /**
  * ============================================
- * BOOKING CONTROLLER WITH RESCHEDULE SUPPORT
+ * BOOKING CONTROLLER - COMPLETE UNIFIED FIX
  * ============================================
- * FIXED VERSION - Vendors now see reschedule fields
- * + UC08: Added completeBooking() method for marking bookings as Completed
+ * FIXED VERSION - Vendors now see BOTH:
+ * - Supplier service bookings
+ * - Venue bookings for venues they own
+ * 
+ * Each booking tagged with 'booking_type'
+ * + Reschedule support
+ * + Complete booking support (UC08)
  * ============================================
  */
 class BookingController
@@ -226,7 +231,16 @@ class BookingController
 
     /**
      * ============================================
-     * GET VENDOR BOOKINGS + RESCHEDULE INFO
+     * GET VENDOR BOOKINGS - UNIFIED FIX
+     * ============================================
+     * Returns BOTH supplier service bookings AND venue bookings
+     * Each booking tagged with 'booking_type' for proper frontend rendering
+     * 
+     * FIXES:
+     * - Venue owners now see venue bookings
+     * - Suppliers see service bookings
+     * - Users with both roles see combined bookings
+     * - Each booking has proper type and venue/supplier info
      * ============================================
      */
     public function getVendorBookings(Request $req, Response $res): Response
@@ -241,47 +255,112 @@ class BookingController
             $params = $req->getQueryParams();
             $status = $params['status'] ?? null;
 
+            $allBookings = [];
+
+            // ============================================
+            // 1. GET SUPPLIER SERVICE BOOKINGS
+            // ============================================
             $vendorProfile = DB::table('event_service_provider')
                 ->where('UserID', $vendorUserId)
                 ->first();
 
-            if (!$vendorProfile) {
-                return $this->json($res, ['success' => false, 'error' => 'Vendor profile not found'], 404);
+            if ($vendorProfile) {
+                $supplierQuery = DB::table('booking as b')
+                    ->select([
+                        'b.*',
+                        'c.first_name',
+                        'c.last_name',
+                        'c.email',
+                        'c.phone',
+                        'br_pending.ID as reschedule_id',
+                        'br_pending.OriginalEventDate as original_date',
+                        'br_pending.RequestedEventDate as requested_date',
+                        'br_pending.Status as reschedule_status',
+                        'br_pending.RequestedAt as reschedule_requested_at',
+                        DB::raw("'supplier' as booking_type"),
+                        DB::raw('NULL as venue_name'),
+                        DB::raw('NULL as venue_address')
+                    ])
+                    ->leftJoin('credential as c', 'b.UserID', '=', 'c.id')
+                    ->leftJoin('booking_reschedule as br_pending', function ($join) {
+                        $join->on('b.ID', '=', 'br_pending.BookingID')
+                            ->where('br_pending.Status', '=', 'Pending');
+                    })
+                    ->where('b.EventServiceProviderID', $vendorProfile->ID)
+                    ->whereNull('b.venue_id') // Exclude venue bookings
+                    ->orderBy('b.CreatedAt', 'DESC');
+
+                if ($status) {
+                    $supplierQuery->where('b.BookingStatus', $status);
+                }
+
+                $supplierBookings = $supplierQuery->get();
+
+                foreach ($supplierBookings as $booking) {
+                    $booking->client_name = trim(($booking->first_name ?? '') . ' ' . ($booking->last_name ?? ''));
+                    $booking->has_pending_reschedule = !empty($booking->reschedule_id);
+                    $allBookings[] = $booking;
+                }
             }
 
-            $query = DB::table('booking as b')
+            // ============================================
+            // 2. GET VENUE BOOKINGS
+            // ============================================
+            $venueQuery = DB::table('booking as b')
                 ->select([
-                'b.*',
-                'c.first_name',
-                'c.last_name',
-                'c.email',
-                'c.phone',
-                'br_pending.ID as reschedule_id',
-                'br_pending.OriginalEventDate as original_date',
-                'br_pending.RequestedEventDate as requested_date',
-                'br_pending.Status as reschedule_status',
-                'br_pending.RequestedAt as reschedule_requested_at'
-            ])
+                    'b.*',
+                    'c.first_name',
+                    'c.last_name',
+                    'c.email',
+                    'c.phone',
+                    'br_pending.ID as reschedule_id',
+                    'br_pending.OriginalEventDate as original_date',
+                    'br_pending.RequestedEventDate as requested_date',
+                    'br_pending.Status as reschedule_status',
+                    'br_pending.RequestedAt as reschedule_requested_at',
+                    DB::raw("'venue' as booking_type"),
+                    'v.venue_name',
+                    'v.address as venue_address',
+                    'v.venue_subcategory'
+                ])
                 ->leftJoin('credential as c', 'b.UserID', '=', 'c.id')
                 ->leftJoin('booking_reschedule as br_pending', function ($join) {
-                $join->on('b.ID', '=', 'br_pending.BookingID')
-                    ->where('br_pending.Status', '=', 'Pending');
-            })
-                ->where('b.EventServiceProviderID', $vendorProfile->ID)
+                    $join->on('b.ID', '=', 'br_pending.BookingID')
+                        ->where('br_pending.Status', '=', 'Pending');
+                })
+                ->join('venue_listings as v', 'b.venue_id', '=', 'v.id')
+                ->where('v.user_id', $vendorUserId)
+                ->whereNotNull('b.venue_id') // Only venue bookings
                 ->orderBy('b.CreatedAt', 'DESC');
 
             if ($status) {
-                $query->where('b.BookingStatus', $status);
+                $venueQuery->where('b.BookingStatus', $status);
             }
 
-            $bookings = $query->get();
+            $venueBookings = $venueQuery->get();
 
-            foreach ($bookings as $booking) {
+            foreach ($venueBookings as $booking) {
                 $booking->client_name = trim(($booking->first_name ?? '') . ' ' . ($booking->last_name ?? ''));
                 $booking->has_pending_reschedule = !empty($booking->reschedule_id);
+                $allBookings[] = $booking;
             }
 
-            return $this->json($res, ['success' => true, 'bookings' => $bookings]);
+            // ============================================
+            // 3. SORT COMBINED BOOKINGS BY DATE
+            // ============================================
+            usort($allBookings, function($a, $b) {
+                return strtotime($b->CreatedAt) - strtotime($a->CreatedAt);
+            });
+
+            return $this->json($res, [
+                'success' => true,
+                'bookings' => $allBookings,
+                'summary' => [
+                    'total' => count($allBookings),
+                    'supplier_bookings' => count(array_filter($allBookings, fn($b) => $b->booking_type === 'supplier')),
+                    'venue_bookings' => count(array_filter($allBookings, fn($b) => $b->booking_type === 'venue'))
+                ]
+            ]);
 
         }
         catch (\Throwable $e) {
@@ -316,11 +395,16 @@ class BookingController
                 'c_client.last_name as client_last_name',
                 'c_client.email as client_email',
                 'c_vendor.first_name as vendor_first_name',
-                'c_vendor.last_name as vendor_last_name'
+                'c_vendor.last_name as vendor_last_name',
+                'v.venue_name',
+                'v.address as venue_address',
+                'v.user_id as venue_owner_id',
+                DB::raw("CASE WHEN b.venue_id IS NOT NULL THEN 'venue' ELSE 'supplier' END as booking_type")
             ])
                 ->leftJoin('event_service_provider as esp', 'b.EventServiceProviderID', '=', 'esp.ID')
                 ->leftJoin('credential as c_client', 'b.UserID', '=', 'c_client.id')
                 ->leftJoin('credential as c_vendor', 'esp.UserID', '=', 'c_vendor.id')
+                ->leftJoin('venue_listings as v', 'b.venue_id', '=', 'v.id')
                 ->where('b.ID', $bookingId)
                 ->first();
 
@@ -330,8 +414,9 @@ class BookingController
 
             $userIsOwner = $booking->UserID == $userId;
             $userIsVendor = $booking->vendor_user_id == $userId;
+            $userIsVenueOwner = !empty($booking->venue_owner_id) && $booking->venue_owner_id == $userId;
 
-            if (!$userIsOwner && !$userIsVendor) {
+            if (!$userIsOwner && !$userIsVendor && !$userIsVenueOwner) {
                 return $this->json($res, ['success' => false, 'error' => 'Access denied'], 403);
             }
 
@@ -368,9 +453,10 @@ class BookingController
 
             $booking = DB::table('booking as b')
                 ->leftJoin('event_service_provider as esp', 'b.EventServiceProviderID', '=', 'esp.ID')
+                ->leftJoin('venue_listings as v', 'b.venue_id', '=', 'v.id')
                 ->where('b.ID', $bookingId)
                 ->where('b.UserID', $userId)
-                ->select('b.*', 'esp.UserID as vendor_user_id')
+                ->select('b.*', 'esp.UserID as vendor_user_id', 'v.user_id as venue_owner_id')
                 ->first();
 
             if (!$booking) {
@@ -390,17 +476,24 @@ class BookingController
                 return $this->json($res, ['success' => false, 'error' => 'A reschedule request is already pending'], 409);
             }
 
-            $conflictingBooking = DB::table('booking')
-                ->where('EventServiceProviderID', $booking->EventServiceProviderID)
+            // Check conflicts for supplier or venue
+            $conflictQuery = DB::table('booking')
                 ->where('EventDate', $newEventDate)
                 ->where('ID', '!=', $bookingId)
-                ->whereNotIn('BookingStatus', ['Cancelled', 'Rejected'])
-                ->first();
+                ->whereNotIn('BookingStatus', ['Cancelled', 'Rejected']);
+
+            if ($booking->venue_id) {
+                $conflictQuery->where('venue_id', $booking->venue_id);
+            } else {
+                $conflictQuery->where('EventServiceProviderID', $booking->EventServiceProviderID);
+            }
+
+            $conflictingBooking = $conflictQuery->first();
 
             if ($conflictingBooking) {
                 return $this->json($res, [
                     'success' => false,
-                    'error' => 'Vendor unavailable',
+                    'error' => 'Date unavailable',
                     'conflict' => true
                 ], 409);
             }
@@ -428,12 +521,16 @@ class BookingController
 
                 DB::commit();
 
-                $this->sendNotification(
-                    $booking->vendor_user_id,
-                    'reschedule_request',
-                    'Reschedule Request',
-                    "Client requested to reschedule {$booking->ServiceName}"
-                );
+                // Notify the appropriate owner
+                $notifyUserId = $booking->venue_owner_id ?? $booking->vendor_user_id;
+                if ($notifyUserId) {
+                    $this->sendNotification(
+                        $notifyUserId,
+                        'reschedule_request',
+                        'Reschedule Request',
+                        "Client requested to reschedule {$booking->ServiceName}"
+                    );
+                }
 
                 return $this->json($res, [
                     'success' => true,
@@ -456,8 +553,9 @@ class BookingController
 
     /**
      * ============================================
-     *  UPDATE BOOKING STATUS
+     *  UPDATE BOOKING STATUS - UNIFIED FIX
      * ============================================
+     * Now handles authorization for BOTH supplier and venue bookings
      */
     public function updateBookingStatus(Request $req, Response $res, array $args): Response
     {
@@ -476,13 +574,23 @@ class BookingController
                 return $this->json($res, ['success' => false, 'error' => 'Invalid status'], 400);
             }
 
+            // UNIFIED FIX: Check BOTH supplier and venue ownership
             $booking = DB::table('booking as b')
                 ->leftJoin('event_service_provider as esp', 'b.EventServiceProviderID', '=', 'esp.ID')
+                ->leftJoin('venue_listings as v', 'b.venue_id', '=', 'v.id')
                 ->where('b.ID', $bookingId)
-                ->select('b.*', 'esp.UserID as vendor_user_id')
+                ->select('b.*', 'esp.UserID as vendor_user_id', 'v.user_id as venue_owner_id')
                 ->first();
 
-            if (!$booking || $booking->vendor_user_id != $vendorUserId) {
+            if (!$booking) {
+                return $this->json($res, ['success' => false, 'error' => 'Booking not found'], 404);
+            }
+
+            // Check authorization - user must own either the supplier profile OR the venue
+            $isAuthorized = ($booking->vendor_user_id && $booking->vendor_user_id == $vendorUserId) ||
+                            ($booking->venue_owner_id && $booking->venue_owner_id == $vendorUserId);
+
+            if (!$isAuthorized) {
                 return $this->json($res, ['success' => false, 'error' => 'Access denied'], 403);
             }
 
@@ -577,8 +685,9 @@ class BookingController
 
             $booking = DB::table('booking as b')
                 ->leftJoin('event_service_provider as esp', 'b.EventServiceProviderID', '=', 'esp.ID')
+                ->leftJoin('venue_listings as v', 'b.venue_id', '=', 'v.id')
                 ->where('b.ID', $bookingId)
-                ->select('b.*', 'esp.UserID as vendor_user_id')
+                ->select('b.*', 'esp.UserID as vendor_user_id', 'v.user_id as venue_owner_id')
                 ->first();
 
             if (!$booking || $booking->UserID != $userId) {
@@ -590,7 +699,11 @@ class BookingController
                 'UpdatedAt' => date('Y-m-d H:i:s')
             ]);
 
-            $this->sendNotification($booking->vendor_user_id, 'booking_cancelled', 'Booking Cancelled', 'Booking cancelled');
+            // Notify the appropriate owner
+            $notifyUserId = $booking->venue_owner_id ?? $booking->vendor_user_id;
+            if ($notifyUserId) {
+                $this->sendNotification($notifyUserId, 'booking_cancelled', 'Booking Cancelled', 'A booking has been cancelled');
+            }
 
             return $this->json($res, ['success' => true, 'message' => 'Cancelled successfully']);
 
@@ -603,19 +716,9 @@ class BookingController
 
     /**
      * ============================================
-     * MARK BOOKING AS COMPLETED (UC08 - NEW!)
+     * MARK BOOKING AS COMPLETED - UNIFIED FIX
      * ============================================
-     * Allows vendors to mark a Confirmed booking as Completed
-     * after the event has been successfully delivered.
-     * This enables clients to leave feedback.
-     * 
-     * Route: PATCH /api/bookings/{id}/complete
-     * Auth: Vendor only (must be the service provider)
-     * 
-     * @param Request $req
-     * @param Response $res
-     * @param array $args ['id' => booking ID]
-     * @return Response
+     * Now handles authorization for BOTH supplier and venue bookings
      */
     public function completeBooking(Request $req, Response $res, array $args): Response
     {
@@ -638,11 +741,19 @@ class BookingController
                 ], 400);
             }
 
-            // Get booking with vendor information
+            // UNIFIED FIX: Get booking with BOTH supplier and venue information
             $booking = DB::table('booking as b')
                 ->leftJoin('event_service_provider as esp', 'b.EventServiceProviderID', '=', 'esp.ID')
+                ->leftJoin('venue_listings as v', 'b.venue_id', '=', 'v.id')
                 ->where('b.ID', $bookingId)
-                ->select('b.*', 'esp.UserID as vendor_user_id', 'esp.BusinessName')
+                ->select(
+                    'b.*',
+                    'esp.UserID as vendor_user_id',
+                    'esp.BusinessName',
+                    'v.user_id as venue_owner_id',
+                    'v.venue_name',
+                    DB::raw("CASE WHEN b.venue_id IS NOT NULL THEN 'venue' ELSE 'supplier' END as booking_type")
+                )
                 ->first();
 
             if (!$booking) {
@@ -652,8 +763,11 @@ class BookingController
                 ], 404);
             }
 
-            // Verify vendor ownership
-            if ($booking->vendor_user_id != $vendorUserId) {
+            // UNIFIED FIX: Verify ownership for BOTH supplier and venue
+            $isAuthorized = ($booking->vendor_user_id && $booking->vendor_user_id == $vendorUserId) ||
+                            ($booking->venue_owner_id && $booking->venue_owner_id == $vendorUserId);
+
+            if (!$isAuthorized) {
                 return $this->json($res, [
                     'success' => false,
                     'error' => 'Access denied. This booking does not belong to you.'
@@ -690,12 +804,20 @@ class BookingController
                 'UpdatedAt' => date('Y-m-d H:i:s')
             ]);
 
-            // Send notification to client
+            // Send notification to client with appropriate service name
+            $serviceName = $booking->booking_type === 'venue' 
+                ? $booking->venue_name 
+                : $booking->ServiceName;
+            
+            $businessName = $booking->booking_type === 'venue'
+                ? $booking->venue_name
+                : $booking->BusinessName;
+
             $this->sendNotification(
                 $booking->UserID,
                 'booking_completed',
                 'Booking Completed',
-                "Your booking for {$booking->ServiceName} has been marked as completed by {$booking->BusinessName}. You can now leave feedback!"
+                "Your booking for {$serviceName} has been marked as completed by {$businessName}. You can now leave feedback!"
             );
 
             return $this->json($res, [
