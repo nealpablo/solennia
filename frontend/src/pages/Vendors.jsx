@@ -4,10 +4,10 @@ import toast from "../utils/toast";
 
 import "../style.css";
 
-const API = 
-  import.meta.env.VITE_API_BASE || 
+const API =
+  import.meta.env.VITE_API_BASE ||
   import.meta.env.VITE_API_URL ||
-  (import.meta.env.PROD 
+  (import.meta.env.PROD
     ? "https://solennia.up.railway.app/api" : "/api");
 
 const PER_PAGE = 8;
@@ -49,9 +49,9 @@ export default function Vendors() {
 
   const filteredVendors = filter === "all"
     ? vendors
-    : vendors.filter(v => 
-        (v.Category || "").toLowerCase() === filter.toLowerCase()
-      );
+    : vendors.filter(v =>
+      (v.Category || "").toLowerCase() === filter.toLowerCase()
+    );
 
   const totalPages = Math.max(1, Math.ceil(filteredVendors.length / PER_PAGE));
   const startIdx = (currentPage - 1) * PER_PAGE;
@@ -86,6 +86,9 @@ export default function Vendors() {
         <h1 className="text-3xl md:text-4xl tracking-[0.25em] text-center mb-2">
           MEET OUR SUPPLIERS
         </h1>
+        <p className="text-center text-gray-600 mb-6">
+          Find the perfect professionals for your special day
+        </p>
       </div>
 
       {/* FILTERS - NO "Venue" FILTER */}
@@ -101,11 +104,10 @@ export default function Vendors() {
           <button
             key={f}
             onClick={() => setFilter(f)}
-            className={`px-4 py-2 border border-[#c9bda4] rounded-full transition-colors ${
-              filter === f 
-                ? 'bg-[#7a5d47] text-white border-[#7a5d47]' 
-                : 'bg-[#f6f0e8] hover:bg-[#e8ddae]'
-            }`}
+            className={`px-4 py-2 border border-[#c9bda4] rounded-full transition-colors ${filter === f
+              ? 'bg-[#7a5d47] text-white border-[#7a5d47]'
+              : 'bg-[#f6f0e8] hover:bg-[#e8ddae]'
+              }`}
           >
             {f === "all" ? "All" : f}
           </button>
@@ -152,11 +154,10 @@ export default function Vendors() {
                       )}
                       <button
                         onClick={() => handlePageChange(p)}
-                        className={`w-10 h-10 rounded-lg text-sm font-medium transition-colors ${
-                          currentPage === p
-                            ? "bg-[#7a5d47] text-white border border-[#7a5d47]"
-                            : "border border-[#c9bda4] hover:bg-[#e8ddae]"
-                        }`}
+                        className={`w-10 h-10 rounded-lg text-sm font-medium transition-colors ${currentPage === p
+                          ? "bg-[#7a5d47] text-white border border-[#7a5d47]"
+                          : "border border-[#c9bda4] hover:bg-[#e8ddae]"
+                          }`}
                       >
                         {p}
                       </button>
@@ -196,7 +197,7 @@ function VendorCard({ vendor, navigate }) {
   const handleChatClick = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     const token = localStorage.getItem("solennia_token");
     if (!token) {
       toast.warning("Please login to chat with suppliers");
@@ -204,7 +205,7 @@ function VendorCard({ vendor, navigate }) {
     }
 
     const firebaseUid = vendor.firebase_uid || vendor.user_firebase_uid;
-    
+
     if (!firebaseUid) {
       console.error("Supplier missing firebase_uid:", vendor);
       toast.error("Unable to start chat with this Supplier");
@@ -214,15 +215,10 @@ function VendorCard({ vendor, navigate }) {
     navigate(`/chat?to=${encodeURIComponent(firebaseUid)}`);
   };
 
-  const handleViewProfile = (e) => {
-    e.preventDefault();
-    navigate(`/vendor-profile?id=${encodeURIComponent(vendor.UserID || vendor.ID)}`);
-  };
-
   const handleBookNow = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     const token = localStorage.getItem("solennia_token");
     if (!token) {
       toast.warning("Please login to book suppliers");
@@ -243,99 +239,98 @@ function VendorCard({ vendor, navigate }) {
   const vendorImage = vendor.avatar || vendor.HeroImageUrl || "https://via.placeholder.com/400x300?text=Vendor+Image";
 
   return (
-    <div 
-      className="vendor-card group cursor-pointer flex flex-col h-full"
-      onClick={handleViewProfile}
+    <Link
+      to={`/vendor-profile?id=${encodeURIComponent(vendor.UserID || vendor.ID)}`}
+      className="group bg-white rounded-lg overflow-hidden shadow-md hover:shadow-xl transition-all duration-300"
     >
-      {/* Vendor Image */}
-      <div className="relative overflow-hidden rounded-t-lg aspect-[4/3]">
+      {/* Image Container - Match Venue styling */}
+      <div className="relative h-48 overflow-hidden bg-gray-200">
         <img
           src={vendorImage}
           alt={vendor.BusinessName || "Vendor"}
-          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
           onError={(e) => {
             e.target.src = "https://via.placeholder.com/400x300?text=No+Image";
           }}
         />
-        
-        {/* Overlay Icons */}
-        <div className="absolute top-3 right-3 flex gap-2">
-        <button
-          onClick={toggleFavorite}
-          className="w-9 h-9 rounded-full bg-white/90 hover:bg-white flex items-center justify-center transition-colors shadow-md"
-        >
-          <svg
-            className={`w-5 h-5 ${isFavorite ? 'fill-red-500 text-red-500' : 'fill-none text-gray-600'}`}
-            stroke="currentColor"
-            strokeWidth="2"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
-            />
-          </svg>
-        </button>
-        <button
-          onClick={handleChatClick}
-          className="w-9 h-9 rounded-full bg-white/90 hover:bg-white flex items-center justify-center transition-colors shadow-md"
-          title="Chat with supplier"
-        >
-          <svg className="w-5 h-5 stroke-gray-700" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M21 15a4 4 0 01-4 4H7l-4 3V7a4 4 0 014-4h10a4 4 0 014 4z" />
-          </svg>
-        </button>
-        </div>
 
-        {/* Category Badge */}
-        <div className="absolute bottom-3 left-3">
-          <span className="px-3 py-1 bg-[#7a5d47] text-white text-xs font-semibold rounded-full">
-            {vendor.Category || "General"}
-          </span>
+        {/* Overlay Icons - Match Venue positioning */}
+        <div className="absolute top-3 right-3 flex gap-2">
+          <button
+            onClick={toggleFavorite}
+            className="w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center hover:bg-white transition-colors"
+            title="Add to favorites"
+          >
+            <svg
+              className={`w-5 h-5 transition-colors ${isFavorite ? "fill-red-500 stroke-red-500" : "fill-none stroke-gray-700"}`}
+              viewBox="0 0 24 24"
+              strokeWidth="2"
+            >
+              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+            </svg>
+          </button>
+
+          <button
+            onClick={handleChatClick}
+            className="w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center hover:bg-white transition-colors"
+            title="Chat with supplier"
+          >
+            <svg
+              className="w-5 h-5 stroke-gray-700"
+              viewBox="0 0 24 24"
+              fill="none"
+              strokeWidth="2"
+            >
+              <path d="M21 15a4 4 0 0 1-4 4H7l-4 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+            </svg>
+          </button>
         </div>
       </div>
 
-      {/* Vendor Info */}
-      <div className="p-4 bg-white rounded-b-lg flex-1 flex flex-col">
-        <h3 className="font-bold text-lg mb-1 text-gray-800 line-clamp-1">
+      {/* Card Content - Match Venue structure */}
+      <div className="p-4">
+        <h3 className="font-semibold text-gray-800 mb-1 line-clamp-2 group-hover:text-[#7a5d47] transition-colors">
           {vendor.BusinessName || "Unnamed Supplier"}
         </h3>
-        
-        <p className="text-sm text-gray-600 mb-3 line-clamp-2">
-          {vendor.Description || vendor.bio || "No description available"}
-        </p>
 
-        {/* Location */}
+        {/* Location - Match Venue styling */}
         {vendor.BusinessAddress && (
-          <div className="flex items-center text-sm text-gray-500 mb-3">
-            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+          <p className="text-sm text-gray-600 flex items-center gap-1 mb-2">
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+              <circle cx="12" cy="10" r="3" />
             </svg>
-            <span className="line-clamp-1">{vendor.BusinessAddress}</span>
+            {vendor.BusinessAddress}
+          </p>
+        )}
+
+        {/* Category Badge - Inline like Venue subcategory */}
+        {vendor.Category && (
+          <div className="mb-2">
+            <span className="inline-block px-2 py-1 bg-[#e8ddae]/50 text-xs rounded-full">
+              {vendor.Category}
+            </span>
           </div>
         )}
 
-        {/* Action Buttons - Pushed to bottom */}
-        <div className="flex gap-2 mt-auto">
-          <button
-            onClick={handleViewProfile}
-            className="flex-1 px-4 py-2 bg-[#7a5d47] text-white text-sm font-semibold rounded-lg hover:bg-[#5d4436] transition-colors"
-          >
-            View Profile
-          </button>
-          <button
-            onClick={handleChatClick}
-            className="px-4 py-2 bg-[#e8ddae] text-gray-800 text-sm font-semibold rounded-lg hover:bg-[#dbcf9f] transition-colors"
-            title="Chat"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-            </svg>
-          </button>
-        </div>
+        {/* Description - Truncated to 2 lines */}
+        {(vendor.Description || vendor.bio) && (
+          <p className="text-sm text-gray-600 mb-3 line-clamp-2">
+            {vendor.Description || vendor.bio}
+          </p>
+        )}
+
+        {/* Book Now Button - Match Venue styling */}
+        <button
+          onClick={handleBookNow}
+          className="mt-3 w-full px-4 py-2 bg-[#7a5d47] hover:bg-[#654a38] text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+          Book Now
+        </button>
       </div>
-    </div>
+    </Link>
   );
 }
