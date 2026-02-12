@@ -3,10 +3,10 @@ import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import toast from "../utils/toast";
 
-const API_BASE = 
-  import.meta.env.VITE_API_BASE || 
+const API_BASE =
+  import.meta.env.VITE_API_BASE ||
   import.meta.env.VITE_API_URL ||
-  (import.meta.env.PROD 
+  (import.meta.env.PROD
     ? "https://solennia.up.railway.app" : "");
 
 export default function VenueDetail() {
@@ -25,16 +25,16 @@ export default function VenueDetail() {
       try {
         const response = await fetch(`${API_BASE}/venues/${id}`);
         const data = await response.json();
-        
+
         console.log("Venue detail data:", data); // Debug
-        
+
         if (response.ok && data.venue) {
           //  Parse gallery properly
           let galleryImages = [];
           if (data.venue.gallery) {
             try {
-              galleryImages = typeof data.venue.gallery === 'string' 
-                ? JSON.parse(data.venue.gallery) 
+              galleryImages = typeof data.venue.gallery === 'string'
+                ? JSON.parse(data.venue.gallery)
                 : (Array.isArray(data.venue.gallery) ? data.venue.gallery : []);
             } catch (e) {
               console.error("Error parsing gallery:", e);
@@ -43,10 +43,10 @@ export default function VenueDetail() {
           }
 
           //  Get main image
-          const mainImage = data.venue.logo 
-            || data.venue.portfolio 
-            || data.venue.portfolio_image 
-            || data.venue.HeroImageUrl 
+          const mainImage = data.venue.logo
+            || data.venue.portfolio
+            || data.venue.portfolio_image
+            || data.venue.HeroImageUrl
             || "https://via.placeholder.com/800?text=Venue+Image";
 
           // Combine main image with gallery
@@ -62,17 +62,17 @@ export default function VenueDetail() {
             capacity: data.venue.venue_capacity || "Not specified",
             venue_type: data.venue.venue_subcategory || "",
             description: data.venue.description || "No description available.",
-            amenities: data.venue.venue_amenities 
+            amenities: data.venue.venue_amenities
               ? data.venue.venue_amenities.split(',').map(a => a.trim())
               : [],
             operating_hours: data.venue.venue_operating_hours || "Contact for hours",
             parking: data.venue.venue_parking || "Contact for details",
-            packages: data.venue.pricing 
+            packages: data.venue.pricing
               ? [{
-                  name: "Standard Package",
-                  price: "Contact for pricing",
-                  includes: data.venue.pricing.split('\n').filter(Boolean)
-                }]
+                name: "Standard Package",
+                price: "Contact for pricing",
+                includes: data.venue.pricing.split('\n').filter(Boolean)
+              }]
               : [],
             contact: {
               email: data.venue.contact_email || "",
@@ -94,6 +94,35 @@ export default function VenueDetail() {
     fetchVenue();
   }, [id]);
 
+  const handleBookNow = () => {
+    const token = localStorage.getItem("solennia_token");
+    if (!token) {
+      toast.warning("Please login to book this venue");
+      return;
+    }
+
+    navigate('/create-venue-booking', {
+      state: {
+        venueId: venue.id,
+        venueName: venue.name,
+        venueType: venue.venue_type,
+        capacity: venue.capacity,
+        address: venue.location,
+        venueImage: venue.images[0]
+      }
+    });
+  };
+
+  const handleScheduleVisit = () => {
+    const token = localStorage.getItem("solennia_token");
+    if (!token) {
+      toast.warning("Please login to schedule a visit");
+      return;
+    }
+    // Can implement visit scheduling modal or functionality later
+    toast.info("Visit scheduling coming soon! For now, please chat with the venue owner.");
+  };
+
   const handleChatClick = () => {
     const token = localStorage.getItem("solennia_token");
     if (!token) {
@@ -101,22 +130,15 @@ export default function VenueDetail() {
       return;
     }
 
-    // Check multiple possible firebase_uid fields
-    const firebaseUid = venue.firebase_uid 
-                     || venue.user_firebase_uid 
-                     || venue.owner_firebase_uid;
-
-    // Debug logging
-    console.log("🔍 Chat Debug - Venue object:", venue);
-    console.log("🔍 Firebase UID found:", firebaseUid);
+    const firebaseUid = venue.firebase_uid
+      || venue.user_firebase_uid
+      || venue.owner_firebase_uid;
 
     if (!firebaseUid) {
-      console.error("❌ Venue missing firebase_uid. Available fields:", Object.keys(venue));
       toast.error("This venue's contact information is incomplete. Please try again later or contact support.");
       return;
     }
 
-    console.log(" Navigating to chat with UID:", firebaseUid);
     navigate(`/chat?to=${encodeURIComponent(firebaseUid)}`);
   };
 
@@ -177,16 +199,15 @@ export default function VenueDetail() {
         {/* Thumbnail Grid */}
         <div className="grid grid-cols-2 gap-4">
           {venue.images.slice(0, 4).map((img, idx) => (
-            <div 
-              key={idx} 
-              className={`h-[11.5rem] rounded-lg overflow-hidden cursor-pointer border-2 transition-all ${
-                selectedImage === idx ? 'border-[#7a5d47]' : 'border-transparent hover:border-gray-300'
-              }`}
+            <div
+              key={idx}
+              className={`h-[11.5rem] rounded-lg overflow-hidden cursor-pointer border-2 transition-all ${selectedImage === idx ? 'border-[#7a5d47]' : 'border-transparent hover:border-gray-300'
+                }`}
               onClick={() => setSelectedImage(idx)}
             >
-              <img 
-                src={img} 
-                alt={`${venue.name} ${idx + 1}`} 
+              <img
+                src={img}
+                alt={`${venue.name} ${idx + 1}`}
                 className="w-full h-full object-cover"
                 onError={(e) => {
                   e.target.src = "https://via.placeholder.com/400?text=Image";
@@ -217,13 +238,13 @@ export default function VenueDetail() {
                 </span>
               )}
             </div>
-            
+
             {venue.owner_name && (
               <p className="text-sm text-gray-600 mb-2">
                 Managed by <span className="font-medium">{venue.owner_name}</span>
               </p>
             )}
-            
+
             <div className="space-y-2">
               <div className="flex items-center gap-4 text-gray-600 flex-wrap">
                 <span className="flex items-center gap-1">
@@ -271,11 +292,10 @@ export default function VenueDetail() {
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
-                  className={`pb-3 text-sm font-medium uppercase transition-colors ${
-                    activeTab === tab
+                  className={`pb-3 text-sm font-medium uppercase transition-colors ${activeTab === tab
                       ? "border-b-2 border-[#7a5d47] text-[#7a5d47]"
                       : "text-gray-600 hover:text-gray-800"
-                  }`}
+                    }`}
                 >
                   {tab}
                 </button>
@@ -344,7 +364,7 @@ export default function VenueDetail() {
         <div className="lg:col-span-1">
           <div className="bg-white rounded-lg shadow-lg p-6 sticky top-4">
             <h3 className="font-semibold text-lg mb-4">Contact Venue</h3>
-            
+
             <div className="space-y-4 mb-6">
               {venue.contact.email && (
                 <div>
@@ -354,7 +374,7 @@ export default function VenueDetail() {
                   </a>
                 </div>
               )}
-              
+
               {venue.contact.phone && (
                 <div>
                   <p className="text-sm text-gray-600 mb-1">Phone</p>
@@ -363,34 +383,47 @@ export default function VenueDetail() {
                   </a>
                 </div>
               )}
-              
+
               <div>
                 <p className="text-sm text-gray-600 mb-1">Address</p>
                 <p className="text-gray-800">{venue.contact.address}</p>
               </div>
             </div>
 
-            <button 
-              onClick={handleChatClick}
-              className="w-full bg-[#7a5d47] hover:bg-[#654a38] text-white font-semibold py-3 rounded-lg transition-colors mb-3 flex items-center justify-center gap-2"
+            {/* Prominent Book Now Button */}
+            <button
+              onClick={handleBookNow}
+              className="w-full bg-[#7a5d47] hover:bg-[#654a38] text-white font-semibold py-3 px-6 rounded-lg transition-colors mb-3 flex items-center justify-center gap-2 text-lg"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
-              Chat with Venue
+              Book This Venue
             </button>
 
-            <button 
-              className="w-full bg-[#e8ddae] hover:bg-[#dbcf9f] text-gray-800 font-semibold py-3 rounded-lg transition-colors mb-3"
-            >
-              Send Inquiry
-            </button>
-            
-            <button 
-              className="w-full border-2 border-[#e8ddae] hover:bg-[#e8ddae]/10 text-gray-800 font-semibold py-3 rounded-lg transition-colors"
-            >
-              Schedule Visit
-            </button>
+            {/* Secondary Actions Grid */}
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={handleChatClick}
+                className="w-full bg-[#e8ddae] hover:bg-[#dbcf9f] text-gray-800 font-semibold py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+                Chat
+              </button>
+
+              <button
+                onClick={handleScheduleVisit}
+                className="w-full border-2 border-[#7a5d47] hover:bg-[#7a5d47] hover:text-white text-gray-800 font-semibold py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+                Visit
+              </button>
+            </div>
           </div>
         </div>
       </div>

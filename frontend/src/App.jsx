@@ -23,6 +23,7 @@ import AboutUs from "./pages/AboutUs";
 
 import ConversationalBooking from "./pages/ConversationalBooking";
 import CreateBooking from "./pages/CreateBooking";
+import CreateVenueBooking from "./pages/CreateVenueBooking";
 import MyBookings from "./pages/MyBookings";
 import VendorBookingRequests from "./pages/VendorBookingRequests"; // UC08 - Vendor booking management with Complete feature
 
@@ -119,6 +120,7 @@ export default function App() {
         <Route path="/about" element={<AboutUs />} />
         <Route path="/ai-booking" element={<ConversationalBooking />} />
         <Route path="/create-booking" element={<CreateBooking />} />
+        <Route path="/create-venue-booking" element={<CreateVenueBooking />} />
         <Route path="/my-bookings" element={<MyBookings />} />
         <Route path="/vendor-bookings" element={<VendorBookingRequests />} /> {/* UC08 - NEW! Vendor booking management */}
         <Route path="/manage-bookings" element={<VendorBookingRequests />} /> {/* Alternative route */}

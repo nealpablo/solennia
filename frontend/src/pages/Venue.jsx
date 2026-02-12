@@ -2,10 +2,10 @@ import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import toast from "../utils/toast";
 
-const API_BASE = 
-  import.meta.env.VITE_API_BASE || 
+const API_BASE =
+  import.meta.env.VITE_API_BASE ||
   import.meta.env.VITE_API_URL ||
-  (import.meta.env.PROD 
+  (import.meta.env.PROD
     ? "https://solennia.up.railway.app" : "");
 
 export default function Venue() {
@@ -14,8 +14,8 @@ export default function Venue() {
   const [visibleCount, setVisibleCount] = useState(12);
   const [isVenueVendor, setIsVenueVendor] = useState(false);
   const [checkingVendor, setCheckingVendor] = useState(true);
-  const [filter, setFilter] = useState("all"); 
-  
+  const [filter, setFilter] = useState("all");
+
   const navigate = useNavigate();
 
   /* =========================
@@ -30,7 +30,7 @@ export default function Venue() {
     try {
       const res = await fetch(`${API_BASE}/venues`);
       const data = await res.json();
-      
+
       if (res.ok) {
         console.log("Venues fetched:", data.venues); // Debug
         setVenues(data.venues || []);
@@ -47,7 +47,7 @@ export default function Venue() {
   ========================= */
   const checkVenueVendorStatus = async () => {
     const token = localStorage.getItem("solennia_token");
-    
+
     if (!token) {
       setCheckingVendor(false);
       return;
@@ -57,9 +57,9 @@ export default function Venue() {
       const res = await fetch(`${API_BASE}/vendor/status`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      
+
       const data = await res.json();
-      
+
       // Check if venue vendor based on category
       if (data.success && data.category?.toLowerCase() === "venue" && data.status === "approved") {
         setIsVenueVendor(true);
@@ -93,9 +93,9 @@ export default function Venue() {
   //Filter venues based on selected category
   const filteredVenues = filter === "all"
     ? venues
-    : venues.filter(v => 
-        (v.venue_subcategory || "").toLowerCase() === filter.toLowerCase()
-      );
+    : venues.filter(v =>
+      (v.venue_subcategory || "").toLowerCase() === filter.toLowerCase()
+    );
 
   const visibleVenues = filteredVenues.slice(0, visibleCount);
 
@@ -146,11 +146,10 @@ export default function Venue() {
               setFilter(f);
               setVisibleCount(12); // Reset visible count when filtering
             }}
-            className={`px-4 py-2 border border-[#c9bda4] rounded-full transition-colors ${
-              filter === f
-                ? "bg-[#7a5d47] text-white border-[#7a5d47]"
-                : "bg-[#f6f0e8] hover:bg-[#e8ddae]"
-            }`}
+            className={`px-4 py-2 border border-[#c9bda4] rounded-full transition-colors ${filter === f
+              ? "bg-[#7a5d47] text-white border-[#7a5d47]"
+              : "bg-[#f6f0e8] hover:bg-[#e8ddae]"
+              }`}
           >
             {f === "all" ? "All Venues" : f}
           </button>
@@ -167,7 +166,7 @@ export default function Venue() {
             {filter === "all" ? "No Venues Available Yet" : `No ${filter} Available`}
           </h3>
           <p className="text-gray-500 mb-6">
-            {isVenueVendor 
+            {isVenueVendor
               ? "Be the first to add your venue to the platform!"
               : "Check back soon for amazing venue listings."}
           </p>
@@ -225,10 +224,33 @@ function VenueCard({ venue, navigate }) {
     setIsFavorite(!isFavorite);
   };
 
+  // Handle booking navigation
+  const handleBookNow = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const token = localStorage.getItem("solennia_token");
+    if (!token) {
+      toast.warning("Please login to book this venue");
+      return;
+    }
+
+    navigate('/create-venue-booking', {
+      state: {
+        venueId: venue.id,
+        venueName: venue.venue_name || venue.business_name,
+        venueType: venue.venue_subcategory,
+        capacity: venue.venue_capacity,
+        address: venue.address,
+        venueImage: venue.logo || venue.portfolio
+      }
+    });
+  };
+
   const handleChatClick = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     const token = localStorage.getItem("solennia_token");
     if (!token) {
       toast.warning("Please login to chat with venue suppliers");
@@ -236,21 +258,15 @@ function VenueCard({ venue, navigate }) {
     }
 
     // Check multiple possible firebase_uid fields
-    const firebaseUid = venue.firebase_uid 
-                     || venue.user_firebase_uid 
-                     || venue.owner_firebase_uid;
-    
-    // Debug logging
-    console.log("🔍 Chat Debug - Venue object:", venue);
-    console.log("🔍 Firebase UID found:", firebaseUid);
-    
+    const firebaseUid = venue.firebase_uid
+      || venue.user_firebase_uid
+      || venue.owner_firebase_uid;
+
     if (!firebaseUid) {
-      console.error("❌ Venue supplier missing firebase_uid. Available fields:", Object.keys(venue));
       toast.error("This venue's contact information is incomplete. Please try again later or contact support.");
       return;
     }
 
-    console.log(" Navigating to chat with UID:", firebaseUid);
     navigate(`/chat?to=${encodeURIComponent(firebaseUid)}`);
   };
 
@@ -261,8 +277,8 @@ function VenueCard({ venue, navigate }) {
   let galleryImages = [];
   if (venue.gallery) {
     try {
-      galleryImages = typeof venue.gallery === 'string' 
-        ? JSON.parse(venue.gallery) 
+      galleryImages = typeof venue.gallery === 'string'
+        ? JSON.parse(venue.gallery)
         : (Array.isArray(venue.gallery) ? venue.gallery : []);
     } catch (e) {
       console.error("Error parsing gallery:", e);
@@ -285,7 +301,7 @@ function VenueCard({ venue, navigate }) {
             e.target.src = "https://via.placeholder.com/400x300?text=Venue+Image";
           }}
         />
-        
+
         {/* Overlay Icons */}
         <div className="absolute top-3 right-3 flex gap-2">
           <button
@@ -294,9 +310,8 @@ function VenueCard({ venue, navigate }) {
             title="Add to favorites"
           >
             <svg
-              className={`w-5 h-5 transition-colors ${
-                isFavorite ? "fill-red-500 stroke-red-500" : "fill-none stroke-gray-700"
-              }`}
+              className={`w-5 h-5 transition-colors ${isFavorite ? "fill-red-500 stroke-red-500" : "fill-none stroke-gray-700"
+                }`}
               viewBox="0 0 24 24"
               strokeWidth="2"
             >
@@ -326,9 +341,9 @@ function VenueCard({ venue, navigate }) {
         <div className="flex gap-1 p-2 bg-gray-50">
           {galleryImages.slice(0, 3).map((img, idx) => (
             <div key={idx} className="flex-1 h-16 rounded overflow-hidden">
-              <img 
-                src={img} 
-                alt={`Gallery ${idx + 1}`} 
+              <img
+                src={img}
+                alt={`Gallery ${idx + 1}`}
                 className="w-full h-full object-cover"
                 onError={(e) => {
                   e.target.style.display = 'none';
@@ -377,13 +392,13 @@ function VenueCard({ venue, navigate }) {
         </div>
 
         <button
-          onClick={handleChatClick}
+          onClick={handleBookNow}
           className="mt-3 w-full px-4 py-2 bg-[#7a5d47] hover:bg-[#654a38] text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
-          Chat with Venue
+          Book Now
         </button>
       </div>
     </Link>
