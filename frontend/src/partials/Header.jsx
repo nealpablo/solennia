@@ -10,24 +10,20 @@ export default function Header() {
   const [email, setEmail] = useState(null);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // Mobile menu state
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // Toggle mobile menu
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
   };
 
-  // Close mobile menu when clicking on a link
   const closeMobileMenu = () => {
     setIsMobileMenuOpen(false);
   };
 
-  // Toggle profile dropdown
   const toggleProfileDropdown = () => {
     setIsProfileOpen(!isProfileOpen);
   };
 
-  // Open auth modals
   const openLoginModal = () => {
     setIsProfileOpen(false);
     const authBackdrop = document.getElementById("authBackdrop");
@@ -44,15 +40,14 @@ export default function Header() {
     registerModal?.classList.remove("hidden");
   };
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       const profileMenu = document.getElementById("profileMenu");
       const profileBtn = document.getElementById("profileBtn");
-      
-      if (profileMenu && profileBtn && 
-          !profileMenu.contains(event.target) && 
-          !profileBtn.contains(event.target)) {
+
+      if (profileMenu && profileBtn &&
+        !profileMenu.contains(event.target) &&
+        !profileBtn.contains(event.target)) {
         setIsProfileOpen(false);
       }
     };
@@ -61,7 +56,6 @@ export default function Header() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Update dropdown visibility based on state
   useEffect(() => {
     const profileMenu = document.getElementById("profileMenu");
     if (profileMenu) {
@@ -73,15 +67,13 @@ export default function Header() {
     }
   }, [isProfileOpen]);
 
-  // Load profile avatar and username
   useEffect(() => {
     const loadProfile = () => {
       const token = localStorage.getItem("solennia_token");
       const profileData = localStorage.getItem("solennia_profile");
-      
-      // Check if user is logged in
+
       setIsLoggedIn(!!token);
-      
+
       if (profileData) {
         try {
           const parsed = JSON.parse(profileData);
@@ -108,7 +100,6 @@ export default function Header() {
     };
   }, []);
 
-  // Auth dropdown state
   useEffect(() => {
     const token = localStorage.getItem("solennia_token");
 
@@ -123,7 +114,6 @@ export default function Header() {
     }
   }, []);
 
-  // Get user initials for avatar (only if logged in)
   const getInitials = () => {
     if (!username) return null;
     return username.substring(0, 2).toUpperCase();
@@ -145,7 +135,6 @@ export default function Header() {
           aria-label="Toggle menu"
         >
           {isMobileMenuOpen ? (
-            // Close icon
             <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
               <path
                 d="M6 18L18 6M6 6l12 12"
@@ -156,7 +145,6 @@ export default function Header() {
               />
             </svg>
           ) : (
-            // Hamburger icon
             <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
               <path
                 d="M4 7h16M4 12h16M4 17h16"
@@ -173,6 +161,7 @@ export default function Header() {
           <li><Link to="/venue" className="hover:underline">VENUE</Link></li>
           <li><Link to="/vendors" className="hover:underline">SUPPLIERS</Link></li>
           <li><Link to="/about" className="hover:underline">ABOUT US</Link></li>
+          <li><Link to="/ai-booking" className="hover:underline">AI ASSISTANT</Link></li>
         </ul>
 
         {/* RIGHT SIDE - Desktop */}
@@ -224,7 +213,6 @@ export default function Header() {
               id="profileMenu"
               className="hidden absolute right-0 mt-2 w-64 rounded-xl border border-gray-300 bg-[#f6f0e8] shadow-xl z-50"
             >
-              {/* USERNAME SECTION - SHOWN ONLY WHEN LOGGED IN */}
               {isLoggedIn && username && (
                 <div className="px-4 py-3 border-b border-gray-300 bg-[#e8ddae]">
                   <div className="flex items-center gap-3">
@@ -256,7 +244,6 @@ export default function Header() {
               )}
 
               <div className="py-1">
-                {/* PROFILE LINK - SHOWN ONLY WHEN LOGGED IN */}
                 {isLoggedIn && username && (
                   <Link
                     to="/profile"
@@ -299,11 +286,10 @@ export default function Header() {
 
         </div>
 
-        {/*  MOBILE MENU - Slides from right */}
+        {/* MOBILE MENU - Slides from right */}
         <div
-          className={`fixed inset-y-0 right-0 w-64 bg-[#f6f0e8] shadow-2xl transform transition-transform duration-300 ease-in-out z-40 md:hidden ${
-            isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'
-          }`}
+          className={`fixed inset-y-0 right-0 w-64 bg-[#f6f0e8] shadow-2xl transform transition-transform duration-300 ease-in-out z-40 md:hidden ${isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'
+            }`}
         >
           <div className="flex flex-col h-full">
             {/* Mobile Menu Header */}
@@ -332,15 +318,18 @@ export default function Header() {
                     SUPPLIERS
                   </Link>
                 </li>
+
                 <li>
                   <Link
-                    to="/ai-assistant"
+                    to="/ai-booking"
                     onClick={closeMobileMenu}
-                    className="block px-4 py-3 rounded-lg hover:bg-[#e8ddae] transition-colors flex items-center gap-2"
+                    className="block px-4 py-3 rounded-lg hover:bg-[#e8ddae] transition-colors"
                   >
-                    <span className="text-amber-600">✨</span> AI ASSISTANT
+                    <span>🤖</span>
+                    <span>AI Assistant</span>
                   </Link>
                 </li>
+
                 <li>
                   <Link
                     to="/about"
@@ -437,7 +426,7 @@ export default function Header() {
           </div>
         </div>
 
-        {/*  OVERLAY for mobile menu */}
+        {/* OVERLAY for mobile menu */}
         {isMobileMenuOpen && (
           <div
             className="fixed inset-0 bg-black/50 z-30 md:hidden"

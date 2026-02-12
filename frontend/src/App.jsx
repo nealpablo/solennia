@@ -21,7 +21,7 @@ import VendorProfileSetup from "./pages/VendorProfileSetup";
 import VenueDashboard from "./pages/VenueDashboard";
 import AboutUs from "./pages/AboutUs";
 
-// ✅ BOOKING PAGES - ADDED FOR UC05 & UC08
+import ConversationalBooking from "./pages/ConversationalBooking";
 import CreateBooking from "./pages/CreateBooking";
 import MyBookings from "./pages/MyBookings";
 import VendorBookingRequests from "./pages/VendorBookingRequests"; // UC08 - Vendor booking management with Complete feature
@@ -117,8 +117,7 @@ export default function App() {
         <Route path="/vendor-profile-setup" element={<VendorProfileSetup />} />
         <Route path="/venue-dashboard" element={<VenueDashboard />} />
         <Route path="/about" element={<AboutUs />} />
-        
-        {/* ✅ BOOKING ROUTES - UC05 & UC08 */}
+        <Route path="/ai-booking" element={<ConversationalBooking />} />
         <Route path="/create-booking" element={<CreateBooking />} />
         <Route path="/my-bookings" element={<MyBookings />} />
         <Route path="/vendor-bookings" element={<VendorBookingRequests />} /> {/* UC08 - NEW! Vendor booking management */}

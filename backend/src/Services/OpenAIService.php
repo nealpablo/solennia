@@ -169,7 +169,140 @@ Always gather event details when helping users:
 
         return $this->chatCompletion($messages, 1000); // Increased token limit for supplier details
     }
-    
+
+    /**
+     * ========================================
+     * CONVERSATIONAL BOOKING WITH FUNCTION CALLING
+     * ========================================
+     */
+
+    /**
+     * Enhanced chat with function calling for conversational booking
+     * Enables GPT-4 to call PHP functions based on conversation context
+     */
+    public function chatWithFunctions(
+        string $message,
+        array $history = [],
+        string $systemPrompt = null,
+        array $functions = []
+        ): array
+    {
+        if (!$this->isConfigured()) {
+            return [
+                'success' => false,
+                'error' => 'OpenAI API key not configured'
+            ];
+        }
+
+        // Build messages array
+        $messages = [];
+
+        if ($systemPrompt) {
+            $messages[] = ['role' => 'system', 'content' => $systemPrompt];
+        }
+
+        // Add conversation history - FIXED to handle all message types
+        foreach ($history as $msg) {
+            if (isset($msg['role'])) {
+                $historyMessage = ['role' => $msg['role']];
+
+                // Handle content (can be null for assistant with function_call)
+                if (array_key_exists('content', $msg)) {
+                    $historyMessage['content'] = $msg['content'];
+                }
+
+                // Include 'name' if present (required for function role messages)
+                if (isset($msg['name'])) {
+                    $historyMessage['name'] = $msg['name'];
+                }
+
+                // Include 'function_call' if present (for assistant messages)
+                if (isset($msg['function_call'])) {
+                    $historyMessage['function_call'] = $msg['function_call'];
+                }
+
+                $messages[] = $historyMessage;
+            }
+        }
+
+        // Add current message only if not empty
+        if (!empty($message)) {
+            $messages[] = ['role' => 'user', 'content' => $message];
+        }
+
+        try {
+            $ch = curl_init($this->baseUrl . '/chat/completions');
+
+            $payload = [
+                'model' => 'gpt-3.5-turbo', // Cost-effective model with function calling support
+                'messages' => $messages,
+                'max_tokens' => 1000,
+                'temperature' => 0.7
+            ];
+
+            // Add functions if provided
+            if (!empty($functions)) {
+                $payload['functions'] = $functions;
+                $payload['function_call'] = 'auto';
+            }
+
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST => true,
+                CURLOPT_POSTFIELDS => json_encode($payload),
+                CURLOPT_HTTPHEADER => [
+                    'Content-Type: application/json',
+                    'Authorization: Bearer ' . $this->apiKey
+                ],
+                CURLOPT_TIMEOUT => 30
+            ]);
+
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $error = curl_error($ch);
+            curl_close($ch);
+
+            if ($error) {
+                error_log("OpenAI Function Call Error: " . $error);
+                return ['success' => false, 'error' => 'Connection error: ' . $error];
+            }
+
+            $data = json_decode($response, true);
+
+            if ($httpCode !== 200) {
+                $errorMsg = $data['error']['message'] ?? 'API error (HTTP ' . $httpCode . ')';
+                error_log("OpenAI Function Call HTTP Error {$httpCode}: " . $errorMsg);
+                return ['success' => false, 'error' => $errorMsg];
+            }
+
+            $responseMessage = $data['choices'][0]['message'] ?? null;
+
+            if (!$responseMessage) {
+                return ['success' => false, 'error' => 'Invalid response structure'];
+            }
+
+            $result = [
+                'success' => true,
+                'response' => $responseMessage['content'] ?? '',
+            ];
+
+            // Include function call if present
+            if (isset($responseMessage['function_call'])) {
+                $result['function_call'] = [
+                    'name' => $responseMessage['function_call']['name'],
+                    'arguments' => $responseMessage['function_call']['arguments']
+                ];
+            }
+
+            return $result;
+
+        }
+        catch (\Exception $e) {
+            error_log("OpenAI Function Call Exception: " . $e->getMessage());
+            return ['success' => false, 'error' => 'Exception: ' . $e->getMessage()];
+        }
+    }
+
     /**
      * Validate AI response to prevent hallucinations
      * Checks if AI is recommending suppliers that don't exist in database
@@ -181,16 +314,16 @@ Always gather event details when helping users:
         foreach ($validSuppliers as $supplier) {
             $validNames[] = strtolower($supplier['BusinessName'] ?? '');
         }
-        
+
         // Common hallucinated supplier names to block
         $bannedNames = [
             'lumiere', 'perfect events', 'dream wedding', 'elegant affairs',
             'golden moments', 'precious memories', 'creative vision',
             'artistry studio', 'classic photo', 'modern lens'
         ];
-        
+
         $responseLower = strtolower($response);
-        
+
         // Check for banned hallucinated names
         foreach ($bannedNames as $banned) {
             if (strpos($responseLower, $banned) !== false) {
@@ -202,7 +335,7 @@ Always gather event details when helping users:
                         break;
                     }
                 }
-                
+
                 if (!$isValid) {
                     return [
                         'is_valid' => false,
@@ -212,7 +345,7 @@ Always gather event details when helping users:
                 }
             }
         }
-        
+
         return ['is_valid' => true];
     }
 
@@ -223,7 +356,7 @@ Always gather event details when helping users:
     private function checkAndFetchSuppliers(string $message): string
     {
         $message = strtolower($message);
-        
+
         // Keywords that indicate user wants supplier information
         $supplierKeywords = [
             'supplier', 'vendor', 'photographer', 'videographer', 'caterer', 'catering',
@@ -231,7 +364,7 @@ Always gather event details when helping users:
             'entertainment', 'band', 'dj', 'find', 'recommend', 'suggest', 'best',
             'good', 'available', 'wedding', 'birthday', 'debut', 'event'
         ];
-        
+
         $needsSuppliers = false;
         foreach ($supplierKeywords as $keyword) {
             if (strpos($message, $keyword) !== false) {
@@ -239,54 +372,54 @@ Always gather event details when helping users:
                 break;
             }
         }
-        
+
         if (!$needsSuppliers) {
             return '';
         }
-        
+
         try {
             $allSuppliers = [];
-            
+
             // Fetch approved event service providers
             $query = \Illuminate\Database\Capsule\Manager::table('event_service_provider as esp')
                 ->leftJoin('credential as c', 'esp.UserID', '=', 'c.id')
                 ->select(
-                    'esp.ID',
-                    'esp.BusinessName',
-                    'esp.Category',
-                    'esp.Description',
-                    'esp.Pricing',
-                    'esp.BusinessAddress',
-                    'esp.BusinessEmail',
-                    'esp.services',
-                    'esp.service_areas',
-                    'esp.AverageRating',
-                    'esp.TotalReviews',
-                    \Illuminate\Database\Capsule\Manager::raw("'event_service_provider' as source_table")
-                )
+                'esp.ID',
+                'esp.BusinessName',
+                'esp.Category',
+                'esp.Description',
+                'esp.Pricing',
+                'esp.BusinessAddress',
+                'esp.BusinessEmail',
+                'esp.services',
+                'esp.service_areas',
+                'esp.AverageRating',
+                'esp.TotalReviews',
+                \Illuminate\Database\Capsule\Manager::raw("'event_service_provider' as source_table")
+            )
                 ->where('esp.ApplicationStatus', '=', 'Approved')
                 ->limit(10);
-            
+
             // Fetch active venues from venue_listings
             $venueQuery = \Illuminate\Database\Capsule\Manager::table('venue_listings as v')
                 ->leftJoin('credential as c', 'v.user_id', '=', 'c.id')
                 ->select(
-                    'v.id as ID',
-                    'v.venue_name as BusinessName',
-                    \Illuminate\Database\Capsule\Manager::raw("'Venue' as Category"),
-                    'v.description as Description',
-                    'v.pricing as Pricing',
-                    'v.address as BusinessAddress',
-                    'v.contact_email as BusinessEmail',
-                    \Illuminate\Database\Capsule\Manager::raw("CONCAT('Capacity: ', v.venue_capacity, ', Amenities: ', COALESCE(v.venue_amenities, 'N/A')) as services"),
-                    \Illuminate\Database\Capsule\Manager::raw("v.address as service_areas"),
-                    \Illuminate\Database\Capsule\Manager::raw("NULL as AverageRating"),
-                    \Illuminate\Database\Capsule\Manager::raw("0 as TotalReviews"),
-                    \Illuminate\Database\Capsule\Manager::raw("'venue_listings' as source_table")
-                )
+                'v.id as ID',
+                'v.venue_name as BusinessName',
+                \Illuminate\Database\Capsule\Manager::raw("'Venue' as Category"),
+                'v.description as Description',
+                'v.pricing as Pricing',
+                'v.address as BusinessAddress',
+                'v.contact_email as BusinessEmail',
+                \Illuminate\Database\Capsule\Manager::raw("CONCAT('Capacity: ', v.venue_capacity, ', Amenities: ', COALESCE(v.venue_amenities, 'N/A')) as services"),
+                \Illuminate\Database\Capsule\Manager::raw("v.address as service_areas"),
+                \Illuminate\Database\Capsule\Manager::raw("NULL as AverageRating"),
+                \Illuminate\Database\Capsule\Manager::raw("0 as TotalReviews"),
+                \Illuminate\Database\Capsule\Manager::raw("'venue_listings' as source_table")
+            )
                 ->where('v.status', '=', 'Active')
                 ->limit(5);
-            
+
             // Try to detect specific category from message
             $categoryMap = [
                 'photo' => 'Photography & Videography',
@@ -308,7 +441,7 @@ Always gather event details when helping users:
                 'band' => 'Entertainment',
                 'dj' => 'Entertainment'
             ];
-            
+
             $categoryDetected = null;
             foreach ($categoryMap as $keyword => $category) {
                 if (strpos($message, $keyword) !== false) {
@@ -316,64 +449,65 @@ Always gather event details when helping users:
                     break;
                 }
             }
-            
+
             // Apply category filter for event service providers
             if ($categoryDetected && $categoryDetected !== 'Venue') {
                 $query->where('esp.Category', '=', $categoryDetected);
             }
-            
+
             // Get event service providers
             if (!$categoryDetected || $categoryDetected !== 'Venue') {
                 $suppliers = $query->get()->toArray();
                 $allSuppliers = array_merge($allSuppliers, json_decode(json_encode($suppliers), true));
             }
-            
+
             // Get venues if asking about venues or no specific category
             if (!$categoryDetected || $categoryDetected === 'Venue') {
                 $venues = $venueQuery->get()->toArray();
                 $allSuppliers = array_merge($allSuppliers, json_decode(json_encode($venues), true));
             }
-            
+
             if (empty($allSuppliers)) {
                 return '';
             }
-            
+
             // Format supplier information for AI with STRONG emphasis
             $supplierInfo = "\n**IMPORTANT: These are the ONLY approved suppliers in the Solennia database. DO NOT recommend any other suppliers.**\n\n";
             $supplierInfo .= "**TOTAL APPROVED SUPPLIERS: " . count($allSuppliers) . "**\n\n";
-            
+
             foreach ($allSuppliers as $supplier) {
                 $businessName = $supplier['BusinessName'] ?? 'Unknown';
                 $category = $supplier['Category'] ?? 'Unknown';
                 $address = $supplier['BusinessAddress'] ?? 'Not specified';
                 $email = $supplier['BusinessEmail'] ?? 'Not provided';
-                
+
                 $supplierInfo .= "• **{$businessName}** ({$category}) [APPROVED SUPPLIER]\n";
                 $supplierInfo .= "  - Location: {$address}\n";
-                
+
                 if (!empty($supplier['Description'])) {
                     $desc = substr($supplier['Description'], 0, 150);
                     $supplierInfo .= "  - Description: {$desc}...\n";
                 }
-                
+
                 if (!empty($supplier['Pricing'])) {
                     $pricing = substr($supplier['Pricing'], 0, 200);
                     $supplierInfo .= "  - Pricing: {$pricing}...\n";
                 }
-                
+
                 if (isset($supplier['AverageRating']) && $supplier['AverageRating'] > 0) {
                     $supplierInfo .= "  - Rating: {$supplier['AverageRating']}/5.0 ({$supplier['TotalReviews']} reviews)\n";
                 }
-                
+
                 $supplierInfo .= "  - Contact: {$email}\n";
                 $supplierInfo .= "\n";
             }
-            
+
             $supplierInfo .= "\n**REMINDER: Only recommend suppliers from the list above. If a supplier is not listed, tell the user we don't have approved suppliers for that category yet.**\n";
-            
+
             return $supplierInfo;
-            
-        } catch (\Exception $e) {
+
+        }
+        catch (\Exception $e) {
             error_log("Failed to fetch suppliers for AI: " . $e->getMessage());
             return '';
         }
@@ -386,74 +520,74 @@ Always gather event details when helping users:
     private function isEventPlanningRelated(string $message): bool
     {
         $message = strtolower($message);
-        
+
         // List of event-related keywords
         $eventKeywords = [
             // Event types
             'wedding', 'birthday', 'debut', 'party', 'event', 'celebration', 'corporate',
             'anniversary', 'christening', 'baptism', 'reception', 'gathering',
-            
+
             // Event planning
             'plan', 'organize', 'book', 'reserve', 'schedule', 'arrange', 'coordinate',
             'budget', 'guest', 'venue', 'location', 'date', 'timeline', 'checklist',
-            
+
             // Suppliers
             'photographer', 'videographer', 'caterer', 'catering', 'food', 'venue',
             'coordinator', 'host', 'emcee', 'decorator', 'decoration', 'flowers',
             'entertainment', 'band', 'dj', 'sound', 'lights', 'supplier', 'vendor',
-            
+
             // Platform features
             'solennia', 'booking', 'portfolio', 'price', 'pricing', 'package',
             'recommendation', 'feedback', 'rating', 'review', 'message', 'chat',
-            
+
             // Filipino event terms
             'kasalan', 'kasal', 'kaarawan', 'debut', 'despedida', 'reunion',
-            
+
             // General event words
             'ceremony', 'program', 'invitation', 'theme', 'motif', 'setup'
         ];
-        
+
         // Check if message contains any event-related keywords
         foreach ($eventKeywords as $keyword) {
             if (strpos($message, $keyword) !== false) {
                 return true;
             }
         }
-        
+
         // ✅ STRICT: Blocked topics - reject these immediately
         $blockedKeywords = [
             // Academic
             'homework', 'assignment', 'essay', 'thesis', 'research paper', 'exam', 'test',
             'solve', 'equation', 'formula', 'calculate', 'proof', 'theorem',
-            
+
             // Coding
             'code', 'program', 'script', 'python', 'javascript', 'java', 'html', 'css',
             'debug', 'algorithm', 'function', 'class', 'variable', 'array',
-            
+
             // General knowledge
             'history of', 'what is the capital', 'who invented', 'when was',
             'define', 'explain quantum', 'explain physics', 'explain chemistry',
-            
+
             // News/Politics
             'president', 'election', 'government', 'politics', 'senate', 'congress',
-            
+
             // Unrelated
             'translate', 'weather', 'stock', 'cryptocurrency', 'bitcoin',
             'medical advice', 'legal advice', 'tax', 'investment'
         ];
-        
+
         foreach ($blockedKeywords as $blocked) {
             if (strpos($message, $blocked) !== false) {
                 return false; // Explicitly blocked
             }
         }
-        
+
         // ✅ Allow short greetings and platform questions
         $allowedPhrases = [
             'hello', 'hi', 'help', 'how', 'what', 'can you', 'please',
             'thank', 'thanks', 'ok', 'yes', 'no', 'maybe'
         ];
-        
+
         // If message is very short (< 20 chars) and contains allowed phrase, permit it
         if (strlen($message) < 20) {
             foreach ($allowedPhrases as $phrase) {
@@ -462,12 +596,12 @@ Always gather event details when helping users:
                 }
             }
         }
-        
+
         // If we get here and message is longer than 30 chars without event keywords, reject
         if (strlen($message) > 30) {
             return false;
         }
-        
+
         // Allow short messages that might be follow-up questions
         return true;
     }
@@ -532,29 +666,29 @@ Return your top 5 recommendations maximum, ranked by match_score.";
         $requirements = $eventDetails['requirements'] ?? 'None specified';
 
         // Format vendor data using correct database schema
-        $vendorList = array_map(function($v) {
+        $vendorList = array_map(function ($v) {
             $isVenue = ($v['source_table'] ?? '') === 'venue_listings';
-            
+
             return [
-                'id' => $v['ID'] ?? $v['id'] ?? null,
-                'business_name' => $v['BusinessName'] ?? $v['business_name'] ?? $v['venue_name'] ?? 'Unknown',
-                'category' => $v['Category'] ?? $v['category'] ?? 'Unknown',
-                'description' => $v['Description'] ?? $v['description'] ?? '',
-                'pricing' => $v['Pricing'] ?? $v['pricing'] ?? '',
-                'services' => $isVenue ? 
-                    sprintf("Capacity: %s, Subcategory: %s, Operating Hours: %s, Parking: %s, Amenities: %s",
-                        $v['venue_capacity'] ?? 'N/A',
-                        $v['venue_subcategory'] ?? 'N/A',
-                        $v['venue_operating_hours'] ?? 'N/A',
-                        $v['venue_parking'] ?? 'N/A',
-                        $v['venue_amenities'] ?? 'N/A'
-                    ) : ($v['services'] ?? ''),
-                'service_areas' => $v['service_areas'] ?? $v['BusinessAddress'] ?? '',
-                'bio' => $v['bio'] ?? '',
-                'average_rating' => $v['AverageRating'] ?? $v['average_rating'] ?? 0,
-                'total_reviews' => $v['TotalReviews'] ?? $v['total_reviews'] ?? 0,
-                'status' => $v['ApplicationStatus'] ?? $v['status'] ?? 'Pending',
-                'source_table' => $v['source_table'] ?? 'event_service_provider'
+            'id' => $v['ID'] ?? $v['id'] ?? null,
+            'business_name' => $v['BusinessName'] ?? $v['business_name'] ?? $v['venue_name'] ?? 'Unknown',
+            'category' => $v['Category'] ?? $v['category'] ?? 'Unknown',
+            'description' => $v['Description'] ?? $v['description'] ?? '',
+            'pricing' => $v['Pricing'] ?? $v['pricing'] ?? '',
+            'services' => $isVenue ? 
+            sprintf("Capacity: %s, Subcategory: %s, Operating Hours: %s, Parking: %s, Amenities: %s",
+            $v['venue_capacity'] ?? 'N/A',
+            $v['venue_subcategory'] ?? 'N/A',
+            $v['venue_operating_hours'] ?? 'N/A',
+            $v['venue_parking'] ?? 'N/A',
+            $v['venue_amenities'] ?? 'N/A'
+            ) : ($v['services'] ?? ''),
+            'service_areas' => $v['service_areas'] ?? $v['BusinessAddress'] ?? '',
+            'bio' => $v['bio'] ?? '',
+            'average_rating' => $v['AverageRating'] ?? $v['average_rating'] ?? 0,
+            'total_reviews' => $v['TotalReviews'] ?? $v['total_reviews'] ?? 0,
+            'status' => $v['ApplicationStatus'] ?? $v['status'] ?? 'Pending',
+            'source_table' => $v['source_table'] ?? 'event_service_provider'
             ];
         }, array_slice($vendors, 0, 20));
 
@@ -582,7 +716,7 @@ Return your top 5 recommendations maximum, ranked by match_score.";
         }
 
         $parsed = $this->parseJsonResponse($response['response']);
-        
+
         if ($parsed) {
             return [
                 'success' => true,
@@ -608,7 +742,7 @@ Return your top 5 recommendations maximum, ranked by match_score.";
     {
         try {
             $ch = curl_init($this->baseUrl . '/chat/completions');
-            
+
             $payload = [
                 'model' => $this->model,
                 'messages' => $messages,
@@ -652,7 +786,8 @@ Return your top 5 recommendations maximum, ranked by match_score.";
                 'response' => $content
             ];
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             error_log("OpenAI Exception: " . $e->getMessage());
             return ['success' => false, 'error' => 'Exception: ' . $e->getMessage()];
         }
@@ -675,7 +810,7 @@ Return your top 5 recommendations maximum, ranked by match_score.";
         }
 
         error_log("Failed to parse JSON from OpenAI response: " . substr($response, 0, 200));
-        
+
         return null;
         return null;
     }
@@ -720,7 +855,7 @@ Return ONLY valid JSON with this exact structure:
 
 Generate 5-10 FAQs based on the patterns you identify.";
 
-        $inquiryText = !empty($inquiries) 
+        $inquiryText = !empty($inquiries)
             ? "User Inquiries to analyze:\n- " . implode("\n- ", array_slice($inquiries, 0, 50))
             : "Generate general FAQs about event planning and booking vendors in the Philippines on the Solennia platform. Include questions about: how to book vendors, how to browse services, how to communicate with vendors, booking process, cancellation policy, and general platform usage.";
 
@@ -738,7 +873,7 @@ Generate 5-10 FAQs based on the patterns you identify.";
         }
 
         $parsed = $this->parseJsonResponse($response['response']);
-        
+
         if ($parsed) {
             return [
                 'success' => true,

@@ -16,20 +16,22 @@ class AIController
         $this->openAI = new OpenAIService();
     }
 
+    /**
+     * Regular AI Chat (existing feature - for general Q&A)
+     */
     public function chat(Request $request, Response $response): Response
     {
         try {
-            // ✅ SECURITY: Rate limiting - max 20 messages per hour per user
             $user = $request->getAttribute('user');
             $userId = $user->mysql_id ?? $user->sub ?? null;
-            
+
             if ($userId && !$this->checkRateLimit($userId)) {
                 return $this->jsonResponse($response, [
                     'success' => false,
-                    'error' => 'Rate limit exceeded. Please wait before sending more messages. This helps us prevent abuse and keep the service available for all users.'
+                    'error' => 'Rate limit exceeded. Please wait before sending more messages.'
                 ], 429);
             }
-            
+
             $data = $request->getParsedBody();
             $message = $data['message'] ?? '';
             $history = $data['history'] ?? [];
@@ -37,12 +39,11 @@ class AIController
 
             if (empty($message)) {
                 return $this->jsonResponse($response, [
-                    'success' => false, 
+                    'success' => false,
                     'error' => 'Message is required'
                 ], 400);
             }
-            
-            // ✅ SECURITY: Message length limit
+
             if (strlen($message) > 1000) {
                 return $this->jsonResponse($response, [
                     'success' => false,
@@ -55,8 +56,7 @@ class AIController
             if (!$result['success']) {
                 return $this->jsonResponse($response, $result, 503);
             }
-            
-            // ✅ SECURITY: Record successful request for rate limiting
+
             if ($userId) {
                 $this->recordRequest($userId);
             }
@@ -66,7 +66,8 @@ class AIController
                 'response' => $result['response']
             ]);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             error_log("AI Chat Error: " . $e->getMessage());
             return $this->jsonResponse($response, [
                 'success' => false,
@@ -74,789 +75,661 @@ class AIController
             ], 500);
         }
     }
-    
-    /**
-     * Check rate limit for AI chat
-     * Prevents abuse by limiting requests per user
-     */
-    private function checkRateLimit(int $userId): bool
-    {
-        $cacheFile = sys_get_temp_dir() . '/solennia_ai_rate_limit.json';
-        $maxRequests = 20; // Max 20 messages per hour
-        $timeWindow = 3600; // 1 hour in seconds
-        
-        try {
-            // Load existing rate limit data
-            $data = [];
-            if (file_exists($cacheFile)) {
-                $json = file_get_contents($cacheFile);
-                $data = json_decode($json, true) ?: [];
-            }
-            
-            $now = time();
-            $userKey = "user_{$userId}";
-            
-            // Clean old entries
-            if (isset($data[$userKey])) {
-                $data[$userKey] = array_filter($data[$userKey], function($timestamp) use ($now, $timeWindow) {
-                    return ($now - $timestamp) < $timeWindow;
-                });
-            } else {
-                $data[$userKey] = [];
-            }
-            
-            // Check if user exceeded rate limit
-            if (count($data[$userKey]) >= $maxRequests) {
-                return false;
-            }
-            
-            return true;
-            
-        } catch (\Exception $e) {
-            error_log("Rate limit check error: " . $e->getMessage());
-            return true; // Allow on error to avoid blocking legitimate users
-        }
-    }
-    
-    /**
-     * Record AI chat request for rate limiting
-     */
-    private function recordRequest(int $userId): void
-    {
-        $cacheFile = sys_get_temp_dir() . '/solennia_ai_rate_limit.json';
-        
-        try {
-            $data = [];
-            if (file_exists($cacheFile)) {
-                $json = file_get_contents($cacheFile);
-                $data = json_decode($json, true) ?: [];
-            }
-            
-            $userKey = "user_{$userId}";
-            if (!isset($data[$userKey])) {
-                $data[$userKey] = [];
-            }
-            
-            $data[$userKey][] = time();
-            
-            file_put_contents($cacheFile, json_encode($data));
-            
-        } catch (\Exception $e) {
-            error_log("Failed to record request: " . $e->getMessage());
-        }
-    }
-
-    public function recommendations(Request $request, Response $response): Response
-    {
-        try {
-            $data = $request->getParsedBody();
-            
-            $eventDetails = [
-                'event_type' => $data['event_type'] ?? '',
-                'event_date' => $data['event_date'] ?? '',
-                'location' => $data['location'] ?? '',
-                'budget' => $data['budget'] ?? '',
-                'guests' => $data['guests'] ?? '',
-                'category' => $data['category'] ?? '',
-                'requirements' => $data['requirements'] ?? ''
-            ];
-
-            // ✅ FIXED: Fetch both event_service_provider AND venue_listings
-            $vendors = [];
-            
-            // Get approved event service providers
-            $query = DB::table('event_service_provider as esp')
-                ->leftJoin('credential as c', 'esp.UserID', '=', 'c.id')
-                ->select(
-                    'esp.ID',
-                    'esp.BusinessName',
-                    'esp.Category',
-                    'esp.Description',
-                    'esp.Pricing',
-                    'esp.BusinessAddress',
-                    'esp.services',
-                    'esp.service_areas',
-                    'esp.bio',
-                    'esp.AverageRating',
-                    'esp.TotalReviews',
-                    'esp.ApplicationStatus',
-                    'c.email',
-                    'c.first_name',
-                    'c.last_name',
-                    DB::raw("'event_service_provider' as source_table")
-                )
-                ->where('esp.ApplicationStatus', '=', 'Approved');
-            
-            // ✅ Filter by category if specified (for non-venue categories)
-            if (!empty($eventDetails['category']) && $eventDetails['category'] !== 'Venue') {
-                $query->where('esp.Category', '=', $eventDetails['category']);
-            }
-            
-            $serviceProviders = $query->limit(30)->get()->toArray();
-            $vendors = array_merge($vendors, json_decode(json_encode($serviceProviders), true));
-            
-            // ✅ Get active venues from venue_listings
-            if (empty($eventDetails['category']) || $eventDetails['category'] === 'Venue') {
-                $venueQuery = DB::table('venue_listings as v')
-                    ->leftJoin('credential as c', 'v.user_id', '=', 'c.id')
-                    ->select(
-                        'v.id as ID',
-                        'v.venue_name as BusinessName',
-                        DB::raw("'Venue' as Category"),
-                        'v.description as Description',
-                        'v.pricing as Pricing',
-                        'v.address as BusinessAddress',
-                        DB::raw("NULL as services"),
-                        DB::raw("NULL as service_areas"),
-                        DB::raw("NULL as bio"),
-                        DB::raw("NULL as AverageRating"),
-                        DB::raw("0 as TotalReviews"),
-                        'v.status as ApplicationStatus',
-                        'v.contact_email as email',
-                        'c.first_name',
-                        'c.last_name',
-                        DB::raw("'venue_listings' as source_table"),
-                        'v.venue_subcategory',
-                        'v.venue_capacity',
-                        'v.venue_amenities',
-                        'v.venue_operating_hours',
-                        'v.venue_parking'
-                    )
-                    ->where('v.status', '=', 'Active')
-                    ->limit(20)
-                    ->get()
-                    ->toArray();
-                
-                $venues = json_decode(json_encode($venueQuery), true);
-                $vendors = array_merge($vendors, $venues);
-            }
-
-            if (empty($vendors)) {
-                return $this->jsonResponse($response, [
-                    'success' => true,
-                    'recommendations' => [],
-                    'summary' => 'No approved suppliers found matching your criteria. Please try broadening your search or check back later as new suppliers join the platform.',
-                    'tips' => [
-                        'Try removing category filters to see more options',
-                        'Consider nearby locations if your specific area has limited suppliers',
-                        'Check back regularly as we approve new suppliers daily'
-                    ]
-                ]);
-            }
-
-            $result = $this->openAI->getSupplierRecommendations($eventDetails, $vendors);
-
-            if (!$result['success']) {
-                return $this->jsonResponse($response, $result, 503);
-            }
-
-            // Enrich recommendations with full vendor data
-            $recommendations = $result['recommendations'] ?? [];
-            foreach ($recommendations as &$rec) {
-                $vendorId = $rec['vendor_id'] ?? null;
-                if ($vendorId) {
-                    foreach ($vendors as $vendor) {
-                        if (($vendor['ID'] ?? $vendor['id']) == $vendorId) {
-                            $rec['vendor_data'] = $vendor;
-                            break;
-                        }
-                    }
-                }
-            }
-
-            return $this->jsonResponse($response, [
-                'success' => true,
-                'recommendations' => $recommendations,
-                'summary' => $result['summary'] ?? '',
-                'tips' => $result['tips'] ?? []
-            ]);
-
-        } catch (\Exception $e) {
-            error_log("AI Recommendations Error: " . $e->getMessage());
-            return $this->jsonResponse($response, [
-                'success' => false,
-                'error' => 'Server error: ' . $e->getMessage()
-            ], 500);
-        }
-    }
-
-    public function status(Request $request, Response $response): Response
-    {
-        return $this->jsonResponse($response, [
-            'success' => true,
-            'configured' => $this->openAI->isConfigured(),
-            'message' => $this->openAI->isConfigured() ? 'AI service is ready' : 'OpenAI API key not configured'
-        ]);
-    }
-
-    public function categories(Request $request, Response $response): Response
-    {
-        try {
-            $categories = DB::table('event_service_provider')
-                ->whereNotNull('Category')
-                ->where('Category', '!=', '')
-                ->distinct()
-                ->pluck('Category')
-                ->toArray();
-
-            return $this->jsonResponse($response, [
-                'success' => true,
-                'categories' => $categories
-            ]);
-        } catch (\Exception $e) {
-            return $this->jsonResponse($response, [
-                'success' => false,
-                'error' => 'Failed to fetch categories'
-            ], 500);
-        }
-    }
 
     /**
-     * Get database statistics - Shows AI is reading from actual SQL database
-     * Includes both event_service_provider AND venue_listings
+     * Main conversational booking endpoint
+     * Handles natural language booking through AI with function calling
      */
-    public function stats(Request $request, Response $response): Response
-    {
-        try {
-            $stats = [
-                'total_suppliers' => DB::table('event_service_provider')->count(),
-                'approved_suppliers' => DB::table('event_service_provider')
-                    ->where('ApplicationStatus', 'Approved')->count(),
-                'pending_suppliers' => DB::table('event_service_provider')
-                    ->where('ApplicationStatus', 'Pending')->count(),
-                'total_venues' => DB::table('venue_listings')->count(),
-                'active_venues' => DB::table('venue_listings')
-                    ->where('status', 'Active')->count(),
-                'categories' => [],
-                'sample_suppliers' => [],
-                'sample_venues' => []
-            ];
-            
-            // Get supplier count by category
-            $categoryCounts = DB::table('event_service_provider')
-                ->select('Category', DB::raw('COUNT(*) as count'))
-                ->where('ApplicationStatus', 'Approved')
-                ->whereNotNull('Category')
-                ->groupBy('Category')
-                ->get();
-            
-            foreach ($categoryCounts as $cat) {
-                $stats['categories'][$cat->Category] = $cat->count;
-            }
-            
-            // Add venue count to categories
-            $venueCount = DB::table('venue_listings')
-                ->where('status', 'Active')
-                ->count();
-            if ($venueCount > 0) {
-                $stats['categories']['Venue'] = $venueCount;
-            }
-            
-            // Get sample of approved suppliers (proof AI reads from SQL)
-            $samples = DB::table('event_service_provider')
-                ->select('ID', 'BusinessName', 'Category', 'BusinessAddress')
-                ->where('ApplicationStatus', 'Approved')
-                ->limit(5)
-                ->get()
-                ->toArray();
-            
-            $stats['sample_suppliers'] = array_map(function($s) {
-                return [
-                    'id' => $s->ID,
-                    'name' => $s->BusinessName,
-                    'category' => $s->Category,
-                    'location' => $s->BusinessAddress
-                ];
-            }, $samples);
-            
-            // Get sample of active venues
-            $venueSamples = DB::table('venue_listings')
-                ->select('id', 'venue_name', 'venue_subcategory', 'address')
-                ->where('status', 'Active')
-                ->limit(5)
-                ->get()
-                ->toArray();
-            
-            $stats['sample_venues'] = array_map(function($v) {
-                return [
-                    'id' => $v->id,
-                    'name' => $v->venue_name,
-                    'subcategory' => $v->venue_subcategory,
-                    'location' => $v->address
-                ];
-            }, $venueSamples);
-            
-            $stats['message'] = 'These are REAL suppliers and venues from your MySQL database that the AI can access and recommend!';
-
-            return $this->jsonResponse($response, [
-                'success' => true,
-                'stats' => $stats
-            ]);
-        } catch (\Exception $e) {
-            return $this->jsonResponse($response, [
-                'success' => false,
-                'error' => 'Failed to fetch stats: ' . $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * AI-assisted booking creation
-     * Creates a booking based on AI conversation context
-     */
-    public function createBookingFromAI(Request $request, Response $response): Response
+    public function conversationalBooking(Request $request, Response $response): Response
     {
         try {
             $user = $request->getAttribute('user');
-            if (!$user || !isset($user->mysql_id)) {
+            $userId = $user->mysql_id ?? $user->sub ?? null;
+
+            if ($userId && !$this->checkRateLimit($userId)) {
                 return $this->jsonResponse($response, [
                     'success' => false,
-                    'error' => 'Unauthorized. Please log in to create bookings.'
-                ], 401);
+                    'error' => 'Rate limit exceeded. Please wait before continuing.'
+                ], 429);
             }
 
-            $userId = $user->mysql_id;
             $data = $request->getParsedBody();
+            $message = $data['message'] ?? '';
+            $currentData = $data['currentData'] ?? [];
+            $stage = $data['stage'] ?? 'discovery';
+            $history = $data['history'] ?? [];
 
-            // Validate required fields
-            $required = ['vendor_id', 'event_date', 'event_location'];
-            foreach ($required as $field) {
-                if (empty($data[$field])) {
-                    return $this->jsonResponse($response, [
-                        'success' => false,
-                        'error' => "Missing required field: {$field}",
-                        'missing_field' => $field
-                    ], 400);
-                }
-            }
-
-            $vendorId = $data['vendor_id'];
-            $eventDate = $data['event_date'];
-            
-            // Validate event date is in the future
-            if (strtotime($eventDate) <= time()) {
+            if (empty($message)) {
                 return $this->jsonResponse($response, [
                     'success' => false,
-                    'error' => 'Event date must be in the future',
-                    'validation_error' => 'invalid_date'
+                    'error' => 'Message is required'
                 ], 400);
             }
 
-            // Get vendor information
-            $vendor = DB::table('event_service_provider as esp')
-                ->leftJoin('credential as c', 'esp.UserID', '=', 'c.id')
-                ->select('esp.*', 'c.email as vendor_email', 'c.first_name', 'c.last_name')
-                ->where('esp.UserID', $vendorId)
-                ->where('esp.ApplicationStatus', 'Approved')
+            $systemPrompt = $this->getConversationalBookingPrompt($currentData, $stage);
+            $functions = $this->getBookingFunctions();
+
+            // Initialize loop variables
+            $loopCount = 0;
+            $maxLoops = 5;
+            $aiResponse = '';
+            $extractedInfo = []; // Initialize here to be available outside the loop
+            $suggestedVendors = []; // Initialize here
+            $bookingCreated = false; // Initialize here
+            $bookingId = null; // Initialize here
+            $newStage = $stage; // Initialize here
+
+            // Initial AI call
+            $result = $this->openAI->chatWithFunctions(
+                $message,
+                $history,
+                $systemPrompt,
+                $functions
+            );
+
+            // Loop to handle function chaining (e.g. Extract -> Search -> Respond)
+            while ($loopCount < $maxLoops) {
+                if (!$result['success']) {
+                    return $this->jsonResponse($response, $result, 503);
+                }
+
+                // Capture proper text response if available
+                if (!empty($result['response'])) {
+                    $aiResponse = $result['response'];
+                }
+
+                // If no function call, we are done
+                if (!isset($result['function_call'])) {
+                    break;
+                }
+
+                // Process function call
+                $functionName = $result['function_call']['name'];
+                $arguments = json_decode($result['function_call']['arguments'], true);
+
+                if ($arguments === null && json_last_error() !== JSON_ERROR_NONE) {
+                    error_log("OpenAI Function Call JSON Error: " . json_last_error_msg());
+                    error_log("Raw Arguments: " . $result['function_call']['arguments']);
+                    // Attempt to sanitize or skip, but for now break to avoid crash
+                    break;
+                }
+
+                $functionResult = null;
+
+                switch ($functionName) {
+                    case 'extract_booking_info':
+                        $extractedInfo = $this->processExtractedInfo($arguments, $currentData);
+                        // Update current data so subsequent steps have latest info
+                        $currentData = $extractedInfo;
+                        $newStage = $this->determineBookingStage($extractedInfo);
+
+                        // ⚠️ CRITICAL: Regenerate System Prompt with updated data
+                        // This ensures the AI sees the NEW date/location immediately in the next turn
+                        $systemPrompt = $this->getConversationalBookingPrompt($currentData, $newStage);
+
+                        $functionResult = [
+                            'status' => 'success',
+                            'extracted' => $extractedInfo,
+                            'stage' => $newStage
+                        ];
+                        break;
+
+                    case 'search_vendors':
+                        // SAFETY NET: Capturing data used in search
+                        $implicitInfo = [];
+                        if (!empty($arguments['location']))
+                            $implicitInfo['location'] = $arguments['location'];
+                        if (!empty($arguments['budget_max']))
+                            $implicitInfo['budget'] = $arguments['budget_max'];
+
+                        if (!empty($implicitInfo)) {
+                            $extractedInfo = array_merge($extractedInfo, $implicitInfo);
+                            $currentData = array_merge($currentData, $implicitInfo);
+                            // Update prompt so AI knows we captured this
+                            $systemPrompt = $this->getConversationalBookingPrompt($currentData, $newStage);
+                        }
+
+                        $suggestedVendors = $this->searchVendorsForBooking($arguments);
+                        $functionResult = [
+                            'status' => 'success',
+                            'vendors' => $suggestedVendors,
+                            'count' => count($suggestedVendors)
+                        ];
+                        break;
+
+                    case 'check_availability':
+                        // SAFETY NET: Capture date if used here
+                        if (!empty($arguments['date'])) {
+                            $extractedInfo['date'] = $arguments['date'];
+                            $currentData['date'] = $arguments['date'];
+                            $systemPrompt = $this->getConversationalBookingPrompt($currentData, $newStage);
+                        }
+
+                        $availability = $this->checkVendorAvailabilityForDate(
+                            $arguments['vendor_id'],
+                            $arguments['date']
+                        );
+                        $extractedInfo['availability_checked'] = $availability;
+                        $functionResult = ['status' => 'success', 'availability' => $availability];
+                        break;
+
+                    case 'create_booking':
+                        // Validation: Ensure we have date and location before booking
+                        $missingFields = [];
+                        if (empty($currentData['date']))
+                            $missingFields[] = 'Date';
+                        if (empty($currentData['time']))
+                            $missingFields[] = 'Time';
+                        if (empty($currentData['location']))
+                            $missingFields[] = 'Location';
+                        if (empty($currentData['event_type']))
+                            $missingFields[] = 'Event Type';
+                        if (empty($currentData['budget']))
+                            $missingFields[] = 'Budget';
+                        if (empty($currentData['guests']))
+                            $missingFields[] = 'Number of Guests';
+
+                        if (!empty($missingFields)) {
+                            $functionResult = [
+                                'status' => 'error',
+                                'message' => 'Cannot create booking. Missing information: ' . implode(', ', $missingFields) . '. Please ask user for these details.'
+                            ];
+                        }
+                        else if ($arguments['confirmed']) {
+                            $bookingId = $this->createBookingFromConversation(
+                                array_merge($currentData, $extractedInfo),
+                                $arguments['vendor_id'],
+                                $userId
+                            );
+
+                            if ($bookingId) {
+                                $bookingCreated = true;
+                                $newStage = 'completed';
+                                $functionResult = [
+                                    'status' => 'success',
+                                    'booking_id' => $bookingId,
+                                    'message' => 'Booking created successfully'
+                                ];
+                            }
+                            else {
+                                $functionResult = [
+                                    'status' => 'error',
+                                    'message' => 'Failed to create booking in database.'
+                                ];
+                            }
+                        }
+                        else {
+                            $functionResult = ['status' => 'cancelled', 'message' => 'User did not confirm.'];
+                        }
+                        break;
+                }
+
+                // Prepare history for next turn
+                // If this is the first loop, we need to add the user message to history
+                // (Subsequent loops operate on the accumulated history)
+                if ($loopCount === 0) {
+                    $history[] = ['role' => 'user', 'content' => $message];
+                }
+
+                // Add assistant's function call
+                $history[] = [
+                    'role' => 'assistant',
+                    'content' => null,
+                    'function_call' => [
+                        'name' => $functionName,
+                        'arguments' => json_encode($arguments)
+                    ]
+                ];
+
+                // Add function result
+                $history[] = [
+                    'role' => 'function',
+                    'name' => $functionName,
+                    'content' => json_encode($functionResult)
+                ];
+
+                // Get next response from AI
+                $result = $this->openAI->chatWithFunctions(
+                    '', // Empty message as we're continuing conversation
+                    $history,
+                    $systemPrompt,
+                    $functions
+                );
+
+                $loopCount++;
+            }
+
+            if ($userId) {
+                $this->recordRequest($userId);
+            }
+
+            return $this->jsonResponse($response, [
+                'success' => true,
+                'aiResponse' => $aiResponse,
+                'extractedInfo' => $extractedInfo,
+                'stage' => $newStage,
+                'suggestedVendors' => $suggestedVendors,
+                'bookingCreated' => $bookingCreated,
+                'bookingId' => $bookingId
+            ]);
+
+        }
+        catch (\Throwable $e) {
+            error_log("Conversational Booking Error: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
+            return $this->jsonResponse($response, [
+                'success' => false,
+                'error' => 'Failed to process booking conversation'
+            ], 500);
+        }
+    }
+
+    private function getConversationalBookingPrompt(array $currentData, string $stage): string
+    {
+        $extractedDataJson = json_encode($currentData, JSON_PRETTY_PRINT);
+
+        $basePrompt = "You are Solennia AI, a conversational booking assistant for event planning in the Philippines.
+
+**YOUR GOAL**: Help users book event services through natural conversation.
+
+**CURRENT BOOKING DATA**:
+{$extractedDataJson}
+
+**CURRENT STAGE**: {$stage}
+
+**STAGES**:
+- discovery: Gathering event details
+- vendor_search: Showing vendor options
+- confirmation: Ready to book
+- completed: Booking created
+
+**YOUR APPROACH**:
+1. Be conversational and friendly like chatting with a friend
+2. Extract information naturally from user messages
+3. **MANDATORY**: If the user message contains ANY new or updated booking details (Date, Time, Location, Guests, Budget), you MUST call extract_booking_info FIRST to save this data, even if you plan to call other functions (like search or check). Never skip this step.
+4. Don't interrogate - have a natural conversation
+5. Acknowledge what you learned before asking next question
+6. When suggesting vendors, ONLY use the verify suppliers returned by the search_vendors function. NEVER invent or hallucinate vendors not in the system.
+7. Use emojis sparingly (🎉 for celebrations, 📸 for photography)
+8. **IMPORTANT**: If the user provides a year like 2023, assume they made a typo and ask for clarification or assume next occurance. NEVER book past dates.
+9. **CRITICAL**: Before calling create_booking, you MUST explicitly confirm the SPECIFIC vendor choice, date, and time with the user. Say: 'Just to confirm, you want to book [Vendor Name] for [Date] at [Time]?'
+10. **CRITICAL**: Do NOT assume the Event Type is 'Wedding' unless the user explicitly says so. If unknown, ask the user.
+
+**INFORMATION TO GATHER**:
+1. Event type (Do NOT assume. Ask user.)
+2. Event date (MUST BE TODAY OR FUTURE)
+3. Event time
+4. Location (city/area)
+5. Budget
+6. Number of guests
+7. Preferences
+
+**WHEN TO USE FUNCTIONS**:
+- extract_booking_info: Call this IMMEDIATELY when user provides ANY event details.
+- search_vendors: Call ONLY when you have minimal details (Date, Location) OR if user asks for specific vendor.
+- check_availability: Call when user asks if specific vendor is free.
+- create_booking: Call ONLY after user explicitly confirms ALL details.
+
+**RULES**:
+- ONLY recommend vendors from search_vendors function results
+- NEVER make up vendor names
+- If no vendors match, suggest adjusting criteria
+- Always check availability before confirming booking
+- Keep responses under 150 words unless showing vendor options
+
+**STYLE**:
+- Use Philippine Peso (₱) format
+- Empathetic and helpful tone
+- Celebrate milestones ('Congratulations on your event!')
+
+Remember: You're having a CONVERSATION, not conducting an interview!";
+
+        if ($stage === 'vendor_search') {
+            $basePrompt .= "\n\n**RIGHT NOW**: Search for vendors and present options attractively.";
+        }
+        elseif ($stage === 'confirmation') {
+            $basePrompt .= "\n\n**RIGHT NOW**: Confirm all details and check vendor availability.";
+        }
+
+        return $basePrompt;
+    }
+
+    private function getBookingFunctions(): array
+    {
+        return [
+            [
+                'name' => 'extract_booking_info',
+                'description' => 'Extract event details from user message',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'event_type' => ['type' => 'string', 'description' => 'Explicitly stated event type only. Do NOT guess.'],
+                        'date' => ['type' => 'string', 'description' => 'YYYY-MM-DD format. Must be a future date.'],
+                        'time' => ['type' => 'string', 'description' => 'Event start time (e.g. 2:00 PM)'],
+                        'location' => ['type' => 'string'],
+                        'budget' => ['type' => 'number'],
+                        'guests' => ['type' => 'integer'],
+                        'preferences' => [
+                            'type' => 'array',
+                            'items' => ['type' => 'string']
+                        ]
+                    ],
+                    'required' => []
+                ]
+            ],
+            [
+                'name' => 'search_vendors',
+                'description' => 'Search for vendors matching criteria',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'category' => [
+                            'type' => 'string',
+                            'enum' => ['Photography & Videography', 'Catering', 'Venue', 'Coordination & Hosting', 'Decoration', 'Entertainment', 'Others']
+                        ],
+                        'keyword' => ['type' => 'string', 'description' => 'Specific vendor name or keyword'],
+                        'budget_max' => ['type' => 'number'],
+                        'location' => ['type' => 'string'],
+                        'limit' => ['type' => 'integer', 'default' => 3]
+                    ],
+                    'required' => []
+                ]
+            ],
+            [
+                'name' => 'check_availability',
+                'description' => 'Check if vendor is available on date',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'vendor_id' => ['type' => 'integer'],
+                        'date' => ['type' => 'string']
+                    ],
+                    'required' => ['vendor_id', 'date']
+                ]
+            ],
+            [
+                'name' => 'create_booking',
+                'description' => 'Create booking when user confirms all details including supplier',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'vendor_id' => ['type' => 'integer', 'description' => 'The ID of the SPECIFIC supplier the user chose'],
+                        'confirmed' => ['type' => 'boolean']
+                    ],
+                    'required' => ['vendor_id', 'confirmed']
+                ]
+            ]
+        ];
+    }
+
+    private function processExtractedInfo(array $newInfo, array $currentData): array
+    {
+        $merged = $currentData;
+
+        foreach ($newInfo as $key => $value) {
+            if ($value !== null && $value !== '') {
+                if ($key === 'preferences' && isset($merged['preferences'])) {
+                    $merged['preferences'] = array_unique(
+                        array_merge($merged['preferences'], $value)
+                    );
+                }
+                else {
+                    $merged[$key] = $value;
+                }
+            }
+        }
+
+        return $merged;
+    }
+
+    private function determineBookingStage(array $data): string
+    {
+        $hasEssentials = !empty($data['event_type'])
+            && !empty($data['date'])
+            && !empty($data['time'])
+            && !empty($data['location']);
+
+        return $hasEssentials ? 'vendor_search' : 'discovery';
+    }
+
+    private function searchVendorsForBooking(array $criteria): array
+    {
+        $query = DB::table('event_service_provider')
+            ->where('ApplicationStatus', 'Approved');
+
+        if (!empty($criteria['keyword'])) {
+            $query->where('BusinessName', 'LIKE', '%' . $criteria['keyword'] . '%');
+        // If keyword is used, we generally want to find that specific vendor regardless of category/budget
+        }
+        elseif (!empty($criteria['category'])) {
+            // Only enforce category if NO keyword is provided
+            $query->where('Category', $criteria['category']);
+        }
+
+        if (!empty($criteria['location']) && empty($criteria['keyword'])) {
+            $query->where(function ($q) use ($criteria) {
+                $q->where('BusinessAddress', 'LIKE', '%' . $criteria['location'] . '%')
+                    ->orWhere('service_areas', 'LIKE', '%' . $criteria['location'] . '%');
+            });
+        }
+
+        // REMOVED budget filter because 'Pricing' column is unstructured text (e.g. "Package A - 15k"), 
+        // causing CAST() to fail and exclude valid vendors. We let the AI filter by price.
+        /*
+         if (!empty($criteria['budget_max'])) {
+         $query->whereRaw('CAST(Pricing AS DECIMAL) <= ?', [$criteria['budget_max']]);
+         }
+         */
+
+        $limit = $criteria['limit'] ?? 3;
+        $query->limit($limit);
+
+        $vendors = $query->select(
+            'ID',
+            'BusinessName',
+            'Category',
+            'Pricing',
+            'Description',
+            'BusinessAddress',
+            'AverageRating',
+            'TotalReviews',
+            'UserID'
+        )->get()->toArray();
+
+        return json_decode(json_encode($vendors), true);
+    }
+
+    private function checkVendorAvailabilityForDate(int $vendorId, string $date): array
+    {
+        $vendor = DB::table('event_service_provider')
+            ->where('ID', $vendorId)
+            ->first();
+
+        if (!$vendor) {
+            return ['available' => false, 'reason' => 'Vendor not found'];
+        }
+
+        $existingBooking = DB::table('booking')
+            ->where('EventServiceProviderID', $vendorId)
+            ->where('EventDate', $date)
+            ->whereNotIn('BookingStatus', ['Cancelled', 'Rejected'])
+            ->first();
+
+        if ($existingBooking) {
+            return [
+                'available' => false,
+                'reason' => 'Already booked on this date'
+            ];
+        }
+
+        $unavailable = DB::table('vendor_availability')
+            ->where('vendor_user_id', $vendor->UserID)
+            ->where('date', $date)
+            ->where('is_available', false)
+            ->first();
+
+        if ($unavailable) {
+            return [
+                'available' => false,
+                'reason' => 'Vendor marked as unavailable'
+            ];
+        }
+
+        return ['available' => true];
+    }
+
+    private function createBookingFromConversation(array $bookingData, int $vendorId, int $userId): ?int
+    {
+        try {
+            $vendor = DB::table('event_service_provider')
+                ->where('ID', $vendorId)
                 ->first();
 
             if (!$vendor) {
-                return $this->jsonResponse($response, [
-                    'success' => false,
-                    'error' => 'Vendor not found or not approved',
-                    'validation_error' => 'invalid_vendor'
-                ], 404);
+                return null;
             }
 
-            // Check vendor availability in vendor_availability table
-            $dateOnly = date('Y-m-d', strtotime($eventDate));
-            $availability = DB::table('vendor_availability')
-                ->where('vendor_user_id', $vendorId)
-                ->where('date', $dateOnly)
-                ->first();
-
-            // If availability record exists and vendor is NOT available
-            if ($availability && !$availability->is_available) {
-                return $this->jsonResponse($response, [
-                    'success' => false,
-                    'error' => 'Vendor is not available on this date',
-                    'conflict' => true,
-                    'reason' => 'vendor_unavailable',
-                    'notes' => $availability->notes ?? 'Vendor marked as unavailable'
-                ], 409);
+            $notes = "🤖 AI Conversational Booking\n\n";
+            if (!empty($bookingData['guests'])) {
+                $notes .= "Expected Guests: {$bookingData['guests']}\n";
+            }
+            if (!empty($bookingData['time'])) {
+                $notes .= "Event Time: {$bookingData['time']}\n";
+            }
+            if (!empty($bookingData['budget'])) {
+                $budget = $bookingData['budget'];
+                $budgetStr = is_numeric($budget)
+                    ? "₱" . number_format($budget)
+                    : $budget;
+                $notes .= "Budget: " . $budgetStr . "\n";
+            }
+            if (!empty($bookingData['preferences']) && is_array($bookingData['preferences'])) {
+                $notes .= "Preferences: " . implode(', ', $bookingData['preferences']) . "\n";
             }
 
-            // Check for existing bookings on the same date
-            $existingBooking = DB::table('booking')
-                ->where('EventServiceProviderID', $vendor->ID)
-                ->where('EventDate', $eventDate)
-                ->whereNotIn('BookingStatus', ['Cancelled', 'Rejected'])
-                ->first();
-
-            if ($existingBooking) {
-                $formattedDate = date('F j, Y \a\t g:i A', strtotime($eventDate));
-                
-                return $this->jsonResponse($response, [
-                    'success' => false,
-                    'error' => 'Vendor already has a booking on this date',
-                    'conflict' => true,
-                    'reason' => 'already_booked',
-                    'message' => "Unfortunately, {$vendor->BusinessName} is already booked for {$formattedDate}.",
-                    'conflicting_booking_id' => $existingBooking->ID
-                ], 409);
-            }
-
-            // Create the booking
             $bookingId = DB::table('booking')->insertGetId([
                 'UserID' => $userId,
-                'EventServiceProviderID' => $vendor->ID,
-                'ServiceName' => $data['service_name'] ?? $vendor->Category,
-                'EventDate' => $eventDate,
-                'EventLocation' => $data['event_location'],
-                'EventType' => $data['event_type'] ?? null,
-                'PackageSelected' => $data['package_selected'] ?? null,
-                'AdditionalNotes' => $data['additional_notes'] ?? 'Booking created via AI assistant',
-                'TotalAmount' => $data['total_amount'] ?? 0.00,
+                'EventServiceProviderID' => $vendorId,
+                'ServiceName' => $vendor->BusinessName,
+                'EventDate' => $bookingData['date'] ?? null,
+                'EventLocation' => $bookingData['location'] ?? '',
+                'EventType' => $bookingData['event_type'] ?? null,
+                'PackageSelected' => 'AI Conversational Booking',
+                'AdditionalNotes' => $notes,
+                'TotalAmount' => floatval($vendor->Pricing ?? 0),
                 'BookingStatus' => 'Pending',
-                'Remarks' => 'Created via AI booking assistant',
                 'BookingDate' => DB::raw('NOW()'),
                 'CreatedAt' => DB::raw('NOW()'),
                 'CreatedBy' => $userId
             ]);
 
-            // Get client info
             $client = DB::table('credential')->where('id', $userId)->first();
-            $clientName = trim(($client->first_name ?? '') . ' ' . ($client->last_name ?? '')) ?: 'A client';
+            $clientName = trim(($client->first_name ?? '') . ' ' . ($client->last_name ?? ''));
 
-            // Send notification to vendor
-            try {
-                DB::table('notifications')->insert([
-                    'user_id' => $vendorId,
-                    'type' => 'booking_request',
-                    'title' => 'New AI-Assisted Booking Request',
-                    'message' => "{$clientName} has requested to book {$vendor->BusinessName} for " . 
-                                 date('F j, Y', strtotime($eventDate)),
-                    'read' => false,
-                    'created_at' => DB::raw('NOW()')
-                ]);
-            } catch (\Exception $e) {
-                error_log("Notification error: " . $e->getMessage());
-            }
+            // ✅ FIXED: Extract event type first, then use it in string
+            $eventType = $bookingData['event_type'] ?? 'an event';
+            $notificationMessage = "{$clientName} created a booking via AI assistant for {$eventType}";
 
-            // Get the complete booking details
-            $booking = DB::table('booking as b')
-                ->leftJoin('event_service_provider as esp', 'b.EventServiceProviderID', '=', 'esp.ID')
-                ->select('b.*', 'esp.BusinessName', 'esp.BusinessEmail', 'esp.Category')
-                ->where('b.ID', $bookingId)
-                ->first();
+            $this->sendNotification(
+                $vendor->UserID,
+                'booking_request',
+                '🤖 New AI Booking Request',
+                $notificationMessage
+            );
 
-            return $this->jsonResponse($response, [
-                'success' => true,
-                'message' => 'Booking request created successfully! The vendor will review your request.',
-                'booking_id' => $bookingId,
-                'booking' => [
-                    'id' => $booking->ID,
-                    'vendor_name' => $booking->BusinessName,
-                    'service_name' => $booking->ServiceName,
-                    'event_date' => $booking->EventDate,
-                    'event_location' => $booking->EventLocation,
-                    'status' => $booking->BookingStatus,
-                    'total_amount' => $booking->TotalAmount
-                ],
-                'next_steps' => [
-                    'The vendor will be notified of your booking request',
-                    'You will receive a notification when the vendor responds',
-                    'You can view and manage your booking in "My Bookings" page'
-                ]
-            ], 201);
+            return $bookingId;
 
-        } catch (\Exception $e) {
-            error_log("AI Booking Error: " . $e->getMessage());
-            return $this->jsonResponse($response, [
-                'success' => false,
-                'error' => 'Failed to create booking: ' . $e->getMessage()
-            ], 500);
+        }
+        catch (\Exception $e) {
+            error_log("Create Booking From Conversation Error: " . $e->getMessage());
+            return null;
         }
     }
 
     /**
-     * Check vendor availability for specific dates
-     * Used by AI to suggest available dates
+     * ========================================
+     * HELPER METHODS
+     * ========================================
      */
-    public function checkVendorAvailability(Request $request, Response $response): Response
+
+    private function checkRateLimit(int $userId): bool
     {
+        $cacheFile = sys_get_temp_dir() . '/solennia_ai_rate_limit.json';
+        $maxRequests = 100;
+        $timeWindow = 3600;
+
         try {
-            $params = $request->getQueryParams();
-            $vendorId = $params['vendor_id'] ?? null;
-            $startDate = $params['start_date'] ?? date('Y-m-d');
-            $endDate = $params['end_date'] ?? date('Y-m-d', strtotime('+30 days'));
-
-            if (!$vendorId) {
-                return $this->jsonResponse($response, [
-                    'success' => false,
-                    'error' => 'vendor_id is required'
-                ], 400);
+            $data = [];
+            if (file_exists($cacheFile)) {
+                $json = file_get_contents($cacheFile);
+                $data = json_decode($json, true) ?: [];
             }
 
-            // Verify vendor exists and is approved
-            $vendor = DB::table('event_service_provider')
-                ->where('UserID', $vendorId)
-                ->where('ApplicationStatus', 'Approved')
-                ->first();
+            $now = time();
+            $userKey = "user_{$userId}";
 
-            if (!$vendor) {
-                return $this->jsonResponse($response, [
-                    'success' => false,
-                    'error' => 'Vendor not found or not approved'
-                ], 404);
+            if (isset($data[$userKey])) {
+                $data[$userKey] = array_filter($data[$userKey], function ($timestamp) use ($now, $timeWindow) {
+                    return ($now - $timestamp) < $timeWindow;
+                });
+            }
+            else {
+                $data[$userKey] = [];
             }
 
-            // Get availability records
-            $availabilityRecords = DB::table('vendor_availability')
-                ->where('vendor_user_id', $vendorId)
-                ->whereBetween('date', [$startDate, $endDate])
-                ->get()
-                ->keyBy('date');
-
-            // Get existing bookings
-            $bookings = DB::table('booking')
-                ->where('EventServiceProviderID', $vendor->ID)
-                ->whereBetween('EventDate', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
-                ->whereNotIn('BookingStatus', ['Cancelled', 'Rejected'])
-                ->get();
-
-            $bookedDates = [];
-            foreach ($bookings as $booking) {
-                $date = date('Y-m-d', strtotime($booking->EventDate));
-                $bookedDates[$date] = [
-                    'date' => $date,
-                    'time' => date('H:i', strtotime($booking->EventDate)),
-                    'status' => $booking->BookingStatus,
-                    'event_type' => $booking->EventType
-                ];
+            if (count($data[$userKey]) >= $maxRequests) {
+                return false;
             }
 
-            // Build availability calendar
-            $calendar = [];
-            $current = strtotime($startDate);
-            $end = strtotime($endDate);
+            return true;
 
-            while ($current <= $end) {
-                $dateStr = date('Y-m-d', $current);
-                $availRecord = $availabilityRecords->get($dateStr);
-                $isBooked = isset($bookedDates[$dateStr]);
-                
-                $calendar[] = [
-                    'date' => $dateStr,
-                    'day_of_week' => date('l', $current),
-                    'is_available' => !$isBooked && (!$availRecord || $availRecord->is_available == 1),
-                    'is_booked' => $isBooked,
-                    'has_availability_record' => $availRecord !== null,
-                    'availability_notes' => $availRecord->notes ?? null,
-                    'booking_info' => $bookedDates[$dateStr] ?? null
-                ];
-
-                $current = strtotime('+1 day', $current);
-            }
-
-            // Get suggested available dates (next 5 available dates)
-            $suggestedDates = array_filter($calendar, function($day) {
-                return $day['is_available'] && strtotime($day['date']) > time();
-            });
-            $suggestedDates = array_slice($suggestedDates, 0, 5);
-
-            return $this->jsonResponse($response, [
-                'success' => true,
-                'vendor_id' => $vendorId,
-                'vendor_name' => $vendor->BusinessName,
-                'date_range' => [
-                    'start' => $startDate,
-                    'end' => $endDate
-                ],
-                'calendar' => $calendar,
-                'suggested_dates' => array_values($suggestedDates),
-                'summary' => [
-                    'total_days' => count($calendar),
-                    'available_days' => count(array_filter($calendar, fn($d) => $d['is_available'])),
-                    'booked_days' => count($bookedDates),
-                    'unavailable_days' => count(array_filter($calendar, fn($d) => !$d['is_available'] && !$d['is_booked']))
-                ]
-            ]);
-
-        } catch (\Exception $e) {
-            error_log("Check Availability Error: " . $e->getMessage());
-            return $this->jsonResponse($response, [
-                'success' => false,
-                'error' => 'Failed to check availability'
-            ], 500);
+        }
+        catch (\Exception $e) {
+            error_log("Rate limit check error: " . $e->getMessage());
+            return true;
         }
     }
 
-    /**
-     * Generate FAQs - UC18
-     */
-    public function generateFAQs(Request $request, Response $response): Response
+    private function recordRequest(int $userId): void
     {
+        $cacheFile = sys_get_temp_dir() . '/solennia_ai_rate_limit.json';
+
         try {
-            $data = $request->getParsedBody();
-            $category = $data['category'] ?? 'general';
-            
-            // Get recent inquiries from database to analyze patterns
-            $inquiries = [];
-            try {
-                $recentBookings = DB::table('booking')
-                    ->select('AdditionalNotes')
-                    ->whereNotNull('AdditionalNotes')
-                    ->where('AdditionalNotes', '!=', '')
-                    ->orderBy('CreatedAt', 'desc')
-                    ->limit(100)
-                    ->get();
-                
-                foreach ($recentBookings as $booking) {
-                    if (!empty($booking->AdditionalNotes)) {
-                        $inquiries[] = $booking->AdditionalNotes;
-                    }
-                }
-            } catch (\Exception $e) {
-                // Continue without inquiry data
+            $data = [];
+            if (file_exists($cacheFile)) {
+                $json = file_get_contents($cacheFile);
+                $data = json_decode($json, true) ?: [];
             }
 
-            $result = $this->openAI->generateFAQs($inquiries, $category);
-
-            if (!$result['success']) {
-                return $this->jsonResponse($response, $result, 503);
+            $userKey = "user_{$userId}";
+            if (!isset($data[$userKey])) {
+                $data[$userKey] = [];
             }
 
-            return $this->jsonResponse($response, [
-                'success' => true,
-                'faqs' => $result['faqs'],
-                'summary' => $result['summary'],
-                'analyzed_inquiries' => count($inquiries)
-            ]);
+            $data[$userKey][] = time();
+            file_put_contents($cacheFile, json_encode($data));
 
-        } catch (\Exception $e) {
-            error_log("FAQ Generation Error: " . $e->getMessage());
-            return $this->jsonResponse($response, [
-                'success' => false,
-                'error' => 'Failed to generate FAQs: ' . $e->getMessage()
-            ], 500);
+        }
+        catch (\Exception $e) {
+            error_log("Failed to record request: " . $e->getMessage());
         }
     }
 
-    /**
-     * Save FAQ to database
-     */
-    public function saveFAQ(Request $request, Response $response): Response
+    private function sendNotification($userId, $type, $title, $message)
     {
         try {
-            $data = $request->getParsedBody();
-            
-            if (empty($data['question']) || empty($data['answer'])) {
-                return $this->jsonResponse($response, [
-                    'success' => false,
-                    'error' => 'Question and answer are required'
-                ], 400);
-            }
-            
-            $faqId = DB::table('faqs')->insertGetId([
-                'category' => $data['category'] ?? 'General',
-                'question' => $data['question'],
-                'answer' => $data['answer'],
-                'priority' => $data['priority'] ?? 5,
-                'is_published' => $data['is_published'] ?? false,
-                'created_at' => DB::raw('NOW()'),
-                'updated_at' => DB::raw('NOW()')
+            DB::table('notifications')->insert([
+                'user_id' => $userId,
+                'type' => $type,
+                'title' => $title,
+                'message' => $message,
+                'read' => false,
+                'created_at' => date('Y-m-d H:i:s')
             ]);
 
-            return $this->jsonResponse($response, [
-                'success' => true,
-                'message' => 'FAQ saved successfully',
-                'faq_id' => $faqId
-            ], 201);
-
-        } catch (\Exception $e) {
-            error_log("Save FAQ Error: " . $e->getMessage());
-            return $this->jsonResponse($response, [
-                'success' => false,
-                'error' => 'Failed to save FAQ: ' . $e->getMessage()
-            ], 500);
         }
-    }
-
-    /**
-     * Get all FAQs
-     */
-    public function getFAQs(Request $request, Response $response): Response
-    {
-        try {
-            $params = $request->getQueryParams();
-            $publishedOnly = isset($params['published']) && $params['published'] === 'true';
-            
-            $query = DB::table('faqs')->orderBy('priority', 'desc')->orderBy('category');
-            
-            if ($publishedOnly) {
-                $query->where('is_published', true);
-            }
-            
-            $faqs = $query->get();
-
-            return $this->jsonResponse($response, [
-                'success' => true,
-                'faqs' => $faqs
-            ]);
-
-        } catch (\Exception $e) {
-            // Table might not exist yet
-            return $this->jsonResponse($response, [
-                'success' => true,
-                'faqs' => [],
-                'note' => 'FAQ table not found - please create it using the SQL in the README'
-            ]);
-        }
-    }
-
-    /**
-     * Update FAQ
-     */
-    public function updateFAQ(Request $request, Response $response, array $args): Response
-    {
-        try {
-            $faqId = $args['id'];
-            $data = $request->getParsedBody();
-            
-            $updateData = ['updated_at' => DB::raw('NOW()')];
-            
-            if (isset($data['category'])) $updateData['category'] = $data['category'];
-            if (isset($data['question'])) $updateData['question'] = $data['question'];
-            if (isset($data['answer'])) $updateData['answer'] = $data['answer'];
-            if (isset($data['priority'])) $updateData['priority'] = $data['priority'];
-            if (isset($data['is_published'])) $updateData['is_published'] = $data['is_published'];
-            
-            DB::table('faqs')->where('id', $faqId)->update($updateData);
-
-            return $this->jsonResponse($response, [
-                'success' => true,
-                'message' => 'FAQ updated successfully'
-            ]);
-
-        } catch (\Exception $e) {
-            return $this->jsonResponse($response, [
-                'success' => false,
-                'error' => 'Failed to update FAQ: ' . $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * Delete FAQ
-     */
-    public function deleteFAQ(Request $request, Response $response, array $args): Response
-    {
-        try {
-            $faqId = $args['id'];
-            
-            DB::table('faqs')->where('id', $faqId)->delete();
-
-            return $this->jsonResponse($response, [
-                'success' => true,
-                'message' => 'FAQ deleted successfully'
-            ]);
-
-        } catch (\Exception $e) {
-            return $this->jsonResponse($response, [
-                'success' => false,
-                'error' => 'Failed to delete FAQ: ' . $e->getMessage()
-            ], 500);
+        catch (\Throwable $e) {
+            error_log("Notification Error: " . $e->getMessage());
         }
     }
 
