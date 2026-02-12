@@ -423,7 +423,7 @@ class BookingController
                 //  Update status to Pending (EventDate stays unchanged!)
                 DB::table('booking')->where('ID', $bookingId)->update([
                     'BookingStatus' => 'Pending',
-                    'UpdatedAt' => DB::raw('NOW()')
+                    'UpdatedAt' => date('Y-m-d H:i:s')
                 ]);
 
                 DB::commit();
@@ -536,7 +536,7 @@ class BookingController
                     // ✅ REGULAR BOOKING
                     DB::table('booking')->where('ID', $bookingId)->update([
                         'BookingStatus' => $newStatus,
-                        'UpdatedAt' => DB::raw('NOW()')
+                        'UpdatedAt' => date('Y-m-d H:i:s')
                     ]);
 
                     $this->sendNotification($booking->UserID, 'booking_update', 'Booking Updated', "Booking {$newStatus}");
@@ -587,7 +587,7 @@ class BookingController
 
             DB::table('booking')->where('ID', $bookingId)->update([
                 'BookingStatus' => 'Cancelled',
-                'UpdatedAt' => DB::raw('NOW()')
+                'UpdatedAt' => date('Y-m-d H:i:s')
             ]);
 
             $this->sendNotification($booking->vendor_user_id, 'booking_cancelled', 'Booking Cancelled', 'Booking cancelled');
@@ -687,7 +687,7 @@ class BookingController
                 ->update([
                 'BookingStatus' => 'Completed',
                 'Remarks' => 'Service completed successfully',
-                'UpdatedAt' => DB::raw('NOW()')
+                'UpdatedAt' => date('Y-m-d H:i:s')
             ]);
 
             // Send notification to client

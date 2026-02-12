@@ -10,16 +10,16 @@ import {
 import toast from "../utils/toast";
 
 
-const API_BASE = 
-  import.meta.env.VITE_API_BASE || 
+const API_BASE =
+  import.meta.env.VITE_API_BASE ||
   import.meta.env.VITE_API_URL ||
-  (import.meta.env.PROD 
-    ? "https://solennia.up.railway.app/api" : "");
+  (import.meta.env.PROD
+    ? "https://solennia.up.railway.app/api" : "/api");
 
 // Helper function to convert Firebase error codes to user-friendly messages
 const getFirebaseErrorMessage = (error) => {
   const errorCode = error?.code || '';
-  
+
   const errorMessages = {
     // Authentication errors
     'auth/invalid-credential': 'Invalid email or password. Please try again.',
@@ -42,7 +42,7 @@ const getFirebaseErrorMessage = (error) => {
     'auth/missing-verification-id': 'Verification ID is missing.',
     'auth/account-exists-with-different-credential': 'An account already exists with this email but different sign-in method.',
   };
-  
+
   return errorMessages[errorCode] || error?.message || 'An error occurred. Please try again.';
 };
 
@@ -143,7 +143,7 @@ export default function Modals() {
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  
+
   const [vendorForm, setVendorForm] = useState({
     business_name: "",
     full_name: "",
@@ -173,11 +173,11 @@ export default function Modals() {
     }
 
     let score = 0;
-    
+
     // Length check
     if (password.length >= 8) score++;
     if (password.length >= 12) score++;
-    
+
     // Character variety checks
     if (/[a-z]/.test(password)) score++; // lowercase
     if (/[A-Z]/.test(password)) score++; // uppercase
@@ -187,7 +187,7 @@ export default function Modals() {
     // Determine label and color
     let label = "";
     let color = "";
-    
+
     if (score <= 2) {
       label = "Weak";
       color = "#dc2626"; // red
@@ -207,23 +207,23 @@ export default function Modals() {
     if (!password || password.length < 8) {
       return { valid: false, message: "Password must be at least 8 characters long" };
     }
-    
+
     const hasLetter = /[a-zA-Z]/.test(password);
     const hasNumber = /[0-9]/.test(password);
     const hasSymbol = /[^A-Za-z0-9]/.test(password);
-    
+
     if (!hasLetter) {
       return { valid: false, message: "Password must contain letters" };
     }
-    
+
     if (!hasNumber) {
       return { valid: false, message: "Password must contain numbers" };
     }
-    
+
     if (!hasSymbol) {
       return { valid: false, message: "Password must contain symbols (e.g., !@#$%^&*)" };
     }
-    
+
     return { valid: true, message: "Password meets requirements" };
   };
 
@@ -350,7 +350,7 @@ export default function Modals() {
     document.getElementById("vendorTerms")?.classList.add("hidden");
     document.getElementById("vendorBackground")?.classList.add("hidden");
     document.getElementById("vendorMedia")?.classList.add("hidden");
-    
+
     //  Reset upload state
     setUploadProgress({ permits: 0, gov_id: 0, portfolio: 0 });
     setUploadedUrls({ permits_url: '', gov_id_url: '', portfolio_url: '' });
@@ -383,106 +383,106 @@ export default function Modals() {
 
 
   // Upload single file directly to Cloudinary (RETURNS URL)
-const uploadToCloudinary = async (file, fileType) => {
-  const token = localStorage.getItem("solennia_token");
-  if (!token) {
-    throw new Error("User not authenticated");
-  }
-
-  try {
-    // 1️⃣ Request signature (AUTHORIZED)
-    const signatureRes = await fetch(`${API_BASE}/vendor/get-upload-signature`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        file_type: fileType,
-      }),
-    });
-
-    if (!signatureRes.ok) {
-      throw new Error(`Signature request failed: ${signatureRes.status}`);
+  const uploadToCloudinary = async (file, fileType) => {
+    const token = localStorage.getItem("solennia_token");
+    if (!token) {
+      throw new Error("User not authenticated");
     }
 
-    const { upload_url, params } = await signatureRes.json();
+    try {
+      // 1️⃣ Request signature (AUTHORIZED)
+      const signatureRes = await fetch(`${API_BASE}/vendor/get-upload-signature`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          file_type: fileType,
+        }),
+      });
 
-    // 2️⃣ Upload to Cloudinary
-    const formData = new FormData();
-    formData.append("file", file);
+      if (!signatureRes.ok) {
+        throw new Error(`Signature request failed: ${signatureRes.status}`);
+      }
 
-    Object.entries(params).forEach(([key, value]) => {
-      formData.append(key, value);
-    });
+      const { upload_url, params } = await signatureRes.json();
 
-    const uploadRes = await fetch(upload_url, {
-      method: "POST",
-      body: formData,
-    });
+      // 2️⃣ Upload to Cloudinary
+      const formData = new FormData();
+      formData.append("file", file);
 
-    if (!uploadRes.ok) {
-      throw new Error(`Upload failed: ${uploadRes.status}`);
+      Object.entries(params).forEach(([key, value]) => {
+        formData.append(key, value);
+      });
+
+      const uploadRes = await fetch(upload_url, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!uploadRes.ok) {
+        throw new Error(`Upload failed: ${uploadRes.status}`);
+      }
+
+      const uploadData = await uploadRes.json();
+      return uploadData.secure_url;
+
+    } catch (err) {
+      console.error(`Upload failed for ${fileType}`, err);
+      throw err;
     }
-
-    const uploadData = await uploadRes.json();
-    return uploadData.secure_url;
-
-  } catch (err) {
-    console.error(`Upload failed for ${fileType}`, err);
-    throw err;
-  }
-};
-
-
-// Upload all vendor files in parallel and RETURN URLs
-const uploadAllVendorFiles = async () => {
-  const permitsFile   = selectedFiles.permits;
-  const govIdFile     = selectedFiles.gov_id;
-  const portfolioFile = selectedFiles.portfolio;
-
-  if (!permitsFile || !govIdFile || !portfolioFile) {
-    throw new Error("Missing required files");
-  }
-
-  const [permitsUrl, govIdUrl, portfolioUrl] = await Promise.all([
-    uploadToCloudinary(permitsFile, "permits"),
-    uploadToCloudinary(govIdFile, "gov_id"),
-    uploadToCloudinary(portfolioFile, "portfolio"),
-  ]);
-
-  return {
-    permits_url: permitsUrl,
-    gov_id_url: govIdUrl,
-    portfolio_url: portfolioUrl,
   };
-};
 
-//  File validation (keep this as is)
-const handleVendorFileChange = (e, fileType) => {
-  const file = e.target.files?.[0];
-  if (!file) return;
 
-  // Validate file size (5MB limit)
-  const maxSize = 5 * 1024 * 1024;
-  if (file.size > maxSize) {
-    toast.error(`${fileType} file must be under 5MB`);
-    e.target.value = '';
-    return;
-  }
+  // Upload all vendor files in parallel and RETURN URLs
+  const uploadAllVendorFiles = async () => {
+    const permitsFile = selectedFiles.permits;
+    const govIdFile = selectedFiles.gov_id;
+    const portfolioFile = selectedFiles.portfolio;
 
-  // Validate file type
-  const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'application/pdf'];
-  if (!validTypes.includes(file.type)) {
-    toast.error(`${fileType} must be PNG, JPG, or PDF`);
-    e.target.value = '';
-    return;
-  }
+    if (!permitsFile || !govIdFile || !portfolioFile) {
+      throw new Error("Missing required files");
+    }
 
-  // Store file in state
-  setSelectedFiles(prev => ({ ...prev, [fileType]: file }));
-  console.log(`File selected for ${fileType}:`, file.name);
-};
+    const [permitsUrl, govIdUrl, portfolioUrl] = await Promise.all([
+      uploadToCloudinary(permitsFile, "permits"),
+      uploadToCloudinary(govIdFile, "gov_id"),
+      uploadToCloudinary(portfolioFile, "portfolio"),
+    ]);
+
+    return {
+      permits_url: permitsUrl,
+      gov_id_url: govIdUrl,
+      portfolio_url: portfolioUrl,
+    };
+  };
+
+  //  File validation (keep this as is)
+  const handleVendorFileChange = (e, fileType) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file size (5MB limit)
+    const maxSize = 5 * 1024 * 1024;
+    if (file.size > maxSize) {
+      toast.error(`${fileType} file must be under 5MB`);
+      e.target.value = '';
+      return;
+    }
+
+    // Validate file type
+    const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'application/pdf'];
+    if (!validTypes.includes(file.type)) {
+      toast.error(`${fileType} must be PNG, JPG, or PDF`);
+      e.target.value = '';
+      return;
+    }
+
+    // Store file in state
+    setSelectedFiles(prev => ({ ...prev, [fileType]: file }));
+    console.log(`File selected for ${fileType}:`, file.name);
+  };
 
   /* =========================
      LOGIN
@@ -533,7 +533,7 @@ const handleVendorFileChange = (e, fileType) => {
 
       toast.success("Login successful! Welcome back!");
       closeAll();
-      
+
       // Refresh page to update header avatar
       window.location.reload();
     } catch (err) {
@@ -590,10 +590,10 @@ const handleVendorFileChange = (e, fileType) => {
       if (!res.ok) throw new Error(data.message);
 
       toast.success("Registration successful! Please check your email to verify your account.");
-      
+
       // Sign out user until they verify
       await auth.signOut();
-      
+
       // Clear form
       setRegister({
         first_name: "",
@@ -617,7 +617,7 @@ const handleVendorFileChange = (e, fileType) => {
 
   const handleForgotPassword = async (e) => {
     e.preventDefault();
-    
+
     if (!forgotEmail) {
       toast.warning("Please enter your email address");
       return;
@@ -628,7 +628,7 @@ const handleVendorFileChange = (e, fileType) => {
     try {
       // Send password reset email via Firebase
       await sendPasswordResetEmail(auth, forgotEmail);
-      
+
       toast.success("Password reset email sent! Check your inbox.");
       setForgotEmail("");
       closeAll();
@@ -656,7 +656,7 @@ const handleVendorFileChange = (e, fileType) => {
     document.getElementById("menuSignUp")?.classList.remove("hidden");
 
     toast.success("Logged out successfully");
-    
+
     // Give toast time to show before redirecting
     setTimeout(() => {
       window.location.href = "/";
@@ -826,17 +826,17 @@ const handleVendorFileChange = (e, fileType) => {
       });
 
       const data = await res.json();
-      
+
       if (!res.ok) {
         throw new Error(data.error || data.message || "Failed to create venue listing");
       }
 
       toast.success("Venue listing created successfully!");
       closeVenueListing();
-      
+
       // Reload the page to show the new venue
       setTimeout(() => window.location.reload(), 1500);
-      
+
     } catch (err) {
       console.error("Venue listing error:", err);
       toast.error(err.message || "Failed to create venue listing");
@@ -862,14 +862,14 @@ const handleVendorFileChange = (e, fileType) => {
   const updatePackage = (index, field, value) => {
     setVenueListing(prev => ({
       ...prev,
-      packages: prev.packages.map((pkg, i) => 
+      packages: prev.packages.map((pkg, i) =>
         i === index ? { ...pkg, [field]: value } : pkg
       )
     }));
   };
 
   const toggleAmenity = (amenity) => {
-    setSelectedAmenities(prev => 
+    setSelectedAmenities(prev =>
       prev.includes(amenity)
         ? prev.filter(a => a !== amenity)
         : [...prev, amenity]
@@ -886,7 +886,7 @@ const handleVendorFileChange = (e, fileType) => {
     if (form.checkValidity()) {
       const formData = new FormData(form);
       const category = formData.get("category");
-      
+
       setVendorForm(prev => ({
         ...prev,
         business_name: formData.get("business_name"),
@@ -909,71 +909,71 @@ const handleVendorFileChange = (e, fileType) => {
   };
 
   const submitVendorApplication = async (e) => {
-  e.preventDefault();
-  setVendorLoading(true);
+    e.preventDefault();
+    setVendorLoading(true);
 
-  const token = localStorage.getItem("solennia_token");
-  if (!token) {
-    toast.warning("Please login to apply as a supplier.");
-    setVendorLoading(false);
-    return;
-  }
+    const token = localStorage.getItem("solennia_token");
+    if (!token) {
+      toast.warning("Please login to apply as a supplier.");
+      setVendorLoading(false);
+      return;
+    }
 
-  try {
-    // 1️⃣ Upload files and GET URLs (guaranteed)
-    const {
-      permits_url,
-      gov_id_url,
-      portfolio_url,
-    } = await uploadAllVendorFiles();
-
-    // 2️⃣ Submit vendor application
-    const res = await fetch(`${API_BASE}/vendor/apply`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        business_name: vendorForm.business_name,
-        full_name: vendorForm.full_name,
-        contact_email: vendorForm.contact_email,
-        category: vendorForm.category,
-        category_other: vendorForm.category_other,
-        address: vendorForm.address,
-        description: e.target.description.value,
-        pricing: e.target.pricing.value,
-        venue_subcategory: vendorForm.venue_subcategory,
-        venue_capacity: vendorForm.venue_capacity,
-        venue_amenities: vendorForm.venue_amenities,
-        venue_operating_hours: vendorForm.venue_operating_hours,
-        venue_parking: vendorForm.venue_parking,
-
-        // 🔥 GUARANTEED NON-EMPTY
+    try {
+      // 1️⃣ Upload files and GET URLs (guaranteed)
+      const {
         permits_url,
         gov_id_url,
         portfolio_url,
-      }),
-    });
+      } = await uploadAllVendorFiles();
 
-    const data = await res.json();
+      // 2️⃣ Submit vendor application
+      const res = await fetch(`${API_BASE}/vendor/apply`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          business_name: vendorForm.business_name,
+          full_name: vendorForm.full_name,
+          contact_email: vendorForm.contact_email,
+          category: vendorForm.category,
+          category_other: vendorForm.category_other,
+          address: vendorForm.address,
+          description: e.target.description.value,
+          pricing: e.target.pricing.value,
+          venue_subcategory: vendorForm.venue_subcategory,
+          venue_capacity: vendorForm.venue_capacity,
+          venue_amenities: vendorForm.venue_amenities,
+          venue_operating_hours: vendorForm.venue_operating_hours,
+          venue_parking: vendorForm.venue_parking,
 
-    if (!res.ok) {
-      throw new Error(data.error || data.message || "Application failed");
+          // 🔥 GUARANTEED NON-EMPTY
+          permits_url,
+          gov_id_url,
+          portfolio_url,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || data.message || "Application failed");
+      }
+
+      toast.success("Supplier application submitted successfully!");
+      closeAllVendorModals();
+
+      setTimeout(() => window.location.reload(), 1500);
+
+    } catch (err) {
+      console.error("Vendor application error:", err);
+      toast.error(err.message || "Supplier application failed");
+    } finally {
+      setVendorLoading(false);
     }
-
-    toast.success("Supplier application submitted successfully!");
-    closeAllVendorModals();
-
-    setTimeout(() => window.location.reload(), 1500);
-
-  } catch (err) {
-    console.error("Vendor application error:", err);
-    toast.error(err.message || "Supplier application failed");
-  } finally {
-    setVendorLoading(false);
-  }
-};
+  };
 
 
 
@@ -995,15 +995,15 @@ const handleVendorFileChange = (e, fileType) => {
         id="loginModal"
         className="fixed inset-0 hidden z-[200] grid place-items-center pointer-events-none p-4"
       >
-        <div 
+        <div
           className="bg-[#f6f0e8] w-full max-w-md rounded-2xl shadow-xl pointer-events-auto"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex justify-between items-center p-6 border-b border-gray-300 bg-[#e8ddae]">
             <h2 className="text-lg font-semibold">Login</h2>
-            <button 
+            <button
               onClick={closeAll}
-              className="text-2xl font-light hover:text-gray-600" 
+              className="text-2xl font-light hover:text-gray-600"
               aria-label="Close"
             >
               &times;
@@ -1082,15 +1082,15 @@ const handleVendorFileChange = (e, fileType) => {
         id="registerModal"
         className="fixed inset-0 hidden z-[200] grid place-items-center pointer-events-none p-4"
       >
-        <div 
+        <div
           className="bg-[#f6f0e8] w-full max-w-md rounded-2xl shadow-xl pointer-events-auto max-h-[90vh] overflow-y-auto"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex justify-between items-center p-6 border-b border-gray-300 bg-[#e8ddae] sticky top-0 z-10">
             <h2 className="text-lg font-semibold">Sign Up</h2>
-            <button 
+            <button
               onClick={closeAll}
-              className="text-2xl font-light hover:text-gray-600" 
+              className="text-2xl font-light hover:text-gray-600"
               aria-label="Close"
             >
               &times;
@@ -1182,13 +1182,13 @@ const handleVendorFileChange = (e, fileType) => {
                   {showPassword ? "👁️" : "👁️‍🗨️"}
                 </button>
               </div>
-              
+
               {/* Password Strength Indicator */}
               {register.password && (
                 <div className="mt-2">
                   <div className="flex items-center gap-2 mb-1">
                     <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
-                      <div 
+                      <div
                         className="h-full transition-all duration-300"
                         style={{
                           width: `${(passwordStrength.score / 6) * 100}%`,
@@ -1196,7 +1196,7 @@ const handleVendorFileChange = (e, fileType) => {
                         }}
                       />
                     </div>
-                    <span 
+                    <span
                       className="text-xs font-semibold"
                       style={{ color: passwordStrength.color }}
                     >
@@ -1233,7 +1233,7 @@ const handleVendorFileChange = (e, fileType) => {
                   {showConfirmPassword ? "👁️" : "👁️‍🗨️"}
                 </button>
               </div>
-              
+
               {/* Password Match Indicator */}
               {register.confirmPassword && (
                 <div className="mt-1">
@@ -1276,15 +1276,15 @@ const handleVendorFileChange = (e, fileType) => {
         id="forgotPasswordModal"
         className="fixed inset-0 hidden z-[200] grid place-items-center pointer-events-none p-4"
       >
-        <div 
+        <div
           className="bg-[#f6f0e8] w-full max-w-md rounded-2xl shadow-xl pointer-events-auto"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex justify-between items-center p-6 border-b border-gray-300 bg-[#e8ddae]">
             <h2 className="text-lg font-semibold">Reset Password</h2>
-            <button 
+            <button
               onClick={closeAll}
-              className="text-2xl font-light hover:text-gray-600" 
+              className="text-2xl font-light hover:text-gray-600"
               aria-label="Close"
             >
               &times;
@@ -1337,15 +1337,15 @@ const handleVendorFileChange = (e, fileType) => {
         className="fixed inset-0 hidden z-[200] grid place-items-center bg-black/40 p-4"
         onClick={closeVenueInquiry}
       >
-        <div 
+        <div
           className="bg-[#f6f0e8] w-full max-w-2xl rounded-2xl shadow-xl max-h-[90vh] overflow-y-auto"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex justify-between items-center p-6 border-b border-gray-300 bg-[#e8ddae] sticky top-0 z-10">
             <h2 className="text-lg font-semibold">Send Inquiry</h2>
-            <button 
+            <button
               onClick={closeVenueInquiry}
-              className="text-2xl font-light hover:text-gray-600" 
+              className="text-2xl font-light hover:text-gray-600"
               aria-label="Close"
             >
               &times;
@@ -1368,7 +1368,7 @@ const handleVendorFileChange = (e, fileType) => {
                   type="text"
                   required
                   value={venueInquiry.name}
-                  onChange={(e) => setVenueInquiry({...venueInquiry, name: e.target.value})}
+                  onChange={(e) => setVenueInquiry({ ...venueInquiry, name: e.target.value })}
                   className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
                 />
               </div>
@@ -1381,7 +1381,7 @@ const handleVendorFileChange = (e, fileType) => {
                   type="email"
                   required
                   value={venueInquiry.email}
-                  onChange={(e) => setVenueInquiry({...venueInquiry, email: e.target.value})}
+                  onChange={(e) => setVenueInquiry({ ...venueInquiry, email: e.target.value })}
                   className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
                 />
               </div>
@@ -1396,7 +1396,7 @@ const handleVendorFileChange = (e, fileType) => {
                   type="tel"
                   required
                   value={venueInquiry.phone}
-                  onChange={(e) => setVenueInquiry({...venueInquiry, phone: e.target.value})}
+                  onChange={(e) => setVenueInquiry({ ...venueInquiry, phone: e.target.value })}
                   className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
                 />
               </div>
@@ -1409,7 +1409,7 @@ const handleVendorFileChange = (e, fileType) => {
                   type="date"
                   required
                   value={venueInquiry.eventDate}
-                  onChange={(e) => setVenueInquiry({...venueInquiry, eventDate: e.target.value})}
+                  onChange={(e) => setVenueInquiry({ ...venueInquiry, eventDate: e.target.value })}
                   className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
                 />
               </div>
@@ -1423,7 +1423,7 @@ const handleVendorFileChange = (e, fileType) => {
                 <select
                   required
                   value={venueInquiry.eventType}
-                  onChange={(e) => setVenueInquiry({...venueInquiry, eventType: e.target.value})}
+                  onChange={(e) => setVenueInquiry({ ...venueInquiry, eventType: e.target.value })}
                   className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
                 >
                   <option value="">Select event type</option>
@@ -1444,7 +1444,7 @@ const handleVendorFileChange = (e, fileType) => {
                   required
                   min="1"
                   value={venueInquiry.guestCount}
-                  onChange={(e) => setVenueInquiry({...venueInquiry, guestCount: e.target.value})}
+                  onChange={(e) => setVenueInquiry({ ...venueInquiry, guestCount: e.target.value })}
                   className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
                 />
               </div>
@@ -1457,7 +1457,7 @@ const handleVendorFileChange = (e, fileType) => {
               <textarea
                 rows="4"
                 value={venueInquiry.message}
-                onChange={(e) => setVenueInquiry({...venueInquiry, message: e.target.value})}
+                onChange={(e) => setVenueInquiry({ ...venueInquiry, message: e.target.value })}
                 placeholder="Tell us more about your event..."
                 className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
               />
@@ -1489,15 +1489,15 @@ const handleVendorFileChange = (e, fileType) => {
         className="fixed inset-0 hidden z-[200] grid place-items-center bg-black/40 p-4"
         onClick={closeScheduleVisit}
       >
-        <div 
+        <div
           className="bg-[#f6f0e8] w-full max-w-2xl rounded-2xl shadow-xl max-h-[90vh] overflow-y-auto"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex justify-between items-center p-6 border-b border-gray-300 bg-[#e8ddae] sticky top-0 z-10">
             <h2 className="text-lg font-semibold">Schedule a Visit</h2>
-            <button 
+            <button
               onClick={closeScheduleVisit}
-              className="text-2xl font-light hover:text-gray-600" 
+              className="text-2xl font-light hover:text-gray-600"
               aria-label="Close"
             >
               &times;
@@ -1520,7 +1520,7 @@ const handleVendorFileChange = (e, fileType) => {
                   type="text"
                   required
                   value={scheduleVisit.name}
-                  onChange={(e) => setScheduleVisit({...scheduleVisit, name: e.target.value})}
+                  onChange={(e) => setScheduleVisit({ ...scheduleVisit, name: e.target.value })}
                   className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
                 />
               </div>
@@ -1533,7 +1533,7 @@ const handleVendorFileChange = (e, fileType) => {
                   type="email"
                   required
                   value={scheduleVisit.email}
-                  onChange={(e) => setScheduleVisit({...scheduleVisit, email: e.target.value})}
+                  onChange={(e) => setScheduleVisit({ ...scheduleVisit, email: e.target.value })}
                   className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
                 />
               </div>
@@ -1547,7 +1547,7 @@ const handleVendorFileChange = (e, fileType) => {
                 type="tel"
                 required
                 value={scheduleVisit.phone}
-                onChange={(e) => setScheduleVisit({...scheduleVisit, phone: e.target.value})}
+                onChange={(e) => setScheduleVisit({ ...scheduleVisit, phone: e.target.value })}
                 className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
               />
             </div>
@@ -1561,7 +1561,7 @@ const handleVendorFileChange = (e, fileType) => {
                   type="date"
                   required
                   value={scheduleVisit.preferredDate}
-                  onChange={(e) => setScheduleVisit({...scheduleVisit, preferredDate: e.target.value})}
+                  onChange={(e) => setScheduleVisit({ ...scheduleVisit, preferredDate: e.target.value })}
                   className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
                 />
               </div>
@@ -1573,7 +1573,7 @@ const handleVendorFileChange = (e, fileType) => {
                 <select
                   required
                   value={scheduleVisit.preferredTime}
-                  onChange={(e) => setScheduleVisit({...scheduleVisit, preferredTime: e.target.value})}
+                  onChange={(e) => setScheduleVisit({ ...scheduleVisit, preferredTime: e.target.value })}
                   className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
                 >
                   <option value="">Select time</option>
@@ -1595,7 +1595,7 @@ const handleVendorFileChange = (e, fileType) => {
               <textarea
                 rows="3"
                 value={scheduleVisit.message}
-                onChange={(e) => setScheduleVisit({...scheduleVisit, message: e.target.value})}
+                onChange={(e) => setScheduleVisit({ ...scheduleVisit, message: e.target.value })}
                 placeholder="Any special requirements or questions?"
                 className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
               />
@@ -1627,7 +1627,7 @@ const handleVendorFileChange = (e, fileType) => {
         className="fixed inset-0 hidden z-[200] grid place-items-center bg-black/50 backdrop-blur-sm p-3 sm:p-4 md:p-6"
         onClick={closeFeedback}
       >
-        <div 
+        <div
           className="bg-[#f6f0e8] w-full max-w-2xl rounded-xl sm:rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
           onClick={(e) => e.stopPropagation()}
         >
@@ -1636,7 +1636,7 @@ const handleVendorFileChange = (e, fileType) => {
             <div className="flex items-center space-x-3">
               <div className="w-12 h-12 bg-white/10 backdrop-blur-sm rounded-xl flex items-center justify-center border border-white/20">
                 <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+                  <path d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
                 </svg>
               </div>
               <div>
@@ -1644,9 +1644,9 @@ const handleVendorFileChange = (e, fileType) => {
                 <p className="text-sm text-white/80">We'd love to hear from you!</p>
               </div>
             </div>
-            <button 
+            <button
               onClick={closeFeedback}
-              className="w-9 h-9 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all border border-white/20" 
+              className="w-9 h-9 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all border border-white/20"
               aria-label="Close"
             >
               <span className="text-white text-xl">&times;</span>
@@ -1658,11 +1658,11 @@ const handleVendorFileChange = (e, fileType) => {
             {/* Introduction Card */}
             <div className="bg-[#e8ddae] border-l-4 border-[#7a5d47] rounded-lg p-4 mb-6 flex items-start space-x-3">
               <svg className="w-6 h-6 text-[#7a5d47] flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
               </svg>
               <div className="flex-1">
                 <p className="text-sm font-medium text-gray-900 leading-relaxed">
-                  Your feedback helps us improve Solennia. Whether it's a suggestion, bug report, 
+                  Your feedback helps us improve Solennia. Whether it's a suggestion, bug report,
                   or just a comment, we appreciate your input and will review it carefully.
                 </p>
               </div>
@@ -1691,7 +1691,7 @@ const handleVendorFileChange = (e, fileType) => {
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <h4 className="font-bold text-blue-900 text-sm mb-2 flex items-center space-x-2">
                   <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"/>
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" />
                   </svg>
                   <span>Tips for better feedback:</span>
                 </h4>
@@ -1715,12 +1715,12 @@ const handleVendorFileChange = (e, fileType) => {
               <div className="bg-gradient-to-br from-[#e8ddae] to-[#f6f0e8] border border-[#7a5d47]/20 rounded-xl p-4">
                 <div className="flex items-start space-x-3">
                   <svg className="w-5 h-5 text-[#7a5d47] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                    <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                   </svg>
                   <div className="flex-1">
                     <p className="text-sm font-semibold text-gray-900 mb-1">Need a response?</p>
                     <p className="text-xs text-gray-700">
-                      We'll review all feedback. For urgent matters or to receive a direct response, 
+                      We'll review all feedback. For urgent matters or to receive a direct response,
                       please contact us at{' '}
                       <a href="mailto:solenniainquires@gmail.com" className="font-semibold text-[#7a5d47] hover:underline">
                         solenniainquires@gmail.com
@@ -1757,7 +1757,7 @@ const handleVendorFileChange = (e, fileType) => {
         className="fixed inset-0 hidden z-[200] grid place-items-center bg-black/50 backdrop-blur-sm p-4"
         onClick={closePrivacy}
       >
-        <div 
+        <div
           className="bg-[#f6f0e8] w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
           onClick={(e) => e.stopPropagation()}
         >
@@ -1774,9 +1774,9 @@ const handleVendorFileChange = (e, fileType) => {
                 <p className="text-sm text-white/80">Last updated: December 28, 2025</p>
               </div>
             </div>
-            <button 
+            <button
               onClick={closePrivacy}
-              className="w-9 h-9 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all border border-white/20" 
+              className="w-9 h-9 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all border border-white/20"
               aria-label="Close"
             >
               <span className="text-white text-xl">&times;</span>
@@ -1785,16 +1785,16 @@ const handleVendorFileChange = (e, fileType) => {
 
           {/* Content with Scroll */}
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
-            
+
             {/* Introduction Card */}
             <div className="bg-[#e8ddae] border-l-4 border-[#7a5d47] rounded-lg p-4 flex items-start space-x-3">
               <svg className="w-6 h-6 text-[#7a5d47] flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
               </svg>
               <div className="flex-1">
                 <p className="text-sm font-medium text-gray-900 leading-relaxed">
-                  At Solennia, we value your trust and are committed to protecting your personal information. 
-                  This Privacy Policy explains how information is collected, used, stored, and protected when 
+                  At Solennia, we value your trust and are committed to protecting your personal information.
+                  This Privacy Policy explains how information is collected, used, stored, and protected when
                   you access or use the Solennia web platform and its related services.
                 </p>
               </div>
@@ -1886,17 +1886,17 @@ const handleVendorFileChange = (e, fileType) => {
                 <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                   <div className="flex items-center space-x-2 mb-2">
                     <svg className="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"/>
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" />
                     </svg>
                     <strong className="text-green-900">We Do NOT Sell Your Data</strong>
                   </div>
                   <p className="text-green-800 text-xs">
-                    Solennia does not sell or trade user data. Information may be shared only with trusted third-party 
+                    Solennia does not sell or trade user data. Information may be shared only with trusted third-party
                     service providers who assist in operating the platform, or when disclosure is required by law.
                   </p>
                 </div>
                 <p>
-                  We implement appropriate technical and organizational security measures to protect your personal 
+                  We implement appropriate technical and organizational security measures to protect your personal
                   information against unauthorized access, loss, or misuse.
                 </p>
               </div>
@@ -1949,7 +1949,7 @@ const handleVendorFileChange = (e, fileType) => {
               </div>
               <div className="pl-13 text-sm text-gray-700 leading-relaxed">
                 <p>
-                  Solennia uses cookies and similar technologies to analyze platform usage and enhance functionality. 
+                  Solennia uses cookies and similar technologies to analyze platform usage and enhance functionality.
                   Users may manage cookie preferences through their browser settings.
                 </p>
               </div>
@@ -1967,7 +1967,7 @@ const handleVendorFileChange = (e, fileType) => {
               </div>
               <div className="pl-13 text-sm text-gray-700 leading-relaxed">
                 <p>
-                  Solennia is not intended for use by individuals under the age of thirteen (13). The platform does 
+                  Solennia is not intended for use by individuals under the age of thirteen (13). The platform does
                   not knowingly collect personal information from minors. Any such data discovered will be removed promptly.
                 </p>
               </div>
@@ -1977,20 +1977,20 @@ const handleVendorFileChange = (e, fileType) => {
             <div className="bg-gradient-to-br from-[#e8ddae] to-[#f6f0e8] border border-[#7a5d47]/20 rounded-xl p-5 mt-6">
               <h4 className="font-bold text-gray-900 mb-3 flex items-center space-x-2">
                 <svg className="w-5 h-5 text-[#7a5d47]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                  <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                 </svg>
                 <span>Questions About Privacy?</span>
               </h4>
               <p className="text-sm text-gray-700 mb-3">
                 For questions, concerns, or data-related requests regarding this Privacy Policy, please contact:
               </p>
-              <a 
-                href="mailto:solenniainquires@gmail.com" 
+              <a
+                href="mailto:solenniainquires@gmail.com"
                 className="inline-flex items-center space-x-2 text-sm font-semibold text-[#7a5d47] hover:text-[#5d4436] transition-colors"
               >
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/>
-                  <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/>
+                  <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
+                  <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
                 </svg>
                 <span>solenniainquires@gmail.com</span>
               </a>
@@ -2015,7 +2015,7 @@ const handleVendorFileChange = (e, fileType) => {
         className="fixed inset-0 hidden z-[200] grid place-items-center bg-black/50 backdrop-blur-sm p-4"
         onClick={closeTerms}
       >
-        <div 
+        <div
           className="bg-[#f6f0e8] w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
           onClick={(e) => e.stopPropagation()}
         >
@@ -2024,7 +2024,7 @@ const handleVendorFileChange = (e, fileType) => {
             <div className="flex items-center space-x-3">
               <div className="w-12 h-12 bg-white/10 backdrop-blur-sm rounded-xl flex items-center justify-center border border-white/20">
                 <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                  <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
               </div>
               <div>
@@ -2032,9 +2032,9 @@ const handleVendorFileChange = (e, fileType) => {
                 <p className="text-sm text-white/80">Last updated: December 28, 2025</p>
               </div>
             </div>
-            <button 
+            <button
               onClick={closeTerms}
-              className="w-9 h-9 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all border border-white/20" 
+              className="w-9 h-9 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all border border-white/20"
               aria-label="Close"
             >
               <span className="text-white text-xl">&times;</span>
@@ -2043,15 +2043,15 @@ const handleVendorFileChange = (e, fileType) => {
 
           {/* Content with Scroll */}
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
-            
+
             {/* Introduction Card */}
             <div className="bg-[#e8ddae] border-l-4 border-[#7a5d47] rounded-lg p-4 flex items-start space-x-3">
               <svg className="w-6 h-6 text-[#7a5d47] flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
               </svg>
               <div className="flex-1">
                 <p className="text-sm font-medium text-gray-900 leading-relaxed">
-                  Welcome to Solennia. By accessing or using the Solennia website, application, or any services 
+                  Welcome to Solennia. By accessing or using the Solennia website, application, or any services
                   provided through the platform, you agree to comply with and be bound by these Terms and Conditions.
                 </p>
               </div>
@@ -2069,7 +2069,7 @@ const handleVendorFileChange = (e, fileType) => {
               </div>
               <div className="pl-13 space-y-3 text-sm text-gray-700 leading-relaxed">
                 <p>
-                  Solennia is a digital event management and service-matching platform designed to connect individuals, 
+                  Solennia is a digital event management and service-matching platform designed to connect individuals,
                   organizations, and event planners with professional event service providers.
                 </p>
                 <div className="bg-gray-50 rounded-lg p-4">
@@ -2147,18 +2147,18 @@ const handleVendorFileChange = (e, fileType) => {
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
                   <div className="flex items-start space-x-3">
                     <svg className="w-6 h-6 text-amber-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"/>
+                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" />
                     </svg>
                     <div className="text-sm text-amber-900 leading-relaxed">
                       <p className="font-bold mb-2">Important Notice:</p>
                       <p>
-                        Solennia operates solely as an <strong>intermediary platform</strong>. We facilitate connections 
-                        between users and suppliers but do not participate in, control, or guarantee any transactions, 
+                        Solennia operates solely as an <strong>intermediary platform</strong>. We facilitate connections
+                        between users and suppliers but do not participate in, control, or guarantee any transactions,
                         agreements, payments, or service outcomes.
                       </p>
                       <p className="mt-2">
-                        All negotiations, contracts, and service arrangements are entered into directly between users 
-                        and suppliers. Solennia shall not be held liable for disputes, losses, damages, delays, or 
+                        All negotiations, contracts, and service arrangements are entered into directly between users
+                        and suppliers. Solennia shall not be held liable for disputes, losses, damages, delays, or
                         dissatisfaction arising from services provided by suppliers.
                       </p>
                     </div>
@@ -2179,14 +2179,14 @@ const handleVendorFileChange = (e, fileType) => {
               </div>
               <div className="pl-13 text-sm text-gray-700 leading-relaxed">
                 <p className="mb-3">
-                  suppliers listed on Solennia are expected to maintain professional conduct, provide accurate 
+                  suppliers listed on Solennia are expected to maintain professional conduct, provide accurate
                   information, and communicate transparently with users.
                 </p>
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                   <p className="font-bold text-red-900 mb-2">Prohibited Behavior:</p>
                   <p className="text-red-800 text-xs">
-                    Any fraudulent, misleading, abusive, or unethical behavior is strictly prohibited. Solennia 
-                    reserves the right to suspend, restrict, or permanently terminate accounts that violate these 
+                    Any fraudulent, misleading, abusive, or unethical behavior is strictly prohibited. Solennia
+                    reserves the right to suspend, restrict, or permanently terminate accounts that violate these
                     Terms or receive repeated, substantiated complaints.
                   </p>
                 </div>
@@ -2205,7 +2205,7 @@ const handleVendorFileChange = (e, fileType) => {
               </div>
               <div className="pl-13 text-sm text-gray-700 leading-relaxed">
                 <p>
-                  Solennia reserves the right to review, approve, reject, or remove content or accounts that 
+                  Solennia reserves the right to review, approve, reject, or remove content or accounts that
                   violate platform standards, legal requirements, or community guidelines without prior notice.
                 </p>
               </div>
@@ -2223,7 +2223,7 @@ const handleVendorFileChange = (e, fileType) => {
               </div>
               <div className="pl-13 text-sm text-gray-700 leading-relaxed">
                 <p>
-                  Solennia is committed to protecting user privacy and data security. All information collected 
+                  Solennia is committed to protecting user privacy and data security. All information collected
                   and processed through the platform is handled in accordance with our Privacy Policy.
                 </p>
               </div>
@@ -2241,8 +2241,8 @@ const handleVendorFileChange = (e, fileType) => {
               </div>
               <div className="pl-13 text-sm text-gray-700 leading-relaxed">
                 <p>
-                  Solennia reserves the right to modify or update these Terms and Conditions at any time to 
-                  reflect changes in platform functionality, services, or legal obligations. Continued use of 
+                  Solennia reserves the right to modify or update these Terms and Conditions at any time to
+                  reflect changes in platform functionality, services, or legal obligations. Continued use of
                   the platform after such updates constitutes acceptance of the revised terms.
                 </p>
               </div>
@@ -2252,20 +2252,20 @@ const handleVendorFileChange = (e, fileType) => {
             <div className="bg-gradient-to-br from-[#e8ddae] to-[#f6f0e8] border border-[#7a5d47]/20 rounded-xl p-5 mt-6">
               <h4 className="font-bold text-gray-900 mb-3 flex items-center space-x-2">
                 <svg className="w-5 h-5 text-[#7a5d47]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                  <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                 </svg>
                 <span>Questions About Terms?</span>
               </h4>
               <p className="text-sm text-gray-700 mb-3">
                 For questions or concerns regarding these Terms and Conditions, please contact:
               </p>
-              <a 
-                href="mailto:solenniainquires@gmail.com" 
+              <a
+                href="mailto:solenniainquires@gmail.com"
                 className="inline-flex items-center space-x-2 text-sm font-semibold text-[#7a5d47] hover:text-[#5d4436] transition-colors"
               >
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/>
-                  <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/>
+                  <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
+                  <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
                 </svg>
                 <span>solenniainquires@gmail.com</span>
               </a>
@@ -2290,15 +2290,15 @@ const handleVendorFileChange = (e, fileType) => {
         className="fixed inset-0 hidden z-[200] grid place-items-center bg-black/40 p-4"
         onClick={(e) => e.target === e.currentTarget && closeAllVendorModals()}
       >
-        <div 
+        <div
           className="bg-[#f6f0e8] w-full max-w-2xl rounded-2xl shadow-xl overflow-y-auto max-h-[80vh]"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex justify-between items-center p-6 border-b border-gray-300 bg-[#e8ddae]">
             <h2 className="text-lg font-semibold">Become a Supplier</h2>
-            <button 
+            <button
               onClick={closeAllVendorModals}
-              className="text-2xl font-light hover:text-gray-600" 
+              className="text-2xl font-light hover:text-gray-600"
               aria-label="Close"
             >
               &times;
@@ -2341,9 +2341,9 @@ const handleVendorFileChange = (e, fileType) => {
             </div>
 
             <div className="flex items-center gap-2">
-              <input 
-                type="checkbox" 
-                id="vendorAgree" 
+              <input
+                type="checkbox"
+                id="vendorAgree"
                 className="w-4 h-4"
               />
               <label htmlFor="vendorAgree" className="text-sm">
@@ -2376,15 +2376,15 @@ const handleVendorFileChange = (e, fileType) => {
         className="fixed inset-0 hidden z-[200] grid place-items-center bg-black/40 p-4"
         onClick={(e) => e.target === e.currentTarget && closeAllVendorModals()}
       >
-        <div 
+        <div
           className="bg-[#f6f0e8] w-full max-w-2xl rounded-2xl shadow-xl overflow-y-auto max-h-[80vh]"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex justify-between items-center p-6 border-b border-gray-300 bg-[#e8ddae]">
             <h2 className="text-lg font-semibold">Become a Supplier!</h2>
-            <button 
+            <button
               onClick={closeAllVendorModals}
-              className="text-2xl font-light hover:text-gray-600" 
+              className="text-2xl font-light hover:text-gray-600"
               aria-label="Close"
             >
               &times;
@@ -2396,10 +2396,10 @@ const handleVendorFileChange = (e, fileType) => {
               <label className="block text-sm font-semibold uppercase">
                 Business Name <span className="text-red-600">*</span>
               </label>
-              <input 
-                name="business_name" 
-                required 
-                className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2" 
+              <input
+                name="business_name"
+                required
+                className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
               />
             </div>
 
@@ -2446,7 +2446,7 @@ const handleVendorFileChange = (e, fileType) => {
                   const venueParking = document.getElementById("venueParking");
                   const venueHours = document.getElementById("venueOperatingHours");
                   const venueAmenities = document.getElementById("venueAmenities");
-                  
+
                   // Handle "Others" category
                   if (e.target.value === "Others") {
                     otherInput?.classList.remove("hidden");
@@ -2455,7 +2455,7 @@ const handleVendorFileChange = (e, fileType) => {
                     otherInput?.classList.add("hidden");
                     otherInput?.removeAttribute("required");
                   }
-                  
+
                   // Handle "Venue" category - show venue-specific fields
                   if (e.target.value === "Venue") {
                     venueFields?.classList.remove("hidden");
@@ -2482,7 +2482,7 @@ const handleVendorFileChange = (e, fileType) => {
                 <option value="Entertainment">Entertainment</option>
                 <option value="Others">Others</option>
               </select>
-              
+
               <input
                 type="text"
                 id="vendorCategoryOther"
@@ -2496,9 +2496,9 @@ const handleVendorFileChange = (e, fileType) => {
               <label className="block text-sm font-semibold uppercase">
                 Business Address / Service Areas <span className="text-red-600">*</span>
               </label>
-              <textarea 
-                name="address" 
-                required 
+              <textarea
+                name="address"
+                required
                 className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
               />
             </div>
@@ -2590,14 +2590,14 @@ const handleVendorFileChange = (e, fileType) => {
             </div>
 
             <div className="flex justify-between pt-4">
-              <button 
+              <button
                 type="button"
                 onClick={openVendorTerms}
                 className="px-6 py-2 bg-gray-200 hover:bg-gray-300 text-sm font-medium rounded flex items-center gap-2"
               >
                 ← Back
               </button>
-              <button 
+              <button
                 type="submit"
                 className="px-6 py-2 bg-[#7a5d47] hover:bg-[#654a38] text-white text-sm font-semibold rounded flex items-center gap-2"
               >
@@ -2614,15 +2614,15 @@ const handleVendorFileChange = (e, fileType) => {
         className="fixed inset-0 hidden z-[200] grid place-items-center bg-black/40 p-4"
         onClick={(e) => e.target === e.currentTarget && closeAllVendorModals()}
       >
-        <div 
+        <div
           className="bg-[#f6f0e8] w-full max-w-2xl rounded-2xl shadow-xl overflow-y-auto max-h-[80vh]"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex justify-between items-center p-6 border-b border-gray-300 bg-[#e8ddae]">
             <h2 className="text-lg font-semibold">Media & Content</h2>
-            <button 
+            <button
               onClick={closeAllVendorModals}
-              className="text-2xl font-light hover:text-gray-600" 
+              className="text-2xl font-light hover:text-gray-600"
               aria-label="Close"
             >
               &times;
@@ -2634,9 +2634,9 @@ const handleVendorFileChange = (e, fileType) => {
               <label className="block text-sm font-semibold uppercase">
                 Description of Services <span className="text-red-600">*</span>
               </label>
-              <textarea 
-                name="description" 
-                required 
+              <textarea
+                name="description"
+                required
                 rows="4"
                 placeholder="Describe your services in detail..."
                 className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
@@ -2647,22 +2647,22 @@ const handleVendorFileChange = (e, fileType) => {
               <label className="block text-sm font-semibold uppercase">
                 Package List/Sample Pricing <span className="text-red-600">*</span>
               </label>
-              <textarea 
-                name="pricing" 
-                required 
+              <textarea
+                name="pricing"
+                required
                 rows="4"
                 placeholder="e.g., Basic Package: ₱50,000&#10;Premium Package: ₱100,000"
                 className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
               />
             </div>
 
-            
+
             <div className="border-t border-gray-300 pt-4">
               <h3 className="text-sm font-semibold uppercase text-[#7a5d47] mb-3">
                 Required Documents (Max 5MB each)
               </h3>
 
-              
+
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* Permits */}
@@ -2670,12 +2670,12 @@ const handleVendorFileChange = (e, fileType) => {
                   <label className="block text-xs font-semibold uppercase mb-1">
                     Permits <span className="text-red-600">*</span>
                   </label>
-                  <input 
-                    type="file" 
+                  <input
+                    type="file"
                     required
                     accept=".png,.jpg,.jpeg,.pdf"
                     onChange={(e) => handleVendorFileChange(e, 'permits')}
-                    className="w-full rounded-md bg-gray-100 border border-gray-300 p-2 text-sm" 
+                    className="w-full rounded-md bg-gray-100 border border-gray-300 p-2 text-sm"
                   />
                   {selectedFiles.permits && (
                     <p className="text-xs text-green-600 mt-1">
@@ -2685,7 +2685,7 @@ const handleVendorFileChange = (e, fileType) => {
                   {uploadProgress.permits > 0 && (
                     <div className="mt-2">
                       <div className="bg-gray-200 rounded-full h-2">
-                        <div 
+                        <div
                           className="bg-blue-600 h-2 rounded-full transition-all"
                           style={{ width: `${uploadProgress.permits}%` }}
                         />
@@ -2694,18 +2694,18 @@ const handleVendorFileChange = (e, fileType) => {
                     </div>
                   )}
                 </div>
-                
+
                 {/* Gov ID */}
                 <div>
                   <label className="block text-xs font-semibold uppercase mb-1">
                     Gov ID <span className="text-red-600">*</span>
                   </label>
-                  <input 
-                    type="file" 
+                  <input
+                    type="file"
                     required
                     accept=".png,.jpg,.jpeg,.pdf"
                     onChange={(e) => handleVendorFileChange(e, 'gov_id')}
-                    className="w-full rounded-md bg-gray-100 border border-gray-300 p-2 text-sm" 
+                    className="w-full rounded-md bg-gray-100 border border-gray-300 p-2 text-sm"
                   />
                   {selectedFiles.gov_id && (
                     <p className="text-xs text-green-600 mt-1">
@@ -2715,7 +2715,7 @@ const handleVendorFileChange = (e, fileType) => {
                   {uploadProgress.gov_id > 0 && (
                     <div className="mt-2">
                       <div className="bg-gray-200 rounded-full h-2">
-                        <div 
+                        <div
                           className="bg-blue-600 h-2 rounded-full transition-all"
                           style={{ width: `${uploadProgress.gov_id}%` }}
                         />
@@ -2724,18 +2724,18 @@ const handleVendorFileChange = (e, fileType) => {
                     </div>
                   )}
                 </div>
-                
+
                 {/* Portfolio */}
                 <div>
                   <label className="block text-xs font-semibold uppercase mb-1">
                     Portfolio <span className="text-red-600">*</span>
                   </label>
-                  <input 
-                    type="file" 
+                  <input
+                    type="file"
                     required
                     accept=".png,.jpg,.jpeg,.pdf"
                     onChange={(e) => handleVendorFileChange(e, 'portfolio')}
-                    className="w-full rounded-md bg-gray-100 border border-gray-300 p-2 text-sm" 
+                    className="w-full rounded-md bg-gray-100 border border-gray-300 p-2 text-sm"
                   />
                   {selectedFiles.portfolio && (
                     <p className="text-xs text-green-600 mt-1">
@@ -2745,7 +2745,7 @@ const handleVendorFileChange = (e, fileType) => {
                   {uploadProgress.portfolio > 0 && (
                     <div className="mt-2">
                       <div className="bg-gray-200 rounded-full h-2">
-                        <div 
+                        <div
                           className="bg-blue-600 h-2 rounded-full transition-all"
                           style={{ width: `${uploadProgress.portfolio}%` }}
                         />
@@ -2758,9 +2758,9 @@ const handleVendorFileChange = (e, fileType) => {
             </div>
 
             {/* Submit Button with Loading State */}
-            
+
             <div className="flex justify-between pt-4 border-t border-gray-300">
-              <button 
+              <button
                 type="button"
                 onClick={openVendorBackground}
                 disabled={vendorLoading}
@@ -2768,7 +2768,7 @@ const handleVendorFileChange = (e, fileType) => {
               >
                 ← Back
               </button>
-              <button 
+              <button
                 type="submit"
                 disabled={vendorLoading}
                 className="px-6 py-2.5 bg-[#e8ddae] hover:bg-[#dbcf9f] text-sm font-semibold rounded disabled:opacity-50 flex items-center gap-2"
@@ -2798,15 +2798,15 @@ const handleVendorFileChange = (e, fileType) => {
         className="fixed inset-0 hidden z-[200] grid place-items-center bg-black/40 p-4"
         onClick={(e) => e.target === e.currentTarget && closeVenueListing()}
       >
-        <div 
+        <div
           className="bg-[#f6f0e8] w-full max-w-4xl rounded-2xl shadow-xl overflow-y-auto max-h-[90vh]"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex justify-between items-center p-6 border-b border-gray-300 bg-[#e8ddae] sticky top-0 z-10">
             <h2 className="text-lg font-semibold">Create Venue Listing</h2>
-            <button 
+            <button
               onClick={closeVenueListing}
-              className="text-2xl font-light hover:text-gray-600" 
+              className="text-2xl font-light hover:text-gray-600"
               aria-label="Close"
             >
               &times;
@@ -2817,7 +2817,7 @@ const handleVendorFileChange = (e, fileType) => {
             {/* Basic Information */}
             <div>
               <h3 className="text-base font-semibold uppercase mb-4 text-[#7a5d47]">Basic Information</h3>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold uppercase mb-1">
@@ -2968,7 +2968,7 @@ const handleVendorFileChange = (e, fileType) => {
                   + Add Package
                 </button>
               </div>
-              
+
               {venueListing.packages.map((pkg, index) => (
                 <div key={index} className="bg-gray-50 p-4 rounded-lg mb-3">
                   <div className="flex justify-between items-start mb-3">
@@ -2983,7 +2983,7 @@ const handleVendorFileChange = (e, fileType) => {
                       </button>
                     )}
                   </div>
-                  
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <input
                       type="text"
