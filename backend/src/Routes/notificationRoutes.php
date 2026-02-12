@@ -54,95 +54,109 @@ return function (App $app) {
     /* ===========================================================
      * MARK NOTIFICATION AS READ
      * =========================================================== */
-    $app->patch('/api/notifications/{id}/read', function (Request $req, Response $res, array $args) {
-        $auth = $req->getAttribute('user');
-        
-        if (!$auth || !isset($auth->mysql_id)) {
-            $res->getBody()->write(json_encode([
-                'success' => false,
-                'error' => 'Unauthorized'
-            ]));
-            return $res->withStatus(401)->withHeader('Content-Type', 'application/json');
-        }
-
-        $userId = (int)$auth->mysql_id;
-        $notificationId = (int)($args['id'] ?? 0);
-
-        if (!$notificationId) {
-            $res->getBody()->write(json_encode([
-                'success' => false,
-                'error' => 'Invalid notification ID'
-            ]));
-            return $res->withStatus(400)->withHeader('Content-Type', 'application/json');
-        }
-
-        try {
-            $updated = DB::table('notifications')
-                ->where('id', $notificationId)
-                ->where('user_id', $userId)
-                ->update(['read' => true]);
-
-            $res->getBody()->write(json_encode([
-                'success' => true,
-                'message' => 'Notification marked as read'
-            ]));
-
-            return $res->withHeader('Content-Type', 'application/json');
-
-        } catch (\Throwable $e) {
-            error_log('NOTIFICATION_READ_ERROR: ' . $e->getMessage());
-            
-            $res->getBody()->write(json_encode([
-                'success' => false,
-                'error' => 'Failed to update notification'
-            ]));
-
-            return $res->withStatus(500)->withHeader('Content-Type', 'application/json');
-        }
-
-    })->add(new AuthMiddleware());
-
     /* ===========================================================
-     * MARK ALL NOTIFICATIONS AS READ
-     * =========================================================== */
-    $app->post('/api/notifications/read-all', function (Request $req, Response $res) {
-        $auth = $req->getAttribute('user');
+ * MARK NOTIFICATION AS READ
+ * =========================================================== */
+
+// Allow PATCH
+$app->patch('/api/notifications/{id}/read', function (Request $req, Response $res, array $args) {
+    $auth = $req->getAttribute('user');
+    
+    if (!$auth || !isset($auth->mysql_id)) {
+        $res->getBody()->write(json_encode([
+            'success' => false,
+            'error' => 'Unauthorized'
+        ]));
+        return $res->withStatus(401)->withHeader('Content-Type', 'application/json');
+    }
+
+    $userId = (int)$auth->mysql_id;
+    $notificationId = (int)($args['id'] ?? 0);
+
+    if (!$notificationId) {
+        $res->getBody()->write(json_encode([
+            'success' => false,
+            'error' => 'Invalid notification ID'
+        ]));
+        return $res->withStatus(400)->withHeader('Content-Type', 'application/json');
+    }
+
+    try {
+        DB::table('notifications')
+            ->where('id', $notificationId)
+            ->where('user_id', $userId)
+            ->update(['read' => true]);
+
+        $res->getBody()->write(json_encode([
+            'success' => true,
+            'message' => 'Notification marked as read'
+        ]));
+
+        return $res->withHeader('Content-Type', 'application/json');
+
+    } catch (\Throwable $e) {
+        error_log('NOTIFICATION_READ_ERROR: ' . $e->getMessage());
         
-        if (!$auth || !isset($auth->mysql_id)) {
-            $res->getBody()->write(json_encode([
-                'success' => false,
-                'error' => 'Unauthorized'
-            ]));
-            return $res->withStatus(401)->withHeader('Content-Type', 'application/json');
-        }
+        $res->getBody()->write(json_encode([
+            'success' => false,
+            'error' => 'Failed to update notification'
+        ]));
 
-        $userId = (int)$auth->mysql_id;
+        return $res->withStatus(500)->withHeader('Content-Type', 'application/json');
+    }
 
-        try {
-            DB::table('notifications')
-                ->where('user_id', $userId)
-                ->where('read', false)
-                ->update(['read' => true]);
+})->add(new AuthMiddleware());
 
-            $res->getBody()->write(json_encode([
-                'success' => true,
-                'message' => 'All notifications marked as read'
-            ]));
 
-            return $res->withHeader('Content-Type', 'application/json');
+// Allow POST (duplicate route handler)
+$app->post('/api/notifications/{id}/read', function (Request $req, Response $res, array $args) {
+    $auth = $req->getAttribute('user');
+    
+    if (!$auth || !isset($auth->mysql_id)) {
+        $res->getBody()->write(json_encode([
+            'success' => false,
+            'error' => 'Unauthorized'
+        ]));
+        return $res->withStatus(401)->withHeader('Content-Type', 'application/json');
+    }
 
-        } catch (\Throwable $e) {
-            error_log('NOTIFICATIONS_READ_ALL_ERROR: ' . $e->getMessage());
-            
-            $res->getBody()->write(json_encode([
-                'success' => false,
-                'error' => 'Failed to update notifications'
-            ]));
+    $userId = (int)$auth->mysql_id;
+    $notificationId = (int)($args['id'] ?? 0);
 
-            return $res->withStatus(500)->withHeader('Content-Type', 'application/json');
-        }
+    if (!$notificationId) {
+        $res->getBody()->write(json_encode([
+            'success' => false,
+            'error' => 'Invalid notification ID'
+        ]));
+        return $res->withStatus(400)->withHeader('Content-Type', 'application/json');
+    }
 
-    })->add(new AuthMiddleware());
+    try {
+        DB::table('notifications')
+            ->where('id', $notificationId)
+            ->where('user_id', $userId)
+            ->update(['read' => true]);
+
+        $res->getBody()->write(json_encode([
+            'success' => true,
+            'message' => 'Notification marked as read'
+        ]));
+
+        return $res->withHeader('Content-Type', 'application/json');
+
+    } catch (\Throwable $e) {
+        error_log('NOTIFICATION_READ_ERROR: ' . $e->getMessage());
+        
+        $res->getBody()->write(json_encode([
+            'success' => false,
+            'error' => 'Failed to update notification'
+        ]));
+
+        return $res->withStatus(500)->withHeader('Content-Type', 'application/json');
+    }
+
+})->add(new AuthMiddleware());
+
 
     /* ===========================================================
      * DELETE NOTIFICATION

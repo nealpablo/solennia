@@ -4,7 +4,7 @@ import toast from "../utils/toast";
 import "../style.css";
 
 const API_BASE =
-  import.meta.env.VITE_API_BASE || 
+  import.meta.env.VITE_API_BASE ||
   import.meta.env.VITE_API_URL ||
   (import.meta.env.PROD ? "https://solennia.up.railway.app" : "");
 
@@ -23,12 +23,12 @@ export default function AdminPanel() {
   const [users, setUsers] = useState([]);
   const [feedbacks, setFeedbacks] = useState([]);
   const [activeTab, setActiveTab] = useState("vendors");
-  
+
   // ✅ FAQ State
   const [faqs, setFaqs] = useState([]);
   const [faqLoading, setFaqLoading] = useState(false);
   const [generatingFAQs, setGeneratingFAQs] = useState(false);
-  
+
   const [lightbox, setLightbox] = useState({ show: false, url: "", title: "", isPdf: false });
   const [confirm, setConfirm] = useState({
     show: false,
@@ -39,7 +39,8 @@ export default function AdminPanel() {
   });
 
   const previewDocument = (url, title = "Document") => {
-    const isPdf = url.endsWith(".pdf");
+    // Robust detection: Cloudinary raw uploads or explicit .pdf extension
+    const isPdf = url.toLowerCase().includes(".pdf") || url.includes("/raw/upload/");
     setLightbox({ show: true, url, title, isPdf });
   };
 
@@ -135,7 +136,7 @@ export default function AdminPanel() {
         body: JSON.stringify({ category: 'general' })
       });
       const json = await res.json();
-      
+
       if (json.success && json.faqs?.length > 0) {
         // Save each generated FAQ
         for (const faq of json.faqs) {
@@ -174,7 +175,7 @@ export default function AdminPanel() {
   async function deleteFAQ(faqId) {
     const confirmed = await openConfirm('Are you sure you want to delete this FAQ?', 'Delete', 'deny-btn');
     if (!confirmed) return;
-    
+
     try {
       await fetch(`${API_BASE}/api/ai/faqs/${faqId}`, {
         method: 'DELETE',
@@ -211,7 +212,7 @@ export default function AdminPanel() {
       });
 
       const json = await res.json();
-      
+
       if (!res.ok) throw new Error(json.message || json.error);
 
       toast.success(json.message || "Action completed successfully");
@@ -272,12 +273,14 @@ export default function AdminPanel() {
         .admin-panel button.approve-btn:hover { background: #6a503d; border-color: #4a3323; }
         .admin-panel button.deny-btn { background: #e63946; color: #fff; border: 2px solid #d62828; }
         .admin-panel button.deny-btn:hover { background: #d62828; border-color: #c1121f; }
-        .lb-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.75); display: flex; align-items: center; justify-content: center; z-index: 9999; }
-        .lb-content { background: #fff; border-radius: 1rem; overflow: hidden; max-width: 90vw; max-height: 90vh; box-shadow: 0 20px 40px rgba(0,0,0,0.4); }
-        .lb-header { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1rem; background: #e8ddae; }
-        .lb-close { border: none; background: transparent; font-size: 1.5rem; font-weight: bold; cursor: pointer; padding: 0 .5rem; }
-        .lb-pdf { width: 80vw; height: 80vh; border: none; }
-        .lb-img { max-width: 80vw; max-height: 80vh; display: block; }
+        .lb-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center; z-index: 9999; padding: 1rem; }
+        .lb-content { background: #fff; border-radius: 12px; overflow: hidden; width: 650px; height: 800px; max-width: 95vw; max-height: 90vh; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); display: flex; flex-direction: column; position: relative; }
+        .lb-header { display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.25rem; background: #fcf9ee; border-bottom: 2px solid #e8ddae; z-index: 10; }
+        .lb-close { border: none; background: #e8ddae; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 1.25rem; font-weight: bold; cursor: pointer; transition: all 0.2s; }
+        .lb-close:hover { background: #d1c69a; transform: rotate(90deg); }
+        .lb-body { flex: 1; min-height: 0; overflow: hidden !important; display: flex; align-items: center; justify-content: center; background: #000; position: relative; }
+        .lb-pdf { width: 100%; height: 100%; border: none; display: block; overflow: hidden; }
+        .lb-img { width: 100%; height: 100%; max-width: 100%; max-height: 100%; object-fit: contain !important; display: block; pointer-events: none; user-select: none; }
         .confirm-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 9999; }
         .confirm-card { background: #fff; padding: 1.5rem; border-radius: .75rem; width: 100%; max-width: 22rem; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
         .confirm-actions { display: flex; gap: .5rem; justify-content: flex-end; margin-top: .75rem; }
@@ -305,11 +308,13 @@ export default function AdminPanel() {
               <div className="text-sm font-semibold">{lightbox.title}</div>
               <button className="lb-close" onClick={closeLightbox}>&times;</button>
             </div>
-            {lightbox.isPdf ? (
-              <iframe className="lb-pdf" src={lightbox.url} />
-            ) : (
-              <img className="lb-img" src={lightbox.url} alt="Document Preview" />
-            )}
+            <div className="lb-body">
+              {lightbox.isPdf ? (
+                <iframe className="lb-pdf" src={lightbox.url} />
+              ) : (
+                <img className="lb-img" src={lightbox.url} alt="Document Preview" />
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -351,8 +356,8 @@ export default function AdminPanel() {
             Feedback
           </button>
           {/* ✅ NEW FAQ TAB BUTTON */}
-          <button 
-            className={`tab-btn ${activeTab === "faqs" ? "active" : ""}`} 
+          <button
+            className={`tab-btn ${activeTab === "faqs" ? "active" : ""}`}
             onClick={() => { setActiveTab("faqs"); loadFAQs(); }}
             style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
           >
@@ -397,20 +402,20 @@ export default function AdminPanel() {
                           <td>{a.description}</td>
                           <td>{a.pricing}</td>
                           <td>
-                            {a.valid_id && (
-                              <button onClick={() => previewDocument(a.valid_id, "Valid ID")} className="text-blue-600 underline text-sm mr-2">
+                            {a.gov_id && (
+                              <button onClick={() => previewDocument(a.gov_id, "Valid ID")} className="text-blue-600 underline text-sm mr-2">
                                 ID
                               </button>
                             )}
-                            {a.business_permit && (
-                              <button onClick={() => previewDocument(a.business_permit, "Business Permit")} className="text-blue-600 underline text-sm mr-2">
+                            {a.permits && (
+                              <button onClick={() => previewDocument(a.permits, "Business Permit")} className="text-blue-600 underline text-sm mr-2">
                                 Permit
                               </button>
                             )}
-                            {a.portfolio_url && (
-                              <a href={a.portfolio_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline text-sm">
+                            {a.portfolio && (
+                              <button onClick={() => previewDocument(a.portfolio, "Portfolio")} className="text-blue-600 underline text-sm">
                                 Portfolio
-                              </a>
+                              </button>
                             )}
                           </td>
                           <td>
@@ -466,13 +471,13 @@ export default function AdminPanel() {
                           <td>{a.venue_capacity || "-"}</td>
                           <td>{a.pricing}</td>
                           <td>
-                            {a.valid_id && (
-                              <button onClick={() => previewDocument(a.valid_id, "Valid ID")} className="text-blue-600 underline text-sm mr-2">
+                            {a.gov_id && (
+                              <button onClick={() => previewDocument(a.gov_id, "Valid ID")} className="text-blue-600 underline text-sm mr-2">
                                 ID
                               </button>
                             )}
-                            {a.business_permit && (
-                              <button onClick={() => previewDocument(a.business_permit, "Business Permit")} className="text-blue-600 underline text-sm mr-2">
+                            {a.permits && (
+                              <button onClick={() => previewDocument(a.permits, "Business Permit")} className="text-blue-600 underline text-sm mr-2">
                                 Permit
                               </button>
                             )}
@@ -602,13 +607,13 @@ export default function AdminPanel() {
               >
                 {generatingFAQs ? (
                   <>
-                    <span style={{ 
-                      width: '1rem', 
-                      height: '1rem', 
-                      border: '2px solid white', 
-                      borderTopColor: 'transparent', 
-                      borderRadius: '50%', 
-                      animation: 'spin 1s linear infinite' 
+                    <span style={{
+                      width: '1rem',
+                      height: '1rem',
+                      border: '2px solid white',
+                      borderTopColor: 'transparent',
+                      borderRadius: '50%',
+                      animation: 'spin 1s linear infinite'
                     }}></span>
                     Generating...
                   </>
@@ -639,7 +644,7 @@ export default function AdminPanel() {
                 <div style={{ fontSize: '0.75rem', color: '#6d28d9' }}>Total FAQs</div>
               </div>
             </div>
-            
+
             {faqLoading ? (
               <div style={{ textAlign: 'center', padding: '3rem' }}>
                 <div style={{
@@ -665,8 +670,8 @@ export default function AdminPanel() {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 {faqs.map((faq) => (
-                  <div 
-                    key={faq.id} 
+                  <div
+                    key={faq.id}
                     className={`faq-card ${faq.is_published ? 'published' : ''}`}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>

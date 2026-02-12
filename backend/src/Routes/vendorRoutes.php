@@ -70,7 +70,7 @@ return function (App $app) {
      * =========================================================== */
     $sendToAdmins = function ($type, $title, $message) use ($sendNotification) {
         try {
-            $admins = DB::table('credential')->where('role', 1)->pluck('id');
+            $admins = DB::table('credential')->where('role', 2)->pluck('id');
             foreach ($admins as $adminId) {
                 $sendNotification($adminId, $type, $title, $message);
             }

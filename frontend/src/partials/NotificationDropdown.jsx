@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
 
-const API = 
-  import.meta.env.VITE_API_BASE || 
+const API =
+  import.meta.env.VITE_API_BASE ||
   import.meta.env.VITE_API_URL ||
-  (import.meta.env.PROD 
+  (import.meta.env.PROD
     ? "https://solennia.up.railway.app/api" : "/api");
 
 export default function NotificationDropdown() {
@@ -44,15 +44,15 @@ export default function NotificationDropdown() {
       loadNotifications();
     }
   }, [isOpen]);
-  
+
   // Auto-refresh notifications every 10 seconds
   useEffect(() => {
     loadNotifications();
-    
+
     const interval = setInterval(() => {
       loadNotifications();
     }, 10000);
-    
+
     return () => clearInterval(interval);
   }, []);
 
@@ -68,11 +68,11 @@ export default function NotificationDropdown() {
       const res = await fetch(`${API}/notifications`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      
+
       if (res.ok) {
         const json = await res.json();
         setNotifications(json.notifications || []);
-        
+
         const unread = json.notifications.filter(n => !n.read).length;
         setUnreadCount(unread);
       }
@@ -92,8 +92,8 @@ export default function NotificationDropdown() {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` }
       });
-      
-      setNotifications(notifications.map(n => 
+
+      setNotifications(notifications.map(n =>
         n.id === notificationId ? { ...n, read: true } : n
       ));
       setUnreadCount(Math.max(0, unreadCount - 1));
@@ -104,18 +104,19 @@ export default function NotificationDropdown() {
 
   const formatTime = (ts) => {
     if (!ts) return "";
-    
+
     // Handle MySQL datetime format (YYYY-MM-DD HH:MM:SS)
-    // Append Z to treat as UTC
-    const isoTimestamp = ts.replace(' ', 'T') + 'Z';
+    // Parse as local time (no Z suffix) since DB stores Manila time
+    const isoTimestamp = ts.replace(' ', 'T');
     const date = new Date(isoTimestamp);
-    
+
+
     // Check if date is valid
     if (isNaN(date.getTime())) {
       console.error('Invalid date:', ts);
       return "";
     }
-    
+
     const now = new Date();
     const diff = now - date;
     const minutes = Math.floor(diff / 60000);
@@ -131,7 +132,7 @@ export default function NotificationDropdown() {
 
   const toggleDropdown = () => {
     setIsOpen(!isOpen);
-    
+
     if (!isOpen) {
       window.dispatchEvent(new CustomEvent('closeOtherDropdowns', { detail: 'notification' }));
     }
@@ -148,7 +149,7 @@ export default function NotificationDropdown() {
           <path d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5" />
           <path d="M9 17a3 3 0 0 0 6 0" />
         </svg>
-        
+
         {unreadCount > 0 && (
           <span className="absolute -top-1 -right-1 bg-red-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
             {unreadCount > 9 ? "9+" : unreadCount}
@@ -213,7 +214,7 @@ export default function NotificationDropdown() {
                       </svg>
                     )}
                   </div>
-                  
+
                   <div className="notification-dropdown-content">
                     <div className="notification-dropdown-title">
                       {notif.title}
@@ -225,7 +226,7 @@ export default function NotificationDropdown() {
                       {formatTime(notif.created_at)}
                     </div>
                   </div>
-                  
+
                   {!notif.read && (
                     <div className="notification-dropdown-badge"></div>
                   )}
@@ -236,17 +237,17 @@ export default function NotificationDropdown() {
 
           {notifications.length > 0 && (
             <div className="notification-dropdown-footer">
-              <button 
+              <button
                 onClick={async () => {
                   const token = localStorage.getItem("solennia_token");
                   if (!token) return;
-                  
+
                   try {
                     await fetch(`${API}/notifications/mark-all-read`, {
                       method: "POST",
                       headers: { Authorization: `Bearer ${token}` }
                     });
-                    
+
                     setNotifications(notifications.map(n => ({ ...n, read: true })));
                     setUnreadCount(0);
                   } catch (err) {
@@ -260,7 +261,7 @@ export default function NotificationDropdown() {
           )}
         </div>
       )}
-      
+
       <style>{`
         .notification-dropdown {
           position: absolute;

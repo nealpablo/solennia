@@ -17,7 +17,7 @@ return function (App $app) {
                 'title' => $title,
                 'message' => $message,
                 'read' => false,
-                'created_at' => DB::raw('NOW()')
+                'created_at' => date('Y-m-d H:i:s')
             ]);
         } catch (\Exception $e) {
             error_log("Failed to send notification: " . $e->getMessage());
