@@ -57,12 +57,12 @@ export default function FeedbackModal({ booking, isOpen, onClose, onSubmitSucces
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to submit feedback");
+        throw new Error(data.error || "Failed to submit review");
       }
 
       toast.success(
-        showReportForm 
-          ? "Feedback and report submitted successfully" 
+        showReportForm
+          ? "Feedback and report submitted successfully"
           : "Feedback submitted successfully",
         { duration: 5000 }
       );
@@ -81,8 +81,8 @@ export default function FeedbackModal({ booking, isOpen, onClose, onSubmitSucces
       onClose();
 
     } catch (error) {
-      console.error("Submit feedback error:", error);
-      toast.error(error.message || "Failed to submit feedback");
+      console.error("Submit review error:", error);
+      toast.error(error.message || "Failed to submit review");
     } finally {
       setSubmitting(false);
     }
@@ -273,7 +273,7 @@ export default function FeedbackModal({ booking, isOpen, onClose, onSubmitSucces
                 style={styles.submitButton}
                 disabled={submitting}
               >
-                {submitting ? "Submitting..." : "Submit Feedback"}
+                {submitting ? "Submitting..." : "Submit Review"}
               </button>
             </div>
           </form>

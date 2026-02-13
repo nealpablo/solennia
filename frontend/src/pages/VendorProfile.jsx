@@ -29,6 +29,11 @@ export default function VendorProfile() {
   const [loadingAvailability, setLoadingAvailability] = useState(false);
   const [vendorBookings, setVendorBookings] = useState([]); // Bookings for calendar display
 
+  // Review states
+  const [reviews, setReviews] = useState([]);
+  const [loadingReviews, setLoadingReviews] = useState(false);
+  const [reviewStats, setReviewStats] = useState({ average_rating: null, total_reviews: 0 });
+
   /* =========================
      FORMAT DATE TO LOCAL TIMEZONE
   ========================= */
@@ -76,6 +81,7 @@ export default function VendorProfile() {
     if (!vendorId) return;
     loadAvailability();
     loadVendorBookings();
+    loadReviews();
   }, [vendorId, currentMonth]);
 
   const loadAvailability = async () => {
@@ -122,6 +128,31 @@ export default function VendorProfile() {
     } catch (err) {
       console.error("Failed to load vendor bookings:", err);
       setVendorBookings([]); // Set empty on error
+    }
+  };
+
+  /* =========================
+     LOAD REVIEWS
+  ========================= */
+  const loadReviews = async () => {
+    if (!vendorId) return;
+
+    try {
+      setLoadingReviews(true);
+      const res = await fetch(`${API}/vendors/${vendorId}/feedback`);
+      const json = await res.json();
+
+      if (json.success) {
+        setReviews(json.feedback || []);
+        setReviewStats({
+          average_rating: json.average_rating,
+          total_reviews: json.total_reviews || 0
+        });
+      }
+    } catch (err) {
+      console.error("Failed to load reviews:", err);
+    } finally {
+      setLoadingReviews(false);
     }
   };
 
@@ -483,7 +514,7 @@ export default function VendorProfile() {
           {/* Tabs */}
           <div className="border-b border-gray-300 mb-6">
             <div className="flex gap-6">
-              {["overview", "services", "portfolio", "availability"].map((tab) => (
+              {["overview", "services", "portfolio", "availability", "review"].map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
@@ -700,6 +731,130 @@ export default function VendorProfile() {
 
                 {loadingAvailability && <div className="calendar-loading">Loading availability...</div>}
               </div>
+            </div>
+          )}
+
+          {activeTab === "review" && (
+            <div>
+              <h3 className="text-lg font-semibold mb-4">Client Reviews</h3>
+
+              {/* Review Statistics */}
+              {reviewStats.total_reviews > 0 && (
+                <div className="bg-white border border-gray-200 rounded-lg p-5 mb-6">
+                  <div className="flex items-center gap-4">
+                    <div className="text-center">
+                      <div className="text-4xl font-bold text-[#7a5d47]">
+                        {reviewStats.average_rating ? reviewStats.average_rating.toFixed(1) : 'N/A'}
+                      </div>
+                      <div className="flex items-center justify-center gap-1 mt-2">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <svg
+                            key={star}
+                            className="w-5 h-5"
+                            fill={star <= Math.round(reviewStats.average_rating || 0) ? "#fbbf24" : "none"}
+                            stroke={star <= Math.round(reviewStats.average_rating || 0) ? "#fbbf24" : "#d1d5db"}
+                            strokeWidth="2"
+                            viewBox="0 0 24 24"
+                          >
+                            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                          </svg>
+                        ))}
+                      </div>
+                      <div className="text-sm text-gray-600 mt-1">
+                        {reviewStats.total_reviews} {reviewStats.total_reviews === 1 ? 'review' : 'reviews'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Loading State */}
+              {loadingReviews && (
+                <div className="text-center py-8">
+                  <div className="w-12 h-12 border-4 border-[#e8ddae] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                  <p className="text-gray-600">Loading reviews...</p>
+                </div>
+              )}
+
+              {/* Reviews List */}
+              {!loadingReviews && reviews.length > 0 && (
+                <div className="space-y-4">
+                  {reviews.map((review) => (
+                    <div key={review.ID} className="bg-white border border-gray-200 rounded-lg p-5">
+                      {/* Review Header */}
+                      <div className="flex items-start gap-4 mb-3">
+                        <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0">
+                          {review.avatar ? (
+                            <img src={review.avatar} alt={`${review.first_name} ${review.last_name}`} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-xl font-semibold text-gray-600">
+                              {review.first_name?.[0]}{review.last_name?.[0]}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between">
+                            <h4 className="font-semibold text-gray-800">
+                              {review.first_name} {review.last_name}
+                            </h4>
+                            <div className="flex items-center gap-1">
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <svg
+                                  key={star}
+                                  className="w-4 h-4"
+                                  fill={star <= review.Rating ? "#fbbf24" : "none"}
+                                  stroke={star <= review.Rating ? "#fbbf24" : "#d1d5db"}
+                                  strokeWidth="2"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                                </svg>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="text-sm text-gray-600 mt-1">
+                            {review.ServiceName && <span>{review.ServiceName}</span>}
+                            {review.EventDate && (
+                              <span className="ml-2">
+                                • {new Date(review.EventDate).toLocaleDateString('en-US', {
+                                  year: 'numeric',
+                                  month: 'short',
+                                  day: 'numeric'
+                                })}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Review Comment */}
+                      {review.Comment && (
+                        <p className="text-gray-700 leading-relaxed mb-3">{review.Comment}</p>
+                      )}
+
+                      {/* Review Timestamp */}
+                      <div className="text-xs text-gray-500">
+                        {new Date(review.CreatedAt).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Empty State */}
+              {!loadingReviews && reviews.length === 0 && (
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-8 text-center">
+                  <svg className="w-16 h-16 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                  </svg>
+                  <h4 className="text-lg font-semibold text-gray-700 mb-2">No Reviews Yet</h4>
+                  <p className="text-gray-600">This supplier hasn't received any reviews yet.</p>
+                </div>
+              )}
             </div>
           )}
         </div>

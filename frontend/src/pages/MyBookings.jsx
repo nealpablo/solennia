@@ -538,7 +538,7 @@ export default function MyBookings() {
                       disabled={processing}
                       style={styles.feedbackButton}
                     >
-                      ⭐ Leave Feedback
+                      ⭐ Leave Review
                     </button>
                   )}
 

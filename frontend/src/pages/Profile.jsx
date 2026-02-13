@@ -661,7 +661,7 @@ export default function Profile() {
 
   /* =================  COMPLETE BOOKING (VENDOR) ================= */
   const completeBooking = async (bookingId) => {
-    if (!confirm('Mark this booking as completed? The client will be able to leave feedback.')) return;
+    if (!confirm('Mark this booking as completed? The client will be able to leave review.')) return;
 
     setProcessingBooking(true);
     try {
@@ -676,7 +676,7 @@ export default function Profile() {
       const data = await res.json();
 
       if (data.success) {
-        toast.success('Booking marked as completed! Client can now leave feedback.', { duration: 5000 });
+        toast.success('Booking marked as completed! Client can now leave review.', { duration: 5000 });
         loadBookings();
         setSelectedBooking(null);
       } else {
@@ -1433,7 +1433,7 @@ export default function Profile() {
                                   onClick={() => openFeedbackModal(booking)}
                                   className="px-3 py-1.5 bg-[#e8ddae] text-[#3b2f25] rounded-md hover:bg-[#dbcf9f] text-xs font-semibold transition-colors"
                                 >
-                                  ⭐ Leave Feedback
+                                  ⭐ Leave Review
                                 </button>
                               )}
 
@@ -1815,7 +1815,7 @@ export default function Profile() {
                     }}
                     className="flex-1 bg-yellow-500 text-white px-6 py-3 rounded-lg hover:bg-yellow-600 font-semibold"
                   >
-                    ⭐ Leave Feedback
+                    ⭐ Leave Review
                   </button>
                 </div>
               )}
