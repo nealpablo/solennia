@@ -100,13 +100,13 @@ export default function Venue() {
   const filteredVenues = filter === "all"
     ? venues
     : venues.filter(v => {
-        const sub = (v.venue_subcategory || "").trim().toLowerCase();
-        const f = filter.toLowerCase();
-        if (!sub) return false;
-        if (sub === f) return true;
-        if (f === "conference" && (sub === "conference" || sub === "conference center")) return true;
-        return false;
-      });
+      const sub = (v.venue_subcategory || "").trim().toLowerCase();
+      const f = filter.toLowerCase();
+      if (!sub) return false;
+      if (sub === f) return true;
+      if (f === "conference" && (sub === "conference" || sub === "conference center")) return true;
+      return false;
+    });
 
   const totalPages = Math.max(1, Math.ceil(filteredVenues.length / PER_PAGE));
   const startIdx = (currentPage - 1) * PER_PAGE;
@@ -397,12 +397,12 @@ function VenueCard({ venue, navigate }) {
       )}
 
       {/* Card Content */}
-      <div className="p-4">
-        <h3 className="font-semibold text-gray-800 mb-1 line-clamp-2 group-hover:text-[#7a5d47] transition-colors">
+      <div className="p-4 flex flex-col" style={{ minHeight: '180px' }}>
+        <h3 className="font-semibold text-gray-800 mb-1 line-clamp-1 group-hover:text-[#7a5d47] transition-colors">
           {venue.venue_name || venue.business_name}
         </h3>
-        <p className="text-sm text-gray-600 flex items-center gap-1 mb-2">
-          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <p className="text-sm text-gray-600 flex items-center gap-1 mb-2 line-clamp-1">
+          <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
             <circle cx="12" cy="10" r="3" />
           </svg>
@@ -417,7 +417,7 @@ function VenueCard({ venue, navigate }) {
           </div>
         )}
 
-        <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
+        <div className="mt-auto flex items-center justify-between text-xs text-gray-500">
           {venue.venue_capacity && (
             <span className="flex items-center gap-1">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

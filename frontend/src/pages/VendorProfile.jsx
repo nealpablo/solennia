@@ -27,6 +27,7 @@ export default function VendorProfile() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [availability, setAvailability] = useState([]);
   const [loadingAvailability, setLoadingAvailability] = useState(false);
+  const [vendorBookings, setVendorBookings] = useState([]); // Bookings for calendar display
 
   /* =========================
      FORMAT DATE TO LOCAL TIMEZONE
@@ -69,11 +70,12 @@ export default function VendorProfile() {
   }, [vendorId, navigate]);
 
   /* =========================
-     LOAD AVAILABILITY
+     LOAD AVAILABILITY & BOOKINGS
   ========================= */
   useEffect(() => {
     if (!vendorId) return;
     loadAvailability();
+    loadVendorBookings();
   }, [vendorId, currentMonth]);
 
   const loadAvailability = async () => {
@@ -95,6 +97,34 @@ export default function VendorProfile() {
     }
   };
 
+  const loadVendorBookings = async () => {
+    try {
+      const year = currentMonth.getFullYear();
+      const month = currentMonth.getMonth();
+
+      // Fetch vendor bookings publicly - this includes all venue bookings for this vendor
+      const res = await fetch(`${API}/vendor/${vendorId}/bookings`);
+      const json = await res.json();
+
+      if (json.success && json.bookings) {
+        // Filter bookings for current month
+        const monthBookings = json.bookings.filter(booking => {
+          const bookingDate = new Date(booking.event_date);
+          return bookingDate.getFullYear() === year &&
+            bookingDate.getMonth() === month &&
+            (booking.status === 'confirmed' || booking.status === 'pending');
+        });
+
+        setVendorBookings(monthBookings);
+      } else {
+        setVendorBookings([]);
+      }
+    } catch (err) {
+      console.error("Failed to load vendor bookings:", err);
+      setVendorBookings([]); // Set empty on error
+    }
+  };
+
   /* =========================
      CALENDAR HELPERS
   ========================= */
@@ -111,17 +141,45 @@ export default function VendorProfile() {
 
   const getAvailabilityForDate = (date) => {
     const dateStr = formatDateToLocal(date);
-    return availability.filter(a => a.date === dateStr);
+    const manualAvail = availability.filter(a => a.date === dateStr);
+    const bookingsOnDate = vendorBookings.filter(b => {
+      const d = b.event_date || b.EventDate;
+      return d && d.startsWith(dateStr);
+    });
+
+    if (bookingsOnDate.length > 0) {
+      return [
+        ...manualAvail,
+        ...bookingsOnDate.map(b => ({
+          id: `booking-${b.ID || b.id}`,
+          date: dateStr,
+          is_available: false,
+          notes: `Booked: ${b.ServiceName || 'Event'}`,
+          source: 'booking'
+        }))
+      ];
+    }
+    return manualAvail;
   };
 
   const isDateBooked = (date) => {
     const dateStr = formatDateToLocal(date);
+    // Check if date is marked as unavailable in the availability data
+    // This includes both manual unavailability and bookings (source: 'booking')
     return availability.some(a => a.date === dateStr && !a.is_available);
   };
 
+  // All dates are available by default unless marked as unavailable
   const isDateAvailable = (date) => {
     const dateStr = formatDateToLocal(date);
+    // Check if date has availability marked as available
     return availability.some(a => a.date === dateStr && a.is_available);
+  };
+
+  const hasBookingOnDate = (date) => {
+    const dateStr = formatDateToLocal(date);
+    // Check if the date has a booking (source: 'booking' from backend)
+    return availability.some(a => a.date === dateStr && !a.is_available && a.source === 'booking');
   };
 
   /* =========================
@@ -131,11 +189,16 @@ export default function VendorProfile() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    return availability
-      .filter(a => {
-        const availDate = new Date(a.date);
-        return availDate >= today;
-      })
+    const manualUpcoming = availability.filter(a => new Date(a.date) >= today);
+    const bookingsUpcoming = vendorBookings.map(b => ({
+      id: `booking-${b.ID || b.id}`,
+      date: (b.event_date || b.EventDate || '').split('T')[0],
+      is_available: false,
+      notes: `Booked: ${b.ServiceName || 'Event'}`,
+      source: 'booking'
+    })).filter(a => new Date(a.date) >= today);
+
+    return [...manualUpcoming, ...bookingsUpcoming]
       .sort((a, b) => new Date(a.date) - new Date(b.date))
       .slice(0, 5); // Show next 5 entries
   };
@@ -354,6 +417,20 @@ export default function VendorProfile() {
         </div>
       )}
 
+      {/* Profile Avatar - Facebook Style */}
+      <div className="relative -mt-24 mb-6 px-4">
+        <div className="w-40 h-40 rounded-full border-4 border-white bg-white shadow-lg overflow-hidden">
+          <img
+            src={displayLogo}
+            alt={`${displayName} profile`}
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              e.target.src = "/images/default-avatar.png";
+            }}
+          />
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Main Content */}
         <div className="lg:col-span-2">
@@ -515,56 +592,46 @@ export default function VendorProfile() {
                 </div>
               )}
 
-              {/* Calendar */}
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 max-w-md">
-                {/* Calendar Header */}
-                <div className="flex justify-between items-center mb-3">
+              {/* Calendar - Match Venue Design */}
+              <div className="calendar-container">
+                <div className="calendar-header">
                   <button
                     onClick={previousMonth}
-                    className="w-8 h-8 flex items-center justify-center bg-[#7a5d47] text-white rounded-md hover:bg-[#654a38] transition-colors"
+                    className="calendar-nav-btn"
                   >
                     ←
                   </button>
-                  <h4 className="font-semibold text-gray-800">
+                  <h4 className="calendar-title">
                     {monthNames[month]} {year}
                   </h4>
                   <button
                     onClick={nextMonth}
-                    className="w-8 h-8 flex items-center justify-center bg-[#7a5d47] text-white rounded-md hover:bg-[#654a38] transition-colors"
+                    className="calendar-nav-btn"
                   >
                     →
                   </button>
                 </div>
 
-                {/* Calendar Legend */}
-                <div className="flex gap-4 justify-center mb-3 text-xs">
-                  <div className="flex items-center gap-1">
-                    <span className="w-3 h-3 rounded-full bg-green-500"></span>
-                    <span className="text-gray-600">Available</span>
+                <div className="calendar-legend">
+                  <div className="legend-item">
+                    <span className="legend-dot legend-booked"></span>
+                    <span>Unavailable/Booked</span>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <span className="w-3 h-3 rounded-full bg-red-500"></span>
-                    <span className="text-gray-600">Booked</span>
+                  <div className="legend-item">
+                    <span className="legend-dot legend-available"></span>
+                    <span>Available</span>
                   </div>
                 </div>
 
-                {/* Calendar Weekdays */}
-                <div className="grid grid-cols-7 gap-1 mb-2">
-                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                    <div key={day} className="text-center text-xs font-medium text-gray-600 py-1">
-                      {day}
-                    </div>
-                  ))}
+                <div className="calendar-weekdays">
+                  <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
                 </div>
 
-                {/* Calendar Grid */}
-                <div className="grid grid-cols-7 gap-1">
-                  {/* Empty cells */}
+                <div className="calendar-grid">
                   {Array.from({ length: startingDayOfWeek }).map((_, i) => (
-                    <div key={`empty-${i}`} className="aspect-square"></div>
+                    <div key={`empty-${i}`} className="calendar-day calendar-day-empty"></div>
                   ))}
 
-                  {/* Days */}
                   {Array.from({ length: daysInMonth }).map((_, i) => {
                     const day = i + 1;
                     const date = new Date(year, month, day);
@@ -573,35 +640,41 @@ export default function VendorProfile() {
                     const availabilityData = getAvailabilityForDate(date);
                     const isAvailable = isDateAvailable(date);
                     const isBooked = isDateBooked(date);
+                    const hasBooking = hasBookingOnDate(date);
+
+                    let dayClass = "calendar-day";
+                    if (isToday) dayClass += " calendar-day-today";
+                    if (isPast) dayClass += " calendar-day-past";
+                    // Use global styles: Booked/Unavailable = global booked style, Available = global available style
+                    if (hasBooking || isBooked) dayClass += " calendar-day-booked";
+                    else if (isAvailable) dayClass += " calendar-day-available";
 
                     return (
                       <div
                         key={day}
-                        className={`aspect-square border rounded flex flex-col items-center justify-center text-xs relative ${isToday ? 'border-[#7a5d47] border-2 font-bold' : 'border-gray-300'
-                          } ${isPast ? 'text-gray-400 bg-gray-100' : 'bg-white'} ${isAvailable ? 'bg-green-50' : ''
-                          } ${isBooked ? 'bg-red-50' : ''}`}
+                        className={dayClass}
                         title={
-                          availabilityData.length > 0
-                            ? `${availabilityData[0].is_available ? 'Available' : 'Booked'} ${availabilityData[0].start_time} - ${availabilityData[0].end_time}${availabilityData[0].notes ? '\n' + availabilityData[0].notes : ''}`
-                            : ''
+                          hasBooking
+                            ? 'Booked'
+                            : availabilityData.length > 0
+                              ? `${availabilityData[0].is_available ? 'Available' : 'Unavailable'} ${availabilityData[0].start_time?.substring(0, 5)} - ${availabilityData[0].end_time?.substring(0, 5)}${availabilityData[0].notes ? '\n' + availabilityData[0].notes : ''}`
+                              : 'No availability set'
                         }
                       >
-                        <span>{day}</span>
-                        {availabilityData.length > 0 && (
-                          <span className="text-[0.6rem] absolute bottom-0">
+                        <span className="calendar-day-number">{day}</span>
+                        {hasBooking ? (
+                          <div className="calendar-day-indicator">✓</div>
+                        ) : availabilityData.length > 0 && (
+                          <div className="calendar-day-indicator">
                             {availabilityData[0].is_available ? '✓' : '✕'}
-                          </span>
+                          </div>
                         )}
                       </div>
                     );
                   })}
                 </div>
 
-                {loadingAvailability && (
-                  <div className="text-center text-sm text-gray-600 mt-3">
-                    Loading availability...
-                  </div>
-                )}
+                {loadingAvailability && <div className="calendar-loading">Loading availability...</div>}
               </div>
             </div>
           )}
@@ -658,23 +731,25 @@ export default function VendorProfile() {
       </div>
 
       {/* Lightbox */}
-      {lightboxImg && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center p-4"
-          onClick={closeLightbox}
-        >
-          <div className="relative max-w-5xl max-h-full" onClick={(e) => e.stopPropagation()}>
-            <img src={lightboxImg} alt="Gallery preview" className="max-w-full max-h-[90vh] object-contain" />
-          </div>
-          <button
+      {
+        lightboxImg && (
+          <div
+            className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center p-4"
             onClick={closeLightbox}
-            className="absolute top-4 right-4 w-12 h-12 flex items-center justify-center bg-white bg-opacity-20 hover:bg-opacity-30 rounded-full text-white text-3xl transition-colors"
           >
-            ×
-          </button>
-        </div>
-      )}
-    </div>
+            <div className="relative max-w-5xl max-h-full" onClick={(e) => e.stopPropagation()}>
+              <img src={lightboxImg} alt="Gallery preview" className="max-w-full max-h-[90vh] object-contain" />
+            </div>
+            <button
+              onClick={closeLightbox}
+              className="absolute top-4 right-4 w-12 h-12 flex items-center justify-center bg-white bg-opacity-20 hover:bg-opacity-30 rounded-full text-white text-3xl transition-colors"
+            >
+              ×
+            </button>
+          </div>
+        )
+      }
+    </div >
   );
 }
 
@@ -1041,13 +1116,6 @@ const styles = `
     color: #9ca3af; /* text-gray-400 */
   }
 
-  .calendar-day-available {
-    background: #dcfce7; /* bg-green-50 */
-  }
-
-  .calendar-day-booked {
-    background: #fee2e2; /* bg-red-50 */
-  }
 
   .calendar-loading {
     text-align: center;

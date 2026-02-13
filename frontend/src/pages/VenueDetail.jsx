@@ -146,9 +146,11 @@ export default function VenueDetail() {
     return availability.some((a) => a.date === dateStr && !a.is_available);
   };
 
+  // All dates are available by default unless marked as unavailable
   const isDateAvailable = (date) => {
     const dateStr = formatDateToLocal(date);
-    return availability.some((a) => a.date === dateStr && a.is_available);
+    // Return TRUE unless there's an availability record marking it as unavailable
+    return !availability.some((a) => a.date === dateStr && !a.is_available);
   };
 
   const getUpcomingAvailability = () => {
@@ -309,6 +311,20 @@ export default function VenueDetail() {
         </div>
       )}
 
+      {/* Profile Avatar - Facebook Style */}
+      <div className="relative -mt-24 mb-6 px-4">
+        <div className="w-40 h-40 rounded-full border-4 border-white bg-white shadow-lg overflow-hidden">
+          <img
+            src={venue.images[0] || "https://via.placeholder.com/160?text=Venue"}
+            alt={`${venue.name} profile`}
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              e.target.src = "https://via.placeholder.com/160?text=Venue";
+            }}
+          />
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Main Content */}
         <div className="lg:col-span-2">
@@ -377,8 +393,8 @@ export default function VenueDetail() {
                   key={tab}
                   onClick={() => setActiveTab(tab)}
                   className={`pb-3 text-sm font-medium uppercase transition-colors ${activeTab === tab
-                      ? "border-b-2 border-[#7a5d47] text-[#7a5d47]"
-                      : "text-gray-600 hover:text-gray-800"
+                    ? "border-b-2 border-[#7a5d47] text-[#7a5d47]"
+                    : "text-gray-600 hover:text-gray-800"
                     }`}
                 >
                   {tab}
@@ -500,12 +516,12 @@ export default function VenueDetail() {
                       </div>
                       <div className="calendar-legend">
                         <div className="legend-item">
-                          <span className="legend-dot legend-available"></span>
-                          <span>Available</span>
+                          <span className="legend-dot legend-booked"></span>
+                          <span>Unavailable</span>
                         </div>
                         <div className="legend-item">
-                          <span className="legend-dot legend-booked"></span>
-                          <span>Booked/Unavailable</span>
+                          <span className="legend-dot legend-available"></span>
+                          <span>Booked</span>
                         </div>
                       </div>
                       <div className="calendar-weekdays">
@@ -526,7 +542,7 @@ export default function VenueDetail() {
                           let dayClass = "calendar-day";
                           if (isToday) dayClass += " calendar-day-today";
                           if (isPast) dayClass += " calendar-day-past";
-                          if (isAvailable) dayClass += " calendar-day-available";
+                          // Only highlight unavailable/booked dates (red)
                           if (isBooked) dayClass += " calendar-day-booked";
                           return (
                             <div
@@ -534,8 +550,8 @@ export default function VenueDetail() {
                               className={dayClass}
                               title={
                                 availabilityData.length > 0
-                                  ? `${availabilityData[0].is_available ? 'Available' : 'Booked'} ${availabilityData[0].start_time} - ${availabilityData[0].end_time}`
-                                  : ''
+                                  ? `${availabilityData[0].is_available ? 'Available' : 'Unavailable'} ${availabilityData[0].start_time} - ${availabilityData[0].end_time}`
+                                  : 'Available'
                               }
                             >
                               <span className="calendar-day-number">{day}</span>

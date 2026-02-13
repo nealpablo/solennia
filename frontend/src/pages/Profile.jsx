@@ -83,6 +83,11 @@ export default function Profile() {
   });
   const [editingAvailability, setEditingAvailability] = useState(null);
   const [savingAvailability, setSavingAvailability] = useState(false);
+  // 🔧 FIX: Add refresh trigger to force calendar updates
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  // 🔧 FIX: Add venue tracking for dual vendor/venue support
+  const [ownedVenues, setOwnedVenues] = useState([]);
+  const [selectedVenue, setSelectedVenue] = useState(null); // null = show vendor calendar
 
   /* ================= CALENDAR: FORMAT DATE TO LOCAL TIMEZONE ================= */
   const formatDateToLocal = (date) => {
@@ -207,11 +212,71 @@ export default function Profile() {
       });
   }, [token, role]);
 
+  /* ================= 🔧 FIX: LOAD OWNED VENUES ================= */
+  useEffect(() => {
+    if (!token || !profile?.id) return;
+
+    // Fetch venues owned by this user
+    // Try the my-listings endpoint first, with fallback to direct query
+    fetch(`${API}/venue/my-listings`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => {
+        // Check if response is JSON
+        const contentType = r.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          console.log('Venue my-listings endpoint returned non-JSON, trying fallback...');
+          // Fallback: fetch all venues and filter by user_id on frontend
+          return fetch(`${API}/venues`, { headers: { Authorization: `Bearer ${token}` } })
+            .then(fallbackR => fallbackR.json())
+            .then(fallbackJ => {
+              if (fallbackJ && fallbackJ.success && fallbackJ.venues) {
+                // Filter venues where user_id matches profile.id
+                const userVenues = fallbackJ.venues.filter(v => v.user_id === profile.id);
+                return { success: true, venues: userVenues };
+              }
+              return { success: false, venues: [] };
+            });
+        }
+        return r.json();
+      })
+      .then((j) => {
+        if (j && j.success && j.venues) {
+          setOwnedVenues(j.venues || []);
+          if (j.venues.length > 0) {
+            console.log(`Loaded ${j.venues.length} owned venue(s)`);
+          }
+        } else {
+          setOwnedVenues([]);
+        }
+      })
+      .catch((err) => {
+        console.log('Could not load owned venues:', err.message);
+        setOwnedVenues([]); // Set empty array to prevent infinite retries
+      });
+  }, [token, profile?.id]);
+
   /* ================= CALENDAR: LOAD AVAILABILITY ================= */
   useEffect(() => {
     if (!showCalendarModal || !profile?.id) return;
+
+    // 🔧 FIX: Auto-select first venue if user owns venues (regardless of vendor status)
+    if (ownedVenues.length > 0 && !selectedVenue) {
+      setSelectedVenue(ownedVenues[0]);
+      return; // Let the next useEffect iteration handle the load
+    }
+
+    // 🔧 FIX: Load availability immediately
     loadAvailability();
-  }, [showCalendarModal, profile?.id, currentMonth]);
+
+    // 🔧 FIX: Set up polling to detect external updates (other users, other tabs)
+    const pollInterval = setInterval(() => {
+      loadAvailability();
+    }, 10000); // Poll every 10 seconds when modal is open
+
+    // Cleanup interval when modal closes or component unmounts
+    return () => clearInterval(pollInterval);
+  }, [showCalendarModal, profile?.id, currentMonth, refreshTrigger, selectedVenue, ownedVenues, role]);
 
   const loadAvailability = async () => {
     if (!profile?.id) return;
@@ -221,7 +286,17 @@ export default function Profile() {
       const year = currentMonth.getFullYear();
       const month = currentMonth.getMonth() + 1;
 
-      const res = await fetch(`${API}/vendor/availability/${profile.id}?year=${year}&month=${month}`);
+      // 🔧 FIX: Determine which endpoint to use based on selected entity
+      let endpoint;
+      if (selectedVenue) {
+        // Loading venue availability
+        endpoint = `${API}/venue/availability/${selectedVenue.id}?year=${year}&month=${month}`;
+      } else {
+        // Loading vendor availability (default)
+        endpoint = `${API}/vendor/availability/${profile.id}?year=${year}&month=${month}`;
+      }
+
+      const res = await fetch(endpoint);
       const json = await res.json();
 
       if (json.success) {
@@ -259,6 +334,13 @@ export default function Profile() {
   const isDateAvailable = (date) => {
     const dateStr = formatDateToLocal(date);
     return availability.some(a => a.date === dateStr && a.is_available);
+  };
+
+  const hasBookingOnDate = (date) => {
+    const dateStr = formatDateToLocal(date);
+    // Check if the date has a booking (source: 'booking' from backend)
+    // Note: Profile.jsx uses availability for both vendor and venue (based on endpoint loaded)
+    return availability.some(a => a.date && a.date.startsWith(dateStr) && !a.is_available && a.source === 'booking');
   };
 
   const getUpcomingAvailability = () => {
@@ -349,12 +431,23 @@ export default function Profile() {
         ...availabilityForm
       };
 
-      let url = `${API}/vendor/availability`;
-      let method = "POST";
-
-      if (editingAvailability) {
-        url = `${API}/vendor/availability/${editingAvailability.id}`;
-        method = "PATCH";
+      // 🔧 FIX: Use appropriate endpoint based on entity type
+      let url, method;
+      if (selectedVenue) {
+        // Venue availability endpoint
+        url = editingAvailability
+          ? `${API}/venue/availability/${editingAvailability.id}`
+          : `${API}/venue/availability`;
+        method = editingAvailability ? "PATCH" : "POST";
+        if (!editingAvailability) {
+          payload.venue_id = selectedVenue.id;
+        }
+      } else {
+        // Vendor availability endpoint (default)
+        url = editingAvailability
+          ? `${API}/vendor/availability/${editingAvailability.id}`
+          : `${API}/vendor/availability`;
+        method = editingAvailability ? "PATCH" : "POST";
       }
 
       const res = await fetch(url, {
@@ -371,7 +464,8 @@ export default function Profile() {
       if (json.success) {
         toast.success(editingAvailability ? "Availability updated!" : "Availability added!");
         closeAvailabilityModal();
-        loadAvailability();
+        // 🔧 FIX: Trigger immediate refresh after saving
+        setRefreshTrigger(prev => prev + 1);
       } else {
         toast.error(json.error || "Failed to save availability");
       }
@@ -393,7 +487,12 @@ export default function Profile() {
     }
 
     try {
-      const res = await fetch(`${API}/vendor/availability/${availabilityId}`, {
+      // 🔧 FIX: Use appropriate endpoint based on entity type
+      const endpoint = selectedVenue
+        ? `${API}/venue/availability/${availabilityId}`
+        : `${API}/vendor/availability/${availabilityId}`;
+
+      const res = await fetch(endpoint, {
         method: "DELETE",
         headers: {
           "Authorization": `Bearer ${token}`
@@ -405,7 +504,8 @@ export default function Profile() {
       if (json.success) {
         toast.success("Availability deleted!");
         closeAvailabilityModal();
-        loadAvailability();
+        // 🔧 FIX: Trigger immediate refresh after deleting
+        setRefreshTrigger(prev => prev + 1);
       } else {
         toast.error(json.error || "Failed to delete availability");
       }
@@ -1054,7 +1154,8 @@ export default function Profile() {
                     </button>
                   )}
 
-                  {role === 1 && (
+                  {/* 🔧 FIX: Show calendar button for vendors OR venue owners */}
+                  {(role === 1 || ownedVenues.length > 0) && (
                     <button
                       onClick={() => setShowCalendarModal(true)}
                       className="w-full bg-[#e8ddae] text-[#3b2f25] px-3 py-2 rounded-md text-xs font-semibold hover:bg-[#dbcf9f] flex items-center justify-center gap-1.5 transition-colors border border-[#c9bda4]"
@@ -2133,17 +2234,46 @@ export default function Profile() {
       {showCalendarModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[10002] p-4">
           <div className="bg-white rounded-2xl w-full max-w-5xl max-h-[95vh] overflow-hidden shadow-2xl">
-            <div className="bg-[#7a5d47] text-white p-6 flex justify-between items-center">
-              <div>
-                <h2 className="text-2xl font-bold">Manage Your Calendar</h2>
-                <p className="text-sm text-white/80 mt-1">Set your availability and manage bookings</p>
+            <div className="bg-[#7a5d47] text-white p-6">
+              <div className="flex justify-between items-start mb-3">
+                <div>
+                  <h2 className="text-2xl font-bold">Manage Your Calendar</h2>
+                  <p className="text-sm text-white/80 mt-1">Set your availability and manage bookings</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowCalendarModal(false);
+                    // Reset venue selection when modal closes for clean state
+                    setSelectedVenue(null);
+                  }}
+                  className="text-white hover:text-gray-200 text-3xl font-light"
+                >
+                  ×
+                </button>
               </div>
-              <button
-                onClick={() => setShowCalendarModal(false)}
-                className="text-white hover:text-gray-200 text-3xl font-light"
-              >
-                ×
-              </button>
+
+              {/* 🔧 FIX: Venue Selector - Show venues when available */}
+              {ownedVenues.length > 0 ? (
+                <div className="flex gap-2 flex-wrap">
+                  {/* Only show venue buttons - no vendor calendar option */}
+                  {ownedVenues.map(venue => (
+                    <button
+                      key={venue.id}
+                      onClick={() => setSelectedVenue(venue)}
+                      className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${selectedVenue?.id === venue.id
+                        ? 'bg-white text-[#7a5d47]'
+                        : 'bg-[#654a38] text-white hover:bg-[#5a4133]'
+                        }`}
+                    >
+                      🏛️ {venue.venue_name || `Venue ${venue.id}`}
+                    </button>
+                  ))}
+                </div>
+              ) : role === 1 ? (
+                <div className="text-sm text-white/80">
+                  Managing your vendor availability calendar
+                </div>
+              ) : null}
             </div>
 
             <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(95vh - 100px)' }}>
@@ -2212,19 +2342,17 @@ export default function Profile() {
                   </button>
                 </div>
 
-                {/* Legend */}
-                <div className="flex gap-4 mb-4 text-sm">
+
+
+                {/* Calendar Legend */}
+                <div className="flex gap-6 mb-4 text-xs justify-center flex-wrap">
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-green-500 rounded"></div>
+                    <div className="w-3 h-3 rounded-full bg-[#e5e0d5] border border-[#c9bda4]"></div>
+                    <span>Unavailable/Booked</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-[#e8ddae] border border-[#7a5d47]"></div>
                     <span>Available</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-red-500 rounded"></div>
-                    <span>Booked</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 border-2 border-blue-500 rounded"></div>
-                    <span>Click to manage</span>
                   </div>
                 </div>
 
@@ -2255,6 +2383,7 @@ export default function Profile() {
                       const availabilityData = getAvailabilityForDate(date);
                       const isAvailable = isDateAvailable(date);
                       const isBooked = isDateBooked(date);
+                      const isBooking = hasBookingOnDate(date);
 
                       days.push(
                         <div
@@ -2268,20 +2397,20 @@ export default function Profile() {
                               }
                             }
                           }}
-                          className={`aspect-square p-2 rounded-lg border-2 flex flex-col items-center justify-center cursor-pointer transition-all ${isPast
-                            ? 'bg-gray-100 opacity-50 cursor-not-allowed'
-                            : isAvailable
-                              ? 'bg-green-50 border-green-500 hover:bg-green-100'
-                              : isBooked
-                                ? 'bg-red-50 border-red-500 hover:bg-red-100'
-                                : 'bg-white border-gray-300 hover:border-blue-500 hover:bg-blue-50'
+                          className={`aspect-square p-2 rounded-lg border flex flex-col items-center justify-center cursor-pointer transition-all ${isPast
+                            ? 'bg-[#f0ebe0] opacity-50 cursor-not-allowed border-transparent'
+                            : isBooking || isBooked
+                              ? 'bg-[#e5e0d5] border-[#c9bda4] text-[#7a5d47]'
+                              : isAvailable
+                                ? 'bg-[#e8ddae] border-[#7a5d47] text-[#5d4436] font-semibold'
+                                : 'bg-white border-[#e8ddae] hover:border-[#7a5d47] hover:bg-[#fcfbf9]'
                             } ${isToday ? 'ring-2 ring-[#7a5d47]' : ''}`}
-                          title={availabilityData.length > 0 ? `${availabilityData[0].is_available ? 'Available' : 'Booked'}` : 'Click to set availability'}
+                          title={isBooking ? 'Booked' : availabilityData.length > 0 ? `${availabilityData[0].is_available ? 'Available' : 'Unavailable'}` : 'Click to set availability'}
                         >
                           <span className="font-semibold">{day}</span>
                           {availabilityData.length > 0 && (
-                            <span className="text-xs mt-1">
-                              {availabilityData[0].is_available ? '✓' : '✕'}
+                            <span className="text-xs mt-1 font-bold">
+                              {isBooking ? '✓' : availabilityData[0].is_available ? '✓' : '✕'}
                             </span>
                           )}
                         </div>

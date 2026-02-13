@@ -238,6 +238,19 @@ function VendorCard({ vendor, navigate }) {
   // Use vendor.avatar (business logo) instead of user_avatar (personal picture)
   const vendorImage = vendor.avatar || vendor.HeroImageUrl || "https://via.placeholder.com/400x300?text=Vendor+Image";
 
+  // Parse gallery if it's a JSON string (matching venue logic)
+  let galleryImages = [];
+  if (vendor.gallery) {
+    try {
+      galleryImages = typeof vendor.gallery === 'string'
+        ? JSON.parse(vendor.gallery)
+        : (Array.isArray(vendor.gallery) ? vendor.gallery : []);
+    } catch (e) {
+      console.error("Error parsing vendor gallery:", e);
+      galleryImages = [];
+    }
+  }
+
   return (
     <Link
       to={`/vendor-profile?id=${encodeURIComponent(vendor.UserID || vendor.ID)}`}
@@ -287,16 +300,34 @@ function VendorCard({ vendor, navigate }) {
         </div>
       </div>
 
+      {/* Gallery Preview Strip - Match Venue layout */}
+      {galleryImages.length > 0 && (
+        <div className="flex gap-1 p-2 bg-gray-50">
+          {galleryImages.slice(0, 3).map((img, idx) => (
+            <div key={idx} className="flex-1 h-16 rounded overflow-hidden">
+              <img
+                src={img}
+                alt={`Gallery ${idx + 1}`}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                }}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Card Content - Match Venue structure */}
-      <div className="p-4">
-        <h3 className="font-semibold text-gray-800 mb-1 line-clamp-2 group-hover:text-[#7a5d47] transition-colors">
+      <div className="p-4 flex flex-col" style={{ minHeight: '180px' }}>
+        <h3 className="font-semibold text-gray-800 mb-1 line-clamp-1 group-hover:text-[#7a5d47] transition-colors">
           {vendor.BusinessName || "Unnamed Supplier"}
         </h3>
 
         {/* Location - Match Venue styling */}
         {vendor.BusinessAddress && (
-          <p className="text-sm text-gray-600 flex items-center gap-1 mb-2">
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <p className="text-sm text-gray-600 flex items-center gap-1 mb-2 line-clamp-1">
+            <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
               <circle cx="12" cy="10" r="3" />
             </svg>
@@ -313,23 +344,34 @@ function VendorCard({ vendor, navigate }) {
           </div>
         )}
 
-        {/* Description - Truncated to 2 lines */}
-        {(vendor.Description || vendor.bio) && (
-          <p className="text-sm text-gray-600 mb-3 line-clamp-2">
-            {vendor.Description || vendor.bio}
-          </p>
-        )}
+        {/* Description - Truncated to 2 lines for context */}
+        <div className="mb-3" style={{ minHeight: '40px' }}>
+          {(vendor.Description || vendor.bio) && (
+            <p className="text-sm text-gray-600 line-clamp-2">
+              {vendor.Description || vendor.bio}
+            </p>
+          )}
+        </div>
 
-        {/* Book Now Button - Match Venue styling */}
-        <button
-          onClick={handleBookNow}
-          className="mt-3 w-full px-4 py-2 bg-[#7a5d47] hover:bg-[#654a38] text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
-          Book Now
-        </button>
+        {/* Action Buttons - Two button layout */}
+        <div className="mt-auto flex gap-2">
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              window.location.href = `/vendor-profile?id=${encodeURIComponent(vendor.UserID || vendor.ID)}`;
+            }}
+            className="flex-1 px-3 py-2 bg-[#7a5d47] hover:bg-[#654a38] text-white text-sm font-medium rounded-lg transition-colors"
+          >
+            View Profile
+          </button>
+          <button
+            onClick={handleChatClick}
+            className="flex-1 px-3 py-2 border-2 border-[#7a5d47] text-[#7a5d47] hover:bg-[#7a5d47] hover:text-white text-sm font-medium rounded-lg transition-colors"
+          >
+            Message
+          </button>
+        </div>
       </div>
     </Link>
   );
