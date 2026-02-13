@@ -201,26 +201,57 @@ class AIController
                         if (!empty($arguments['date'])) {
                             $extractedInfo['date'] = $arguments['date'];
                             $currentData['date'] = $arguments['date'];
-                            $systemPrompt = $this->getConversationalBookingPrompt($currentData, $newStage);
                         }
 
                         $venueId = $arguments['venue_id'] ?? null;
                         $vendorId = $arguments['vendor_id'] ?? null;
+
+                        // PERSIST ID: If AI passed an ID, remember it in the state
+                        if ($venueId) {
+                            $extractedInfo['venue_id'] = (int)$venueId;
+                            $currentData['venue_id'] = (int)$venueId;
+                        }
+                        if ($vendorId) {
+                            $extractedInfo['vendor_id'] = (int)$vendorId;
+                            $currentData['vendor_id'] = (int)$vendorId;
+                        }
+
+                        // Regenerate system prompt with updated ID/date
+                        $systemPrompt = $this->getConversationalBookingPrompt($currentData, $newStage);
+
                         $availability = $venueId
-                            ? $this->checkVenueAvailabilityForDate((int) $venueId, $arguments['date'])
-                            : ($vendorId ? $this->checkVendorAvailabilityForDate((int) $vendorId, $arguments['date']) : ['available' => false, 'reason' => 'No vendor_id or venue_id provided']);
+                            ? $this->checkVenueAvailabilityForDate((int)$venueId, $arguments['date'])
+                            : ($vendorId ? $this->checkVendorAvailabilityForDate((int)$vendorId, $arguments['date']) : ['available' => false, 'reason' => 'No vendor_id or venue_id provided']);
+
                         $extractedInfo['availability_checked'] = $availability;
                         $functionResult = ['status' => 'success', 'availability' => $availability];
                         break;
 
                     case 'create_booking':
-                        // Validation: Ensure we have date and location before booking
+                        // Get venue_id or vendor_id to determine booking type
+                        $venueId = $arguments['venue_id'] ?? null;
+                        $vendorId = $arguments['vendor_id'] ?? null;
+
+                        // PERSIST ID: If AI passed an ID, remember it in the state
+                        if ($venueId) {
+                            $extractedInfo['venue_id'] = (int)$venueId;
+                            $currentData['venue_id'] = (int)$venueId;
+                        }
+                        if ($vendorId) {
+                            $extractedInfo['vendor_id'] = (int)$vendorId;
+                            $currentData['vendor_id'] = (int)$vendorId;
+                        }
+
+                        $isVenueBooking = !empty($venueId);
+
+                        // Validation: Ensure we have required fields
                         $missingFields = [];
                         if (empty($currentData['date']))
                             $missingFields[] = 'Date';
                         if (empty($currentData['time']))
                             $missingFields[] = 'Time';
-                        if (empty($currentData['location']))
+                        // Location only required for supplier bookings, not venues
+                        if (!$isVenueBooking && empty($currentData['location']))
                             $missingFields[] = 'Location';
                         if (empty($currentData['event_type']))
                             $missingFields[] = 'Event Type';
@@ -236,13 +267,18 @@ class AIController
                             ];
                         }
                         else if ($arguments['confirmed']) {
-                            $venueId = $arguments['venue_id'] ?? null;
-                            $vendorId = $arguments['vendor_id'] ?? null;
+                            // Merge everything we have
                             $bookingData = array_merge($currentData, $extractedInfo);
 
+                            // Ensure the specific ID from arguments is in the booking data
+                            if ($venueId)
+                                $bookingData['venue_id'] = (int)$venueId;
+                            if ($vendorId)
+                                $bookingData['vendor_id'] = (int)$vendorId;
+
                             $bookingId = $venueId
-                                ? $this->createVenueBookingFromConversation($bookingData, (int) $venueId, $userId)
-                                : ($vendorId ? $this->createBookingFromConversation($bookingData, (int) $vendorId, $userId) : null);
+                                ? $this->createVenueBookingFromConversation($bookingData, (int)$venueId, $userId)
+                                : ($vendorId ? $this->createBookingFromConversation($bookingData, (int)$vendorId, $userId) : null);
 
                             if ($bookingId) {
                                 $bookingCreated = true;
@@ -329,8 +365,17 @@ class AIController
     private function getConversationalBookingPrompt(array $currentData, string $stage): string
     {
         $extractedDataJson = json_encode($currentData, JSON_PRETTY_PRINT);
+        $currentDate = date('Y-m-d'); // e.g., 2026-02-14
+        $currentYear = date('Y'); // e.g., 2026
 
         $basePrompt = "You are Solennia AI, a conversational booking assistant for event planning in the Philippines.
+
+**IMPORTANT - CURRENT DATE CONTEXT**:
+- Today's date is: {$currentDate}
+- Current year is: {$currentYear}
+- NEVER extract or accept dates in the past
+- If user says a date without year, assume current year ({$currentYear}) or next year if the month has passed
+- If user says \"October 15\" and it's currently February, assume October 15, {$currentYear}
 
 **YOUR GOAL**: Help users book event services through natural conversation.
 
@@ -353,34 +398,50 @@ class AIController
 5. Acknowledge what you learned before asking next question
 6. When suggesting vendors, ONLY use the verify suppliers returned by the search_vendors function. NEVER invent or hallucinate vendors not in the system.
 7. Use emojis sparingly (🎉 for celebrations, 📸 for photography)
-8. **IMPORTANT**: If the user provides a year like 2023, assume they made a typo and ask for clarification or assume next occurance. NEVER book past dates.
+8. **CRITICAL DATE HANDLING**: 
+   - Current date is {$currentDate}
+   - NEVER accept dates before today
+   - If user says a past year (like 2023), correct them: \"Did you mean {$currentYear}?\"
+   - If user gives month/day without year, use {$currentYear} or next year if month has passed
 9. **CRITICAL**: Before calling create_booking, you MUST explicitly confirm the SPECIFIC vendor choice, date, and time with the user. Say: 'Just to confirm, you want to book [Vendor Name] for [Date] at [Time]?'
 10. **CRITICAL**: Do NOT assume the Event Type is 'Wedding' unless the user explicitly says so. If unknown, ask the user.
 11. **VENUES**: When user wants a venue, use search_vendors with category 'Venue'. Results include venue_id. Use venue_id (not vendor_id) for check_availability and create_booking.
+12. **VENUE LOCATION**: For VENUE bookings, do NOT ask for location - the venue has a fixed address where the event will be held. For SUPPLIER bookings (photographers, caterers, etc.), DO ask for the event location since the supplier travels to the client.
 
 **INFORMATION TO GATHER**:
 1. Event type (Do NOT assume. Ask user.)
-2. Event date (MUST BE TODAY OR FUTURE)
+2. Event date (MUST BE {$currentDate} OR FUTURE - format: YYYY-MM-DD)
 3. Event time
-4. Location (city/area)
+4. Location (city/area) - **ONLY for SUPPLIERS, NOT for VENUES**
 5. Budget
 6. Number of guests
 7. Preferences
+8. Chosen venue_id or vendor_id (from search results)
 
 **WHEN TO USE FUNCTIONS**:
-- extract_booking_info: Call this IMMEDIATELY when user provides ANY event details.
-- search_vendors: Call ONLY when you have minimal details (Date, Location) OR if user asks for specific vendor.
-- check_availability: Call when user asks if specific vendor is free.
+- extract_booking_info: Call this IMMEDIATELY when user provides ANY event details OR when they pick a vendor/venue. Use the venue_id or vendor_id from the search results.
+- search_vendors: **CRITICAL** - ONLY call this if:
+  * User has explicitly mentioned wanting a specific type of vendor/venue
+  * For SUPPLIERS: User has provided Date AND Location
+  * For VENUES: User has provided or you can ask for just the Date (location is the venue's address)
+  * NEVER call search_vendors just because user mentioned a venue name - ASK for date first!
+- check_availability: **CRITICAL** - ONLY call this if:
+  1. User has EXPLICITLY provided a date in the conversation
+  2. The date is stored in currentData
+  3. NEVER call with a made-up or assumed date
+  4. If no date yet, ASK the user for a date first - do NOT check availability!
 - create_booking: Call ONLY after user explicitly confirms ALL details.
 
 **RULES**:
 - ONLY recommend vendors/venues from search_vendors function results
+- **CRITICAL**: Use the numeric ID (venue_id or vendor_id) exactly as returned by search_vendors. NEVER use placeholder IDs like 1.
 - When category is Venue, search returns venues - use venue_id for check_availability and create_booking
 - When category is not Venue, use vendor_id for suppliers
 - NEVER make up vendor or venue names
 - If no results match, suggest adjusting criteria
 - Always check availability before confirming booking
 - Keep responses under 150 words unless showing options
+- **FOR VENUES**: Skip asking about location - the venue's address is the event location
 
 **STYLE**:
 - Use Philippine Peso (₱) format
@@ -414,6 +475,10 @@ Remember: You're having a CONVERSATION, not conducting an interview!";
                         'location' => ['type' => 'string'],
                         'budget' => ['type' => 'number'],
                         'guests' => ['type' => 'integer'],
+                        'venue_id' => ['type' => 'integer', 'description' => 'Venue ID chosen by user'],
+                        'venue_name' => ['type' => 'string', 'description' => 'Name of the venue chosen by user'],
+                        'vendor_id' => ['type' => 'integer', 'description' => 'Supplier ID chosen by user'],
+                        'vendor_name' => ['type' => 'string', 'description' => 'Business name of the supplier chosen by user'],
                         'preferences' => [
                             'type' => 'array',
                             'items' => ['type' => 'string']
@@ -459,9 +524,9 @@ Remember: You're having a CONVERSATION, not conducting an interview!";
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
-                        'vendor_id' => ['type' => 'integer', 'description' => 'Supplier ID when booking a supplier'],
-                        'venue_id' => ['type' => 'integer', 'description' => 'Venue ID when booking a venue'],
-                        'confirmed' => ['type' => 'boolean']
+                        'vendor_id' => ['type' => 'integer', 'description' => 'Supplier ID from search results. DO NOT GUESS.'],
+                        'venue_id' => ['type' => 'integer', 'description' => 'Venue ID from search results. DO NOT GUESS.'],
+                        'confirmed' => ['type' => 'boolean', 'description' => 'User explicitly said yes/confirmed']
                     ],
                     'required' => ['confirmed']
                 ]
@@ -491,12 +556,20 @@ Remember: You're having a CONVERSATION, not conducting an interview!";
 
     private function determineBookingStage(array $data): string
     {
-        $hasEssentials = !empty($data['event_type'])
+        $hasBasics = !empty($data['event_type'])
             && !empty($data['date'])
-            && !empty($data['time'])
-            && !empty($data['location']);
+            && !empty($data['time']);
 
-        return $hasEssentials ? 'vendor_search' : 'discovery';
+        // Vendor search stage: basics + (location OR venue_id)
+        if ($hasBasics && (!empty($data['location']) || !empty($data['venue_id']))) {
+            // Confirmation stage: basics + (venue_id OR vendor_id)
+            if (!empty($data['venue_id']) || !empty($data['vendor_id'])) {
+                return 'confirmation';
+            }
+            return 'vendor_search';
+        }
+
+        return 'discovery';
     }
 
     private function searchVendorsForBooking(array $criteria): array
@@ -578,7 +651,8 @@ Remember: You're having a CONVERSATION, not conducting an interview!";
         $result = json_decode(json_encode($venues), true);
         foreach ($result as &$v) {
             $v['type'] = 'venue';
-            $v['venue_id'] = $v['id'];
+            $v['ID'] = (int)$v['id']; // Match frontend Capital ID
+            $v['venue_id'] = (int)$v['id'];
             $v['BusinessName'] = $v['venue_name'];
             $v['Pricing'] = $v['pricing'];
             $v['BusinessAddress'] = $v['address'];
@@ -637,19 +711,43 @@ Remember: You're having a CONVERSATION, not conducting an interview!";
             return ['available' => false, 'reason' => 'Venue not found'];
         }
 
+        // Check 1: Existing bookings (hard conflicts)
         $conflict = DB::table('booking')
             ->where('venue_id', $venueId)
             ->where(function ($q) use ($date) {
-                $q->whereBetween('start_date', [$date, $date])
-                    ->orWhereBetween('end_date', [$date, $date])
-                    ->orWhere(function ($q2) use ($date) {
-                        $q2->where('start_date', '<=', $date)->where('end_date', '>=', $date);
-                    });
-            })
+            $q->whereBetween('start_date', [$date, $date])
+                ->orWhereBetween('end_date', [$date, $date])
+                ->orWhere(function ($q2) use ($date) {
+                $q2->where('start_date', '<=', $date)->where('end_date', '>=', $date);
+            }
+            );
+        })
             ->whereNotIn('BookingStatus', ['Cancelled', 'Rejected'])
             ->exists();
 
-        return ['available' => !$conflict, 'reason' => $conflict ? 'Already booked on this date' : null];
+        if ($conflict) {
+            return ['available' => false, 'reason' => 'Already booked on this date'];
+        }
+
+        // Check 2: Venue availability table (venue owner's calendar)
+        $unavailable = DB::table('venue_availability')
+            ->where('venue_id', $venueId)
+            ->where('date', $date)
+            ->where('is_available', false)
+            ->first();
+
+        if ($unavailable) {
+            $reason = 'Venue marked as unavailable';
+            if (!empty($unavailable->notes)) {
+                $reason .= ': ' . $unavailable->notes;
+            }
+            return [
+                'available' => false,
+                'reason' => $reason
+            ];
+        }
+
+        return ['available' => true];
     }
 
     private function createBookingFromConversation(array $bookingData, int $vendorId, int $userId): ?int
@@ -660,7 +758,17 @@ Remember: You're having a CONVERSATION, not conducting an interview!";
                 ->first();
 
             if (!$vendor) {
-                return null;
+                // Fallback: If ID is invalid but we have a name, try to find it
+                if (!empty($bookingData['vendor_name'])) {
+                    $vendor = DB::table('event_service_provider')
+                        ->where('BusinessName', 'LIKE', '%' . $bookingData['vendor_name'] . '%')
+                        ->where('ApplicationStatus', 'Approved')
+                        ->first();
+                }
+
+                if (!$vendor)
+                    return null;
+                $vendorId = $vendor->ID;
             }
 
             $notes = "🤖 AI Conversational Booking\n\n";
@@ -692,8 +800,8 @@ Remember: You're having a CONVERSATION, not conducting an interview!";
                 'AdditionalNotes' => $notes,
                 'TotalAmount' => floatval($vendor->Pricing ?? 0),
                 'BookingStatus' => 'Pending',
-                'BookingDate' => DB::raw('NOW()'),
-                'CreatedAt' => DB::raw('NOW()'),
+                'BookingDate' => date('Y-m-d H:i:s'),
+                'CreatedAt' => date('Y-m-d H:i:s'),
                 'CreatedBy' => $userId
             ]);
 
@@ -723,20 +831,40 @@ Remember: You're having a CONVERSATION, not conducting an interview!";
     private function createVenueBookingFromConversation(array $bookingData, int $venueId, int $userId): ?int
     {
         try {
+            error_log("CREATE_VENUE_BOOKING: Starting for venue_id={$venueId}, user_id={$userId}");
+            error_log("CREATE_VENUE_BOOKING: bookingData=" . json_encode($bookingData));
+
             $venue = DB::table('venue_listings')
                 ->where('id', $venueId)
                 ->where('status', 'Active')
                 ->first();
 
             if (!$venue) {
-                return null;
+                // Fallback: If ID is invalid (like placeholder 1) but we have a name
+                if (!empty($bookingData['venue_name'])) {
+                    $venue = DB::table('venue_listings')
+                        ->where('venue_name', 'LIKE', '%' . $bookingData['venue_name'] . '%')
+                        ->where('status', 'Active')
+                        ->first();
+                }
+
+                if (!$venue) {
+                    error_log("CREATE_VENUE_BOOKING: ERROR - Venue not found or not active. venue_id={$venueId}, name=" . ($bookingData['venue_name'] ?? 'null'));
+                    return null;
+                }
+                $venueId = $venue->id;
             }
+
+            error_log("CREATE_VENUE_BOOKING: Venue found - {$venue->venue_name}");
 
             $startDate = $bookingData['date'] ?? null;
             if (!$startDate) {
+                error_log("CREATE_VENUE_BOOKING: ERROR - No date provided in bookingData");
                 return null;
             }
             $endDate = $startDate;
+
+            error_log("CREATE_VENUE_BOOKING: Date={$startDate}");
 
             $notes = "🤖 AI Conversational Booking\n\n";
             if (!empty($bookingData['guests'])) {
@@ -754,56 +882,112 @@ Remember: You're having a CONVERSATION, not conducting an interview!";
                 $notes .= "Preferences: " . implode(', ', $bookingData['preferences']) . "\n";
             }
 
+            // Check for conflicts
             $conflict = DB::table('booking')
                 ->where('venue_id', $venueId)
                 ->where(function ($q) use ($startDate, $endDate) {
-                    $q->whereBetween('start_date', [$startDate, $endDate])
-                        ->orWhereBetween('end_date', [$startDate, $endDate])
-                        ->orWhere(function ($q2) use ($startDate, $endDate) {
-                            $q2->where('start_date', '<=', $startDate)->where('end_date', '>=', $endDate);
-                        });
-                })
+                $q->whereBetween('start_date', [$startDate, $endDate])
+                    ->orWhereBetween('end_date', [$startDate, $endDate])
+                    ->orWhere(function ($q2) use ($startDate, $endDate) {
+                    $q2->where('start_date', '<=', $startDate)->where('end_date', '>=', $endDate);
+                }
+                );
+            })
                 ->whereNotIn('BookingStatus', ['Cancelled', 'Rejected'])
                 ->first();
 
             if ($conflict) {
+                error_log("CREATE_VENUE_BOOKING: ERROR - Conflict found for date {$startDate}");
                 return null;
+            }
+
+            error_log("CREATE_VENUE_BOOKING: No conflicts, proceeding to insert");
+
+            // Format EventDate as DATETIME (required by booking table)
+            $eventTime = $bookingData['time'] ?? '00:00';
+
+            // Convert time to 24-hour format if needed (e.g., "3:30 PM" -> "15:30:00")
+            if (stripos($eventTime, 'PM') !== false || stripos($eventTime, 'AM') !== false) {
+                // Parse 12-hour format (e.g., "3:30 PM")
+                $timeParts = preg_split('/\s+/', $eventTime);
+                $time = $timeParts[0];
+                $meridiem = strtoupper($timeParts[1] ?? 'AM');
+
+                list($hour, $minute) = explode(':', $time);
+                $hour = (int)$hour;
+                $minute = (int)$minute;
+
+                // Convert to 24-hour
+                if ($meridiem === 'PM' && $hour < 12) {
+                    $hour += 12;
+                }
+                elseif ($meridiem === 'AM' && $hour === 12) {
+                    $hour = 0;
+                }
+
+                $eventTime24 = sprintf('%02d:%02d:00', $hour, $minute);
+            }
+            else {
+                // Already in 24-hour format or just HH:MM
+                $eventTime24 = (strpos($eventTime, ':') !== false) ? $eventTime . ':00' : $eventTime;
+            }
+
+            $eventDateTime = $startDate . ' ' . $eventTime24;
+
+            // CRITICAL: Get proper EventServiceProviderID (must exist in event_service_provider table)
+            // Venue owners are linked via their mysql user id
+            $eventServiceProviderId = DB::table('event_service_provider')
+                ->where('UserID', $venue->user_id)
+                ->where('ApplicationStatus', 'Approved')
+                ->value('ID');
+
+            // Fallback: If venue owner doesn't have an ESP account, use a placeholder
+            if (!$eventServiceProviderId) {
+                $eventServiceProviderId = DB::table('event_service_provider')
+                    ->where('ApplicationStatus', 'Approved')
+                    ->value('ID');
             }
 
             $bookingId = DB::table('booking')->insertGetId([
                 'UserID' => $userId,
                 'venue_id' => $venueId,
-                'EventServiceProviderID' => $venue->user_id,
+                'EventServiceProviderID' => $eventServiceProviderId,
                 'ServiceName' => $venue->venue_name,
-                'EventDate' => $startDate,
+                'EventDate' => $eventDateTime, // FIXED: Use DATETIME format
                 'start_date' => $startDate,
                 'end_date' => $endDate,
-                'EventLocation' => $bookingData['location'] ?? '',
+                'EventLocation' => $venue->address ?? '',
                 'EventType' => $bookingData['event_type'] ?? null,
-                'guest_count' => (int) ($bookingData['guests'] ?? 0),
+                'guest_count' => (int)($bookingData['guests'] ?? 0),
                 'PackageSelected' => 'AI Conversational Booking',
                 'AdditionalNotes' => $notes,
                 'TotalAmount' => 0,
                 'BookingStatus' => 'Pending',
-                'BookingDate' => DB::raw('NOW()'),
-                'CreatedAt' => DB::raw('NOW()'),
+                'BookingDate' => date('Y-m-d H:i:s'),
+                'CreatedAt' => date('Y-m-d H:i:s'),
                 'CreatedBy' => $userId
             ]);
+
+            error_log("CREATE_VENUE_BOOKING: SUCCESS - Booking created with ID={$bookingId}");
 
             $client = DB::table('credential')->where('id', $userId)->first();
             $clientName = trim(($client->first_name ?? '') . ' ' . ($client->last_name ?? ''));
 
             $eventType = $bookingData['event_type'] ?? 'an event';
-            $this->sendNotification(
-                $venue->user_id,
-                'venue_booking_request',
-                '🤖 New AI Venue Booking Request',
-                "{$clientName} requested to book {$venue->venue_name} for {$eventType} via AI assistant"
-            );
+
+            if ($venue->user_id) {
+                $this->sendNotification(
+                    $venue->user_id,
+                    'venue_booking_request',
+                    '🤖 New AI Venue Booking Request',
+                    "{$clientName} requested to book {$venue->venue_name} for {$eventType} via AI assistant"
+                );
+            }
 
             return $bookingId;
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             error_log("Create Venue Booking From Conversation Error: " . $e->getMessage());
             return null;
         }

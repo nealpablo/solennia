@@ -1049,7 +1049,7 @@ export default function Profile() {
 
   function dashboardLabel() {
     if (role === 2) return "Admin Panel";
-    if (role === 1) return "Manage Dashboard";
+    if (role === 1) return "Manage Service";
     return null;
   }
 

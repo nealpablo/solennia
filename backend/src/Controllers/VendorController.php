@@ -17,7 +17,7 @@ class VendorController
         $this->cloud = new Cloudinary([
             'cloud' => [
                 'cloud_name' => envx('CLOUDINARY_CLOUD'),
-                'api_key'    => envx('CLOUDINARY_KEY'),
+                'api_key' => envx('CLOUDINARY_KEY'),
                 'api_secret' => envx('CLOUDINARY_SECRET')
             ],
             'url' => ['secure' => true]
@@ -99,9 +99,10 @@ class VendorController
                             "timeout" => self::UPLOAD_TIMEOUT
                         ]);
                         $logoUrl = $upload['secure_url'];
-                    } catch (\Exception $e) {
+                    }
+                    catch (\Exception $e) {
                         error_log("LOGO_UPLOAD_ERROR: " . $e->getMessage());
-                        // Don't fail the entire request if image upload fails
+                    // Don't fail the entire request if image upload fails
                     }
                 }
 
@@ -125,7 +126,8 @@ class VendorController
                             "timeout" => self::UPLOAD_TIMEOUT
                         ]);
                         $heroUrl = $upload['secure_url'];
-                    } catch (\Exception $e) {
+                    }
+                    catch (\Exception $e) {
                         error_log("HERO_UPLOAD_ERROR: " . $e->getMessage());
                     }
                 }
@@ -159,12 +161,14 @@ class VendorController
                     'hero' => $heroUrl
                 ]);
 
-            } catch (\Exception $e) {
+            }
+            catch (\Exception $e) {
                 DB::rollBack();
                 throw $e;
             }
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             error_log("CREATE_VENDOR_PROFILE_ERROR: " . $e->getMessage());
             return $this->json($response, false, "Failed to create profile: " . $e->getMessage(), 500);
         }
@@ -173,23 +177,22 @@ class VendorController
     /* ===========================================================
      *  Check Profile Setup Status
      * =========================================================== */
-    public function getVendorStatus(Request $request, Response $response)
-{
-    $u = $request->getAttribute('user');
-    if (!$u || !isset($u->mysql_id)) {
-        return $this->json($response, false, "Unauthorized", 401);
-    }
+    public function getVendorStatus(Request $request, Response $response)    {
+        $u = $request->getAttribute('user');
+        if (!$u || !isset($u->mysql_id)) {
+            return $this->json($response, false, "Unauthorized", 401);
+        }
 
-    $userId = $u->mysql_id;
+        $userId = $u->mysql_id;
 
-    $result = DB::table('vendor_application as va')
-        ->leftJoin('event_service_provider as esp', function ($join) {
+        $result = DB::table('vendor_application as va')
+            ->leftJoin('event_service_provider as esp', function ($join) {
             $join->on('va.user_id', '=', 'esp.UserID')
-                 ->where('esp.ApplicationStatus', '=', 'Approved');
+                ->where('esp.ApplicationStatus', '=', 'Approved');
         })
-        ->where('va.user_id', $userId)
-        ->orderBy('va.created_at', 'desc')
-        ->select(
+            ->where('va.user_id', $userId)
+            ->orderBy('va.created_at', 'desc')
+            ->select(
             'va.status as application_status',
             'va.category',
             'esp.Category',
@@ -200,40 +203,39 @@ class VendorController
             'esp.HeroImageUrl',
             'esp.UserID as profile_exists'
         )
-        ->first();
+            ->first();
 
-    if (!$result) {
-        return $this->json($response, true, "No vendor application found", 200, [
-            'status'        => 'none',
-            'category'      => null,
-            'has_profile'   => false,
-            'needs_setup'   => false,
-            'vendor'        => null
-        ]);
-    }
+        if (!$result) {
+            return $this->json($response, true, "No vendor application found", 200, [
+                'status' => 'none',
+                'category' => null,
+                'has_profile' => false,
+                'needs_setup' => false,
+                'vendor' => null
+            ]);
+        }
 
-    $hasProfile = $result->profile_exists !== null;
-    $needsSetup = (
-        $result->application_status === 'Approved'
-        && !$hasProfile
-    );
+        $hasProfile = $result->profile_exists !== null;
+        $needsSetup = (
+            $result->application_status === 'Approved'
+            && !$hasProfile
+            );
 
-    return $this->json($response, true, "Status retrieved", 200, [
-        'status'        => strtolower($result->application_status ?? 'none'),
-        'category'      => $result->category ?? null,
-        'has_profile'   => $hasProfile,
-        'needs_setup'   => $needsSetup,
-        'vendor'        => $hasProfile ? [
-            'Category'            => $result->Category,
-            'VerificationStatus'  => 'approved',
-            'BusinessName'        => $result->BusinessName,
-            'bio'                 => $result->bio,
-            'services'            => $result->services,
-            'avatar'              => $result->avatar,
-            'HeroImageUrl'        => $result->HeroImageUrl
-        ] : null
-    ]);
-}
+        return $this->json($response, true, "Status retrieved", 200, [
+            'status' => strtolower($result->application_status ?? 'none'),
+            'category' => $result->category ?? null,
+            'has_profile' => $hasProfile,
+            'needs_setup' => $needsSetup,
+            'vendor' => $hasProfile ? [
+                'Category' => $result->Category,
+                'VerificationStatus' => 'approved',
+                'BusinessName' => $result->BusinessName,
+                'bio' => $result->bio,
+                'services' => $result->services,
+                'avatar' => $result->avatar,
+                'HeroImageUrl' => $result->HeroImageUrl
+            ] : null
+        ]);    }
 
     /* ===========================================================
      *  GET VENDOR PUBLIC DATA with caching
@@ -241,7 +243,7 @@ class VendorController
     public function getPublicVendorData(Request $request, Response $response, $args)
     {
         $userId = $args['id'] ?? null;
-        
+
         if (!$userId) {
             return $this->json($response, false, "User ID required", 400);
         }
@@ -293,9 +295,22 @@ class VendorController
         }
         $userId = $u->mysql_id;
 
+        $data = (array)$request->getParsedBody();
+        $logoUrl = $data['logo_url'] ?? null;
+
+        if ($logoUrl) {
+            DB::table("event_service_provider")
+                ->where("UserID", $userId)
+                ->update(["avatar" => $logoUrl]);
+
+            return $this->json($response, true, "Vendor logo updated", 200, [
+                "logo" => $logoUrl
+            ]);
+        }
+
         $logo = $request->getUploadedFiles()['logo'] ?? null;
         if (!$logo || $logo->getError() !== UPLOAD_ERR_OK) {
-            return $this->json($response, false, "Invalid logo file", 400);
+            return $this->json($response, false, "Invalid logo file or URL", 400);
         }
 
         //  Validate file size
@@ -332,7 +347,8 @@ class VendorController
                 "logo" => $url
             ]);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             error_log("LOGO_UPLOAD_ERROR: " . $e->getMessage());
             return $this->json($response, false, "Failed to upload logo: " . $e->getMessage(), 500);
         }
@@ -349,9 +365,22 @@ class VendorController
         }
         $userId = $u->mysql_id;
 
+        $data = (array)$request->getParsedBody();
+        $heroUrl = $data['hero_url'] ?? null;
+
+        if ($heroUrl) {
+            DB::table("event_service_provider")
+                ->where("UserID", $userId)
+                ->update(["HeroImageUrl" => $heroUrl]);
+
+            return $this->json($response, true, "Hero image updated", 200, [
+                "hero_image" => $heroUrl
+            ]);
+        }
+
         $hero = $request->getUploadedFiles()['hero'] ?? null;
         if (!$hero || $hero->getError() !== UPLOAD_ERR_OK) {
-            return $this->json($response, false, "Invalid hero image", 400);
+            return $this->json($response, false, "Invalid hero image file or URL", 400);
         }
 
         //  Validate file size
@@ -388,7 +417,8 @@ class VendorController
                 "hero_image" => $url
             ]);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             error_log("HERO_UPLOAD_ERROR: " . $e->getMessage());
             return $this->json($response, false, "Failed to upload hero image: " . $e->getMessage(), 500);
         }
@@ -404,6 +434,26 @@ class VendorController
             return $this->json($response, false, "Unauthorized", 401);
         }
         $userId = $u->mysql_id;
+
+        $data = (array)$request->getParsedBody();
+        $galleryUrls = $data['gallery_urls'] ?? [];
+
+        if (!empty($galleryUrls)) {
+            $inserts = [];
+            foreach ($galleryUrls as $url) {
+                $inserts[] = [
+                    "user_id" => $userId,
+                    "image_url" => $url,
+                    "created_at" => date('Y-m-d H:i:s')
+                ];
+            }
+            DB::table("vendor_gallery")->insert($inserts);
+
+            return $this->json($response, true, "Gallery updated with URLs", 200, [
+                "images" => $galleryUrls,
+                "count" => count($galleryUrls)
+            ]);
+        }
 
         $files = $request->getUploadedFiles()['gallery'] ?? [];
         if (empty($files)) {
@@ -458,7 +508,8 @@ class VendorController
                     "created_at" => date('Y-m-d H:i:s')
                 ];
 
-            } catch (\Exception $e) {
+            }
+            catch (\Exception $e) {
                 error_log("GALLERY_UPLOAD_ERROR: " . $e->getMessage());
                 $errors[] = "Image " . ($index + 1) . " failed: " . $e->getMessage();
             }
@@ -513,7 +564,8 @@ class VendorController
 
             return $this->json($response, true, "Vendor info updated", 200);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             error_log("UPDATE_VENDOR_INFO_ERROR: " . $e->getMessage());
             return $this->json($response, false, "Failed to update info", 500);
         }
@@ -531,6 +583,6 @@ class VendorController
 
         $res->getBody()->write(json_encode($payload, JSON_UNESCAPED_UNICODE));
         return $res->withHeader('Content-Type', 'application/json')
-                   ->withStatus($status);
+            ->withStatus($status);
     }
 }

@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import ChatInterface from '../components/ChatInterface';
 import BookingPreview from '../components/BookingPreview';
 import toast from '../utils/toast';
@@ -12,10 +12,14 @@ const API = import.meta.env.VITE_API_BASE ||
 
 export default function ConversationalBooking() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const hasProcessedInitial = useRef(false);
+
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
-      content: "Hi! I'm your AI Assistant. 👋\n\nJust tell me about your event like you're chatting with a friend, and I'll help you find and book the perfect vendors.\n\nWhat event are you planning?"
+      content: "Hi! I'm your AI Assistant. 👋\n\nJust tell me about your event like you're chatting with a friend, and I'll help you find and book the perfect vendors and venues.\n\nWhat event are you planning?"
     }
   ]);
 
@@ -26,6 +30,8 @@ export default function ConversationalBooking() {
     location: null,
     budget: null,
     guests: null,
+    venue_id: null,
+    vendor_id: null,
     preferences: []
   });
 
@@ -38,6 +44,48 @@ export default function ConversationalBooking() {
     if (!token) {
       toast.error('Please log in to create a booking');
       navigate('/');
+      return;
+    }
+
+    // Handle initial message from URL or SessionStorage (post-login)
+    // Synchronous check with useRef prevents double-triggering in StrictMode
+    if (!hasProcessedInitial.current) {
+      const urlMsg = searchParams.get('ai_message');
+      const sessionMsg = sessionStorage.getItem("pending_ai_query");
+      const messageToProcess = urlMsg || sessionMsg;
+
+      if (messageToProcess) {
+        hasProcessedInitial.current = true;
+
+        if (sessionMsg) sessionStorage.removeItem("pending_ai_query");
+
+        // Slight delay for stability
+        setTimeout(() => {
+          handleSendMessage(messageToProcess);
+        }, 500);
+      }
+    }
+
+    // Handle context from venue/vendor pages
+    if (location.state?.initialMessage) {
+      // Logic for venue/vendor context...
+      if (location.state.venueContext) {
+        const venue = location.state.venueContext;
+        setMessages([
+          {
+            role: 'assistant',
+            content: `Hi! I see you're interested in booking **${venue.venueName}**! 🏛️\n\nI'm your AI Assistant and I'm here to help you complete this booking.\n\nWhat type of event are you planning?`
+          }
+        ]);
+      } else if (location.state.vendorContext) {
+        const vendor = location.state.vendorContext;
+        setMessages([
+          {
+            role: 'assistant',
+            content: `Hi! I see you're interested in booking **${vendor.vendorName}** for ${vendor.category}! 📸\n\nI'm your AI Assistant and I'm here to help you complete this booking.\n\nTell me about your event!`
+          }
+        ]);
+      }
     }
   }, [navigate]);
 
@@ -108,10 +156,10 @@ export default function ConversationalBooking() {
       <div className="max-w-7xl mx-auto px-4">
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            🤖 AI Assistant
+            🤖 AI Booking Assistant
           </h1>
           <p className="text-gray-600">
-            Event Booking Assistant
+            Book Suppliers & Venues with Natural Conversation
           </p>
         </div>
 

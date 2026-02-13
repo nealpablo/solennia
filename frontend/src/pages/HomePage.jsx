@@ -7,20 +7,16 @@ export default function HomePage() {
   const navigate = useNavigate();
   const [aiQuery, setAiQuery] = useState("");
 
-  // ✅ Handle AI Search - redirect to chat with the message
+  // ✅ Handle AI Search - redirect to AI Assistant with the message
   const handleAISearch = (e) => {
     if (e.key === "Enter" && aiQuery.trim()) {
-      // Check if user is logged in
       const token = localStorage.getItem("solennia_token");
       if (!token) {
         // Store the query to use after login
         sessionStorage.setItem("pending_ai_query", aiQuery.trim());
-        // Redirect to login or show login modal
-        navigate("/chat?ai_message=" + encodeURIComponent(aiQuery.trim()));
-        return;
       }
-      // Redirect to chat with the AI message as URL parameter
-      navigate(`/chat?ai_message=${encodeURIComponent(aiQuery.trim())}`);
+      // Redirect to AI Assistant with the message
+      navigate(`/ai-booking?ai_message=${encodeURIComponent(aiQuery.trim())}`);
     }
   };
 
@@ -30,10 +26,10 @@ export default function HomePage() {
       if (!token) {
         sessionStorage.setItem("pending_ai_query", aiQuery.trim());
       }
-      navigate(`/chat?ai_message=${encodeURIComponent(aiQuery.trim())}`);
+      navigate(`/ai-booking?ai_message=${encodeURIComponent(aiQuery.trim())}`);
     } else {
-      // Just go to AI chat
-      navigate("/chat?ai=true");
+      // Just go to AI Assistant
+      navigate("/ai-booking");
     }
   };
 
@@ -71,15 +67,15 @@ export default function HomePage() {
               `}</style>
               <div
                 className="flex gap-6"
-                style={{ 
+                style={{
                   paddingLeft: 'calc(50% - 40%)',
                   paddingRight: 'calc(50% - 40%)',
                   animation: 'scroll 20s linear infinite'
                 }}
               >
                 {infiniteImages.map((img, i) => (
-                  <div 
-                    key={i} 
+                  <div
+                    key={i}
                     className="flex-shrink-0"
                     style={{ width: '80%' }}
                   >
@@ -125,13 +121,13 @@ export default function HomePage() {
               title="Chat with AI"
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="22" y1="2" x2="11" y2="13"/>
-                <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                <line x1="22" y1="2" x2="11" y2="13" />
+                <polygon points="22 2 15 22 11 13 2 9 22 2" />
               </svg>
             </button>
           </div>
           <p className="text-xs text-gray-500 mt-2">
-            Press <span className="font-semibold">Enter</span> or click the arrow to chat with Solennia AI ✨
+            Press <span className="font-semibold">Enter</span> or click the arrow to chat with Solennia AI
           </p>
         </div>
 
@@ -147,7 +143,7 @@ export default function HomePage() {
               key={idx}
               onClick={() => {
                 setAiQuery(suggestion);
-                navigate(`/chat?ai_message=${encodeURIComponent(suggestion)}`);
+                navigate(`/ai-booking?ai_message=${encodeURIComponent(suggestion)}`);
               }}
               className="px-3 py-1.5 text-xs bg-white border border-gray-300 rounded-full text-gray-600 hover:bg-[#fef3c7] hover:border-[#f59e0b] hover:text-[#92400e] transition-all"
             >

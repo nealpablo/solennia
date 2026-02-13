@@ -199,6 +199,28 @@ export default function VenueDetail() {
     });
   };
 
+  const handleAIBooking = () => {
+    const token = localStorage.getItem("solennia_token");
+    if (!token) {
+      toast.warning("Please login to use AI booking");
+      return;
+    }
+
+    // Navigate to AI booking with venue context
+    navigate('/ai-booking', {
+      state: {
+        initialMessage: `I want to book ${venue.name} for an event`,
+        venueContext: {
+          venueId: venue.id,
+          venueName: venue.name,
+          venueType: venue.venue_type,
+          capacity: venue.capacity,
+          address: venue.location
+        }
+      }
+    });
+  };
+
   const handleScheduleVisit = () => {
     const token = localStorage.getItem("solennia_token");
     if (!token) {
@@ -603,16 +625,19 @@ export default function VenueDetail() {
               </div>
             </div>
 
-            {/* Prominent Book Now Button */}
-            <button
-              onClick={handleBookNow}
-              className="w-full bg-[#7a5d47] hover:bg-[#654a38] text-white font-semibold py-3 px-6 rounded-lg transition-colors mb-3 flex items-center justify-center gap-2 text-lg"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              Book This Venue
-            </button>
+            {/* Booking Options */}
+            <div className="mb-3">
+              {/* Primary Book Now Button */}
+              <button
+                onClick={handleBookNow}
+                className="w-full bg-[#7a5d47] hover:bg-[#654a38] text-white font-semibold py-3 px-6 rounded-lg transition-colors mb-2 flex items-center justify-center gap-2 text-lg"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                Book Now
+              </button>
+            </div>
 
             {/* Secondary Actions Grid */}
             <div className="grid grid-cols-2 gap-3">

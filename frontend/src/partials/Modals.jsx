@@ -2728,7 +2728,7 @@ export default function Modals() {
                 {/* Portfolio */}
                 <div>
                   <label className="block text-xs font-semibold uppercase mb-1">
-                    Portfolio <span className="text-red-600">*</span>
+                    Services <span className="text-red-600">*</span>
                   </label>
                   <input
                     type="file"

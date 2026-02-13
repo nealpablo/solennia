@@ -24,11 +24,6 @@ export default function AdminPanel() {
   const [feedbacks, setFeedbacks] = useState([]);
   const [activeTab, setActiveTab] = useState("vendors");
 
-  // ✅ FAQ State
-  const [faqs, setFaqs] = useState([]);
-  const [faqLoading, setFaqLoading] = useState(false);
-  const [generatingFAQs, setGeneratingFAQs] = useState(false);
-
   const [lightbox, setLightbox] = useState({ show: false, url: "", title: "", isPdf: false });
   const [confirm, setConfirm] = useState({
     show: false,
@@ -36,6 +31,12 @@ export default function AdminPanel() {
     label: "Confirm",
     className: "approve-btn",
     onConfirm: null,
+  });
+  const [rejectModal, setRejectModal] = useState({
+    show: false,
+    appId: null,
+    reason: "",
+    onSubmit: null,
   });
 
   const previewDocument = (url, title = "Document") => {
@@ -111,83 +112,6 @@ export default function AdminPanel() {
     }
   }
 
-  // ✅ FAQ Functions
-  async function loadFAQs() {
-    setFaqLoading(true);
-    try {
-      const res = await fetch(`${API_BASE}/api/ai/faqs`, {
-        headers: authHeaders(),
-      });
-      const json = await res.json();
-      setFaqs(json.faqs || []);
-    } catch (err) {
-      console.error("Failed to load FAQs:", err);
-    } finally {
-      setFaqLoading(false);
-    }
-  }
-
-  async function generateNewFAQs() {
-    setGeneratingFAQs(true);
-    try {
-      const res = await fetch(`${API_BASE}/api/ai/faqs/generate`, {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({ category: 'general' })
-      });
-      const json = await res.json();
-
-      if (json.success && json.faqs?.length > 0) {
-        // Save each generated FAQ
-        for (const faq of json.faqs) {
-          await fetch(`${API_BASE}/api/ai/faqs`, {
-            method: 'POST',
-            headers: authHeaders(),
-            body: JSON.stringify(faq)
-          });
-        }
-        toast.success(`Generated ${json.faqs.length} FAQs!`);
-        loadFAQs();
-      } else {
-        toast.error('No FAQs generated');
-      }
-    } catch (err) {
-      toast.error('Failed to generate FAQs');
-    } finally {
-      setGeneratingFAQs(false);
-    }
-  }
-
-  async function toggleFAQPublish(faqId, currentStatus) {
-    try {
-      await fetch(`${API_BASE}/api/ai/faqs/${faqId}`, {
-        method: 'PUT',
-        headers: authHeaders(),
-        body: JSON.stringify({ is_published: !currentStatus })
-      });
-      loadFAQs();
-      toast.success(currentStatus ? 'FAQ unpublished' : 'FAQ published');
-    } catch (err) {
-      toast.error('Failed to update FAQ');
-    }
-  }
-
-  async function deleteFAQ(faqId) {
-    const confirmed = await openConfirm('Are you sure you want to delete this FAQ?', 'Delete', 'deny-btn');
-    if (!confirmed) return;
-
-    try {
-      await fetch(`${API_BASE}/api/ai/faqs/${faqId}`, {
-        method: 'DELETE',
-        headers: authHeaders()
-      });
-      loadFAQs();
-      toast.success('FAQ deleted');
-    } catch (err) {
-      toast.error('Failed to delete FAQ');
-    }
-  }
-
   useEffect(() => {
     loadVendorApplications();
     loadUsers();
@@ -196,29 +120,65 @@ export default function AdminPanel() {
 
   async function handleDecision(id, action) {
     const isApprove = action === "approve";
-    const ok = await openConfirm(
-      isApprove ? "Approve this application?" : "Deny this application?",
-      isApprove ? "Approve" : "Deny",
-      isApprove ? "approve-btn" : "deny-btn"
-    );
 
-    if (!ok) return;
+    if (isApprove) {
+      const ok = await openConfirm(
+        "Approve this application?",
+        "Approve",
+        "approve-btn"
+      );
 
-    try {
-      const res = await fetch(`${API_BASE}/admin/vendor-application/decision`, {
-        method: "POST",
-        headers: authHeaders(),
-        body: JSON.stringify({ id, action }),
+      if (!ok) return;
+
+      try {
+        const res = await fetch(`${API_BASE}/admin/vendor-application/decision`, {
+          method: "POST",
+          headers: authHeaders(),
+          body: JSON.stringify({ id, action }),
+        });
+
+        const json = await res.json();
+
+        if (!res.ok) throw new Error(json.message || json.error);
+
+        toast.success(json.message || "Application approved successfully");
+        loadVendorApplications();
+      } catch (err) {
+        toast.error(err.message);
+      }
+    } else {
+      // Show rejection reason modal
+      setRejectModal({
+        show: true,
+        appId: id,
+        reason: "",
+        onSubmit: async (reason) => {
+          if (!reason || reason.trim().length < 10) {
+            toast.error("Please provide a detailed reason (at least 10 characters)");
+            return false;
+          }
+
+          try {
+            const res = await fetch(`${API_BASE}/admin/vendor-application/decision`, {
+              method: "POST",
+              headers: authHeaders(),
+              body: JSON.stringify({ id, action: "deny", reason: reason.trim() }),
+            });
+
+            const json = await res.json();
+
+            if (!res.ok) throw new Error(json.message || json.error);
+
+            toast.success("Application denied with reason sent to applicant");
+            setRejectModal({ show: false, appId: null, reason: "", onSubmit: null });
+            loadVendorApplications();
+            return true;
+          } catch (err) {
+            toast.error(err.message);
+            return false;
+          }
+        }
       });
-
-      const json = await res.json();
-
-      if (!res.ok) throw new Error(json.message || json.error);
-
-      toast.success(json.message || "Action completed successfully");
-      loadVendorApplications();
-    } catch (err) {
-      toast.error(err.message);
     }
   }
 
@@ -278,11 +238,14 @@ export default function AdminPanel() {
         .lb-header { display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.25rem; background: #fcf9ee; border-bottom: 2px solid #e8ddae; z-index: 10; }
         .lb-close { border: none; background: #e8ddae; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 1.25rem; font-weight: bold; cursor: pointer; transition: all 0.2s; }
         .lb-close:hover { background: #d1c69a; transform: rotate(90deg); }
-        .lb-body { flex: 1; min-height: 0; overflow: hidden !important; display: flex; align-items: center; justify-content: center; background: #000; position: relative; }
-        .lb-pdf { width: 100%; height: 100%; border: none; display: block; overflow: hidden; }
-        .lb-img { width: 100%; height: 100%; max-width: 100%; max-height: 100%; object-fit: contain !important; display: block; pointer-events: none; user-select: none; }
+        .lb-body { flex: 1; min-height: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; background: #f9fafb; position: relative; padding: 1rem; }
+        .lb-pdf { width: 100%; height: 100%; border: none; display: block; }
+        .lb-img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; pointer-events: none; user-select: none; }
         .confirm-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 9999; }
         .confirm-card { background: #fff; padding: 1.5rem; border-radius: .75rem; width: 100%; max-width: 22rem; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+        .reject-modal-card { background: #fff; padding: 1.5rem; border-radius: .75rem; width: 100%; max-width: 32rem; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+        .reject-reason-input { width: 100%; padding: 0.75rem; border: 2px solid #e5e7eb; border-radius: 0.5rem; font-size: 0.875rem; resize: vertical; font-family: inherit; }
+        .reject-reason-input:focus { outline: none; border-color: #dc2626; }
         .confirm-actions { display: flex; gap: .5rem; justify-content: flex-end; margin-top: .75rem; }
         .btn-ghost { background: #e0d6c6; color: #3b2f25; border-radius: 8px; padding: .5rem .9rem; border: 1px solid #c9bda9; }
         .tab-buttons { display: flex; gap: 0.5rem; margin-bottom: 2rem; border-bottom: 2px solid #e5e5e5; flex-wrap: wrap; }
@@ -291,14 +254,6 @@ export default function AdminPanel() {
         .tab-btn.active { color: #7a5d47; border-bottom-color: #7a5d47; }
         .badge { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; margin-left: 0.5rem; }
         .badge.pending { background: #fef3c7; color: #92400e; }
-        .faq-card { padding: 1rem; background: #fff; border: 1px solid #e5e7eb; border-radius: 0.5rem; margin-bottom: 1rem; }
-        .faq-card.published { background: #f0fdf4; border-color: #86efac; }
-        .faq-category { padding: 0.25rem 0.5rem; background: #fef3c7; color: #92400e; border-radius: 0.25rem; font-size: 0.75rem; font-weight: 600; }
-        .faq-actions { display: flex; gap: 0.5rem; }
-        .faq-btn { padding: 0.25rem 0.75rem; border: none; border-radius: 0.25rem; font-size: 0.75rem; cursor: pointer; }
-        .faq-btn.publish { background: #16a34a; color: white; }
-        .faq-btn.unpublish { background: #dc2626; color: white; }
-        .faq-btn.delete { background: #fee2e2; color: #dc2626; }
       `}</style>
 
       {lightbox.show && (
@@ -336,10 +291,49 @@ export default function AdminPanel() {
         </div>
       )}
 
+      {rejectModal.show && (
+        <div className="confirm-backdrop">
+          <div className="reject-modal-card">
+            <h3 className="text-xl font-bold mb-2 text-red-600">Reject Application</h3>
+            <p className="text-sm text-gray-700 mb-4">
+              Please provide a reason for rejecting this application. This will be sent to the applicant.
+            </p>
+            <textarea
+              className="reject-reason-input"
+              placeholder="Enter detailed reason for rejection (minimum 10 characters)..."
+              value={rejectModal.reason}
+              onChange={(e) => setRejectModal({ ...rejectModal, reason: e.target.value })}
+              rows={5}
+              autoFocus
+            />
+            <div className="text-xs text-gray-500 mb-4">
+              {rejectModal.reason.length} characters
+            </div>
+            <div className="confirm-actions">
+              <button
+                className="deny-btn"
+                onClick={async () => {
+                  const success = await rejectModal.onSubmit(rejectModal.reason);
+                  // Modal will close on success
+                }}
+              >
+                Send Rejection
+              </button>
+              <button
+                className="btn-ghost"
+                onClick={() => setRejectModal({ show: false, appId: null, reason: "", onSubmit: null })}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <main className="admin-panel max-w-7xl mx-auto w-full p-6">
         <h1 className="text-2xl sm:text-3xl font-bold mb-4 sm:mb-6">Admin Panel</h1>
 
-        {/* ✅ TABS NAVIGATION - FAQ tab is the 5th button */}
+        {/* TABS NAVIGATION */}
         <div className="tab-buttons">
           <button className={`tab-btn ${activeTab === "vendors" ? "active" : ""}`} onClick={() => setActiveTab("vendors")}>
             Supplier Applications
@@ -354,14 +348,6 @@ export default function AdminPanel() {
           </button>
           <button className={`tab-btn ${activeTab === "feedback" ? "active" : ""}`} onClick={() => setActiveTab("feedback")}>
             Feedback
-          </button>
-          {/* ✅ NEW FAQ TAB BUTTON */}
-          <button
-            className={`tab-btn ${activeTab === "faqs" ? "active" : ""}`}
-            onClick={() => { setActiveTab("faqs"); loadFAQs(); }}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-          >
-            <span>✨</span> FAQs (AI)
           </button>
         </div>
 
@@ -414,7 +400,7 @@ export default function AdminPanel() {
                             )}
                             {a.portfolio && (
                               <button onClick={() => previewDocument(a.portfolio, "Portfolio")} className="text-blue-600 underline text-sm">
-                                Portfolio
+                                Services
                               </button>
                             )}
                           </td>
@@ -580,137 +566,7 @@ export default function AdminPanel() {
             </div>
           </>
         )}
-
-        {/* ✅ FAQ TAB CONTENT - Shows when FAQ tab is clicked */}
-        {activeTab === "faqs" && (
-          <>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
-              <div>
-                <h2 className="text-2xl font-semibold">FAQ Management</h2>
-                <p className="text-gray-600 text-sm mt-1">Use Case UC18: AI-generated FAQs for event planning</p>
-              </div>
-              <button
-                onClick={generateNewFAQs}
-                disabled={generatingFAQs}
-                style={{
-                  padding: '0.75rem 1.5rem',
-                  background: generatingFAQs ? '#ccc' : 'linear-gradient(135deg, #f59e0b, #ea580c)',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '0.5rem',
-                  fontWeight: '600',
-                  cursor: generatingFAQs ? 'not-allowed' : 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem'
-                }}
-              >
-                {generatingFAQs ? (
-                  <>
-                    <span style={{
-                      width: '1rem',
-                      height: '1rem',
-                      border: '2px solid white',
-                      borderTopColor: 'transparent',
-                      borderRadius: '50%',
-                      animation: 'spin 1s linear infinite'
-                    }}></span>
-                    Generating...
-                  </>
-                ) : (
-                  <>✨ AI Generate FAQs</>
-                )}
-              </button>
-            </div>
-
-            {/* Stats */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
-              <div style={{ padding: '1rem', background: '#f0fdf4', borderRadius: '0.5rem', textAlign: 'center' }}>
-                <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#16a34a' }}>
-                  {faqs.filter(f => f.is_published).length}
-                </div>
-                <div style={{ fontSize: '0.75rem', color: '#166534' }}>Published</div>
-              </div>
-              <div style={{ padding: '1rem', background: '#fef3c7', borderRadius: '0.5rem', textAlign: 'center' }}>
-                <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#92400e' }}>
-                  {faqs.filter(f => !f.is_published).length}
-                </div>
-                <div style={{ fontSize: '0.75rem', color: '#92400e' }}>Drafts</div>
-              </div>
-              <div style={{ padding: '1rem', background: '#ede9fe', borderRadius: '0.5rem', textAlign: 'center' }}>
-                <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#6d28d9' }}>
-                  {faqs.length}
-                </div>
-                <div style={{ fontSize: '0.75rem', color: '#6d28d9' }}>Total FAQs</div>
-              </div>
-            </div>
-
-            {faqLoading ? (
-              <div style={{ textAlign: 'center', padding: '3rem' }}>
-                <div style={{
-                  width: '3rem',
-                  height: '3rem',
-                  border: '4px solid #e8ddae',
-                  borderTopColor: 'transparent',
-                  borderRadius: '50%',
-                  animation: 'spin 1s linear infinite',
-                  margin: '0 auto 1rem'
-                }}></div>
-                <p style={{ color: '#666' }}>Loading FAQs...</p>
-              </div>
-            ) : faqs.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '3rem', color: '#666', background: '#f9fafb', borderRadius: '1rem' }}>
-                <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📚</div>
-                <h3 style={{ fontWeight: '600', marginBottom: '0.5rem' }}>No FAQs yet</h3>
-                <p style={{ marginBottom: '1rem' }}>Click "AI Generate FAQs" to create helpful Q&As for your users!</p>
-                <p style={{ fontSize: '0.875rem', color: '#9ca3af' }}>
-                  The AI will analyze common event planning questions and generate relevant FAQs.
-                </p>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                {faqs.map((faq) => (
-                  <div
-                    key={faq.id}
-                    className={`faq-card ${faq.is_published ? 'published' : ''}`}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                      <span className="faq-category">{faq.category}</span>
-                      <div className="faq-actions">
-                        <button
-                          onClick={() => toggleFAQPublish(faq.id, faq.is_published)}
-                          className={`faq-btn ${faq.is_published ? 'unpublish' : 'publish'}`}
-                        >
-                          {faq.is_published ? 'Unpublish' : 'Publish'}
-                        </button>
-                        <button
-                          onClick={() => deleteFAQ(faq.id)}
-                          className="faq-btn delete"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                    <h4 style={{ fontWeight: '600', marginBottom: '0.5rem', color: '#1f2937' }}>
-                      Q: {faq.question}
-                    </h4>
-                    <p style={{ color: '#4b5563', fontSize: '0.875rem', lineHeight: '1.5' }}>
-                      A: {faq.answer}
-                    </p>
-                    <div style={{ marginTop: '0.75rem', fontSize: '0.75rem', color: '#9ca3af', display: 'flex', gap: '1rem' }}>
-                      <span>Priority: {faq.priority || 5}</span>
-                      <span>{faq.is_published ? '✅ Published' : '⏸️ Draft'}</span>
-                      {faq.created_at && (
-                        <span>Created: {new Date(faq.created_at).toLocaleDateString()}</span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </>
-        )}
-      </main>
+      </main >
 
       <style>{`
         @keyframes spin {

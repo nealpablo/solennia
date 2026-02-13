@@ -96,6 +96,7 @@ return function (App $app) {
             $data   = (array) $req->getParsedBody();
             $appId  = (int) ($data['id'] ?? 0);
             $action = strtolower(trim($data['action'] ?? ''));
+            $reason = trim($data['reason'] ?? '');
 
             if (!$appId || !in_array($action, ['approve', 'deny'], true)) {
                 $res->getBody()->write(json_encode([
@@ -116,21 +117,29 @@ return function (App $app) {
             }
 
             if ($action === 'deny') {
+                // Update application status
                 DB::table('vendor_application')
                     ->where('id', $appId)
-                    ->update(['status' => 'Denied']);
+                    ->update([
+                        'status' => 'Denied',
+                        'rejection_reason' => $reason
+                    ]);
 
-                // Send denial notification
+                // Send detailed denial notification with reason
+                $notificationMessage = $reason 
+                    ? "Your vendor application has been denied.\n\nReason: {$reason}\n\nYou may reapply after addressing the concerns mentioned above."
+                    : "Your vendor application has been denied. Please contact support for more information.";
+
                 $sendNotification(
                     $appRow->user_id,
                     'application_denied',
-                    'Application Update',
-                    'Thank you for your application. Unfortunately, we cannot approve it at this time. Please contact support for more information.'
+                    '❌ Application Denied',
+                    $notificationMessage
                 );
 
                 $res->getBody()->write(json_encode([
                     'success' => true,
-                    'message' => 'Application denied.'
+                    'message' => 'Application denied and notification sent to applicant.'
                 ]));
 
                 return $res->withHeader('Content-Type', 'application/json');
