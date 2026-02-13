@@ -243,7 +243,7 @@ export default function AboutUs() {
             </figcaption>
           </figure>
 
-          {/* NEW IMAGE 3 */}
+          {/* IMAGE 3 */}
           <figure className="relative overflow-hidden rounded-xl border border-gray-300 bg-[#efe9dd]">
             <img
               id="aboutImg3"
@@ -257,7 +257,7 @@ export default function AboutUs() {
             </figcaption>
           </figure>
 
-          {/* NEW IMAGE 4 */}
+          {/* IMAGE 4 */}
           <figure className="relative overflow-hidden rounded-xl border border-gray-300 bg-[#efe9dd]">
             <img
               id="aboutImg4"
