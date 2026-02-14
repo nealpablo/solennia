@@ -42,6 +42,12 @@ return function (App $app) {
         return $feedbackController->getVendorFeedback($req, $res, $args);
     });
 
+    // ⭐ NEW ROUTE - Get all feedback for a venue (PUBLIC - no auth required)
+    // GET /api/venues/{id}/feedback
+    $app->get('/api/venues/{id}/feedback', function (Request $req, Response $res, array $args) use ($feedbackController) {
+        return $feedbackController->getVenueFeedback($req, $res, $args);
+    });
+
     // Get all supplier reports (Admin only)
     // GET /api/admin/reports
     $app->get('/api/admin/reports', function (Request $req, Response $res) use ($feedbackController) {

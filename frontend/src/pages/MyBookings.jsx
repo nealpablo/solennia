@@ -52,6 +52,36 @@ export default function MyBookings() {
     return { date: dateFormatted, time: timeFormatted, full };
   };
 
+  // Extract event time from booking notes for venue bookings
+  const extractEventTimeFromNotes = (notes) => {
+    if (!notes) return null;
+    
+    // Look for pattern like "Event Time: 12:45" or "Event Time:\n12:45"
+    const timeMatch = notes.match(/Event Time:\s*(\d{1,2}:\d{2})/);
+    if (timeMatch && timeMatch[1]) {
+      return timeMatch[1]; // Returns just the time like "12:45"
+    }
+    return null;
+  };
+
+  // Get display time - either from notes (venue bookings) or from EventDate
+  const getDisplayTime = (booking) => {
+    // For venue bookings, try to extract time from notes first
+    if (booking.isVenueBooking || booking.booking_type === 'venue' || booking.venue_id) {
+      const noteTime = extractEventTimeFromNotes(booking.AdditionalNotes);
+      if (noteTime) {
+        return noteTime;
+      }
+    }
+    
+    // Otherwise use the time from EventDate
+    const displayDate = booking.has_pending_reschedule && booking.original_date
+      ? booking.original_date
+      : booking.EventDate;
+    const formatted = formatDateTime(displayDate);
+    return formatted.time;
+  };
+
   const loadBookings = async () => {
     try {
       setLoading(true);
@@ -299,6 +329,7 @@ export default function MyBookings() {
               ? booking.original_date
               : booking.EventDate;
             const display = formatDateTime(displayDate);
+            const displayTime = getDisplayTime(booking); // Get correct time (from notes for venue bookings)
 
             // Get reschedule history
             const rescheduleHistory = booking.reschedule_history || [];
@@ -348,7 +379,7 @@ export default function MyBookings() {
                       <svg style={styles.icon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
-                      <span><strong>Time:</strong> {display.time}</span>
+                      <span><strong>Time:</strong> {displayTime}</span>
                     </div>
 
                     <div style={styles.infoRow}>

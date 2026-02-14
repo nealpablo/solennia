@@ -207,6 +207,14 @@ class BookingController
 
                 $booking->has_pending_reschedule = !empty($booking->reschedule_id);
 
+                // ⭐ Get ALL reschedule history (Pending, Approved, Rejected)
+                $booking->reschedule_history = DB::table('booking_reschedule')
+                    ->where('BookingID', $booking->ID)
+                    ->orderBy('CreatedAt', 'DESC')
+                    ->get()
+                    ->toArray();
+
+                // Keep backward compatibility
                 $booking->approved_reschedules = DB::table('booking_reschedule')
                     ->where('BookingID', $booking->ID)
                     ->where('Status', 'Approved')
@@ -299,6 +307,14 @@ class BookingController
                 foreach ($supplierBookings as $booking) {
                     $booking->client_name = trim(($booking->first_name ?? '') . ' ' . ($booking->last_name ?? ''));
                     $booking->has_pending_reschedule = !empty($booking->reschedule_id);
+                    
+                    // ⭐ Add complete reschedule history
+                    $booking->reschedule_history = DB::table('booking_reschedule')
+                        ->where('BookingID', $booking->ID)
+                        ->orderBy('CreatedAt', 'DESC')
+                        ->get()
+                        ->toArray();
+                    
                     $allBookings[] = $booking;
                 }
             }
@@ -342,6 +358,14 @@ class BookingController
             foreach ($venueBookings as $booking) {
                 $booking->client_name = trim(($booking->first_name ?? '') . ' ' . ($booking->last_name ?? ''));
                 $booking->has_pending_reschedule = !empty($booking->reschedule_id);
+                
+                // ⭐ Add complete reschedule history
+                $booking->reschedule_history = DB::table('booking_reschedule')
+                    ->where('BookingID', $booking->ID)
+                    ->orderBy('CreatedAt', 'DESC')
+                    ->get()
+                    ->toArray();
+                
                 $allBookings[] = $booking;
             }
 

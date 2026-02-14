@@ -281,10 +281,20 @@ class VenueBookingController
                 $bookingArray['vendor_name'] = $bookingArray['venue_owner_name'] ?? null;
                 $bookingArray['isVenueBooking'] = true;
                 $bookingArray['booking_type'] = 'venue';
-                $bookingArray['has_pending_reschedule'] = false;
-                $bookingArray['reschedule_history'] = [];
-                $bookingArray['approved_reschedules'] = [];
-                $bookingArray['rejected_reschedules'] = [];
+                
+                // ⭐ Get ACTUAL reschedule history from database
+                $rescheduleHistory = DB::table('booking_reschedule')
+                    ->where('BookingID', $booking->ID)
+                    ->orderBy('CreatedAt', 'DESC')
+                    ->get()
+                    ->toArray();
+                
+                $bookingArray['reschedule_history'] = $rescheduleHistory;
+                $bookingArray['has_pending_reschedule'] = collect($rescheduleHistory)->contains('Status', 'Pending');
+                
+                // Keep backward compatibility
+                $bookingArray['approved_reschedules'] = collect($rescheduleHistory)->where('Status', 'Approved')->values()->toArray();
+                $bookingArray['rejected_reschedules'] = collect($rescheduleHistory)->where('Status', 'Rejected')->values()->toArray();
                 
                 $enrichedBookings[] = $bookingArray;
             }

@@ -834,9 +834,10 @@ export default function Profile() {
         return !hasApproved;
       });
     } else {
+      // Show bookings that have ANY reschedule history (Pending, Approved, or Rejected)
       return bookings.filter(booking => {
         const rescheduleHistory = booking.reschedule_history || [];
-        return rescheduleHistory.some(r => r.Status === 'Approved' || r.Status === 'Rejected');
+        return rescheduleHistory.length > 0; // Show if there's any reschedule activity
       });
     }
   };
@@ -1483,16 +1484,21 @@ export default function Profile() {
                             {rescheduleHistory.map((reschedule) => (
                               <div
                                 key={reschedule.ID}
-                                className={`mb-3 p-3 rounded border-l-4 ${reschedule.Status === 'Approved'
-                                  ? 'bg-green-50 border-green-500'
-                                  : 'bg-red-50 border-red-500'
-                                  }`}
+                                className={`mb-3 p-3 rounded border-l-4 ${
+                                  reschedule.Status === 'Approved'
+                                    ? 'bg-green-50 border-green-500'
+                                    : reschedule.Status === 'Pending'
+                                    ? 'bg-yellow-50 border-yellow-500'
+                                    : 'bg-red-50 border-red-500'
+                                }`}
                               >
                                 <div className="flex items-start gap-2">
                                   <div className="flex-1">
                                     <p className="text-sm font-semibold mb-2">
                                       {reschedule.Status === 'Approved'
                                         ? '✅ Approved Reschedule'
+                                        : reschedule.Status === 'Pending'
+                                        ? '⏳ Awaiting Approval'
                                         : '❌ Rejected Reschedule'}
                                     </p>
                                     <div className="bg-white border rounded p-2 space-y-1">
@@ -1504,6 +1510,12 @@ export default function Profile() {
                                         <span className="font-semibold">Requested:</span>{' '}
                                         {formatDateTime(reschedule.RequestedEventDate).full}
                                       </p>
+                                      {reschedule.Status === 'Pending' && (
+                                        <p className="text-xs text-yellow-700 mt-1 pt-1 border-t">
+                                          <span className="font-semibold">Requested on:</span>{' '}
+                                          {formatDateTime(reschedule.CreatedAt || reschedule.RequestedAt).full}
+                                        </p>
+                                      )}
                                       {reschedule.Status === 'Approved' && (
                                         <p className="text-xs text-green-700 mt-1 pt-1 border-t">
                                           <span className="font-semibold">Approved on:</span>{' '}
@@ -1900,13 +1912,79 @@ export default function Profile() {
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   New Time <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="time"
-                  value={rescheduleForm.new_time}
-                  onChange={(e) => setRescheduleForm({ ...rescheduleForm, new_time: e.target.value })}
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                <div className="grid grid-cols-3 gap-2">
+                  {/* Hour Dropdown */}
+                  <select
+                    value={(() => {
+                      if (!rescheduleForm.new_time) return "";
+                      const [hours] = rescheduleForm.new_time.split(':');
+                      const h = parseInt(hours);
+                      return h === 0 ? "12" : h > 12 ? (h - 12).toString() : h.toString();
+                    })()}
+                    onChange={(e) => {
+                      const hour12 = parseInt(e.target.value);
+                      const [, mins] = (rescheduleForm.new_time || "14:00").split(':');
+                      const currentHour24 = rescheduleForm.new_time ? parseInt(rescheduleForm.new_time.split(':')[0]) : 14;
+                      const isPM = currentHour24 >= 12;
+                      let hour24 = hour12;
+                      if (isPM && hour12 !== 12) hour24 = hour12 + 12;
+                      if (!isPM && hour12 === 12) hour24 = 0;
+                      setRescheduleForm({ ...rescheduleForm, new_time: `${hour24.toString().padStart(2, '0')}:${mins || '00'}` });
+                    }}
+                    required
+                    className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Hr</option>
+                    {Array.from({ length: 12 }, (_, i) => i + 1).map(h => (
+                      <option key={h} value={h}>{h}</option>
+                    ))}
+                  </select>
+
+                  {/* Minute Dropdown - 15-minute intervals */}
+                  <select
+                    value={rescheduleForm.new_time ? rescheduleForm.new_time.split(':')[1] : ""}
+                    onChange={(e) => {
+                      const [hours] = (rescheduleForm.new_time || "14:00").split(':');
+                      setRescheduleForm({ ...rescheduleForm, new_time: `${hours || '14'}:${e.target.value}` });
+                    }}
+                    required
+                    className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Min</option>
+                    {['00', '15', '30', '45'].map(m => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+
+                  {/* AM/PM Dropdown */}
+                  <select
+                    value={(() => {
+                      if (!rescheduleForm.new_time) return "";
+                      const [hours] = rescheduleForm.new_time.split(':');
+                      return parseInt(hours) >= 12 ? "PM" : "AM";
+                    })()}
+                    onChange={(e) => {
+                      const [hours, mins] = (rescheduleForm.new_time || "14:00").split(':');
+                      let hour24 = parseInt(hours);
+                      const wasPM = hour24 >= 12;
+                      const nowPM = e.target.value === "PM";
+
+                      if (wasPM && !nowPM) {
+                        hour24 = hour24 === 12 ? 0 : hour24 - 12;
+                      } else if (!wasPM && nowPM) {
+                        hour24 = hour24 === 12 ? 12 : hour24 + 12;
+                      }
+
+                      setRescheduleForm({ ...rescheduleForm, new_time: `${hour24.toString().padStart(2, '0')}:${mins || '00'}` });
+                    }}
+                    required
+                    className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">--</option>
+                    <option value="AM">AM</option>
+                    <option value="PM">PM</option>
+                  </select>
+                </div>
               </div>
 
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-6 flex gap-3">

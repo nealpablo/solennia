@@ -192,13 +192,45 @@ class FeedbackController
                     }
                 }
 
-                // Notify vendor about the feedback
-                $this->sendNotification(
-                    $booking->vendor_user_id,
-                    'feedback_received',
-                    'New Feedback Received',
-                    "You received a {$data['rating']}-star review"
-                );
+                // Notify vendor/venue owner about the feedback
+                // Determine who should receive the notification
+                $notificationRecipientId = null;
+                $recipientType = 'vendor';
+                
+                // For venue bookings, get the venue owner's user ID
+                if (!empty($booking->venue_id)) {
+                    $venue = DB::table('venue_listings')
+                        ->where('id', $booking->venue_id)
+                        ->first();
+                    
+                    if ($venue && !empty($venue->firebase_uid)) {
+                        // Get user ID from credential table using firebase_uid
+                        $venueOwner = DB::table('credential')
+                            ->where('firebase_uid', $venue->firebase_uid)
+                            ->first();
+                        
+                        if ($venueOwner) {
+                            $notificationRecipientId = $venueOwner->id;
+                            $recipientType = 'venue';
+                        }
+                    }
+                }
+                
+                // For vendor service bookings, use vendor_user_id
+                if (!$notificationRecipientId && !empty($booking->vendor_user_id)) {
+                    $notificationRecipientId = $booking->vendor_user_id;
+                    $recipientType = 'vendor';
+                }
+                
+                // Send notification if we have a valid recipient
+                if ($notificationRecipientId) {
+                    $this->sendNotification(
+                        $notificationRecipientId,
+                        'feedback_received',
+                        'New Feedback Received',
+                        "You received a {$data['rating']}-star review"
+                    );
+                }
 
                 DB::commit();
 
@@ -283,11 +315,13 @@ class FeedbackController
                 return $this->json($res, ['success' => false, 'error' => 'Vendor not found'], 404);
             }
 
-            // Get all feedback for this vendor
+            // Get all feedback for this vendor (EXCLUDING venue-only bookings)
+            // Only show reviews where the booking does NOT have a venue_id (vendor services only)
             $feedback = DB::table('booking_feedback as bf')
                 ->leftJoin('credential as c', 'bf.UserID', '=', 'c.id')
                 ->leftJoin('booking as b', 'bf.BookingID', '=', 'b.ID')
                 ->where('bf.EventServiceProviderID', $vendor->ID)
+                ->whereNull('b.venue_id')  // Exclude venue bookings
                 ->select([
                     'bf.*',
                     'c.first_name',
@@ -300,17 +334,24 @@ class FeedbackController
                 ->orderBy('bf.CreatedAt', 'DESC')
                 ->get();
 
-            // Get average rating and total reviews
-            $stats = DB::table('event_service_provider')
-                ->where('ID', $vendor->ID)
-                ->select('AverageRating', 'TotalReviews')
-                ->first();
+            // Calculate average rating and total reviews for vendor-only bookings
+            $avgRating = DB::table('booking_feedback as bf')
+                ->join('booking as b', 'bf.BookingID', '=', 'b.ID')
+                ->where('bf.EventServiceProviderID', $vendor->ID)
+                ->whereNull('b.venue_id')
+                ->avg('bf.Rating');
+
+            $totalReviews = DB::table('booking_feedback as bf')
+                ->join('booking as b', 'bf.BookingID', '=', 'b.ID')
+                ->where('bf.EventServiceProviderID', $vendor->ID)
+                ->whereNull('b.venue_id')
+                ->count();
 
             return $this->json($res, [
                 'success' => true,
                 'feedback' => $feedback,
-                'average_rating' => $stats->AverageRating ?? null,
-                'total_reviews' => $stats->TotalReviews ?? 0
+                'average_rating' => $avgRating ? round($avgRating, 1) : null,
+                'total_reviews' => $totalReviews
             ]);
 
         } catch (\Throwable $e) {
@@ -422,6 +463,67 @@ class FeedbackController
         } catch (\Throwable $e) {
             error_log("UPDATE_REPORT_ERROR: " . $e->getMessage());
             return $this->json($res, ['success' => false, 'error' => 'Failed to update report'], 500);
+        }
+    }
+
+    /**
+     * Get all feedback for a venue
+     * GET /api/venues/{id}/feedback
+     */
+    public function getVenueFeedback(Request $req, Response $res, array $args): Response
+    {
+        try {
+            $venueId = $args['id'] ?? null;
+
+            // Get venue details
+            $venue = DB::table('venue_listings')
+                ->where('id', $venueId)
+                ->first();
+
+            if (!$venue) {
+                return $this->json($res, ['success' => false, 'error' => 'Venue not found'], 404);
+            }
+
+            // Get all feedback for this venue from bookings
+            $feedback = DB::table('booking_feedback as bf')
+                ->leftJoin('credential as c', 'bf.UserID', '=', 'c.id')
+                ->leftJoin('booking as b', 'bf.BookingID', '=', 'b.ID')
+                ->where('b.venue_id', $venueId)
+                ->select([
+                    'bf.*',
+                    'c.first_name',
+                    'c.last_name',
+                    'c.avatar',
+                    'b.ServiceName',
+                    'b.EventType',
+                    'b.EventDate',
+                    'b.start_date',
+                    'b.end_date'
+                ])
+                ->orderBy('bf.CreatedAt', 'DESC')
+                ->get();
+
+            // Calculate average rating and total reviews for this venue
+            $avgRating = DB::table('booking_feedback as bf')
+                ->join('booking as b', 'bf.BookingID', '=', 'b.ID')
+                ->where('b.venue_id', $venueId)
+                ->avg('bf.Rating');
+
+            $totalReviews = DB::table('booking_feedback as bf')
+                ->join('booking as b', 'bf.BookingID', '=', 'b.ID')
+                ->where('b.venue_id', $venueId)
+                ->count();
+
+            return $this->json($res, [
+                'success' => true,
+                'feedback' => $feedback,
+                'average_rating' => $avgRating ? round($avgRating, 1) : null,
+                'total_reviews' => $totalReviews
+            ]);
+
+        } catch (\Throwable $e) {
+            error_log("GET_VENUE_FEEDBACK_ERROR: " . $e->getMessage());
+            return $this->json($res, ['success' => false, 'error' => 'Failed to get feedback'], 500);
         }
     }
 }

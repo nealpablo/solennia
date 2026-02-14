@@ -532,12 +532,76 @@ export default function CreateVenueBooking() {
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
                                         Setup Time (Optional)
                                     </label>
-                                    <input
-                                        type="time"
-                                        value={venueConfig.setup_time}
-                                        onChange={(e) => setVenueConfig(prev => ({ ...prev, setup_time: e.target.value }))}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#7a5d47] focus:border-transparent"
-                                    />
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {/* Hour */}
+                                        <select
+                                            value={(() => {
+                                                if (!venueConfig.setup_time) return "";
+                                                const [hours] = venueConfig.setup_time.split(':');
+                                                const h = parseInt(hours);
+                                                return h === 0 ? "12" : h > 12 ? (h - 12).toString() : h.toString();
+                                            })()}
+                                            onChange={(e) => {
+                                                const hour12 = parseInt(e.target.value);
+                                                const [, mins] = (venueConfig.setup_time || "14:00").split(':');
+                                                const currentHour24 = venueConfig.setup_time ? parseInt(venueConfig.setup_time.split(':')[0]) : 14;
+                                                const isPM = currentHour24 >= 12;
+                                                let hour24 = hour12;
+                                                if (isPM && hour12 !== 12) hour24 = hour12 + 12;
+                                                if (!isPM && hour12 === 12) hour24 = 0;
+                                                setVenueConfig(prev => ({ ...prev, setup_time: `${hour24.toString().padStart(2, '0')}:${mins || '00'}` }));
+                                            }}
+                                            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#7a5d47] focus:border-transparent"
+                                        >
+                                            <option value="">Hr</option>
+                                            {Array.from({ length: 12 }, (_, i) => i + 1).map(h => (
+                                                <option key={h} value={h}>{h}</option>
+                                            ))}
+                                        </select>
+
+                                        {/* Minute */}
+                                        <select
+                                            value={venueConfig.setup_time ? venueConfig.setup_time.split(':')[1] : ""}
+                                            onChange={(e) => {
+                                                const [hours] = (venueConfig.setup_time || "14:00").split(':');
+                                                setVenueConfig(prev => ({ ...prev, setup_time: `${hours || '14'}:${e.target.value}` }));
+                                            }}
+                                            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#7a5d47] focus:border-transparent"
+                                        >
+                                            <option value="">Min</option>
+                                            {['00', '15', '30', '45'].map(m => (
+                                                <option key={m} value={m}>{m}</option>
+                                            ))}
+                                        </select>
+
+                                        {/* AM/PM */}
+                                        <select
+                                            value={(() => {
+                                                if (!venueConfig.setup_time) return "";
+                                                const [hours] = venueConfig.setup_time.split(':');
+                                                return parseInt(hours) >= 12 ? "PM" : "AM";
+                                            })()}
+                                            onChange={(e) => {
+                                                const [hours, mins] = (venueConfig.setup_time || "14:00").split(':');
+                                                let hour24 = parseInt(hours);
+                                                const wasPM = hour24 >= 12;
+                                                const nowPM = e.target.value === "PM";
+
+                                                if (wasPM && !nowPM) {
+                                                    hour24 = hour24 === 12 ? 0 : hour24 - 12;
+                                                } else if (!wasPM && nowPM) {
+                                                    hour24 = hour24 === 12 ? 12 : hour24 + 12;
+                                                }
+
+                                                setVenueConfig(prev => ({ ...prev, setup_time: `${hour24.toString().padStart(2, '0')}:${mins || '00'}` }));
+                                            }}
+                                            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#7a5d47] focus:border-transparent"
+                                        >
+                                            <option value="">--</option>
+                                            <option value="AM">AM</option>
+                                            <option value="PM">PM</option>
+                                        </select>
+                                    </div>
                                     <p className="text-xs text-gray-500 mt-1">When you need access for setup</p>
                                 </div>
 
@@ -545,12 +609,76 @@ export default function CreateVenueBooking() {
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
                                         Teardown Time (Optional)
                                     </label>
-                                    <input
-                                        type="time"
-                                        value={venueConfig.teardown_time}
-                                        onChange={(e) => setVenueConfig(prev => ({ ...prev, teardown_time: e.target.value }))}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#7a5d47] focus:border-transparent"
-                                    />
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {/* Hour */}
+                                        <select
+                                            value={(() => {
+                                                if (!venueConfig.teardown_time) return "";
+                                                const [hours] = venueConfig.teardown_time.split(':');
+                                                const h = parseInt(hours);
+                                                return h === 0 ? "12" : h > 12 ? (h - 12).toString() : h.toString();
+                                            })()}
+                                            onChange={(e) => {
+                                                const hour12 = parseInt(e.target.value);
+                                                const [, mins] = (venueConfig.teardown_time || "14:00").split(':');
+                                                const currentHour24 = venueConfig.teardown_time ? parseInt(venueConfig.teardown_time.split(':')[0]) : 14;
+                                                const isPM = currentHour24 >= 12;
+                                                let hour24 = hour12;
+                                                if (isPM && hour12 !== 12) hour24 = hour12 + 12;
+                                                if (!isPM && hour12 === 12) hour24 = 0;
+                                                setVenueConfig(prev => ({ ...prev, teardown_time: `${hour24.toString().padStart(2, '0')}:${mins || '00'}` }));
+                                            }}
+                                            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#7a5d47] focus:border-transparent"
+                                        >
+                                            <option value="">Hr</option>
+                                            {Array.from({ length: 12 }, (_, i) => i + 1).map(h => (
+                                                <option key={h} value={h}>{h}</option>
+                                            ))}
+                                        </select>
+
+                                        {/* Minute */}
+                                        <select
+                                            value={venueConfig.teardown_time ? venueConfig.teardown_time.split(':')[1] : ""}
+                                            onChange={(e) => {
+                                                const [hours] = (venueConfig.teardown_time || "14:00").split(':');
+                                                setVenueConfig(prev => ({ ...prev, teardown_time: `${hours || '14'}:${e.target.value}` }));
+                                            }}
+                                            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#7a5d47] focus:border-transparent"
+                                        >
+                                            <option value="">Min</option>
+                                            {['00', '15', '30', '45'].map(m => (
+                                                <option key={m} value={m}>{m}</option>
+                                            ))}
+                                        </select>
+
+                                        {/* AM/PM */}
+                                        <select
+                                            value={(() => {
+                                                if (!venueConfig.teardown_time) return "";
+                                                const [hours] = venueConfig.teardown_time.split(':');
+                                                return parseInt(hours) >= 12 ? "PM" : "AM";
+                                            })()}
+                                            onChange={(e) => {
+                                                const [hours, mins] = (venueConfig.teardown_time || "14:00").split(':');
+                                                let hour24 = parseInt(hours);
+                                                const wasPM = hour24 >= 12;
+                                                const nowPM = e.target.value === "PM";
+
+                                                if (wasPM && !nowPM) {
+                                                    hour24 = hour24 === 12 ? 0 : hour24 - 12;
+                                                } else if (!wasPM && nowPM) {
+                                                    hour24 = hour24 === 12 ? 12 : hour24 + 12;
+                                                }
+
+                                                setVenueConfig(prev => ({ ...prev, teardown_time: `${hour24.toString().padStart(2, '0')}:${mins || '00'}` }));
+                                            }}
+                                            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#7a5d47] focus:border-transparent"
+                                        >
+                                            <option value="">--</option>
+                                            <option value="AM">AM</option>
+                                            <option value="PM">PM</option>
+                                        </select>
+                                    </div>
                                     <p className="text-xs text-gray-500 mt-1">When you'll finish teardown</p>
                                 </div>
                             </div>
@@ -669,9 +797,16 @@ export default function CreateVenueBooking() {
                             disabled={loading}
                             className="px-6 py-3 border-2 border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
                         >
-                            Back
+                            ← Back
                         </button>
                     )}
+                    <button
+                        onClick={() => navigate(`/venue/${venueData.venueId}`)}
+                        disabled={loading}
+                        className="px-6 py-3 border-2 border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                    >
+                        Cancel
+                    </button>
                     <button
                         onClick={handleNext}
                         disabled={loading}
@@ -681,7 +816,7 @@ export default function CreateVenueBooking() {
                         {loading && (
                             <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                         )}
-                        {step === 3 ? "Submit Booking" : "Next"}
+                        {step === 3 ? "Submit Booking" : "Next →"}
                     </button>
                 </div>
             </div>

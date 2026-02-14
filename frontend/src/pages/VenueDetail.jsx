@@ -24,6 +24,11 @@ export default function VenueDetail() {
   const [availability, setAvailability] = useState([]);
   const [loadingAvailability, setLoadingAvailability] = useState(false);
 
+  // ⭐ NEW - Review states
+  const [reviews, setReviews] = useState([]);
+  const [loadingReviews, setLoadingReviews] = useState(false);
+  const [reviewStats, setReviewStats] = useState({ average_rating: null, total_reviews: 0 });
+
   /* =========================
      FETCH VENUE DATA FROM API
   ========================= */
@@ -107,6 +112,7 @@ export default function VenueDetail() {
   useEffect(() => {
     if (!id) return;
     loadAvailability();
+    loadReviews(); // ⭐ NEW - Load reviews
   }, [id, currentMonth]);
 
   const loadAvailability = async () => {
@@ -123,6 +129,31 @@ export default function VenueDetail() {
       console.error("Failed to load venue availability:", err);
     } finally {
       setLoadingAvailability(false);
+    }
+  };
+
+  /* =========================
+     ⭐ NEW - LOAD REVIEWS
+  ========================= */
+  const loadReviews = async () => {
+    if (!id) return;
+
+    try {
+      setLoadingReviews(true);
+      const res = await fetch(`${API}/venues/${id}/feedback`);
+      const json = await res.json();
+
+      if (json.success) {
+        setReviews(json.feedback || []);
+        setReviewStats({
+          average_rating: json.average_rating,
+          total_reviews: json.total_reviews || 0
+        });
+      }
+    } catch (err) {
+      console.error("Failed to load reviews:", err);
+    } finally {
+      setLoadingReviews(false);
     }
   };
 
@@ -410,7 +441,8 @@ export default function VenueDetail() {
           {/* Tabs */}
           <div className="border-b border-gray-300 mb-6">
             <div className="flex gap-6">
-              {["overview", "packages", "amenities", "availability"].map((tab) => (
+              {/* ⭐ MODIFIED - Added "review" to tabs array */}
+              {["overview", "packages", "amenities", "availability", "review"].map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
@@ -591,6 +623,124 @@ export default function VenueDetail() {
                   </>
                 );
               })()}
+            </div>
+          )}
+
+          {/* ⭐ NEW - Review Tab */}
+          {activeTab === "review" && (
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <div className="mb-6">
+                <h3 className="text-xl font-semibold mb-2">Client Reviews</h3>
+                {reviewStats.total_reviews > 0 ? (
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <svg
+                          key={star}
+                          className={`w-5 h-5 ${star <= Math.round(reviewStats.average_rating || 0)
+                            ? 'text-yellow-400 fill-current'
+                            : 'text-gray-300'
+                            }`}
+                          viewBox="0 0 20 20"
+                        >
+                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                        </svg>
+                      ))}
+                    </div>
+                    <span className="text-lg font-semibold">{reviewStats.average_rating?.toFixed(1)}</span>
+                    <span className="text-gray-600">({reviewStats.total_reviews} {reviewStats.total_reviews === 1 ? 'review' : 'reviews'})</span>
+                  </div>
+                ) : (
+                  <p className="text-gray-600">No reviews yet</p>
+                )}
+              </div>
+
+              {loadingReviews ? (
+                <div className="text-center py-8">
+                  <div className="w-8 h-8 border-4 border-[#e8ddae] border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                  <p className="text-gray-600 text-sm">Loading reviews...</p>
+                </div>
+              ) : reviews.length > 0 ? (
+                <div className="space-y-6">
+                  {reviews.map((review) => (
+                    <div key={review.ID} className="border-b border-gray-200 pb-6 last:border-0">
+                      <div className="flex items-start gap-4">
+                        <div className="flex-shrink-0">
+                          {review.avatar ? (
+                            <img
+                              src={review.avatar}
+                              alt={`${review.first_name} ${review.last_name}`}
+                              className="w-12 h-12 rounded-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-12 h-12 rounded-full bg-[#e8ddae] flex items-center justify-center">
+                              <span className="text-[#7a5d47] font-semibold text-lg">
+                                {review.first_name?.[0]}{review.last_name?.[0]}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between mb-2">
+                            <div>
+                              <h4 className="font-semibold text-gray-800">
+                                {review.first_name} {review.last_name}
+                              </h4>
+                              <p className="text-sm text-gray-500">
+                                {new Date(review.CreatedAt).toLocaleDateString('en-US', {
+                                  year: 'numeric',
+                                  month: 'long',
+                                  day: 'numeric'
+                                })}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <svg
+                                  key={star}
+                                  className={`w-4 h-4 ${star <= review.Rating
+                                    ? 'text-yellow-400 fill-current'
+                                    : 'text-gray-300'
+                                    }`}
+                                  viewBox="0 0 20 20"
+                                >
+                                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                </svg>
+                              ))}
+                            </div>
+                          </div>
+
+                          {review.ServiceName && (
+                            <p className="text-sm text-gray-600 mb-2">
+                              Event: <span className="font-medium">{review.ServiceName}</span>
+                              {review.EventDate && ` • ${new Date(review.EventDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`}
+                            </p>
+                          )}
+
+                          {review.Comment && (
+                            <p className="text-gray-700 mt-2">{review.Comment}</p>
+                          )}
+
+                          {review.IsReported === 1 && (
+                            <div className="mt-2 text-xs text-orange-600 bg-orange-50 px-2 py-1 rounded inline-block">
+                              ⚠️ Reported to Admin
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <svg className="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                  </svg>
+                  <p className="text-gray-600">No reviews yet</p>
+                  <p className="text-sm text-gray-500 mt-1">Be the first to review this venue after booking!</p>
+                </div>
+              )}
             </div>
           )}
         </div>
