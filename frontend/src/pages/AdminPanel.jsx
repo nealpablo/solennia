@@ -598,7 +598,7 @@ export default function AdminPanel() {
                   {/* Profile Photo / Logo */}
                   {(selectedApp.portfolio || selectedApp.sample_photos) && (
                     <div
-                      onClick={() => previewDocument(selectedApp.portfolio || selectedApp.sample_photos, "Profile Photo / Logo")}
+                      onClick={(e) => { e.stopPropagation(); previewDocument(selectedApp.portfolio || selectedApp.sample_photos, "Profile Photo / Logo"); }}
                       className="cursor-pointer group"
                     >
                       <div className="relative h-24 bg-gray-100 rounded border overflow-hidden">
@@ -614,21 +614,21 @@ export default function AdminPanel() {
                     </div>
                   )}
                   {selectedApp.gov_id && (
-                    <div onClick={() => previewDocument(selectedApp.gov_id, "Government ID")} className="cursor-pointer group">
+                    <div onClick={(e) => { e.stopPropagation(); previewDocument(selectedApp.gov_id, "Government ID"); }} className="cursor-pointer group">
                       <div className="h-24 bg-gray-100 rounded border flex items-center justify-center group-hover:bg-blue-50 transition-colors">
                         <span className="text-xs font-semibold text-blue-600">View Valid ID</span>
                       </div>
                     </div>
                   )}
                   {selectedApp.permits && (
-                    <div onClick={() => previewDocument(selectedApp.permits, "Business Permit")} className="cursor-pointer group">
+                    <div onClick={(e) => { e.stopPropagation(); previewDocument(selectedApp.permits, "Business Permit"); }} className="cursor-pointer group">
                       <div className="h-24 bg-gray-100 rounded border flex items-center justify-center group-hover:bg-blue-50 transition-colors">
                         <span className="text-xs font-semibold text-blue-600">View Permit</span>
                       </div>
                     </div>
                   )}
                   {selectedApp.portfolio && (
-                    <div onClick={() => previewDocument(selectedApp.portfolio, "Portfolio")} className="cursor-pointer group">
+                    <div onClick={(e) => { e.stopPropagation(); previewDocument(selectedApp.portfolio, "Portfolio"); }} className="cursor-pointer group">
                       <div className="h-24 bg-gray-100 rounded border flex items-center justify-center group-hover:bg-blue-50 transition-colors">
                         <span className="text-xs font-semibold text-blue-600">View Services/Portfolio</span>
                       </div>
@@ -637,7 +637,7 @@ export default function AdminPanel() {
 
                   {/* New Docs */}
                   {selectedApp.selfie_with_id && (
-                    <div onClick={() => previewDocument(selectedApp.selfie_with_id, "Selfie with ID")} className="cursor-pointer group">
+                    <div onClick={(e) => { e.stopPropagation(); previewDocument(selectedApp.selfie_with_id, "Selfie with ID"); }} className="cursor-pointer group">
                       <div className="relative h-24 bg-gray-100 rounded border overflow-hidden">
                         <img src={selectedApp.selfie_with_id} alt="Selfie" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
                         <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-transparent transition-colors">
@@ -647,7 +647,7 @@ export default function AdminPanel() {
                     </div>
                   )}
                   {selectedApp.sample_photos && (
-                    <div onClick={() => previewDocument(selectedApp.sample_photos, "Sample Work")} className="cursor-pointer group">
+                    <div onClick={(e) => { e.stopPropagation(); previewDocument(selectedApp.sample_photos, "Sample Work"); }} className="cursor-pointer group">
                       <div className="relative h-24 bg-gray-100 rounded border overflow-hidden">
                         <img src={selectedApp.sample_photos} alt="Sample" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
                         <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-transparent transition-colors">
@@ -657,7 +657,7 @@ export default function AdminPanel() {
                     </div>
                   )}
                   {selectedApp.menu_list && (
-                    <div onClick={() => previewDocument(selectedApp.menu_list, "Menu List")} className="cursor-pointer group">
+                    <div onClick={(e) => { e.stopPropagation(); previewDocument(selectedApp.menu_list, "Menu List"); }} className="cursor-pointer group">
                       <div className="h-24 bg-amber-50 rounded border border-amber-200 flex items-center justify-center group-hover:bg-amber-100 transition-colors">
                         <span className="text-xs font-semibold text-amber-800">View Menu</span>
                       </div>
