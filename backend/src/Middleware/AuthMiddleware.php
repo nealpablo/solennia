@@ -14,12 +14,14 @@ class AuthMiddleware implements Middleware
 
     public function __construct()
     {
-        // MUST MATCH AuthController
-        $this->secret = $_ENV['JWT_SECRET'] ?? getenv('JWT_SECRET') ?: 'solennia_local_development_secret_key_2025';
+        // 1. Try $_ENV (DotEnv)
+        // 2. Try getenv() (System/Server)
+        // 3. Fallback to hardcoded string (LAST RESORT)
+        $this->secret = $_ENV['JWT_SECRET'] ?? getenv('JWT_SECRET');
 
-        // Debug log to check which key is being used (safe log)
-        $keyUsed = substr($this->secret, 0, 5) . '...';
-        error_log("AUTH_MIDDLEWARE_INIT: Initialized with secret starting with: " . $keyUsed);
+        if (!$this->secret) {
+            $this->secret = 'solennia_local_development_secret_key_2025';
+        }
     }
 
     public function process(Request $request, Handler $handler): Response

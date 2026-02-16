@@ -239,13 +239,16 @@ $app->get('/api/health', function ($req, $res) {
 });
 
 $app->get('/api/debug/env', function ($req, $res) {
+    $secret = $_ENV['JWT_SECRET'] ?? getenv('JWT_SECRET') ?? 'fallback';
+
     $res->getBody()->write(json_encode([
         'DB_HOST' => getenv('DB_HOST'),
         'DB_DATABASE' => getenv('DB_DATABASE'),
         'DB_USERNAME' => getenv('DB_USERNAME'),
         'DB_PASSWORD' => getenv('DB_PASSWORD') ? 'SET' : 'NOT SET',
         'env_file_exists' => file_exists(BASE_PATH . '/.env'),
-        'cors_origins' => getenv('CORS_ALLOWED_ORIGINS')
+        'cors_origins' => getenv('CORS_ALLOWED_ORIGINS'),
+        'jwt_secret_start' => substr($secret, 0, 5) . '...' // SAFE to show first 5 chars
     ], JSON_PRETTY_PRINT));
     return $res->withHeader('Content-Type', 'application/json');
 });
