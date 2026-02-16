@@ -54,39 +54,46 @@ export default function ChatInterface({ messages, onSendMessage, isProcessing })
           <div
             key={index}
             style={{
-              ...styles.messageRow,
-              justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start',
+              gap: '10px',
             }}
           >
-            {msg.role === 'assistant' && (
-              <div style={styles.assistantAvatar}>S</div>
-            )}
-
             <div
-              style={
-                msg.role === 'user'
-                  ? styles.userBubble
-                  : styles.assistantBubble
-              }
+              style={{
+                ...styles.messageRow,
+                justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
+              }}
             >
               {msg.role === 'assistant' && (
-                <div style={styles.bubbleLabel}>Solennia Assistant</div>
+                <div style={styles.assistantAvatar}>S</div>
               )}
-              <p style={styles.messageText}>{msg.content}</p>
+
+              <div
+                style={
+                  msg.role === 'user'
+                    ? styles.userBubble
+                    : styles.assistantBubble
+                }
+              >
+                {msg.role === 'assistant' && (
+                  <div style={styles.bubbleLabel}>Solennia Assistant</div>
+                )}
+                <p style={styles.messageText}>{msg.content}</p>
+              </div>
             </div>
+
+            {/* Vendor cards - rendered inline with the message that contains them */}
+            {msg.vendors && msg.vendors.length > 0 && (
+              <div style={styles.vendorGrid}>
+                {msg.vendors.map((vendor) => (
+                  <VendorCard key={vendor.ID} vendor={vendor} />
+                ))}
+              </div>
+            )}
           </div>
         ))}
-
-        {/* Vendor cards */}
-        {messages.map((msg, index) =>
-          msg.vendors && msg.vendors.length > 0 ? (
-            <div key={`vendors-${index}`} style={styles.vendorGrid}>
-              {msg.vendors.map((vendor) => (
-                <VendorCard key={vendor.ID} vendor={vendor} />
-              ))}
-            </div>
-          ) : null
-        )}
 
         {isProcessing && (
           <div style={{ ...styles.messageRow, justifyContent: 'flex-start' }}>

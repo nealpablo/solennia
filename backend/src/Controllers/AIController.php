@@ -380,7 +380,8 @@ CURRENT STAGE: {$stage}
 
 STAGES:
 - discovery: Gathering event details from user
-- vendor_search: Searching and presenting vendor options
+- recommendation: Presenting vendor/venue recommendations to user
+- vendor_search: User is browsing and selecting from vendor options
 - confirmation: Confirming final details before booking
 - completed: Booking successfully created
 
@@ -419,7 +420,7 @@ INFORMATION TO GATHER (in order):
 1. Event type (ask - do not assume)
 2. Event date (must be {$currentDate} or later, format YYYY-MM-DD)
 3. Event time
-4. Location (ONLY for suppliers, NOT for venues since venues have fixed addresses)
+4. Location - ONLY ask for location if booking a SUPPLIER (photographer, caterer, coordinator, etc.) because the supplier travels to the client. Do NOT ask for location when booking a VENUE because the client goes to the venue. If venue_id is set in currentData, skip location entirely.
 5. Budget
 6. Number of guests
 7. Vendor/venue selection (from search results only)
@@ -429,7 +430,15 @@ FUNCTION USAGE:
 - search_vendors: Call when user asks for recommendations or is ready to see options. Use category and keyword parameters. Do NOT include limit/budget_max/location unless user explicitly specified those filters.
   - For venue types (Churches, Gardens, Hotels): use category='Venue' and keyword for the type.
 - check_availability: ONLY call when a specific date exists in currentData AND user has selected a specific vendor/venue. NEVER call with made-up dates.
-- create_booking: ONLY after user explicitly confirms ALL details. Must have: event_type, date, time, budget, guests, and vendor_id or venue_id.
+- create_booking: ONLY after user explicitly confirms ALL details.
+  - FOR VENUE BOOKING: Must have event_type, date, time, budget, guests, and venue_id. Location is NOT required.
+  - FOR SUPPLIER BOOKING: Must have event_type, date, time, location, budget, guests, and vendor_id. Location IS required.
+
+RECOMMENDATION-TO-BOOKING FLOW:
+- After presenting vendor/venue recommendations from search_vendors, ALWAYS ask: 'Would you like to proceed with booking any of these options?'
+- If user selects a vendor/venue, extract the vendor_id or venue_id immediately, check availability, then move to confirmation.
+- If user wants more options, search again with adjusted criteria.
+- The flow is: discovery -> recommendation -> vendor_search -> confirmation -> completed.
 
 RECOMMENDATION POLICIES - FOLLOW THESE STRICTLY:
 
@@ -490,16 +499,19 @@ E. PRACTICAL RECOMMENDATIONS:
    - Present vendor options clearly with pricing and key details.
 
 VENUE VS SUPPLIER:
-- Venues: Use venue_id for check_availability and create_booking. Do NOT ask for location (venue has its own address).
-- Suppliers: Use vendor_id. DO ask for event location since supplier travels to client.
+- Venues: Use venue_id for check_availability and create_booking. Do NOT ask for location. The venue's address IS the event location. If user chose a venue, set location to null or skip it entirely.
+- Suppliers (Photography, Catering, Coordination, Decoration, Entertainment, Others): Use vendor_id. You MUST ask for the event location because the supplier needs to travel to the client's event.
 
 CRITICAL: Use exact numeric IDs from search_vendors results. NEVER use placeholder IDs like 1.";
 
-        if ($stage === 'vendor_search') {
-            $basePrompt .= "\n\nCURRENT TASK: Search for vendors and present options to the user.";
+        if ($stage === 'recommendation') {
+            $basePrompt .= "\n\nCURRENT TASK: You have presented recommendations. Ask the user if they would like to proceed with booking one of the options, or if they need different recommendations.";
+        }
+        elseif ($stage === 'vendor_search') {
+            $basePrompt .= "\n\nCURRENT TASK: Search for vendors and present options to the user. After presenting, ask if they want to proceed with booking.";
         }
         elseif ($stage === 'confirmation') {
-            $basePrompt .= "\n\nCURRENT TASK: Confirm all booking details with the user before proceeding.";
+            $basePrompt .= "\n\nCURRENT TASK: Confirm all booking details with the user before proceeding. Remember: location is only required for supplier bookings, not venue bookings.";
         }
 
         return $basePrompt;
