@@ -168,7 +168,13 @@ $loadRoutes('/src/Routes/chatRoutes.php');
 $loadRoutes('/src/Routes/usernameResolverRoutes.php');
 $loadRoutes('/src/Routes/bookingRoutes.php');
 $loadRoutes('/src/Routes/availabilityRoutes.php');
+$loadRoutes('/src/Routes/bookingRoutes.php');
+$loadRoutes('/src/Routes/availabilityRoutes.php');
 $loadRoutes('/src/Routes/aiRoutes.php');
+
+$app->options('/{routes:.+}', function ($request, $response, $args) {
+    return $response;
+});
 
 // -------------------------------------------------------------
 // ✅ ERROR HANDLING
