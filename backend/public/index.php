@@ -239,7 +239,19 @@ $app->get('/api/health', function ($req, $res) {
 });
 
 $app->get('/api/debug/env', function ($req, $res) {
-    $secret = $_ENV['JWT_SECRET'] ?? getenv('JWT_SECRET') ?? 'fallback';
+    // FIX: Use ?: for fallback of getenv() which returns false
+    $secretSource = 'fallback';
+    if (!empty($_ENV['JWT_SECRET'])) {
+        $secret = $_ENV['JWT_SECRET'];
+        $secretSource = '_ENV';
+    }
+    elseif (getenv('JWT_SECRET')) {
+        $secret = getenv('JWT_SECRET');
+        $secretSource = 'getenv';
+    }
+    else {
+        $secret = 'solennia_local_development_secret_key_2025';
+    }
 
     $res->getBody()->write(json_encode([
         'DB_HOST' => getenv('DB_HOST'),
@@ -248,6 +260,7 @@ $app->get('/api/debug/env', function ($req, $res) {
         'DB_PASSWORD' => getenv('DB_PASSWORD') ? 'SET' : 'NOT SET',
         'env_file_exists' => file_exists(BASE_PATH . '/.env'),
         'cors_origins' => getenv('CORS_ALLOWED_ORIGINS'),
+        'jwt_secret_source' => $secretSource,
         'jwt_secret_start' => substr($secret, 0, 5) . '...' // SAFE to show first 5 chars
     ], JSON_PRETTY_PRINT));
     return $res->withHeader('Content-Type', 'application/json');
