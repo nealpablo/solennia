@@ -615,22 +615,22 @@ export default function AdminPanel() {
                   )}
                   {selectedApp.gov_id && (
                     <div onClick={(e) => { e.stopPropagation(); previewDocument(selectedApp.gov_id, "Government ID"); }} className="cursor-pointer group">
-                      <div className="h-24 bg-gray-100 rounded border flex items-center justify-center group-hover:bg-blue-50 transition-colors">
-                        <span className="text-xs font-semibold text-blue-600">View Valid ID</span>
+                      <div className="h-24 bg-gray-100 rounded border flex items-center justify-center group-hover:bg-black-50 transition-colors">
+                        <span className="text-xs font-semibold text-black-600">View Valid ID</span>
                       </div>
                     </div>
                   )}
                   {selectedApp.permits && (
                     <div onClick={(e) => { e.stopPropagation(); previewDocument(selectedApp.permits, "Business Permit"); }} className="cursor-pointer group">
-                      <div className="h-24 bg-gray-100 rounded border flex items-center justify-center group-hover:bg-blue-50 transition-colors">
-                        <span className="text-xs font-semibold text-blue-600">View Permit</span>
+                      <div className="h-24 bg-gray-100 rounded border flex items-center justify-center group-hover:bg-black-50 transition-colors">
+                        <span className="text-xs font-semibold text-black-600">View Permit</span>
                       </div>
                     </div>
                   )}
                   {selectedApp.portfolio && (
                     <div onClick={(e) => { e.stopPropagation(); previewDocument(selectedApp.portfolio, "Portfolio"); }} className="cursor-pointer group">
-                      <div className="h-24 bg-gray-100 rounded border flex items-center justify-center group-hover:bg-blue-50 transition-colors">
-                        <span className="text-xs font-semibold text-blue-600">View Services/Portfolio</span>
+                      <div className="h-24 bg-gray-100 rounded border flex items-center justify-center group-hover:bg-black-50 transition-colors">
+                        <span className="text-xs font-semibold text-black-600">View Services/Portfolio</span>
                       </div>
                     </div>
                   )}
@@ -854,8 +854,8 @@ export default function AdminPanel() {
                           </td>
                           <td>
                             <div className="flex gap-2">
-                              <button className="bg-[#7a5d47] text-white hover:bg-[#5d4636] border border-[#7a5d47] flex-1" style={{ padding: '0.5rem 1rem', borderRadius: '6px', fontWeight: 500, cursor: 'pointer' }} onClick={() => handleDecision(a.id, "approve")}>Approve</button>
-                              <button className="deny-btn flex-1" style={{ border: '1px solid #dc2626' }} onClick={() => handleDecision(a.id, "deny")}>Reject</button>
+                              <button className="approve-btn flex-1" onClick={() => handleDecision(a.id, "approve")}>Approve</button>
+                              <button className="deny-btn flex-1" onClick={() => handleDecision(a.id, "deny")}>Reject</button>
                             </div>
                           </td>
                         </tr>
@@ -911,8 +911,8 @@ export default function AdminPanel() {
                           </td>
                           <td>
                             <div className="flex gap-2">
-                              <button className="bg-[#7a5d47] text-white hover:bg-[#5d4636] border border-[#7a5d47] flex-1" style={{ padding: '0.5rem 1rem', borderRadius: '6px', fontWeight: 500, cursor: 'pointer' }} onClick={() => handleDecision(a.id, "approve")}>Approve</button>
-                              <button className="deny-btn flex-1" style={{ border: '1px solid #dc2626' }} onClick={() => handleDecision(a.id, "deny")}>Reject</button>
+                              <button className="approve-btn flex-1" onClick={() => handleDecision(a.id, "approve")}>Approve</button>
+                              <button className="deny-btn flex-1" onClick={() => handleDecision(a.id, "deny")}>Reject</button>
                             </div>
                           </td>
                         </tr>

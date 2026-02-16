@@ -49,6 +49,7 @@ export default function Profile() {
   const [loadingBookings, setLoadingBookings] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [processingBooking, setProcessingBooking] = useState(false);
+  const [rejectModal, setRejectModal] = useState({ show: false, bookingId: null, reason: "" });
   const [activeTab, setActiveTab] = useState("original");
 
   // Feedback Modal States
@@ -934,17 +935,20 @@ export default function Profile() {
   const rejectBooking = async (bookingId) => {
     const confirmed = await confirm({ title: 'Reject this booking request?', message: 'This will decline the booking request.' }); if (!confirmed) return;
 
-    // Prompt for rejection reason
-    const reason = prompt("Please provide a reason for rejecting this booking request:");
+    // Show custom modal for rejection reason
+    setRejectModal({ show: true, bookingId, reason: "" });
+  };
 
-    if (!reason || reason.trim() === "") {
+  /* ================= SUBMIT REJECTION WITH REASON ================= */
+  const submitRejection = async () => {
+    if (!rejectModal.reason || rejectModal.reason.trim() === "") {
       toast.error("Rejection reason is required");
       return;
     }
 
     setProcessingBooking(true);
     try {
-      const res = await fetch(`${API}/bookings/${bookingId}/status`, {
+      const res = await fetch(`${API}/bookings/${rejectModal.bookingId}/status`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -952,7 +956,7 @@ export default function Profile() {
         },
         body: JSON.stringify({
           status: 'Rejected',
-          rejection_reason: reason.trim()
+          rejection_reason: rejectModal.reason.trim()
         }),
       });
 
@@ -960,6 +964,7 @@ export default function Profile() {
 
       if (data.success) {
         toast.success('Booking rejected', { duration: 5000 });
+        setRejectModal({ show: false, bookingId: null, reason: "" });
         loadBookings();
         setSelectedBooking(null);
       } else {
@@ -4012,6 +4017,97 @@ export default function Profile() {
 
       {/* Confirmation Modal */}
       <ConfirmModal />
+
+      {/* Rejection Reason Modal */}
+      {rejectModal.show && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            zIndex: 99999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1rem'
+          }}
+          onClick={() => setRejectModal({ show: false, bookingId: null, reason: "" })}
+        >
+          <div
+            style={{
+              backgroundColor: 'white',
+              borderRadius: '12px',
+              maxWidth: '500px',
+              width: '100%',
+              padding: '1.5rem',
+              boxShadow: '0 10px 40px rgba(0,0,0,0.3)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '0.5rem', color: '#1c1b1a' }}>
+              Reject this booking request?
+            </h3>
+            <p style={{ color: '#666', marginBottom: '1.5rem', fontSize: '0.95rem' }}>
+              Please provide a reason for rejecting this booking request:
+            </p>
+
+            <textarea
+              value={rejectModal.reason}
+              onChange={(e) => setRejectModal({ ...rejectModal, reason: e.target.value })}
+              placeholder="Enter rejection reason..."
+              style={{
+                width: '100%',
+                minHeight: '100px',
+                padding: '0.75rem',
+                border: '2px solid #e5e5e5',
+                borderRadius: '8px',
+                fontSize: '0.95rem',
+                fontFamily: 'inherit',
+                resize: 'vertical',
+                marginBottom: '1.5rem',
+                outline: 'none'
+              }}
+              onFocus={(e) => e.target.style.borderColor = '#7a5d47'}
+              onBlur={(e) => e.target.style.borderColor = '#e5e5e5'}
+            />
+
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setRejectModal({ show: false, bookingId: null, reason: "" })}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  borderRadius: '8px',
+                  border: '1px solid #d1d5db',
+                  backgroundColor: 'white',
+                  color: '#374151',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  fontSize: '0.95rem'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitRejection}
+                disabled={processingBooking}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  borderRadius: '8px',
+                  border: 'none',
+                  backgroundColor: '#dc2626',
+                  color: 'white',
+                  fontWeight: 600,
+                  cursor: processingBooking ? 'not-allowed' : 'pointer',
+                  fontSize: '0.95rem',
+                  opacity: processingBooking ? 0.6 : 1
+                }}
+              >
+                {processingBooking ? 'Rejecting...' : 'Reject Booking'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
