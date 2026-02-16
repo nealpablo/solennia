@@ -18,7 +18,7 @@ class AuthController
     }
 
     /* =========================================================
-       ✅ REGISTER (FIREBASE → MYSQL MIRROR)
+        REGISTER (FIREBASE → MYSQL MIRROR)
        MySQL no longer stores password. Firebase handles login.
     ========================================================= */
     public function register(Request $request, Response $response): Response
@@ -79,7 +79,7 @@ class AuthController
     }
 
     /* =========================================================
-       ✅ LOGIN (FIREBASE UID → MYSQL LOOKUP)
+        LOGIN (FIREBASE UID → MYSQL LOOKUP)
     ========================================================= */
     public function login(Request $request, Response $response): Response
     {
@@ -136,7 +136,7 @@ class AuthController
     }
 
     /* =========================================================
-       ✅ GET CURRENT USER
+       GET CURRENT USER
     ========================================================= */
     public function me(Request $request, Response $response): Response
     {
