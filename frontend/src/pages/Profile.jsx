@@ -934,6 +934,14 @@ export default function Profile() {
   const rejectBooking = async (bookingId) => {
     const confirmed = await confirm({ title: 'Reject this booking request?', message: 'This will decline the booking request.' }); if (!confirmed) return;
 
+    // Prompt for rejection reason
+    const reason = prompt("Please provide a reason for rejecting this booking request:");
+
+    if (!reason || reason.trim() === "") {
+      toast.error("Rejection reason is required");
+      return;
+    }
+
     setProcessingBooking(true);
     try {
       const res = await fetch(`${API}/bookings/${bookingId}/status`, {
@@ -942,7 +950,10 @@ export default function Profile() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ status: 'Rejected' }),
+        body: JSON.stringify({
+          status: 'Rejected',
+          rejection_reason: reason.trim()
+        }),
       });
 
       const data = await res.json();

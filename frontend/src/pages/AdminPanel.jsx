@@ -312,17 +312,86 @@ export default function AdminPanel() {
       `}</style>
 
       {lightbox.show && (
-        <div className="lb-backdrop" onClick={closeLightbox}>
-          <div className="lb-content" onClick={(e) => e.stopPropagation()}>
-            <div className="lb-header">
-              <div className="text-sm font-semibold">{lightbox.title}</div>
-              <button className="lb-close" onClick={closeLightbox}>&times;</button>
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.9)',
+            zIndex: 99999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1rem'
+          }}
+          onClick={closeLightbox}
+        >
+          <div
+            style={{
+              backgroundColor: 'white',
+              borderRadius: '12px',
+              maxWidth: '90vw',
+              maxHeight: '90vh',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                padding: '1rem 1.5rem',
+                borderBottom: '1px solid #e5e5e5',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                backgroundColor: '#fcf9ee'
+              }}
+            >
+              <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#7a5d47' }}>{lightbox.title}</div>
+              <button
+                style={{
+                  fontSize: '2rem',
+                  lineHeight: 1,
+                  border: 'none',
+                  background: 'none',
+                  cursor: 'pointer',
+                  color: '#7a5d47',
+                  padding: '0 0.5rem'
+                }}
+                onClick={closeLightbox}
+              >
+                &times;
+              </button>
             </div>
-            <div className="lb-body">
+            <div
+              style={{
+                padding: '1rem',
+                overflow: 'auto',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: '#f9f9f9'
+              }}
+            >
               {lightbox.isPdf ? (
-                <iframe className="lb-pdf" src={lightbox.url} />
+                <iframe
+                  src={lightbox.url}
+                  style={{
+                    width: '80vw',
+                    height: '80vh',
+                    border: 'none'
+                  }}
+                />
               ) : (
-                <img className="lb-img" src={lightbox.url} alt="Document Preview" />
+                <img
+                  src={lightbox.url}
+                  alt="Document Preview"
+                  style={{
+                    maxWidth: '100%',
+                    maxHeight: '75vh',
+                    objectFit: 'contain'
+                  }}
+                />
               )}
             </div>
           </div>
@@ -779,7 +848,7 @@ export default function AdminPanel() {
                           <td style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.description}</td>
                           <td style={{ maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.pricing}</td>
                           <td>
-                            <button className="bg-blue-600 text-white hover:bg-blue-700 !border-blue-700" onClick={() => setSelectedApp(a)}>
+                            <button className="bg-[#7a5d47] text-white hover:bg-[#5d4636] border border-[#7a5d47]" style={{ padding: '0.5rem 1rem', borderRadius: '6px', fontWeight: 500, cursor: 'pointer' }} onClick={() => setSelectedApp(a)}>
                               View Details
                             </button>
                           </td>
@@ -836,7 +905,7 @@ export default function AdminPanel() {
                           <td>{a.venue_capacity || "-"}</td>
                           <td style={{ maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.pricing}</td>
                           <td>
-                            <button className="bg-blue-600 text-white hover:bg-blue-700 !border-blue-700" onClick={() => setSelectedApp(a)}>
+                            <button className="bg-[#7a5d47] text-white hover:bg-[#5d4636] border border-[#7a5d47]" style={{ padding: '0.5rem 1rem', borderRadius: '6px', fontWeight: 500, cursor: 'pointer' }} onClick={() => setSelectedApp(a)}>
                               View Details
                             </button>
                           </td>

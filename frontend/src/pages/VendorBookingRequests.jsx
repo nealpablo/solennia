@@ -131,6 +131,14 @@ export default function VendorBookingRequests() {
    * Reject a booking request
    */
   const handleReject = async (bookingId) => {
+    // Prompt for rejection reason
+    const reason = prompt("Please provide a reason for rejecting this booking request:");
+
+    if (!reason || reason.trim() === "") {
+      toast.error("Rejection reason is required");
+      return;
+    }
+
     setProcessing(true);
     try {
       const token = localStorage.getItem("solennia_token");
@@ -141,7 +149,10 @@ export default function VendorBookingRequests() {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify({ status: "Rejected" })
+        body: JSON.stringify({
+          status: "Rejected",
+          rejection_reason: reason.trim()
+        })
       });
 
       const data = await response.json();
