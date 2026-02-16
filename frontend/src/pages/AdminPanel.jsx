@@ -52,8 +52,14 @@ export default function AdminPanel() {
   const [selectedApp, setSelectedApp] = useState(null);
 
   const previewDocument = (url, title = "Document") => {
-    // Robust detection: Cloudinary raw uploads or explicit .pdf extension
-    const isPdf = url.toLowerCase().includes(".pdf") || url.includes("/raw/upload/");
+    if (!url || url.trim() === "") {
+      toast.error("Document URL is missing or invalid");
+      return;
+    }
+
+    // Improved PDF detection: Cloudinary raw uploads or explicit .pdf extension
+    const urlLower = url.toLowerCase();
+    const isPdf = urlLower.includes(".pdf") || url.includes("/raw/upload/") || urlLower.includes("pdf");
     setLightbox({ show: true, url, title, isPdf });
   };
 
@@ -750,10 +756,9 @@ export default function AdminPanel() {
                     <th>Business Name</th>
                     <th>Category</th>
                     <th>Location</th>
-                    <th>Address</th>
                     <th>Description</th>
                     <th>Pricing</th>
-                    <th>Documents</th>
+                    <th>View Details</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
@@ -771,35 +776,17 @@ export default function AdminPanel() {
                           <td>{a.business_name}</td>
                           <td>{a.category}</td>
                           <td>{a.city ? `${a.city}, ${a.region}` : "-"}</td>
-                          <td>{a.address}</td>
-                          <td>{a.description}</td>
-                          <td>{a.pricing}</td>
+                          <td style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.description}</td>
+                          <td style={{ maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.pricing}</td>
                           <td>
-                            {a.gov_id && (
-                              <button onClick={() => previewDocument(a.gov_id, "Valid ID")} className="text-blue-600 underline text-sm mr-2">
-                                ID
-                              </button>
-                            )}
-                            {a.permits && (
-                              <button onClick={() => previewDocument(a.permits, "Business Permit")} className="text-blue-600 underline text-sm mr-2">
-                                Permit
-                              </button>
-                            )}
-                            {a.portfolio && (
-                              <button onClick={() => previewDocument(a.portfolio, "Portfolio")} className="text-blue-600 underline text-sm">
-                                Services
-                              </button>
-                            )}
+                            <button className="bg-blue-600 text-white hover:bg-blue-700 !border-blue-700" onClick={() => setSelectedApp(a)}>
+                              View Details
+                            </button>
                           </td>
                           <td>
-                            <div className="flex flex-col gap-2">
-                              <button className="bg-blue-600 text-white hover:bg-blue-700 !border-blue-700" onClick={() => setSelectedApp(a)}>
-                                View Details
-                              </button>
-                              <div className="flex gap-2">
-                                <button className="approve-btn flex-1" onClick={() => handleDecision(a.id, "approve")}>Approve</button>
-                                <button className="deny-btn flex-1" onClick={() => handleDecision(a.id, "deny")}>Reject</button>
-                              </div>
+                            <div className="flex gap-2">
+                              <button className="approve-btn flex-1" onClick={() => handleDecision(a.id, "approve")}>Approve</button>
+                              <button className="deny-btn flex-1" onClick={() => handleDecision(a.id, "deny")}>Reject</button>
                             </div>
                           </td>
                         </tr>
@@ -826,10 +813,9 @@ export default function AdminPanel() {
                     <th>Venue Name</th>
                     <th>Type</th>
                     <th>Location</th>
-                    <th>Address</th>
                     <th>Capacity</th>
                     <th>Pricing</th>
-                    <th>Documents</th>
+                    <th>View Details</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
@@ -847,28 +833,17 @@ export default function AdminPanel() {
                           <td>{a.business_name}</td>
                           <td>{a.venue_subcategory || "General"}</td>
                           <td>{a.city ? `${a.city}, ${a.region}` : "-"}</td>
-                          <td>{a.address}</td>
                           <td>{a.venue_capacity || "-"}</td>
-                          <td>{a.pricing}</td>
+                          <td style={{ maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.pricing}</td>
                           <td>
-                            {a.gov_id && (
-                              <button onClick={() => previewDocument(a.gov_id, "Valid ID")} className="text-blue-600 underline text-sm mr-2">
-                                ID
-                              </button>
-                            )}
-                            {a.permits && (
-                              <button onClick={() => previewDocument(a.permits, "Business Permit")} className="text-blue-600 underline text-sm mr-2">
-                                Permit
-                              </button>
-                            )}
+                            <button className="bg-blue-600 text-white hover:bg-blue-700 !border-blue-700" onClick={() => setSelectedApp(a)}>
+                              View Details
+                            </button>
                           </td>
                           <td>
                             <div className="flex gap-2">
-                              <button className="bg-blue-600 text-white hover:bg-blue-700 !border-blue-700" onClick={() => setSelectedApp(a)}>
-                                View Details
-                              </button>
-                              <button className="approve-btn" onClick={() => handleDecision(a.id, "approve")}>Approve</button>
-                              <button className="deny-btn" onClick={() => handleDecision(a.id, "deny")}>Deny</button>
+                              <button className="approve-btn flex-1" onClick={() => handleDecision(a.id, "approve")}>Approve</button>
+                              <button className="deny-btn flex-1" onClick={() => handleDecision(a.id, "deny")}>Reject</button>
                             </div>
                           </td>
                         </tr>
