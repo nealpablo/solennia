@@ -19,7 +19,7 @@ export default function ConversationalBooking() {
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
-      content: "Hi! I'm your AI Assistant. 👋\n\nJust tell me about your event like you're chatting with a friend, and I'll help you find and book the perfect vendors and venues.\n\nWhat event are you planning?"
+      content: "Welcome to the Solennia Booking Assistant.\n\nI can help you find and book event vendors and venues registered on the Solennia platform.\n\nWhat type of event are you planning?"
     }
   ]);
 
@@ -48,7 +48,6 @@ export default function ConversationalBooking() {
     }
 
     // Handle initial message from URL or SessionStorage (post-login)
-    // Synchronous check with useRef prevents double-triggering in StrictMode
     if (!hasProcessedInitial.current) {
       const urlMsg = searchParams.get('ai_message');
       const sessionMsg = sessionStorage.getItem("pending_ai_query");
@@ -59,7 +58,6 @@ export default function ConversationalBooking() {
 
         if (sessionMsg) sessionStorage.removeItem("pending_ai_query");
 
-        // Slight delay for stability
         setTimeout(() => {
           handleSendMessage(messageToProcess);
         }, 500);
@@ -68,13 +66,12 @@ export default function ConversationalBooking() {
 
     // Handle context from venue/vendor pages
     if (location.state?.initialMessage) {
-      // Logic for venue/vendor context...
       if (location.state.venueContext) {
         const venue = location.state.venueContext;
         setMessages([
           {
             role: 'assistant',
-            content: `Hi! I see you're interested in booking **${venue.venueName}**! 🏛️\n\nI'm your AI Assistant and I'm here to help you complete this booking.\n\nWhat type of event are you planning?`
+            content: `I see you are interested in booking ${venue.venueName}.\n\nI will help you complete this booking. What type of event are you planning?`
           }
         ]);
       } else if (location.state.vendorContext) {
@@ -82,7 +79,7 @@ export default function ConversationalBooking() {
         setMessages([
           {
             role: 'assistant',
-            content: `Hi! I see you're interested in booking **${vendor.vendorName}** for ${vendor.category}! 📸\n\nI'm your AI Assistant and I'm here to help you complete this booking.\n\nTell me about your event!`
+            content: `I see you are interested in booking ${vendor.vendorName} for ${vendor.category}.\n\nI will help you complete this booking. Tell me about your event.`
           }
         ]);
       }
@@ -135,7 +132,7 @@ export default function ConversationalBooking() {
 
       if (data.bookingCreated && data.bookingId) {
         setBookingCreated(true);
-        toast.success('Booking created successfully! 🎉');
+        toast.success('Booking created successfully.');
         setTimeout(() => navigate('/my-bookings'), 3000);
       }
 
@@ -144,7 +141,7 @@ export default function ConversationalBooking() {
       toast.error(error.message || 'Failed to send message');
       setMessages(prev => [
         ...prev,
-        { role: 'assistant', content: "I'm sorry, I encountered an error. Please try again." }
+        { role: 'assistant', content: "An error occurred while processing your request. Please try again." }
       ]);
     } finally {
       setIsProcessing(false);
@@ -152,19 +149,19 @@ export default function ConversationalBooking() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f6f0e8] py-8">
-      <div className="max-w-7xl mx-auto px-4">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            AI Booking Assistant
+    <div style={pageStyles.page}>
+      <div style={pageStyles.wrapper}>
+        <div style={pageStyles.headerSection}>
+          <h1 style={pageStyles.title}>
+            Booking Assistant
           </h1>
-          <p className="text-gray-600">
-            Book Suppliers & Venues with Natural Conversation
+          <p style={pageStyles.subtitle}>
+            Find and book vendors and venues through the Solennia platform
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 h-[600px]">
+        <div style={pageStyles.grid}>
+          <div style={pageStyles.chatColumn}>
             <ChatInterface
               messages={messages}
               onSendMessage={handleSendMessage}
@@ -172,22 +169,27 @@ export default function ConversationalBooking() {
             />
           </div>
 
-          <div className="lg:col-span-1">
+          <div style={pageStyles.previewColumn}>
             <BookingPreview data={extractedData} stage={bookingStage} />
           </div>
         </div>
 
         {bookingCreated && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-8 max-w-md text-center">
-              <div className="text-6xl mb-4">🎉</div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                Booking Created!
+          <div style={pageStyles.overlay}>
+            <div style={pageStyles.successModal}>
+              <div style={pageStyles.successIcon}>
+                <svg viewBox="0 0 48 48" width="48" height="48" fill="none" stroke="#4A8C5C" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="24" cy="24" r="20" />
+                  <polyline points="14 24 21 31 34 18" />
+                </svg>
+              </div>
+              <h2 style={pageStyles.successTitle}>
+                Booking Created
               </h2>
-              <p className="text-gray-600 mb-6">
-                Your booking request has been sent. Redirecting...
+              <p style={pageStyles.successText}>
+                Your booking request has been submitted. Redirecting to your bookings...
               </p>
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-800 mx-auto"></div>
+              <div style={pageStyles.spinner} />
             </div>
           </div>
         )}
@@ -195,3 +197,86 @@ export default function ConversationalBooking() {
     </div>
   );
 }
+
+const pageStyles = {
+  page: {
+    minHeight: '100vh',
+    background: '#F6F0E8',
+    paddingTop: '32px',
+    paddingBottom: '32px',
+  },
+  wrapper: {
+    maxWidth: '1280px',
+    margin: '0 auto',
+    padding: '0 16px',
+  },
+  headerSection: {
+    marginBottom: '24px',
+  },
+  title: {
+    fontSize: '28px',
+    fontWeight: '700',
+    color: '#3D2E1F',
+    margin: '0 0 6px 0',
+    fontFamily: "'Georgia', serif",
+  },
+  subtitle: {
+    fontSize: '14px',
+    color: '#8C7A68',
+    margin: 0,
+    letterSpacing: '0.2px',
+  },
+  grid: {
+    display: 'grid',
+    gridTemplateColumns: '2fr 1fr',
+    gap: '24px',
+    alignItems: 'start',
+  },
+  chatColumn: {
+    height: '620px',
+  },
+  previewColumn: {},
+  overlay: {
+    position: 'fixed',
+    inset: 0,
+    background: 'rgba(29, 22, 15, 0.6)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 50,
+    backdropFilter: 'blur(4px)',
+  },
+  successModal: {
+    background: '#FFFFFF',
+    borderRadius: '16px',
+    padding: '40px',
+    maxWidth: '420px',
+    textAlign: 'center',
+    boxShadow: '0 20px 60px rgba(0,0,0,0.15)',
+    border: '1px solid #E8DCC8',
+  },
+  successIcon: {
+    marginBottom: '16px',
+  },
+  successTitle: {
+    fontSize: '22px',
+    fontWeight: '700',
+    color: '#3D2E1F',
+    margin: '0 0 8px 0',
+  },
+  successText: {
+    fontSize: '14px',
+    color: '#6B5E50',
+    margin: '0 0 20px 0',
+    lineHeight: '1.5',
+  },
+  spinner: {
+    width: '28px',
+    height: '28px',
+    border: '3px solid #E8DCC8',
+    borderTopColor: '#7A5D47',
+    borderRadius: '50%',
+    margin: '0 auto',
+    animation: 'spin 0.8s linear infinite',
+  },
+};

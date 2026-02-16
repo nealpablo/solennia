@@ -19,10 +19,9 @@ class OpenAIService
     }
 
     /**
-     * AI Chat Handler - Restricted to Solennia Platform Use Only + Database Integration
-     * Based on SRS FR-10: AI-assisted inquiry handling
-     * SECURITY: Prevents misuse for general-purpose questions
-     * ENHANCEMENT: Proactively shows suppliers from database when relevant
+     * AI Chat Handler - STRICTLY for Solennia Booking & Recommendation ONLY
+     * SECURITY: Rejects ALL non-booking/recommendation queries
+     * ANTI-HALLUCINATION: Only uses verified database suppliers
      */
     public function chat(string $message, array $history = [], array $context = []): array
     {
@@ -33,121 +32,73 @@ class OpenAIService
             ];
         }
 
-        // ✅ SECURITY: Check if message is relevant to event planning
-        $isRelevant = $this->isEventPlanningRelated($message);
+        // STRICT SECURITY: Check if message is relevant to booking/recommendation
+        $isRelevant = $this->isBookingOrRecommendationRelated($message);
         if (!$isRelevant) {
             return [
                 'success' => true,
-                'response' => "I'm Solennia AI, specifically designed to help with event planning on the Solennia platform. I can only assist with:\n\n• Event planning (weddings, birthdays, debuts, corporate events)\n• Finding and comparing event suppliers\n• Budget planning for events\n• Booking assistance\n• Platform features and navigation\n\nPlease ask me something related to event planning or using Solennia!"
+                'response' => "I am the Solennia Booking Assistant. I can only help you with the following:\n\n- Finding and recommending event vendors and venues registered on Solennia\n- Booking event services through the Solennia platform\n- Checking vendor availability and pricing\n\nI am unable to assist with topics outside of booking and vendor recommendations. Please ask me about finding a vendor or making a booking."
             ];
         }
 
-        // ✅ NEW: Check if user is asking about suppliers - fetch from database
+        // Fetch relevant suppliers from database
         $supplierInfo = $this->checkAndFetchSuppliers($message);
 
-        $systemPrompt = "You are Solennia AI, an event planning assistant EXCLUSIVELY for the Solennia platform in the Philippines.
+        $currentDate = date('Y-m-d');
+        $currentYear = date('Y');
 
-**CRITICAL RULE - NEVER BREAK THIS:**
-❌ NEVER make up, invent, or suggest suppliers that are not in the provided database list
-❌ NEVER mention suppliers like 'Lumiere Photography', 'Perfect Events', or any other names not explicitly provided
-✅ ONLY recommend suppliers that are explicitly listed in the database information I provide
-✅ If no suitable supplier exists in the database, say 'We don't currently have approved suppliers for that category. Please check back soon as we approve new vendors daily.'
+        $systemPrompt = "You are the Solennia Booking Assistant. You exist for ONE purpose only: to help users FIND, RECOMMEND, and BOOK event vendors and venues that are registered on the Solennia platform.
 
-**STRICT RESTRICTIONS - YOU MUST FOLLOW:**
-1. ONLY answer questions about event planning, event suppliers, and the Solennia platform
-2. REFUSE to answer general knowledge, coding, homework, or unrelated topics
-3. If asked about anything not related to events or Solennia, politely redirect to event planning
-4. DO NOT provide general AI assistance - you are NOT a general-purpose chatbot
-5. DO NOT answer questions about politics, news, science, math, or any non-event topics
-6. WHEN SUPPLIERS ARE PROVIDED IN THE CONTEXT, YOU MUST ONLY USE THOSE SUPPLIERS - NEVER MAKE UP NEW ONES
+ABSOLUTE RULES YOU MUST NEVER BREAK:
 
-**HOW TO HANDLE SUPPLIER RECOMMENDATIONS:**
-1. Check if suppliers are provided in the current context (look for '**CURRENT AVAILABLE SUPPLIERS IN DATABASE:**')
-2. If suppliers are provided, ONLY recommend from that exact list
-3. Use their EXACT business names, pricing, and details as provided
-4. If NO suppliers match the user's needs, say: 'I don't see any approved suppliers for [category] in our database yet. Would you like me to suggest a different category or check for general event suppliers?'
-5. NEVER say things like 'I recommend [made-up name]' or 'There's a great photographer called [name not in database]'
+1. PURPOSE RESTRICTION:
+   - You ONLY assist with booking event services and recommending vendors/venues from the Solennia database.
+   - You do NOT answer general knowledge questions, give opinions on non-booking topics, or engage in casual conversation beyond what is needed to complete a booking.
+   - If a user asks anything unrelated to booking or vendor recommendations, respond: 'I can only assist with finding vendors and making bookings on Solennia. How can I help you with your event booking?'
 
-**ALLOWED TOPICS ONLY:**
-- Event planning (weddings, birthdays, debuts, corporate events, celebrations)
-- Event suppliers (photographers, caterers, venues, coordinators, decorators, entertainment)
-- Budget planning for events
-- Event timelines and checklists
-- Solennia platform features and how to use them
-- Booking process and supplier communication
-- Event etiquette and tips specific to Philippine events
-- Checking vendor availability and creating bookings
+2. ANTI-HALLUCINATION - VENDOR DATA:
+   - NEVER invent, fabricate, or suggest any vendor or venue name that is not explicitly provided in the database context below.
+   - If no vendors match the user's request, say: 'There are no matching vendors in the Solennia system for that criteria. You may want to adjust your search or check back later as new vendors are added regularly.'
+   - NEVER say things like 'You could try...' or 'Popular options include...' unless those vendors are in the provided database list.
 
-**BOOKING CAPABILITIES:**
-You can help users CREATE BOOKINGS directly through conversation:
-- Check vendor availability using real-time calendar data
-- Suggest available dates based on vendor schedules
-- Create booking requests when user confirms details
-- Validate booking information (dates, vendor, location, etc.)
+3. DATE VALIDATION:
+   - Today's date is {$currentDate}. The current year is {$currentYear}.
+   - NEVER accept or suggest a date that is in the past. If a user provides a past date, tell them: 'That date has already passed. Please provide a future date for your event.'
+   - If a user provides a month and day without a year, assume {$currentYear}. If that month has already passed, assume the next year.
 
-**WHEN USER WANTS TO BOOK:**
-1. First, check what suppliers are available in the database for their needs
-2. If suppliers exist, ask for essential details:
-   - Which supplier/vendor? (show ONLY suppliers from database)
-   - What date and time?
-   - What location?
-   - What type of event?
-   - Any package preference?
-3. Check vendor availability for the requested date
-4. If available, confirm all details with the user
-5. Create the booking when user confirms
+4. NO EMOJIS:
+   - Do NOT use any emojis in your responses. No exceptions.
 
-**IF USER ASKS OFF-TOPIC:**
-Respond: \"I'm specifically designed to help with event planning on Solennia. I can't assist with [topic]. Would you like help planning an event or finding event suppliers instead?\"
+5. RESPONSE STYLE:
+   - Be professional, concise, and direct.
+   - Use Philippine Peso (P) for all pricing.
+   - Keep responses under 200 words unless presenting vendor options.
+   - Do not add unnecessary filler or pleasantries. Be helpful but efficient.
+   - Do not speculate or guess. If you do not have the information, say so clearly.
 
-**WHEN DISCUSSING SUPPLIERS:**
-- ONLY mention suppliers that are explicitly provided in the database context
-- Use their EXACT business names as they appear in the database
-- Include their actual pricing, services, and contact details from the database
-- Explain why each supplier is suitable for the user's needs
-- Encourage users to check their portfolios and book directly on Solennia
-- Offer to check their availability if user is interested
-- If no suppliers match, be honest: 'We don't have approved suppliers for that yet'
+6. WHEN RECOMMENDING VENDORS:
+   - ONLY list vendors from the database context provided below.
+   - Use their EXACT business names, pricing, and details as provided.
+   - If no matching vendors exist, state that clearly. Do not fabricate alternatives.
 
-**Your Communication Style:**
-- Friendly, helpful, and professional
-- Use Philippine Peso (₱) for all prices
-- Keep responses under 250 words unless detail is needed
-- Always bring conversation back to event planning or Solennia
-- Suggest specific Solennia features when relevant
-- Be proactive about helping users book suppliers
-- Be HONEST when suppliers don't exist in the database
+7. WHEN HELPING WITH BOOKINGS:
+   - Gather these details: event type, date (must be future), time, location, budget, number of guests.
+   - Only suggest vendors that are in the Solennia database.
+   - Confirm all details before proceeding with a booking.
 
-**Available Supplier Categories:**
+AVAILABLE VENDOR CATEGORIES:
 - Photography & Videography
 - Catering
 - Venue
 - Coordination & Hosting
 - Decoration
 - Entertainment
-- Others
+- Others";
 
-**Key Platform Features:**
-- Browse categorized supplier portfolios
-- Request bookings and communicate via chat
-- View supplier pricing, services, and galleries
-- Receive AI-powered recommendations
-- Submit feedback and ratings
-- AI-assisted booking creation (YOU CAN DO THIS!)
-
-Always gather event details when helping users:
-- Event type (wedding, birthday, corporate, etc.)
-- Expected date and location
-- Number of guests
-- Budget range
-- Specific requirements or preferences
-
-**REMEMBER: ONLY use suppliers explicitly provided in the database context. NEVER invent supplier names!**";
-
-        // ✅ Add supplier information to context if found
+        // Add supplier information to context if found
         if (!empty($supplierInfo)) {
-            $systemPrompt .= "\n\n**CURRENT AVAILABLE SUPPLIERS IN DATABASE:**\n" . $supplierInfo;
-            $systemPrompt .= "\n\n⚠️ CRITICAL: You MUST only recommend suppliers from the list above. These are the ONLY approved suppliers in Solennia. If you recommend ANY other supplier name (like 'Lumiere Photography', 'Perfect Events', etc.), you are making a serious error. When no supplier matches the user's needs, honestly say 'We don't have approved suppliers for that category yet.'";
+            $systemPrompt .= "\n\nVERIFIED SOLENNIA DATABASE VENDORS:\n" . $supplierInfo;
+            $systemPrompt .= "\n\nCRITICAL: The vendors listed above are the ONLY vendors you may recommend. Any vendor name not in this list is fabricated and must NOT be mentioned.";
         }
 
         $messages = [
@@ -167,7 +118,8 @@ Always gather event details when helping users:
         // Add current message
         $messages[] = ['role' => 'user', 'content' => $message];
 
-        return $this->chatCompletion($messages, 1000); // Increased token limit for supplier details
+        // Temperature 0.2 for deterministic, factual responses
+        return $this->chatCompletion($messages, 1000, 0.2);
     }
 
     /**
@@ -178,7 +130,7 @@ Always gather event details when helping users:
 
     /**
      * Enhanced chat with function calling for conversational booking
-     * Enables GPT-4 to call PHP functions based on conversation context
+     * Uses low temperature (0.2) to prevent hallucinations
      */
     public function chatWithFunctions(
         string $message,
@@ -201,22 +153,19 @@ Always gather event details when helping users:
             $messages[] = ['role' => 'system', 'content' => $systemPrompt];
         }
 
-        // Add conversation history - FIXED to handle all message types
+        // Add conversation history
         foreach ($history as $msg) {
             if (isset($msg['role'])) {
                 $historyMessage = ['role' => $msg['role']];
 
-                // Handle content (can be null for assistant with function_call)
                 if (array_key_exists('content', $msg)) {
                     $historyMessage['content'] = $msg['content'];
                 }
 
-                // Include 'name' if present (required for function role messages)
                 if (isset($msg['name'])) {
                     $historyMessage['name'] = $msg['name'];
                 }
 
-                // Include 'function_call' if present (for assistant messages)
                 if (isset($msg['function_call'])) {
                     $historyMessage['function_call'] = $msg['function_call'];
                 }
@@ -234,10 +183,10 @@ Always gather event details when helping users:
             $ch = curl_init($this->baseUrl . '/chat/completions');
 
             $payload = [
-                'model' => 'gpt-3.5-turbo', // Cost-effective model with function calling support
+                'model' => 'gpt-3.5-turbo',
                 'messages' => $messages,
                 'max_tokens' => 1000,
-                'temperature' => 0.7
+                'temperature' => 0.2 // LOW temperature to prevent hallucinations
             ];
 
             // Add functions if provided
@@ -304,54 +253,106 @@ Always gather event details when helping users:
     }
 
     /**
-     * Validate AI response to prevent hallucinations
-     * Checks if AI is recommending suppliers that don't exist in database
+     * Check if user message is related to BOOKING or RECOMMENDATION only
+     * Much stricter than before - rejects anything not about booking/vendors
      */
-    private function validateSupplierResponse(string $response, array $validSuppliers): array
+    private function isBookingOrRecommendationRelated(string $message): bool
     {
-        // Get valid supplier names from database
-        $validNames = [];
-        foreach ($validSuppliers as $supplier) {
-            $validNames[] = strtolower($supplier['BusinessName'] ?? '');
-        }
+        $message = strtolower(trim($message));
 
-        // Common hallucinated supplier names to block
-        $bannedNames = [
-            'lumiere', 'perfect events', 'dream wedding', 'elegant affairs',
-            'golden moments', 'precious memories', 'creative vision',
-            'artistry studio', 'classic photo', 'modern lens'
+        // BLOCKED TOPICS - reject these immediately regardless of anything else
+        $blockedKeywords = [
+            // Academic
+            'homework', 'assignment', 'essay', 'thesis', 'research paper', 'exam', 'test',
+            'solve', 'equation', 'formula', 'calculate', 'proof', 'theorem', 'study',
+            // Coding
+            'code', 'program', 'script', 'python', 'javascript', 'java', 'html', 'css',
+            'debug', 'algorithm', 'function', 'class', 'variable', 'array', 'database',
+            'sql', 'api', 'framework', 'react', 'node',
+            // General knowledge
+            'history of', 'what is the capital', 'who invented', 'who is', 'who was',
+            'define', 'explain quantum', 'explain physics', 'explain chemistry',
+            'what does', 'how does', 'why does', 'meaning of',
+            // News/Politics
+            'president', 'election', 'government', 'politics', 'senate', 'congress',
+            'war', 'conflict', 'law', 'legislation',
+            // Unrelated
+            'translate', 'weather', 'stock', 'cryptocurrency', 'bitcoin', 'recipe',
+            'medical advice', 'legal advice', 'tax', 'investment', 'crypto',
+            'movie', 'game', 'sport', 'score', 'play',
+            'joke', 'story', 'poem', 'song', 'lyrics',
+            'religion', 'god', 'bible', 'quran',
+            'diet', 'workout', 'exercise', 'health',
+            'travel tips', 'tourist', 'vacation',
+            // AI/Tech
+            'chatgpt', 'openai', 'artificial intelligence', 'machine learning',
+            'write me', 'tell me a', 'can you write', 'generate a',
         ];
 
-        $responseLower = strtolower($response);
+        foreach ($blockedKeywords as $blocked) {
+            if (strpos($message, $blocked) !== false) {
+                return false;
+            }
+        }
 
-        // Check for banned hallucinated names
-        foreach ($bannedNames as $banned) {
-            if (strpos($responseLower, $banned) !== false) {
-                // Check if it's a valid supplier
-                $isValid = false;
-                foreach ($validNames as $valid) {
-                    if (strpos($valid, $banned) !== false) {
-                        $isValid = true;
-                        break;
-                    }
-                }
+        // ALLOWED: Booking and recommendation keywords
+        $bookingKeywords = [
+            // Event types
+            'wedding', 'birthday', 'debut', 'party', 'event', 'celebration', 'corporate',
+            'anniversary', 'christening', 'baptism', 'reception', 'gathering', 'seminar',
+            'conference', 'summit',
+            // Booking actions
+            'book', 'reserve', 'schedule', 'arrange', 'booking',
+            // Recommendation actions
+            'recommend', 'suggest', 'find', 'search', 'look for', 'looking for',
+            'show me', 'available', 'options', 'choices',
+            // Vendor types
+            'supplier', 'vendor', 'photographer', 'videographer', 'caterer', 'catering',
+            'venue', 'coordinator', 'host', 'emcee', 'decorator', 'decoration',
+            'entertainment', 'band', 'dj', 'florist', 'flowers',
+            // Booking details
+            'budget', 'guest', 'location', 'date', 'time', 'price', 'pricing',
+            'package', 'service', 'availability',
+            // Platform
+            'solennia',
+            // Filipino event terms
+            'kasalan', 'kasal', 'kaarawan', 'despedida', 'reunion',
+            // Confirmation words (for booking flow)
+            'yes', 'confirm', 'proceed', 'go ahead', 'book it', 'confirmed',
+        ];
 
-                if (!$isValid) {
-                    return [
-                        'is_valid' => false,
-                        'error' => 'hallucinated_supplier',
-                        'banned_name' => $banned
-                    ];
+        foreach ($bookingKeywords as $keyword) {
+            if (strpos($message, $keyword) !== false) {
+                return true;
+            }
+        }
+
+        // Allow very short messages that are likely follow-ups in booking conversation
+        if (strlen($message) < 15) {
+            $followUpPhrases = [
+                'ok', 'sure', 'yes', 'no', 'maybe', 'thanks', 'thank you',
+                'hello', 'hi', 'help', 'how much', 'when', 'where',
+            ];
+
+            foreach ($followUpPhrases as $phrase) {
+                if (strpos($message, $phrase) !== false) {
+                    return true;
                 }
             }
         }
 
-        return ['is_valid' => true];
+        // If message is longer than 25 chars without any booking keywords, reject
+        if (strlen($message) > 25) {
+            return false;
+        }
+
+        // Short ambiguous messages - allow as they may be follow-ups
+        return true;
     }
 
     /**
      * Check if user is asking about suppliers and fetch relevant ones from database
-     * This ensures AI always has access to real supplier data from both tables
+     * Only returns VERIFIED suppliers from the Solennia database
      */
     private function checkAndFetchSuppliers(string $message): string
     {
@@ -471,9 +472,9 @@ Always gather event details when helping users:
                 return '';
             }
 
-            // Format supplier information for AI with STRONG emphasis
-            $supplierInfo = "\n**IMPORTANT: These are the ONLY approved suppliers in the Solennia database. DO NOT recommend any other suppliers.**\n\n";
-            $supplierInfo .= "**TOTAL APPROVED SUPPLIERS: " . count($allSuppliers) . "**\n\n";
+            // Format supplier information - NO emojis
+            $supplierInfo = "\nIMPORTANT: These are the ONLY approved vendors in the Solennia database. Do NOT recommend any other vendors.\n\n";
+            $supplierInfo .= "TOTAL APPROVED VENDORS: " . count($allSuppliers) . "\n\n";
 
             foreach ($allSuppliers as $supplier) {
                 $businessName = $supplier['BusinessName'] ?? 'Unknown';
@@ -481,28 +482,28 @@ Always gather event details when helping users:
                 $address = $supplier['BusinessAddress'] ?? 'Not specified';
                 $email = $supplier['BusinessEmail'] ?? 'Not provided';
 
-                $supplierInfo .= "• **{$businessName}** ({$category}) [APPROVED SUPPLIER]\n";
-                $supplierInfo .= "  - Location: {$address}\n";
+                $supplierInfo .= "- {$businessName} ({$category}) [VERIFIED]\n";
+                $supplierInfo .= "  Location: {$address}\n";
 
                 if (!empty($supplier['Description'])) {
                     $desc = substr($supplier['Description'], 0, 150);
-                    $supplierInfo .= "  - Description: {$desc}...\n";
+                    $supplierInfo .= "  Description: {$desc}...\n";
                 }
 
                 if (!empty($supplier['Pricing'])) {
                     $pricing = substr($supplier['Pricing'], 0, 200);
-                    $supplierInfo .= "  - Pricing: {$pricing}...\n";
+                    $supplierInfo .= "  Pricing: {$pricing}...\n";
                 }
 
                 if (isset($supplier['AverageRating']) && $supplier['AverageRating'] > 0) {
-                    $supplierInfo .= "  - Rating: {$supplier['AverageRating']}/5.0 ({$supplier['TotalReviews']} reviews)\n";
+                    $supplierInfo .= "  Rating: {$supplier['AverageRating']}/5.0 ({$supplier['TotalReviews']} reviews)\n";
                 }
 
-                $supplierInfo .= "  - Contact: {$email}\n";
+                $supplierInfo .= "  Contact: {$email}\n";
                 $supplierInfo .= "\n";
             }
 
-            $supplierInfo .= "\n**REMINDER: Only recommend suppliers from the list above. If a supplier is not listed, tell the user we don't have approved suppliers for that category yet.**\n";
+            $supplierInfo .= "\nREMINDER: Only recommend vendors from the list above. If a vendor is not listed, tell the user there are no matching vendors in the Solennia system.\n";
 
             return $supplierInfo;
 
@@ -514,102 +515,8 @@ Always gather event details when helping users:
     }
 
     /**
-     * Check if user message is related to event planning
-     * Prevents abuse of AI for general-purpose queries
-     */
-    private function isEventPlanningRelated(string $message): bool
-    {
-        $message = strtolower($message);
-
-        // List of event-related keywords
-        $eventKeywords = [
-            // Event types
-            'wedding', 'birthday', 'debut', 'party', 'event', 'celebration', 'corporate',
-            'anniversary', 'christening', 'baptism', 'reception', 'gathering',
-
-            // Event planning
-            'plan', 'organize', 'book', 'reserve', 'schedule', 'arrange', 'coordinate',
-            'budget', 'guest', 'venue', 'location', 'date', 'timeline', 'checklist',
-
-            // Suppliers
-            'photographer', 'videographer', 'caterer', 'catering', 'food', 'venue',
-            'coordinator', 'host', 'emcee', 'decorator', 'decoration', 'flowers',
-            'entertainment', 'band', 'dj', 'sound', 'lights', 'supplier', 'vendor',
-
-            // Platform features
-            'solennia', 'booking', 'portfolio', 'price', 'pricing', 'package',
-            'recommendation', 'feedback', 'rating', 'review', 'message', 'chat',
-
-            // Filipino event terms
-            'kasalan', 'kasal', 'kaarawan', 'debut', 'despedida', 'reunion',
-
-            // General event words
-            'ceremony', 'program', 'invitation', 'theme', 'motif', 'setup'
-        ];
-
-        // Check if message contains any event-related keywords
-        foreach ($eventKeywords as $keyword) {
-            if (strpos($message, $keyword) !== false) {
-                return true;
-            }
-        }
-
-        // ✅ STRICT: Blocked topics - reject these immediately
-        $blockedKeywords = [
-            // Academic
-            'homework', 'assignment', 'essay', 'thesis', 'research paper', 'exam', 'test',
-            'solve', 'equation', 'formula', 'calculate', 'proof', 'theorem',
-
-            // Coding
-            'code', 'program', 'script', 'python', 'javascript', 'java', 'html', 'css',
-            'debug', 'algorithm', 'function', 'class', 'variable', 'array',
-
-            // General knowledge
-            'history of', 'what is the capital', 'who invented', 'when was',
-            'define', 'explain quantum', 'explain physics', 'explain chemistry',
-
-            // News/Politics
-            'president', 'election', 'government', 'politics', 'senate', 'congress',
-
-            // Unrelated
-            'translate', 'weather', 'stock', 'cryptocurrency', 'bitcoin',
-            'medical advice', 'legal advice', 'tax', 'investment'
-        ];
-
-        foreach ($blockedKeywords as $blocked) {
-            if (strpos($message, $blocked) !== false) {
-                return false; // Explicitly blocked
-            }
-        }
-
-        // ✅ Allow short greetings and platform questions
-        $allowedPhrases = [
-            'hello', 'hi', 'help', 'how', 'what', 'can you', 'please',
-            'thank', 'thanks', 'ok', 'yes', 'no', 'maybe'
-        ];
-
-        // If message is very short (< 20 chars) and contains allowed phrase, permit it
-        if (strlen($message) < 20) {
-            foreach ($allowedPhrases as $phrase) {
-                if (strpos($message, $phrase) !== false) {
-                    return true;
-                }
-            }
-        }
-
-        // If we get here and message is longer than 30 chars without event keywords, reject
-        if (strlen($message) > 30) {
-            return false;
-        }
-
-        // Allow short messages that might be follow-up questions
-        return true;
-    }
-
-    /**
      * Get Supplier Recommendations
-     * Based on SRS FR-10: AI-assisted supplier recommendations
-     * Uses actual database supplier data from event_service_provider table
+     * Uses ONLY actual database supplier data - zero hallucination
      */
     public function getSupplierRecommendations(array $eventDetails, array $vendors): array
     {
@@ -620,26 +527,28 @@ Always gather event details when helping users:
             ];
         }
 
-        $systemPrompt = "You are an expert event planning consultant for the Philippines specializing in matching clients with the perfect event service providers.
+        $systemPrompt = "You are a vendor matching engine for the Solennia event platform. Your ONLY job is to rank the provided vendors based on how well they match the event requirements.
 
-Analyze the event requirements and available suppliers to provide intelligent recommendations.
+STRICT RULES:
+- ONLY use the vendors provided in the data below. NEVER invent vendor names.
+- Do NOT use emojis.
+- Be factual and concise.
+- If no vendor is a good match, say so clearly.
 
-**Evaluation Criteria:**
-1. **Category Match** - Does the supplier's category fit the event needs?
-2. **Budget Alignment** - Are their pricing packages within the client's budget?
-3. **Service Quality** - Consider their description, services offered, and portfolio
-4. **Location Compatibility** - Do they serve the event location?
-5. **Experience & Specialization** - Do they specialize in this type of event?
-6. **Value for Money** - Does their pricing match the services offered?
+Evaluation Criteria:
+1. Category Match - Does the vendor's category fit the event needs?
+2. Budget Alignment - Are their pricing packages within the client's budget?
+3. Service Quality - Consider their description and services offered
+4. Location Compatibility - Do they serve the event location?
 
-**Scoring Guidelines:**
-- 90-100: Perfect match for all criteria
-- 80-89: Excellent match with minor considerations
-- 70-79: Good match, suitable for most requirements
-- 60-69: Acceptable match with some trade-offs
-- Below 60: Not recommended unless no better options
+Scoring:
+- 90-100: Perfect match
+- 80-89: Excellent match
+- 70-79: Good match
+- 60-69: Acceptable match
+- Below 60: Not recommended
 
-Return ONLY valid JSON with this exact structure:
+Return ONLY valid JSON with this structure:
 {
     \"recommendations\": [
         {
@@ -654,7 +563,7 @@ Return ONLY valid JSON with this exact structure:
     \"tips\": [\"tip1\", \"tip2\", \"tip3\"]
 }
 
-Return your top 5 recommendations maximum, ranked by match_score.";
+Return top 5 recommendations maximum, ranked by match_score.";
 
         // Format event details
         $eventType = $eventDetails['event_type'] ?? 'Not specified';
@@ -665,7 +574,7 @@ Return your top 5 recommendations maximum, ranked by match_score.";
         $category = $eventDetails['category'] ?? 'Any category';
         $requirements = $eventDetails['requirements'] ?? 'None specified';
 
-        // Format vendor data using correct database schema
+        // Format vendor data
         $vendorList = array_map(function ($v) {
             $isVenue = ($v['source_table'] ?? '') === 'venue_listings';
 
@@ -692,16 +601,16 @@ Return your top 5 recommendations maximum, ranked by match_score.";
             ];
         }, array_slice($vendors, 0, 20));
 
-        $userMessage = "**Event Requirements:**
+        $userMessage = "Event Requirements:
 - Event Type: {$eventType}
 - Event Date: {$eventDate}
 - Location: {$location}
-- Budget: ₱{$budget}
+- Budget: P{$budget}
 - Number of Guests: {$guests}
 - Preferred Category: {$category}
 - Special Requirements: {$requirements}
 
-**Available Suppliers:**
+Available Vendors:
 " . json_encode($vendorList, JSON_PRETTY_PRINT);
 
         $messages = [
@@ -709,7 +618,8 @@ Return your top 5 recommendations maximum, ranked by match_score.";
             ['role' => 'user', 'content' => $userMessage]
         ];
 
-        $response = $this->chatCompletion($messages, 1500, 0.5);
+        // Temperature 0.2 for factual, deterministic output
+        $response = $this->chatCompletion($messages, 1500, 0.2);
 
         if (!$response['success']) {
             return $response;
@@ -738,7 +648,7 @@ Return your top 5 recommendations maximum, ranked by match_score.";
         ];
     }
 
-    private function chatCompletion(array $messages, int $maxTokens = 800, float $temperature = 0.7): array
+    private function chatCompletion(array $messages, int $maxTokens = 800, float $temperature = 0.2): array
     {
         try {
             $ch = curl_init($this->baseUrl . '/chat/completions');
