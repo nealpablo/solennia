@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// SUPPRESS ALL PHP ERRORS FROM DISPLAYING
+// SUPPRESS ALL PHP ERRORS FROM DISPLAYING TO USER
 // ============================================================
 ini_set('display_errors', '0');
 ini_set('display_startup_errors', '0');
@@ -8,6 +8,7 @@ error_reporting(0);
 
 use Slim\Factory\AppFactory;
 use Dotenv\Dotenv;
+use Psr\Http\Message\ServerRequestInterface;
 
 // -------------------------------------------------------------
 // Base path
@@ -34,67 +35,93 @@ else {
 $app = AppFactory::create();
 
 // -------------------------------------------------------------
-// ✅ CORS MIDDLEWARE - MUST BE FIRST, BEFORE BODY PARSING
+// ✅ CORS MIDDLEWARE (MUST BE FIRST)
 // -------------------------------------------------------------
 $app->add(function ($request, $handler) {
     $method = strtoupper($request->getMethod());
-
-    // ✅ Get origin from request
     $origin = $request->getHeaderLine('Origin');
     $origin = rtrim($origin, '/');
 
-    $allowedOrigins = getenv('CORS_ALLOWED_ORIGINS') ?: '*';
-    $allowedOrigins = rtrim($allowedOrigins, '/');
+    // Get allowed origins from env, standardizing format
+    $allowedOriginsEnv = getenv('CORS_ALLOWED_ORIGINS') ?: '*';
 
-    // ✅ Determine allowed origin
-    $allowOrigin = '*';
-    if ($allowedOrigins !== '*') {
-        $allowedList = array_map('trim', explode(',', $allowedOrigins));
+    // Remove quotes if present (common env var issue)
+    $allowedOriginsEnv = trim($allowedOriginsEnv, '"\'');
+
+    // Determine allowed origin
+    $allowOrigin = '';
+
+    if ($allowedOriginsEnv === '*') {
+        // If wildcard is allowed, we can just echo the origin for credential support
+        // Or strictly use '*' (but '*' + credentials = error)
+        // Safer to echo origin if it's there, or '*' if no origin
+        $allowOrigin = $origin ?: '*';
+    }
+    else {
+        $allowedList = array_map('trim', explode(',', $allowedOriginsEnv));
+        // Normalize list (remove quotes/trailing slashes)
         $allowedList = array_map(function ($url) {
-                    return rtrim($url, '/'); }
-                , $allowedList);
+                    return rtrim(trim($url, '"\''), '/');
+                }
+                    , $allowedList);
 
                 if (in_array($origin, $allowedList, true)) {
                     $allowOrigin = $origin;
                 }
-            }
-            else {
-                $allowOrigin = $origin ?: '*';
+                else {
+                    // Origin not allowed. 
+                    // We return empty string or null, effectively blocking CORS.
+                    // Some browsers prefer not sending the header at all.
+                    $allowOrigin = '';
+                }
             }
 
-            // ✅ Fast path for OPTIONS - respond immediately without processing
+            // Common headers
+            $headers = [
+                'Access-Control-Allow-Origin' => $allowOrigin,
+                'Access-Control-Allow-Methods' => 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+                'Access-Control-Allow-Headers' => 'Content-Type, Authorization, X-Requested-With, Accept',
+                'Access-Control-Allow-Credentials' => 'true',
+                'Vary' => 'Origin'
+            ];
+
+            // ✅ OPTION PREFLIGHT HANDLING
             if ($method === 'OPTIONS') {
                 $response = new \Slim\Psr7\Response();
-                return $response
-                ->withHeader('Access-Control-Allow-Origin', $allowOrigin)
-                ->withHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With')
-                ->withHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
-                ->withHeader('Access-Control-Allow-Credentials', 'true')
-                ->withHeader('Access-Control-Max-Age', '86400') // Cache for 24 hours
-                ->withHeader('Vary', 'Origin') // Prevent cache issues
-                ->withStatus(204); // 204 No Content is faster than 200
+                $response = $response->withStatus(204); // No Content
+        
+                foreach ($headers as $key => $val) {
+                    $response = $response->withHeader($key, $val);
+                }
+                return $response->withHeader('Access-Control-Max-Age', '86400');
             }
 
-            // ✅ Process actual request
+            // ✅ NORMAL REQUEST HANDLING
             $response = $handler->handle($request);
 
-            return $response
-            ->withHeader('Access-Control-Allow-Origin', $allowOrigin)
-            ->withHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With')
-            ->withHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
-            ->withHeader('Access-Control-Allow-Credentials', 'true')
-            ->withHeader('Vary', 'Origin');        });
+            foreach ($headers as $key => $val) {
+                $response = $response->withHeader($key, $val);
+            }
+
+            return $response;
+        });
 
 // -------------------------------------------------------------
-// ✅ BODY PARSING MIDDLEWARE (MUST BE AFTER CORS, BEFORE ROUTES)
+// ✅ MIDDLEWARE STACK
+// -------------------------------------------------------------
+$app->addBodyParsingMiddleware();
+$app->addRoutingMiddleware();
+
+// -------------------------------------------------------------
+// ✅ PERFORMANCE & LOGGING MIDDLEWARE
 // -------------------------------------------------------------
 $app->add(function ($request, $handler) {
     $start = microtime(true);
     $response = $handler->handle($request);
     $time = round((microtime(true) - $start) * 1000, 2);
 
-    // Log slow requests
-    if ($time > 2000) { // > 2 seconds
+    // Log slow requests (> 2s)
+    if ($time > 2000) {
         error_log("SLOW_REQUEST: {$request->getMethod()} {$request->getUri()->getPath()} took {$time}ms");
     }
 
@@ -102,42 +129,34 @@ $app->add(function ($request, $handler) {
 });
 
 // -------------------------------------------------------------
-// ✅ REQUEST TIMEOUT MIDDLEWARE
+// ✅ DB BOOTSTRAP (SAFE)
 // -------------------------------------------------------------
-$app->add(function ($request, $handler) {
-    // Set a timeout for the request
-    set_time_limit(25); // 25 seconds max per request
-
-    return $handler->handle($request);
-});
-
-// -------------------------------------------------------------
-// DB bootstrap (use optimized version)
-// -------------------------------------------------------------
-require BASE_PATH . '/src/bootstrap.php';
+try {
+    require BASE_PATH . '/src/bootstrap.php';
+}
+catch (\Throwable $e) {
+    error_log("BOOTSTRAP_ERROR: " . $e->getMessage());
+// We continue execution. Routes that need DB will fail, but health checks/CORS will pass.
+}
 
 // -------------------------------------------------------------
-// Routes Loader
+// ✅ ROUTE LOADING
 // -------------------------------------------------------------
 $loadRoutes = function (string $rel) use ($app) {
     $file = BASE_PATH . $rel;
-
-    if (!is_file($file)) {
+    if (!is_file($file))
         return;
-    }
-
     try {
         $ret = require $file;
         if (is_callable($ret)) {
             $ret($app);
         }
     }
-    catch (Throwable $e) {
+    catch (\Throwable $e) {
+        error_log("ROUTE_LOAD_ERROR ({$rel}): " . $e->getMessage());
     }
 };
 
-
-// Load all routes (don't let one fail all others)
 $loadRoutes('/src/Routes/authRoutes.php');
 $loadRoutes('/src/Routes/userRoutes.php');
 $loadRoutes('/src/Routes/vendorRoutes.php');
@@ -151,10 +170,11 @@ $loadRoutes('/src/Routes/bookingRoutes.php');
 $loadRoutes('/src/Routes/availabilityRoutes.php');
 $loadRoutes('/src/Routes/aiRoutes.php');
 
-error_log("All route files loaded");
-
+// -------------------------------------------------------------
+// ✅ ERROR HANDLING
+// -------------------------------------------------------------
 $errorMiddleware = $app->addErrorMiddleware(true, true, true);
-$errorMiddleware->setDefaultErrorHandler(function (\Psr\Http\Message\ServerRequestInterface $request, \Throwable $exception, bool $displayErrorDetails, bool $logErrors, bool $logErrorDetails
+$errorMiddleware->setDefaultErrorHandler(function (ServerRequestInterface $request, \Throwable $exception, bool $displayErrorDetails, bool $logErrors, bool $logErrorDetails
 ) use ($app) {
     $statusCode = 500;
 
@@ -170,20 +190,25 @@ $errorMiddleware->setDefaultErrorHandler(function (\Psr\Http\Message\ServerReque
 
     error_log("ERROR: {$exception->getMessage()} in {$exception->getFile()}:{$exception->getLine()}");
 
-    $response = $app->getResponseFactory()->createResponse($statusCode);
-    $response->getBody()->write(json_encode([
+    $payload = [
         'success' => false,
-        'error' => $displayErrorDetails ? $exception->getMessage() : 'Internal server error',
-        'code' => $statusCode,
-        'file' => $displayErrorDetails ? $exception->getFile() : null,
-        'line' => $displayErrorDetails ? $exception->getLine() : null
-    ]));
+        'error' => $displayErrorDetails ? $exception->getMessage() : 'An unexpected error occurred.',
+        'code' => $statusCode
+    ];
+
+    if ($displayErrorDetails) {
+        $payload['file'] = $exception->getFile();
+        $payload['line'] = $exception->getLine();
+    }
+
+    $response = $app->getResponseFactory()->createResponse($statusCode);
+    $response->getBody()->write(json_encode($payload));
 
     return $response->withHeader('Content-Type', 'application/json');
 });
 
 // -------------------------------------------------------------
-// Health & debug
+// ✅ HEALTH & DEBUG ENDPOINTS
 // -------------------------------------------------------------
 $app->get('/', function ($req, $res) {
     $res->getBody()->write('Solennia backend is running ⚡');
@@ -191,11 +216,14 @@ $app->get('/', function ($req, $res) {
 });
 
 $app->get('/api/health', function ($req, $res) {
+    $dbStatus = 'unknown';
+    $dbMessage = '';
+
     try {
-        $pdo = \Illuminate\Database\Capsule\Manager::connection()->getPdo();
+        \Illuminate\Database\Capsule\Manager::connection()->getPdo();
         $dbStatus = 'connected';
     }
-    catch (Throwable $e) {
+    catch (\Throwable $e) {
         $dbStatus = 'error';
         $dbMessage = $e->getMessage();
     }
@@ -210,46 +238,21 @@ $app->get('/api/health', function ($req, $res) {
     return $res->withHeader('Content-Type', 'application/json');
 });
 
-$app->get('/api/dbtest', function ($req, $res) {
-    try {
-        \Illuminate\Database\Capsule\Manager::connection()->getPdo();
-        $res->getBody()->write(json_encode(['ok' => true]));
-    }
-    catch (Throwable $e) {
-        $res->getBody()->write(json_encode(['error' => $e->getMessage()]));
-    }
-    return $res->withHeader('Content-Type', 'application/json');
-});
-
-$app->get('/api/dbdiag', function ($req, $res) {
-    $seen = [
-        'APP_ENV' => getenv('APP_ENV'),
-        'MYSQLHOST' => getenv('MYSQLHOST'),
-        'MYSQLDATABASE' => getenv('MYSQLDATABASE'),
-        'MYSQLPORT' => getenv('MYSQLPORT'),
-        'DATABASE_URL' => getenv('DATABASE_URL'),
-    ];
-
-    try {
-        \Illuminate\Database\Capsule\Manager::connection()->getPdo();
-        $result = 'connected';
-    }
-    catch (Throwable $e) {
-        $result = 'error: ' . $e->getMessage();
-    }
-
+$app->get('/api/debug/env', function ($req, $res) {
     $res->getBody()->write(json_encode([
-        'seen' => $seen,
-        'result' => $result
-    ]));
-
+        'DB_HOST' => getenv('DB_HOST'),
+        'DB_DATABASE' => getenv('DB_DATABASE'),
+        'DB_USERNAME' => getenv('DB_USERNAME'),
+        'DB_PASSWORD' => getenv('DB_PASSWORD') ? 'SET' : 'NOT SET',
+        'env_file_exists' => file_exists(BASE_PATH . '/.env'),
+        'cors_origins' => getenv('CORS_ALLOWED_ORIGINS')
+    ], JSON_PRETTY_PRINT));
     return $res->withHeader('Content-Type', 'application/json');
 });
 
-$app->get('/routes', function ($request, $response) use ($app) {
+$app->get('/api/debug/routes', function ($req, $res) use ($app) {
     $routes = [];
-    $routeCollector = $app->getRouteCollector();
-    foreach ($routeCollector->getRoutes() as $route) {
+    foreach ($app->getRouteCollector()->getRoutes() as $route) {
         $routes[] = [
             'methods' => implode('|', $route->getMethods()),
             'pattern' => $route->getPattern(),
@@ -263,35 +266,4 @@ $app->get('/routes', function ($request, $response) use ($app) {
     return $res->withHeader('Content-Type', 'application/json');
 });
 
-// ✅ DEBUG: Environment check
-$app->get('/api/debug/env', function ($req, $res) {
-    $res->getBody()->write(json_encode([
-        'DB_HOST' => getenv('DB_HOST'),
-        'DB_DATABASE' => getenv('DB_DATABASE'),
-        'DB_USERNAME' => getenv('DB_USERNAME'),
-        'DB_PASSWORD' => getenv('DB_PASSWORD') ? 'SET' : 'NOT SET',
-        'env_file_exists' => file_exists(BASE_PATH . '/.env'),
-        'base_path' => BASE_PATH
-    ], JSON_PRETTY_PRINT));
-    return $res->withHeader('Content-Type', 'application/json');
-});
-
-// ✅ DEBUG: Check if booking routes file exists
-$app->get('/api/debug/files', function ($req, $res) {
-    $basePath = realpath(__DIR__ . '/..');
-    $routesPath = $basePath . '/src/Routes';
-
-    $files = is_dir($routesPath) ? scandir($routesPath) : [];
-
-    $res->getBody()->write(json_encode([
-        'base_path' => $basePath,
-        'routes_path' => $routesPath,
-        'routes_dir_exists' => is_dir($routesPath),
-        'booking_file_exists' => is_file($routesPath . '/bookingRoutes.php'),
-        'files_in_routes' => $files
-    ], JSON_PRETTY_PRINT));
-    return $res->withHeader('Content-Type', 'application/json');
-});
-
-// Run app
 $app->run();

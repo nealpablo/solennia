@@ -14,21 +14,24 @@ class AuthController
 
     public function __construct()
     {
-        $this->secret = getenv('JWT_SECRET') ?: 'solennia_super_secret_key_2025';
+        $this->secret = $_ENV['JWT_SECRET'] ?? getenv('JWT_SECRET') ?: 'solennia_super_secret_key_2025';
+
+        $keyUsed = substr($this->secret, 0, 5) . '...';
+        error_log("AUTH_CONTROLLER_INIT: Initialized with secret starting with: " . $keyUsed);
     }
 
     /* =========================================================
-        REGISTER (FIREBASE → MYSQL MIRROR)
-       MySQL no longer stores password. Firebase handles login.
-    ========================================================= */
+     REGISTER (FIREBASE → MYSQL MIRROR)
+     MySQL no longer stores password. Firebase handles login.
+     ========================================================= */
     public function register(Request $request, Response $response): Response
     {
         try {
             $data = (array)$request->getParsedBody();
 
-            $first    = trim($data['first_name'] ?? '');
-            $last     = trim($data['last_name'] ?? '');
-            $email    = strtolower(trim($data['email'] ?? ''));
+            $first = trim($data['first_name'] ?? '');
+            $last = trim($data['last_name'] ?? '');
+            $email = strtolower(trim($data['email'] ?? ''));
             $username = strtolower(trim($data['username'] ?? ''));
             $firebase = trim($data['firebase_uid'] ?? '');
 
@@ -54,14 +57,14 @@ class AuthController
             }
 
             DB::table('credential')->insert([
-                'first_name'   => $first,
-                'last_name'    => $last,
-                'email'        => $email,
-                'username'     => $username,
+                'first_name' => $first,
+                'last_name' => $last,
+                'email' => $email,
+                'username' => $username,
                 'firebase_uid' => $firebase,
-                'role'         => 0,
-                'avatar'       => null,
-                'is_verified'  => 1
+                'role' => 0,
+                'avatar' => null,
+                'is_verified' => 1
             ]);
 
             return $this->json($response, [
@@ -69,7 +72,8 @@ class AuthController
                 'message' => 'User mirrored in database.'
             ]);
 
-        } catch (\Throwable $e) {
+        }
+        catch (\Throwable $e) {
             error_log('REGISTER_ERROR: ' . $e->getMessage());
             return $this->json($response, [
                 'success' => false,
@@ -79,15 +83,15 @@ class AuthController
     }
 
     /* =========================================================
-        LOGIN (FIREBASE UID → MYSQL LOOKUP)
-    ========================================================= */
+     LOGIN (FIREBASE UID → MYSQL LOOKUP)
+     ========================================================= */
     public function login(Request $request, Response $response): Response
     {
         try {
             $data = (array)$request->getParsedBody();
 
             $firebaseUid = trim($data['firebase_uid'] ?? '');
-            $email       = strtolower(trim($data['email'] ?? ''));
+            $email = strtolower(trim($data['email'] ?? ''));
 
             if (!$firebaseUid || !$email) {
                 return $this->json($response, [
@@ -121,12 +125,13 @@ class AuthController
             return $this->json($response, [
                 'success' => true,
                 'message' => 'Login successful.',
-                'token'   => $token,
-                'role'    => $role,
-                'user'    => $user
+                'token' => $token,
+                'role' => $role,
+                'user' => $user
             ]);
 
-        } catch (\Throwable $e) {
+        }
+        catch (\Throwable $e) {
             error_log('LOGIN_ERROR: ' . $e->getMessage());
             return $this->json($response, [
                 'success' => false,
@@ -136,8 +141,8 @@ class AuthController
     }
 
     /* =========================================================
-       GET CURRENT USER
-    ========================================================= */
+     GET CURRENT USER
+     ========================================================= */
     public function me(Request $request, Response $response): Response
     {
         $jwt = $request->getAttribute('user');
@@ -157,7 +162,7 @@ class AuthController
 
         return $this->json($response, [
             'success' => true,
-            'user'    => $row
+            'user' => $row
         ]);
     }
 
@@ -166,11 +171,11 @@ class AuthController
     private function makeToken(string $firebaseUid, int $mysqlId, int $role = 0): string
     {
         $payload = [
-            'sub'      => $firebaseUid,
+            'sub' => $firebaseUid,
             'mysql_id' => $mysqlId,
-            'role'     => $role,
-            'iat'      => time(),
-            'exp'      => time() + (60 * 60 * 24 * 7),
+            'role' => $role,
+            'iat' => time(),
+            'exp' => time() + (60 * 60 * 24 * 7),
         ];
 
         return JWT::encode($payload, $this->secret, 'HS256');

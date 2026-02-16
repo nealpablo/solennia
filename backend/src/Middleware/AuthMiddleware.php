@@ -15,7 +15,11 @@ class AuthMiddleware implements Middleware
     public function __construct()
     {
         // MUST MATCH AuthController
-        $this->secret = getenv('JWT_SECRET') ?: 'solennia_super_secret_key_2025';
+        $this->secret = $_ENV['JWT_SECRET'] ?? getenv('JWT_SECRET') ?: 'solennia_local_development_secret_key_2025';
+
+        // Debug log to check which key is being used (safe log)
+        $keyUsed = substr($this->secret, 0, 5) . '...';
+        error_log("AUTH_MIDDLEWARE_INIT: Initialized with secret starting with: " . $keyUsed);
     }
 
     public function process(Request $request, Handler $handler): Response
@@ -45,19 +49,19 @@ class AuthMiddleware implements Middleware
         }
 
         if (!$auth) {
-            error_log("AUTH_MW_DEBUG: Missing Authorization. SERVER_HEADERS=" . json_encode(array_intersect_key($_SERVER, array_flip(['HTTP_AUTHORIZATION','REDIRECT_HTTP_AUTHORIZATION','REMOTE_ADDR','REQUEST_URI']))));
+            error_log("AUTH_MW_DEBUG: Missing Authorization. SERVER_HEADERS=" . json_encode(array_intersect_key($_SERVER, array_flip(['HTTP_AUTHORIZATION', 'REDIRECT_HTTP_AUTHORIZATION', 'REMOTE_ADDR', 'REQUEST_URI']))));
             return $this->unauthorized("Missing Authorization header");
         }
 
         error_log("AUTH_MW_DEBUG: Authorization header received: " . $auth);
 
         if (!preg_match('/Bearer\s+(.*)$/i', $auth, $m)) {
-            error_log("AUTH_MW_DEBUG: Invalid Authorization format. AuthorizationHeader=" . substr($auth,0,50));
+            error_log("AUTH_MW_DEBUG: Invalid Authorization format. AuthorizationHeader=" . substr($auth, 0, 50));
             return $this->unauthorized("Invalid Authorization format");
         }
 
         $token = trim($m[1] ?? '');
-        error_log("AUTH_MW_DEBUG: Token extracted: " . substr($token,0,50));
+        error_log("AUTH_MW_DEBUG: Token extracted: " . substr($token, 0, 50));
         if ($token === '') {
             error_log("AUTH_MW_DEBUG: Empty token extracted from Authorization header");
             return $this->unauthorized("Empty token");
@@ -86,7 +90,8 @@ class AuthMiddleware implements Middleware
 
             return $handler->handle($request);
 
-        } catch (\Throwable $e) {
+        }
+        catch (\Throwable $e) {
             error_log("AUTH_MIDDLEWARE_ERROR: " . $e->getMessage());
             return $this->unauthorized("Invalid or expired token");
         }
@@ -97,7 +102,7 @@ class AuthMiddleware implements Middleware
         $response = new \Slim\Psr7\Response(401);
         $response->getBody()->write(json_encode([
             'success' => false,
-            'error'   => $msg
+            'error' => $msg
         ]));
 
         return $this->cors($response)
