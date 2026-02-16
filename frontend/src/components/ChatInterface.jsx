@@ -171,7 +171,7 @@ function VendorCard({ vendor }) {
     if (!price) return 'Contact for pricing';
     const num = parseFloat(price);
     if (!isNaN(num) && String(num) === String(price).trim()) {
-      return 'P' + num.toLocaleString();
+      return '₱' + num.toLocaleString();
     }
     return price.toString();
   };

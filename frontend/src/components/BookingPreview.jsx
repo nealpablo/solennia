@@ -61,7 +61,7 @@ export default function BookingPreview({ data, stage }) {
 
         <DataField
           label="Budget"
-          value={data.budget ? (typeof data.budget === 'number' ? `P${data.budget.toLocaleString()}` : data.budget) : null}
+          value={data.budget ? (typeof data.budget === 'number' ? `₱${data.budget.toLocaleString()}` : data.budget) : null}
           icon="budget"
         />
         <DataField label="Guests" value={data.guests} icon="guests" />
@@ -376,9 +376,11 @@ const styles = {
     borderRadius: '12px',
     border: '1px solid #D4C5A9',
     overflow: 'hidden',
+    overflowY: 'auto',
     boxShadow: '0 4px 24px rgba(122, 93, 71, 0.08)',
-    position: 'sticky',
-    top: '16px',
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
   },
   header: {
     display: 'flex',

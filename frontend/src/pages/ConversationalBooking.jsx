@@ -231,11 +231,20 @@ const pageStyles = {
     gridTemplateColumns: '2fr 1fr',
     gap: '24px',
     alignItems: 'start',
+    height: 'calc(100vh - 160px)',
   },
   chatColumn: {
-    height: '620px',
+    height: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    overflow: 'hidden',
   },
-  previewColumn: {},
+  previewColumn: {
+    height: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    overflow: 'hidden',
+  },
   overlay: {
     position: 'fixed',
     inset: 0,
