@@ -16,7 +16,8 @@ $env = getenv('APP_ENV') ?: 'production';
 
 if ($env !== 'production' && file_exists(BASE_PATH . '/.env')) {
     Dotenv::createImmutable(BASE_PATH)->load();
-} else {
+}
+else {
     Dotenv::createImmutable(BASE_PATH)->safeLoad();
 }
 
@@ -31,50 +32,59 @@ $app->addBodyParsingMiddleware();
 // -------------------------------------------------------------
 $app->add(function ($request, $handler) {
     $method = strtoupper($request->getMethod());
-    
+
     // ✅ Get origin from request
     $origin = $request->getHeaderLine('Origin');
     $origin = rtrim($origin, '/');
-    
-    $allowedOrigins = getenv('CORS_ALLOWED_ORIGINS') ?: '*';
-    $allowedOrigins = rtrim($allowedOrigins, '/');
-    
-    // ✅ Determine allowed origin
-    $allowOrigin = '*';
-    if ($allowedOrigins !== '*') {
-        $allowedList = array_map('trim', explode(',', $allowedOrigins));
-        $allowedList = array_map(function($url) { return rtrim($url, '/'); }, $allowedList);
-        
-        if (in_array($origin, $allowedList, true)) {
-            $allowOrigin = $origin;
-        }
-    } else {
-        $allowOrigin = $origin ?: '*';
-    }
 
-    // ✅ Fast path for OPTIONS - respond immediately without processing
-    if ($method === 'OPTIONS') {
-        $response = new \Slim\Psr7\Response();
-        return $response
+    $allowedOrigins = getenv('CORS_ALLOWED_ORIGINS') ?: '*';
+    $allowedOrigins = trim($allowedOrigins, '"\''); // Remove potential quotes
+    $allowedOrigins = rtrim($allowedOrigins, '/');
+
+    // ✅ Determine allowed origin
+    $allowOrigin = '';
+
+    if ($allowedOrigins === '*') {
+        $allowOrigin = $origin ?: '*'; // Reflect origin or wildcard
+    }
+    else {
+        $allowedList = array_map('trim', explode(',', $allowedOrigins));
+        $allowedList = array_map(function ($url) {
+                    return rtrim(trim($url, '"\''), '/'); }
+                , $allowedList);
+
+                if (in_array($origin, $allowedList, true)) {
+                    $allowOrigin = $origin;
+                }
+                else {
+                    // Default to first allowed origin or null if not matching (to avoid open proxy)
+                    // But for now, let's fallback to empty which blocks CORS
+                    $allowOrigin = '';
+                }
+            }
+
+            // ✅ Fast path for OPTIONS - respond immediately without processing
+            if ($method === 'OPTIONS') {
+                $response = new \Slim\Psr7\Response();
+                return $response
+                ->withHeader('Access-Control-Allow-Origin', $allowOrigin)
+                ->withHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With')
+                ->withHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
+                ->withHeader('Access-Control-Allow-Credentials', 'true')
+                ->withHeader('Access-Control-Max-Age', '86400') // Cache for 24 hours
+                ->withHeader('Vary', 'Origin') // Prevent cache issues
+                ->withStatus(204); // 204 No Content is faster than 200
+            }
+
+            // ✅ Process actual request
+            $response = $handler->handle($request);
+
+            return $response
             ->withHeader('Access-Control-Allow-Origin', $allowOrigin)
             ->withHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With')
             ->withHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
             ->withHeader('Access-Control-Allow-Credentials', 'true')
-            ->withHeader('Access-Control-Max-Age', '86400') // Cache for 24 hours
-            ->withHeader('Vary', 'Origin') // Prevent cache issues
-            ->withStatus(204); // 204 No Content is faster than 200
-    }
-
-    // ✅ Process actual request
-    $response = $handler->handle($request);
-
-    return $response
-        ->withHeader('Access-Control-Allow-Origin', $allowOrigin)
-        ->withHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With')
-        ->withHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
-        ->withHeader('Access-Control-Allow-Credentials', 'true')
-        ->withHeader('Vary', 'Origin');
-});
+            ->withHeader('Vary', 'Origin');        });
 
 // -------------------------------------------------------------
 // ✅ PERFORMANCE MIDDLEWARE - Response Time Tracking
@@ -83,12 +93,12 @@ $app->add(function ($request, $handler) {
     $start = microtime(true);
     $response = $handler->handle($request);
     $time = round((microtime(true) - $start) * 1000, 2);
-    
+
     // Log slow requests
     if ($time > 2000) { // > 2 seconds
         error_log("SLOW_REQUEST: {$request->getMethod()} {$request->getUri()->getPath()} took {$time}ms");
     }
-    
+
     return $response->withHeader('X-Response-Time', "{$time}ms");
 });
 
@@ -98,14 +108,21 @@ $app->add(function ($request, $handler) {
 $app->add(function ($request, $handler) {
     // Set a timeout for the request
     set_time_limit(25); // 25 seconds max per request
-    
+
     return $handler->handle($request);
 });
 
 // -------------------------------------------------------------
 // DB bootstrap (use optimized version)
 // -------------------------------------------------------------
-require BASE_PATH . '/src/bootstrap.php';
+try {
+    require BASE_PATH . '/src/bootstrap.php';
+}
+catch (\Throwable $e) {
+    error_log("BOOTSTRAP_ERROR: " . $e->getMessage());
+// Continue execution so we can at least return CORS headers for OPTIONS
+// Routes that need DB will fail later
+}
 
 // -------------------------------------------------------------
 // Routes
@@ -131,36 +148,30 @@ $loadRoutes('/src/Routes/notificationRoutes.php');
 $loadRoutes('/src/Routes/chatRoutes.php');
 $loadRoutes('/src/Routes/usernameResolverRoutes.php');
 
-// -------------------------------------------------------------
-// ✅ IMPROVED Error middleware with better logging
-// -------------------------------------------------------------
 $errorMiddleware = $app->addErrorMiddleware(true, true, true);
-$errorMiddleware->setDefaultErrorHandler(function (
-    \Psr\Http\Message\ServerRequestInterface $request,
-    \Throwable $exception,
-    bool $displayErrorDetails,
-    bool $logErrors,
-    bool $logErrorDetails
+$errorMiddleware->setDefaultErrorHandler(function (\Psr\Http\Message\ServerRequestInterface $request, \Throwable $exception, bool $displayErrorDetails, bool $logErrors, bool $logErrorDetails
 ) use ($app) {
     $statusCode = 500;
-    
+
     if ($exception instanceof \Slim\Exception\HttpNotFoundException) {
         $statusCode = 404;
-    } elseif ($exception instanceof \Slim\Exception\HttpMethodNotAllowedException) {
+    }
+    elseif ($exception instanceof \Slim\Exception\HttpMethodNotAllowedException) {
         $statusCode = 405;
-    } elseif ($exception instanceof \Slim\Exception\HttpUnauthorizedException) {
+    }
+    elseif ($exception instanceof \Slim\Exception\HttpUnauthorizedException) {
         $statusCode = 401;
     }
-    
+
     error_log("ERROR: {$exception->getMessage()} in {$exception->getFile()}:{$exception->getLine()}");
-    
+
     $response = $app->getResponseFactory()->createResponse($statusCode);
     $response->getBody()->write(json_encode([
         'success' => false,
         'error' => $displayErrorDetails ? $exception->getMessage() : 'Internal server error',
         'code' => $statusCode
     ]));
-    
+
     return $response->withHeader('Content-Type', 'application/json');
 });
 
@@ -176,10 +187,11 @@ $app->get('/api/health', function ($req, $res) {
     try {
         $pdo = \Illuminate\Database\Capsule\Manager::connection()->getPdo();
         $dbStatus = 'connected';
-    } catch (Throwable $e) {
+    }
+    catch (Throwable $e) {
         $dbStatus = 'error';
     }
-    
+
     $res->getBody()->write(json_encode([
         'status' => 'ok',
         'database' => $dbStatus,
@@ -192,7 +204,8 @@ $app->get('/api/dbtest', function ($req, $res) {
     try {
         \Illuminate\Database\Capsule\Manager::connection()->getPdo();
         $res->getBody()->write(json_encode(['ok' => true]));
-    } catch (Throwable $e) {
+    }
+    catch (Throwable $e) {
         $res->getBody()->write(json_encode(['error' => $e->getMessage()]));
     }
     return $res->withHeader('Content-Type', 'application/json');
@@ -200,22 +213,23 @@ $app->get('/api/dbtest', function ($req, $res) {
 
 $app->get('/api/dbdiag', function ($req, $res) {
     $seen = [
-        'APP_ENV'       => getenv('APP_ENV'),
-        'MYSQLHOST'     => getenv('MYSQLHOST'),
+        'APP_ENV' => getenv('APP_ENV'),
+        'MYSQLHOST' => getenv('MYSQLHOST'),
         'MYSQLDATABASE' => getenv('MYSQLDATABASE'),
-        'MYSQLPORT'     => getenv('MYSQLPORT'),
-        'DATABASE_URL'  => getenv('DATABASE_URL'),
+        'MYSQLPORT' => getenv('MYSQLPORT'),
+        'DATABASE_URL' => getenv('DATABASE_URL'),
     ];
 
     try {
         \Illuminate\Database\Capsule\Manager::connection()->getPdo();
         $result = 'connected';
-    } catch (Throwable $e) {
+    }
+    catch (Throwable $e) {
         $result = 'error: ' . $e->getMessage();
     }
 
     $res->getBody()->write(json_encode([
-        'seen'   => $seen,
+        'seen' => $seen,
         'result' => $result
     ]));
 
