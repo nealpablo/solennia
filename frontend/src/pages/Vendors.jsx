@@ -15,6 +15,7 @@ const PER_PAGE = 8;
 export default function Vendors() {
   const [vendors, setVendors] = useState([]);
   const [filter, setFilter] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const navigate = useNavigate();
@@ -45,11 +46,22 @@ export default function Vendors() {
     load();
   }, []);
 
-  const filteredVendors = filter === "all"
-    ? vendors
-    : vendors.filter(v =>
-      (v.Category || "").toLowerCase() === filter.toLowerCase()
-    );
+  // Filter vendors by category and search query
+  const filteredVendors = vendors.filter(v => {
+    // Category filter
+    if (filter !== "all") {
+      if ((v.Category || "").toLowerCase() !== filter.toLowerCase()) return false;
+    }
+    // Search filter
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      const name = (v.BusinessName || "").toLowerCase();
+      const category = (v.Category || "").toLowerCase();
+      const description = (v.Description || "").toLowerCase();
+      if (!name.includes(q) && !category.includes(q) && !description.includes(q)) return false;
+    }
+    return true;
+  });
 
   const totalPages = Math.max(1, Math.ceil(filteredVendors.length / PER_PAGE));
   const startIdx = (currentPage - 1) * PER_PAGE;
@@ -61,7 +73,7 @@ export default function Vendors() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [filter]);
+  }, [filter, searchQuery]);
 
   if (loading) {
     return (
@@ -87,6 +99,33 @@ export default function Vendors() {
         <p className="text-center text-gray-600 mb-6">
           Find the perfect professionals for your special day
         </p>
+
+        {/* Search Bar */}
+        <div className="max-w-md mx-auto relative">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M20 20l-3.5-3.5" />
+            </svg>
+          </div>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search suppliers by name, category..."
+            className="w-full pl-10 pr-10 py-2.5 border border-[#c9bda4] rounded-full bg-white focus:outline-none focus:border-[#7a5d47] focus:ring-1 focus:ring-[#7a5d47] text-sm transition-colors"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path d="M6 18L18 6M6 6l12 12" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* FILTERS - NO "Venue" FILTER */}

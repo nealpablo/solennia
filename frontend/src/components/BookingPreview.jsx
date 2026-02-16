@@ -490,6 +490,7 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     gap: '0',
+    flex: 1,
   },
   fieldRow: {
     display: 'flex',
@@ -624,6 +625,7 @@ const styles = {
   },
   hintSection: {
     padding: '0 20px 16px',
+    marginTop: 'auto',
   },
   hintCard: {
     display: 'flex',

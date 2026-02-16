@@ -325,6 +325,7 @@ const styles = {
   },
   userBubble: {
     maxWidth: '75%',
+    minWidth: '60px',
     background: 'linear-gradient(135deg, #7A5D47 0%, #6B4F3C 100%)',
     borderRadius: '16px 4px 16px 16px',
     padding: '12px 16px',
@@ -332,6 +333,8 @@ const styles = {
     fontSize: '14px',
     lineHeight: '1.6',
     boxShadow: '0 2px 8px rgba(122, 93, 71, 0.15)',
+    wordBreak: 'normal',
+    overflowWrap: 'anywhere',
   },
   bubbleLabel: {
     fontSize: '11px',
@@ -344,7 +347,8 @@ const styles = {
   messageText: {
     margin: 0,
     whiteSpace: 'pre-wrap',
-    wordBreak: 'break-word',
+    wordBreak: 'normal',
+    overflowWrap: 'anywhere',
   },
   thinkingContainer: {
     display: 'flex',

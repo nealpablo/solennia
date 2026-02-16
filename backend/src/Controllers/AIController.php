@@ -401,6 +401,10 @@ ABSOLUTE RULES - NEVER BREAK THESE:
    - Today is {$currentDate}. NEVER accept a past date.
    - If user gives a date before {$currentDate}, respond: 'That date has already passed. Please provide a future date.'
    - If user provides month/day without year, use {$currentYear}. If that month is already past, use next year.
+   - MONTH ABBREVIATIONS: Users may type abbreviated month names. You MUST recognize these and convert to YYYY-MM-DD:
+     jan=01, feb=02, mar=03, apr=04, may=05, jun=06, jul=07, aug=08, sep=09, oct=10, nov=11, dec=12.
+     Examples: 'feb 20 2027' = 2027-02-20, 'jan 5' = {$currentYear}-01-05 (or next year if Jan already passed), 'march 15 2027' = 2027-03-15.
+     Also recognize full month names: january, february, march, april, may, june, july, august, september, october, november, december.
    - NEVER call extract_booking_info with a past date. Reject it in your response instead.
 
 5. HUMAN-LIKE BOOKING LOGIC:
@@ -527,7 +531,7 @@ CRITICAL: Use exact numeric IDs from search_vendors results. NEVER use placehold
                     'type' => 'object',
                     'properties' => [
                         'event_type' => ['type' => 'string', 'description' => 'Explicitly stated event type only. Do NOT guess.'],
-                        'date' => ['type' => 'string', 'description' => 'YYYY-MM-DD format. Must be a future date.'],
+                        'date' => ['type' => 'string', 'description' => 'Event date in YYYY-MM-DD format. Must be a future date. Parse common formats: "feb 20 2027" = "2027-02-20", "january 5" = current or next year. Recognize month abbreviations (jan, feb, mar, apr, may, jun, jul, aug, sep, oct, nov, dec) and full month names.'],
                         'time' => ['type' => 'string', 'description' => 'Event start time (e.g. 2:00 PM)'],
                         'location' => ['type' => 'string'],
                         'budget' => ['type' => 'number'],
@@ -597,8 +601,13 @@ CRITICAL: Use exact numeric IDs from search_vendors results. NEVER use placehold
 
         foreach ($newInfo as $key => $value) {
             if ($value !== null && $value !== '') {
-                // SERVER-SIDE DATE VALIDATION: Reject past dates
+                // SERVER-SIDE DATE VALIDATION: Normalize and reject past dates
                 if ($key === 'date') {
+                    $value = $this->normalizeDate($value);
+                    if (!$value) {
+                        error_log("REJECTED UNPARSEABLE DATE from AI");
+                        continue;
+                    }
                     $today = date('Y-m-d');
                     if ($value < $today) {
                         error_log("REJECTED PAST DATE: {$value} (today is {$today})");
@@ -618,6 +627,80 @@ CRITICAL: Use exact numeric IDs from search_vendors results. NEVER use placehold
         }
 
         return $merged;
+    }
+
+    /**
+     * Normalize date strings that may use month names/abbreviations into YYYY-MM-DD format.
+     * Handles: "feb 20 2027", "february 20 2027", "2027-02-20", "20 feb 2027", etc.
+     */
+    private function normalizeDate(string $dateStr): ?string
+    {
+        $dateStr = trim($dateStr);
+
+        // Already in YYYY-MM-DD format
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateStr)) {
+            return $dateStr;
+        }
+
+        // Try PHP's strtotime which handles most natural date formats
+        $timestamp = strtotime($dateStr);
+        if ($timestamp !== false) {
+            return date('Y-m-d', $timestamp);
+        }
+
+        // Manual parsing for formats like "feb 20 2027" or "20 feb 2027"
+        $months = [
+            'jan' => 1, 'january' => 1,
+            'feb' => 2, 'february' => 2,
+            'mar' => 3, 'march' => 3,
+            'apr' => 4, 'april' => 4,
+            'may' => 5,
+            'jun' => 6, 'june' => 6,
+            'jul' => 7, 'july' => 7,
+            'aug' => 8, 'august' => 8,
+            'sep' => 9, 'sept' => 9, 'september' => 9,
+            'oct' => 10, 'october' => 10,
+            'nov' => 11, 'november' => 11,
+            'dec' => 12, 'december' => 12,
+        ];
+
+        $parts = preg_split('/[\s,\/\-]+/', strtolower($dateStr));
+        $month = null;
+        $day = null;
+        $year = null;
+
+        foreach ($parts as $part) {
+            if (isset($months[$part])) {
+                $month = $months[$part];
+            }
+            elseif (is_numeric($part)) {
+                $num = (int)$part;
+                if ($num > 31) {
+                    $year = $num;
+                }
+                elseif ($day === null) {
+                    $day = $num;
+                }
+                else {
+                    $year = $num;
+                }
+            }
+        }
+
+        if ($month && $day) {
+            if (!$year) {
+                $year = (int)date('Y');
+                // If the month has already passed this year, use next year
+                $currentMonth = (int)date('n');
+                $currentDay = (int)date('j');
+                if ($month < $currentMonth || ($month === $currentMonth && $day < $currentDay)) {
+                    $year++;
+                }
+            }
+            return sprintf('%04d-%02d-%02d', $year, $month, $day);
+        }
+
+        return null;
     }
 
     private function determineBookingStage(array $data): string

@@ -23,6 +23,7 @@ export default function Venue() {
   const [venues, setVenues] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
 
   const navigate = useNavigate();
@@ -50,17 +51,25 @@ export default function Venue() {
     }
   };
 
-  // Filter venues by category (DB values: Church, Garden, Resort, Conference, Other)
-  const filteredVenues = filter === "all"
-    ? venues
-    : venues.filter(v => {
+  // Filter venues by category and search query
+  const filteredVenues = venues.filter(v => {
+    // Category filter
+    if (filter !== "all") {
       const sub = (v.venue_subcategory || "").trim().toLowerCase();
       const f = filter.toLowerCase();
       if (!sub) return false;
-      if (sub === f) return true;
-      if (f === "conference" && (sub === "conference" || sub === "conference center")) return true;
-      return false;
-    });
+      if (sub !== f && !(f === "conference" && (sub === "conference" || sub === "conference center"))) return false;
+    }
+    // Search filter
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      const name = (v.venue_name || v.business_name || "").toLowerCase();
+      const address = (v.address || "").toLowerCase();
+      const subcategory = (v.venue_subcategory || "").toLowerCase();
+      if (!name.includes(q) && !address.includes(q) && !subcategory.includes(q)) return false;
+    }
+    return true;
+  });
 
   const totalPages = Math.max(1, Math.ceil(filteredVenues.length / PER_PAGE));
   const startIdx = (currentPage - 1) * PER_PAGE;
@@ -72,7 +81,7 @@ export default function Venue() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [filter]);
+  }, [filter, searchQuery]);
 
   if (loading) {
     return (
@@ -96,6 +105,32 @@ export default function Venue() {
           Discover the perfect venue for your special day
         </p>
 
+        {/* Search Bar */}
+        <div className="max-w-md mx-auto relative">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M20 20l-3.5-3.5" />
+            </svg>
+          </div>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search venues by name, location..."
+            className="w-full pl-10 pr-10 py-2.5 border border-[#c9bda4] rounded-full bg-white focus:outline-none focus:border-[#7a5d47] focus:ring-1 focus:ring-[#7a5d47] text-sm transition-colors"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path d="M6 18L18 6M6 6l12 12" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Filter Bar - Uses DB values (Church, Garden, etc.) for filtering */}
@@ -207,6 +242,17 @@ function VenueCard({ venue, navigate }) {
       return;
     }
 
+    // Parse venue amenities from DB data
+    let amenities = [];
+    if (venue.venue_amenities) {
+      try {
+        const parsed = JSON.parse(venue.venue_amenities);
+        amenities = Array.isArray(parsed) ? parsed : [];
+      } catch {
+        amenities = venue.venue_amenities.split(',').map(a => a.trim()).filter(Boolean);
+      }
+    }
+
     navigate('/create-venue-booking', {
       state: {
         venueId: venue.id,
@@ -214,7 +260,8 @@ function VenueCard({ venue, navigate }) {
         venueType: venue.venue_subcategory,
         capacity: venue.venue_capacity,
         address: venue.address,
-        venueImage: venue.logo || venue.portfolio
+        venueImage: venue.logo || venue.portfolio,
+        venueAmenities: amenities
       }
     });
   };

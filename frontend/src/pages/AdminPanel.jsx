@@ -311,92 +311,7 @@ export default function AdminPanel() {
         .badge.pending { background: #fef3c7; color: #92400e; }
       `}</style>
 
-      {lightbox.show && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.9)',
-            zIndex: 99999,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '1rem'
-          }}
-          onClick={closeLightbox}
-        >
-          <div
-            style={{
-              backgroundColor: 'white',
-              borderRadius: '12px',
-              maxWidth: '90vw',
-              maxHeight: '90vh',
-              overflow: 'hidden',
-              display: 'flex',
-              flexDirection: 'column'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div
-              style={{
-                padding: '1rem 1.5rem',
-                borderBottom: '1px solid #e5e5e5',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                backgroundColor: '#fcf9ee'
-              }}
-            >
-              <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#7a5d47' }}>{lightbox.title}</div>
-              <button
-                style={{
-                  fontSize: '2rem',
-                  lineHeight: 1,
-                  border: 'none',
-                  background: 'none',
-                  cursor: 'pointer',
-                  color: '#7a5d47',
-                  padding: '0 0.5rem'
-                }}
-                onClick={closeLightbox}
-              >
-                &times;
-              </button>
-            </div>
-            <div
-              style={{
-                padding: '1rem',
-                overflow: 'auto',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: '#f9f9f9'
-              }}
-            >
-              {lightbox.isPdf ? (
-                <iframe
-                  src={lightbox.url}
-                  style={{
-                    width: '80vw',
-                    height: '80vh',
-                    border: 'none'
-                  }}
-                />
-              ) : (
-                <img
-                  src={lightbox.url}
-                  alt="Document Preview"
-                  style={{
-                    maxWidth: '100%',
-                    maxHeight: '75vh',
-                    objectFit: 'contain'
-                  }}
-                />
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+
 
       {confirm.show && (
         <div className="confirm-backdrop">
@@ -615,22 +530,31 @@ export default function AdminPanel() {
                   )}
                   {selectedApp.gov_id && (
                     <div onClick={(e) => { e.stopPropagation(); previewDocument(selectedApp.gov_id, "Government ID"); }} className="cursor-pointer group">
-                      <div className="h-24 bg-gray-100 rounded border flex items-center justify-center group-hover:bg-black-50 transition-colors">
-                        <span className="text-xs font-semibold text-black-600">View Valid ID</span>
+                      <div className="relative h-24 bg-gray-100 rounded border overflow-hidden">
+                        <img src={selectedApp.gov_id} alt="Valid ID" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" onError={(e) => { e.target.style.display = 'none'; }} />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/10 transition-colors">
+                          <span className="text-xs font-semibold text-white drop-shadow-md">Valid ID</span>
+                        </div>
                       </div>
                     </div>
                   )}
                   {selectedApp.permits && (
                     <div onClick={(e) => { e.stopPropagation(); previewDocument(selectedApp.permits, "Business Permit"); }} className="cursor-pointer group">
-                      <div className="h-24 bg-gray-100 rounded border flex items-center justify-center group-hover:bg-black-50 transition-colors">
-                        <span className="text-xs font-semibold text-black-600">View Permit</span>
+                      <div className="relative h-24 bg-gray-100 rounded border overflow-hidden">
+                        <img src={selectedApp.permits} alt="Permit" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" onError={(e) => { e.target.style.display = 'none'; }} />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/10 transition-colors">
+                          <span className="text-xs font-semibold text-white drop-shadow-md">Permit</span>
+                        </div>
                       </div>
                     </div>
                   )}
                   {selectedApp.portfolio && (
                     <div onClick={(e) => { e.stopPropagation(); previewDocument(selectedApp.portfolio, "Portfolio"); }} className="cursor-pointer group">
-                      <div className="h-24 bg-gray-100 rounded border flex items-center justify-center group-hover:bg-black-50 transition-colors">
-                        <span className="text-xs font-semibold text-black-600">View Services/Portfolio</span>
+                      <div className="relative h-24 bg-gray-100 rounded border overflow-hidden">
+                        <img src={selectedApp.portfolio} alt="Portfolio" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" onError={(e) => { e.target.style.display = 'none'; }} />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/10 transition-colors">
+                          <span className="text-xs font-semibold text-white drop-shadow-md">Services/Portfolio</span>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -762,10 +686,14 @@ export default function AdminPanel() {
                 <button
                   className="deny-btn px-4 py-2"
                   onClick={async () => {
-                    const ok = await openConfirm("Suspend this supplier’s account (demote to client)?", "Suspend", "deny-btn");
-                    if (!ok) return;
-                    await changeRole(reportModal.report.vendor_user_id, 1, 0);
+                    const savedReport = { ...reportModal };
                     setReportModal({ show: false, report: null, status: "", notes: "" });
+                    const ok = await openConfirm("Suspend this supplier's account (demote to client)?", "Suspend", "deny-btn");
+                    if (!ok) {
+                      setReportModal(savedReport);
+                      return;
+                    }
+                    await changeRole(savedReport.report.vendor_user_id, 1, 0);
                     loadReports();
                   }}
                   title="Optional: suspend supplier account (demote to client)"
@@ -775,7 +703,12 @@ export default function AdminPanel() {
               )}
               <button
                 className="approve-btn px-4 py-2"
-                onClick={updateReportStatus}
+                onClick={() => {
+                  setReportModal(prev => ({ ...prev, show: false }));
+                  setTimeout(() => {
+                    updateReportStatus();
+                  }, 100);
+                }}
               >
                 Update status
               </button>
@@ -1022,7 +955,7 @@ export default function AdminPanel() {
                         </td>
                         <td>
                           <button
-                            className="bg-blue-600 text-white hover:bg-blue-700 !border-blue-700 text-xs px-2 py-1"
+                            className="bg-[#7a5d47] text-white hover:bg-[#5d4636] !border-[#7a5d47] text-xs px-2 py-1"
                             onClick={() => setReportModal({
                               show: true,
                               report: r,
@@ -1081,6 +1014,61 @@ export default function AdminPanel() {
           to { transform: rotate(360deg); }
         }
       `}</style>
+
+      {/* Document Preview Lightbox Modal */}
+      {lightbox.show && (
+        <div
+          className="fixed inset-0 bg-black/85 z-[99999] flex items-center justify-center p-4"
+          onClick={closeLightbox}
+        >
+          <div
+            className="relative bg-white rounded-xl w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Lightbox Header */}
+            <div className="flex items-center justify-between p-4 border-b bg-[#fcf9ee]">
+              <h3 className="text-lg font-bold text-[#7a5d47]">{lightbox.title}</h3>
+              <div className="flex items-center gap-2">
+                <a
+                  href={lightbox.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-1.5 text-xs font-medium bg-[#e8ddae] hover:bg-[#dbcf9f] rounded-lg transition-colors"
+                >
+                  Open in New Tab
+                </a>
+                <button
+                  onClick={closeLightbox}
+                  className="w-8 h-8 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-lg font-bold transition-colors"
+                >
+                  &times;
+                </button>
+              </div>
+            </div>
+            {/* Lightbox Content */}
+            <div className="flex-1 overflow-auto flex items-center justify-center bg-gray-50 p-4" style={{ minHeight: '400px' }}>
+              {lightbox.isPdf ? (
+                <iframe
+                  src={lightbox.url}
+                  title={lightbox.title}
+                  className="w-full h-full rounded border"
+                  style={{ minHeight: '500px' }}
+                />
+              ) : (
+                <img
+                  src={lightbox.url}
+                  alt={lightbox.title}
+                  className="max-w-full max-h-[70vh] object-contain rounded shadow-lg"
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                    e.target.parentNode.innerHTML = '<div class="text-center p-8"><p class="text-gray-500 text-lg">Unable to load image</p><a href="' + lightbox.url + '" target="_blank" rel="noopener noreferrer" class="mt-3 inline-block px-4 py-2 bg-[#7a5d47] text-white rounded-lg text-sm hover:bg-[#5d4636]">Open URL Directly</a></div>';
+                  }}
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

@@ -24,6 +24,8 @@ export default function CreateVenueBooking() {
 
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
+    const [venueAmenities, setVenueAmenities] = useState([]);
+    const [loadingAmenities, setLoadingAmenities] = useState(false);
 
     // Step 1: Event Details
     const [eventDetails, setEventDetails] = useState({
@@ -55,6 +57,7 @@ export default function CreateVenueBooking() {
         if (!venueData.venueId) {
             toast.error("No venue selected. Redirecting...");
             setTimeout(() => navigate("/venue"), 2000);
+            return;
         }
 
         // Load user profile for contact info
@@ -71,7 +74,42 @@ export default function CreateVenueBooking() {
                 console.error("Error parsing profile:", e);
             }
         }
+
+        // Load venue amenities from navigation state or fetch from API
+        if (venueData.venueAmenities && venueData.venueAmenities.length > 0) {
+            setVenueAmenities(venueData.venueAmenities);
+        } else {
+            // Fallback: fetch venue detail from API to get amenities
+            fetchVenueAmenities(venueData.venueId);
+        }
     }, [venueData, navigate]);
+
+    const fetchVenueAmenities = async (venueId) => {
+        try {
+            setLoadingAmenities(true);
+            const res = await fetch(`${API}/venues/${venueId}`);
+            const json = await res.json();
+            if (res.ok && json.venue) {
+                let amenities = [];
+                if (json.venue.venue_amenities) {
+                    try {
+                        const parsed = JSON.parse(json.venue.venue_amenities);
+                        amenities = Array.isArray(parsed) ? parsed : [];
+                    } catch {
+                        amenities = json.venue.venue_amenities
+                            .split(',')
+                            .map(a => a.trim())
+                            .filter(Boolean);
+                    }
+                }
+                setVenueAmenities(amenities);
+            }
+        } catch (err) {
+            console.error("Failed to fetch venue amenities:", err);
+        } finally {
+            setLoadingAmenities(false);
+        }
+    };
 
     const handleEventDetailsChange = (field, value) => {
         setEventDetails(prev => ({ ...prev, [field]: value }));
@@ -495,36 +533,46 @@ export default function CreateVenueBooking() {
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-3">
                                     Select Amenities
+                                    {venueAmenities.length > 0 && (
+                                        <span className="ml-2 text-xs font-normal text-gray-500">
+                                            (offered by this venue)
+                                        </span>
+                                    )}
                                 </label>
-                                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                                    {[
-                                        "Sound System",
-                                        "Projector & Screen",
-                                        "Microphone",
-                                        "Chairs & Tables",
-                                        "Air Conditioning",
-                                        "Parking",
-                                        "Catering Service",
-                                        "Wi-Fi",
-                                        "Stage/Platform"
-                                    ].map(amenity => (
-                                        <label
-                                            key={amenity}
-                                            className={`flex items-center gap-2 p-3 border-2 rounded-lg cursor-pointer transition-all ${venueConfig.selected_amenities.includes(amenity)
-                                                ? "border-[#7a5d47] bg-[#7a5d47]/5"
-                                                : "border-gray-200 hover:border-gray-300"
-                                                }`}
-                                        >
-                                            <input
-                                                type="checkbox"
-                                                checked={venueConfig.selected_amenities.includes(amenity)}
-                                                onChange={() => handleAmenityToggle(amenity)}
-                                                className="w-4 h-4 text-[#7a5d47] rounded focus:ring-[#7a5d47]"
-                                            />
-                                            <span className="text-sm">{amenity}</span>
-                                        </label>
-                                    ))}
-                                </div>
+                                {loadingAmenities ? (
+                                    <div className="text-center py-6">
+                                        <div className="w-8 h-8 border-4 border-[#e8ddae] border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                                        <p className="text-gray-500 text-sm">Loading venue amenities...</p>
+                                    </div>
+                                ) : venueAmenities.length > 0 ? (
+                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                        {venueAmenities.map(amenity => (
+                                            <label
+                                                key={amenity}
+                                                className={`flex items-center gap-2 p-3 border-2 rounded-lg cursor-pointer transition-all ${venueConfig.selected_amenities.includes(amenity)
+                                                    ? "border-[#7a5d47] bg-[#7a5d47]/5"
+                                                    : "border-gray-200 hover:border-gray-300"
+                                                    }`}
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={venueConfig.selected_amenities.includes(amenity)}
+                                                    onChange={() => handleAmenityToggle(amenity)}
+                                                    className="w-4 h-4 text-[#7a5d47] rounded focus:ring-[#7a5d47]"
+                                                />
+                                                <span className="text-sm">{amenity}</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-center">
+                                        <svg className="w-8 h-8 mx-auto text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        <p className="text-gray-600 text-sm">This venue hasn't listed specific amenities yet.</p>
+                                        <p className="text-gray-500 text-xs mt-1">Please contact the venue directly to inquire about available amenities.</p>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

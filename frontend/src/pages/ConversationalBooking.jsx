@@ -230,7 +230,7 @@ const pageStyles = {
     display: 'grid',
     gridTemplateColumns: '2fr 1fr',
     gap: '24px',
-    alignItems: 'start',
+    alignItems: 'stretch',
     height: 'calc(100vh - 160px)',
   },
   chatColumn: {

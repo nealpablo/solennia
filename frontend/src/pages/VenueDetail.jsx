@@ -225,7 +225,8 @@ export default function VenueDetail() {
         venueType: venue.venue_type,
         capacity: venue.capacity,
         address: venue.location,
-        venueImage: venue.images[0]
+        venueImage: venue.images[0],
+        venueAmenities: venue.amenities || []
       }
     });
   };
@@ -344,7 +345,7 @@ export default function VenueDetail() {
                 }`}
               onClick={() => setSelectedImage(idx)}
             >
-                <img
+              <img
                 src={img}
                 alt={`${venue.name} ${idx + 1}`}
                 className="w-full h-full object-cover"
