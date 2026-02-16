@@ -28,7 +28,7 @@ class AuthMiddleware implements Middleware
 
         /**
          * =====================================================
-         * 🔥 AUTH HEADER RESOLUTION (XAMPP / APACHE SAFE)
+         *  AUTH HEADER RESOLUTION (XAMPP / APACHE SAFE)
          * =====================================================
          */
         $auth = $request->getHeaderLine('Authorization');
@@ -45,24 +45,31 @@ class AuthMiddleware implements Middleware
         }
 
         if (!$auth) {
+            error_log("AUTH_MW_DEBUG: Missing Authorization. SERVER_HEADERS=" . json_encode(array_intersect_key($_SERVER, array_flip(['HTTP_AUTHORIZATION','REDIRECT_HTTP_AUTHORIZATION','REMOTE_ADDR','REQUEST_URI']))));
             return $this->unauthorized("Missing Authorization header");
         }
 
+        error_log("AUTH_MW_DEBUG: Authorization header received: " . $auth);
+
         if (!preg_match('/Bearer\s+(.*)$/i', $auth, $m)) {
+            error_log("AUTH_MW_DEBUG: Invalid Authorization format. AuthorizationHeader=" . substr($auth,0,50));
             return $this->unauthorized("Invalid Authorization format");
         }
 
         $token = trim($m[1] ?? '');
+        error_log("AUTH_MW_DEBUG: Token extracted: " . substr($token,0,50));
         if ($token === '') {
+            error_log("AUTH_MW_DEBUG: Empty token extracted from Authorization header");
             return $this->unauthorized("Empty token");
         }
 
         try {
             $decoded = JWT::decode($token, new Key($this->secret, 'HS256'));
+            error_log("AUTH_MW_DEBUG: Token decoded successfully: " . json_encode($decoded));
 
             /**
              * =====================================================
-             * ✅ FIX: SUPPORT mysql_id OR sub
+             *  FIX: SUPPORT mysql_id OR sub
              * =====================================================
              */
             if (!isset($decoded->mysql_id) && !isset($decoded->sub)) {

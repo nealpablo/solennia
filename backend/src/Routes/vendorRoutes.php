@@ -10,85 +10,43 @@ use Cloudinary\Cloudinary;
 
 return function (App $app) {
 
-    // Cloudinary instance
-    $cloudinary = new Cloudinary([
-        'cloud' => [
-            'cloud_name' => getenv('CLOUDINARY_CLOUD'),
-            'api_key'    => getenv('CLOUDINARY_KEY'),
-            'api_secret' => getenv('CLOUDINARY_SECRET')
-        ],
-        'url' => ['secure' => true]
-    ]);
+    /* ===========================================================
+     * CLOUDINARY INITIALIZATION
+     * =========================================================== */
+    $cloudinary = null;
+    $cloudName = envx('CLOUDINARY_CLOUD');
+    $apiKey = envx('CLOUDINARY_KEY');
+    $apiSecret = envx('CLOUDINARY_SECRET');
 
-    // Helper JSON Response
+    if ($cloudName && $apiKey && $apiSecret) {
+        $cloudinary = new Cloudinary([
+            'cloud' => [
+                'cloud_name' => $cloudName,
+                'api_key' => $apiKey,
+                'api_secret' => $apiSecret
+            ],
+            'url' => ['secure' => true]
+        ]);
+    }
+
+    /* ===========================================================
+     * JSON RESPONSE HELPER
+     * =========================================================== */
     $json = function (Response $res, array $payload, int $status = 200) {
+        $origin = $_SERVER['HTTP_ORIGIN'] ?? 'http://localhost:5173';
         $res->getBody()->write(json_encode($payload, JSON_UNESCAPED_UNICODE));
         return $res
             ->withHeader('Content-Type', 'application/json')
+            ->withHeader('Access-Control-Allow-Origin', $origin)
+            ->withHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
+            ->withHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+            ->withHeader('Access-Control-Allow-Credentials', 'true')
             ->withStatus($status);
     };
 
-    // ✅ NEW: Generate signed upload URL for direct client uploads
-    $app->post('/api/vendor/get-upload-signature', function (Request $req, Response $res) use ($json) {
-    try {
-        $auth = $req->getAttribute('user');
-        if (!$auth || !isset($auth->mysql_id)) {
-            return $json($res, ['success' => false, 'error' => 'Unauthorized'], 401);
-        }
-
-        $cloudName = getenv('CLOUDINARY_CLOUD');
-        $apiKey    = getenv('CLOUDINARY_KEY');
-        $apiSecret = getenv('CLOUDINARY_SECRET');
-
-        if (!$cloudName || !$apiKey || !$apiSecret) {
-            return $json($res, ['success' => false, 'error' => 'Cloudinary config missing'], 500);
-        }
-
-        $data     = (array) $req->getParsedBody();
-        $fileType = $data['file_type'] ?? 'document';
-
-        // PDFs & documents → RAW
-        $isRaw = in_array($fileType, ['permits', 'gov_id', 'portfolio'], true);
-        $uploadType = $isRaw ? 'raw' : 'image';
-
-        $timestamp = time();
-        $folder    = "solennia/vendor/{$auth->mysql_id}";
-        $publicId  = "{$fileType}_{$timestamp}_" . bin2hex(random_bytes(4));
-
-        /**
-         * ✅ SIGN ONLY WHAT CLOUDINARY EXPECTS
-         * ❌ DO NOT SIGN resource_type
-         */
-        $params = [
-            'folder'    => $folder,
-            'public_id' => $publicId,
-            'timestamp' => $timestamp
-        ];
-
-        ksort($params);
-        $toSign = [];
-        foreach ($params as $k => $v) {
-            $toSign[] = "{$k}={$v}";
-        }
-
-        $signature = sha1(implode('&', $toSign) . $apiSecret);
-
-        return $json($res, [
-            'success'    => true,
-            'upload_url' => "https://api.cloudinary.com/v1_1/{$cloudName}/{$uploadType}/upload",
-            'params'     => array_merge($params, [
-                'api_key'   => $apiKey,
-                'signature' => $signature
-            ])
-        ]);
-
-    } catch (\Throwable $e) {
-        error_log('UPLOAD_SIGNATURE_FATAL: ' . $e->getMessage());
-        return $json($res, ['success' => false, 'error' => 'Upload signature failed'], 500);
-    }
-})->add(new AuthMiddleware());
-
-    // Helper function to send notifications
+    /* ===========================================================
+     * NOTIFICATION HELPERS
+     * =========================================================== */
     $sendNotification = function ($userId, $type, $title, $message) {
         try {
             DB::table('notifications')->insert([
@@ -97,258 +55,328 @@ return function (App $app) {
                 'title' => $title,
                 'message' => $message,
                 'read' => false,
-                'created_at' => DB::raw('NOW()')
+                'created_at' => date('Y-m-d H:i:s')
             ]);
-        } catch (\Exception $e) {
-            error_log("Failed to send notification: " . $e->getMessage());
+        } catch (\Throwable $e) {
+            error_log("NOTIFICATION_ERROR: " . $e->getMessage());
         }
     };
 
-    // Helper function to send notification to all admins
     $sendToAdmins = function ($type, $title, $message) use ($sendNotification) {
         try {
-            $admins = DB::table('credential')->where('role', 2)->get();
-            foreach ($admins as $admin) {
-                $sendNotification($admin->id, $type, $title, $message);
+            $admins = DB::table('credential')->where('role', 2)->pluck('id');
+            foreach ($admins as $adminId) {
+                $sendNotification($adminId, $type, $title, $message);
             }
-        } catch (\Exception $e) {
-            error_log("Failed to send admin notification: " . $e->getMessage());
+        } catch (\Throwable $e) {
+            error_log("SEND_TO_ADMINS_ERROR: " . $e->getMessage());
         }
     };
 
-    // Create vendor profile (first-time setup)
-    $app->post('/api/vendor/profile/create', function (Request $req, Response $res) {
-        $controller = new VendorController();
-        return $controller->createVendorProfile($req, $res);
-    })->add(new AuthMiddleware());
+    /* ===========================================================
+     * NEW: GET PHILIPPINE REGIONS (PUBLIC)
+     * =========================================================== */
+    $app->get('/api/regions', function (Request $req, Response $res) use ($json) {
+        try {
+            $controller = new VendorController();
+            return $controller->getRegions($req, $res);
+        } catch (\Throwable $e) {
+            error_log('GET_REGIONS_ERROR: ' . $e->getMessage());
+            return $json($res, [
+                'success' => false,
+                'error' => 'Failed to fetch regions'
+            ], 500);
+        }
+    });
 
-    // Vendor dashboard
-    $app->get('/api/vendor/dashboard', function (Request $req, Response $res) use ($json) {
+    /* ===========================================================
+     * NEW: GET CITIES BY REGION (PUBLIC)
+     * =========================================================== */
+    $app->get('/api/cities/{regionCode}', function (Request $req, Response $res, array $args) use ($json) {
+        try {
+            $controller = new VendorController();
+            return $controller->getCitiesByRegion($req, $res, $args);
+        } catch (\Throwable $e) {
+            error_log('GET_CITIES_ERROR: ' . $e->getMessage());
+            return $json($res, [
+                'success' => false,
+                'error' => 'Failed to fetch cities'
+            ], 500);
+        }
+    });
+
+    /* ===========================================================
+     * OPTIONS HANDLERS (CORS PREFLIGHT)
+     * =========================================================== */
+    $app->options('/api/regions', function (Request $req, Response $res) use ($json) {
+        return $json($res, ['success' => true]);
+    });
+
+    $app->options('/api/cities/{regionCode}', function (Request $req, Response $res) use ($json) {
+        return $json($res, ['success' => true]);
+    });
+
+    $app->options('/api/vendors/public', function (Request $req, Response $res) use ($json) {
+        return $json($res, ['success' => true]);
+    });
+
+    $app->options('/api/vendor/public/{userId}', function (Request $req, Response $res) use ($json) {
+        return $json($res, ['success' => true]);
+    });
+
+    $app->options('/api/vendor/{userId}/bookings', function (Request $req, Response $res) use ($json) {
+        return $json($res, ['success' => true]);
+    });
+
+    $app->options('/api/vendor/get-upload-signature', function (Request $req, Response $res) use ($json) {
+        return $json($res, ['success' => true]);
+    });
+
+    $app->options('/api/vendor/apply', function (Request $req, Response $res) use ($json) {
+        return $json($res, ['success' => true]);
+    });
+
+    $app->options('/api/vendor/status', function (Request $req, Response $res) use ($json) {
+        return $json($res, ['success' => true]);
+    });
+
+    $app->options('/api/vendor/profile', function (Request $req, Response $res) use ($json) {
+        return $json($res, ['success' => true]);
+    });
+
+    $app->options('/api/vendor/logo', function (Request $req, Response $res) use ($json) {
+        return $json($res, ['success' => true]);
+    });
+
+    $app->options('/api/vendor/hero', function (Request $req, Response $res) use ($json) {
+        return $json($res, ['success' => true]);
+    });
+
+    $app->options('/api/vendor/info', function (Request $req, Response $res) use ($json) {
+        return $json($res, ['success' => true]);
+    });
+
+    $app->options('/api/vendor/gallery', function (Request $req, Response $res) use ($json) {
+        return $json($res, ['success' => true]);
+    });
+
+    /* ===========================================================
+     * GET PUBLIC VENDORS LIST
+     * =========================================================== */
+    $app->get('/api/vendors/public', function (Request $req, Response $res) use ($json) {
+        try {
+            $vendors = [];
+
+            // 1. Get Active Vendor Listings (New System)
+            $newListings = DB::table('vendor_listings as vl')
+                ->join('credential as c', 'vl.user_id', '=', 'c.id')
+                ->where('vl.status', 'Active')
+                ->select(
+                    'vl.id',
+                    'c.id as UserID',
+                    'vl.business_name as BusinessName',
+                    'vl.service_category as Category',
+                    'vl.description as Description',
+                    'vl.description as bio',
+                    'vl.logo as avatar',
+                    'vl.logo as business_logo_url',
+                    'vl.hero_image as HeroImageUrl',
+                    'vl.gallery',
+                    'vl.address as BusinessAddress',
+                    'vl.region',
+                    'vl.city',
+                    DB::raw('0 as verification_score'),
+                    'vl.pricing as Pricing',
+                    'c.firebase_uid',
+                    'c.firebase_uid as user_firebase_uid',
+                    'c.first_name',
+                    'c.last_name',
+                    'c.email',
+                    'c.username',
+                    'c.avatar as user_avatar',
+                    'c.role',
+                    'vl.created_at'
+                )
+                ->get()
+                ->map(function($v) {
+                    $v->source = 'vendor_listings';
+                    // Parse gallery safely
+                    if (isset($v->gallery)) {
+                        $v->gallery = is_string($v->gallery) ? json_decode($v->gallery, true) ?: [] : $v->gallery;
+                    }
+                    return $v;
+                });
+
+            // 2. Get Approved Event Service Providers (Legacy System)
+            $legacyListings = DB::table('event_service_provider as esp')
+                ->join('credential as c', 'esp.UserID', '=', 'c.id')
+                ->where('esp.ApplicationStatus', 'Approved')
+                ->select(
+                    'esp.ID as id', // Use ESP ID as listing ID equivalent
+                    'c.id as UserID',
+                    'esp.BusinessName',
+                    'esp.Category',
+                    'esp.Description',
+                    'esp.bio',
+                    'esp.avatar',
+                    'esp.business_logo_url',
+                    'esp.HeroImageUrl',
+                    'esp.gallery',
+                    'esp.BusinessAddress',
+                    'esp.region',
+                    'esp.city',
+                    'esp.verification_score',
+                    'esp.Pricing',
+                    'c.firebase_uid',
+                    'c.firebase_uid as user_firebase_uid',
+                    'c.first_name',
+                    'c.last_name',
+                    'c.email',
+                    'c.username',
+                    'c.avatar as user_avatar',
+                    'c.role',
+                    'esp.DateApproved as created_at'
+                )
+                ->get()
+                ->map(function($v) {
+                    $v->source = 'event_service_provider';
+                     // Parse gallery safely
+                     if (isset($v->gallery)) {
+                        $v->gallery = is_string($v->gallery) ? json_decode($v->gallery, true) ?: [] : $v->gallery;
+                    }
+                    return $v;
+                });
+
+            // 3. Merge and Deduplicate
+            // If a user has both, prefer vendor_listings (new system).
+            $merged = [];
+            $seenUsers = [];
+
+            // Add new listings first
+            foreach ($newListings as $item) {
+                // Ensure BusinessName is set
+                if (empty($item->BusinessName)) {
+                    $item->BusinessName = trim(($item->first_name ?? '') . ' ' . ($item->last_name ?? '')) ?: ($item->username ?? 'Vendor');
+                }
+                // Ensure Avatar
+                if (empty($item->avatar)) {
+                    $item->avatar = $item->user_avatar;
+                }
+                
+                $item->unique_key = 'user_' . $item->UserID . '_vl_' . $item->id;
+                $merged[] = $item;
+                $seenUsers[$item->UserID] = true;
+            }
+
+            // Add legacy listings if user not already added
+            foreach ($legacyListings as $item) {
+                 if (isset($seenUsers[$item->UserID])) {
+                     continue; // Skip legacy if new listing exists
+                 }
+
+                // Ensure BusinessName is set
+                if (empty($item->BusinessName)) {
+                    $item->BusinessName = trim(($item->first_name ?? '') . ' ' . ($item->last_name ?? '')) ?: ($item->username ?? 'Vendor');
+                }
+                // Ensure Avatar
+                if (empty($item->avatar)) {
+                    $item->avatar = $item->user_avatar;
+                }
+
+                $item->unique_key = 'user_' . $item->UserID . '_esp_' . $item->id;
+                $merged[] = $item;
+            }
+
+            // Sort by created_at desc
+            usort($merged, function($a, $b) {
+                $t1 = strtotime($a->created_at ?? 'now');
+                $t2 = strtotime($b->created_at ?? 'now');
+                return $t2 - $t1;
+            });
+
+            return $json($res, [
+                'success' => true,
+                'vendors' => $merged
+            ]);
+        } catch (\Throwable $e) {
+            error_log('GET_VENDORS_ERROR: ' . $e->getMessage());
+            return $json($res, [
+                'success' => false,
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    });
+
+    /* ===========================================================
+     * GET PUBLIC VENDOR DETAILS
+     * =========================================================== */
+    $app->get('/api/vendor/public/{userId}', function (Request $req, Response $res, array $args) use ($json) {
+        $controller = new VendorController();
+        return $controller->getPublicVendorData($req, $res, $args);
+    });
+
+    /* ===========================================================
+     * GET PUBLIC VENDOR BOOKINGS (for profile calendar - no auth)
+     * =========================================================== */
+    $app->get('/api/vendor/{userId}/bookings', function (Request $req, Response $res, array $args) use ($json) {
+        try {
+            $controller = new VendorController();
+            return $controller->getPublicVendorBookings($req, $res, $args);
+        } catch (\Throwable $e) {
+            error_log('VENDOR_BOOKINGS_ERROR: ' . $e->getMessage());
+            return $json($res, ['success' => false, 'error' => 'Failed to fetch bookings'], 500);
+        }
+    });
+
+    /* ===========================================================
+     * GET UPLOAD SIGNATURE (AUTHENTICATED)
+     * =========================================================== */
+    $app->post('/api/vendor/get-upload-signature', function (Request $req, Response $res) use ($json) {
         $auth = $req->getAttribute('user');
         if (!$auth || !isset($auth->mysql_id)) {
             return $json($res, ['success' => false, 'error' => 'Unauthorized'], 401);
         }
 
-        $userId = (int) $auth->mysql_id;
+        $cloudName = envx('CLOUDINARY_CLOUD');
+        $apiKey = envx('CLOUDINARY_KEY');
+        $apiSecret = envx('CLOUDINARY_SECRET');
 
-        try {
-            $vendor = DB::table('event_service_provider')
-                ->where('UserID', $userId)
-                ->where('ApplicationStatus', 'Approved')
-                ->first();
-
-            if (!$vendor) {
-                return $json($res, [
-                    'success' => false,
-                    'error' => 'No approved vendor profile found'
-                ], 404);
-            }
-
-            $user = DB::table('credential')
-                ->where('id', $userId)
-                ->first();
-
-            $vendorData = [
-                'id' => $vendor->ID,
-                'user_id' => $vendor->UserID,
-                'business_name' => $vendor->BusinessName,
-                'category' => $vendor->Category,
-                'description' => $vendor->Description,
-                'pricing' => $vendor->Pricing,
-                'hero_image_url' => $vendor->HeroImageUrl,
-                'vendor_logo' => $vendor->avatar,
-                'business_email' => $vendor->BusinessEmail,
-                'business_address' => $vendor->BusinessAddress,
-                'bio' => $vendor->bio,
-                'services' => $vendor->services,
-                'service_areas' => $vendor->service_areas,
-                'user_avatar' => $user->avatar ?? null
-            ];
-
-            // ✅ GALLERY FIX: Fetch from vendor_gallery table
-            $gallery = DB::table('vendor_gallery')
-                ->where('user_id', $userId)
-                ->orderBy('created_at', 'desc')
-                ->pluck('image_url')
-                ->toArray();
-
-            $bookings = [
-                ['title' => 'Total Bookings', 'count' => 0],
-                ['title' => 'Pending Bookings', 'count' => 0]
-            ];
-
-            $insights = [
-                'labels' => ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-                'datasets' => [
-                    [
-                        'label' => 'Profile Views',
-                        'data' => [12, 19, 15, 25, 22, 30]
-                    ]
-                ]
-            ];
-
-            return $json($res, [
-                'success' => true,
-                'vendor' => $vendorData,
-                'gallery' => $gallery,
-                'bookings' => $bookings,
-                'insights' => $insights
-            ]);
-
-        } catch (\Throwable $e) {
-            error_log('VENDOR_DASHBOARD_ERROR: ' . $e->getMessage());
-            return $json($res, [
-                'success' => false,
-                'error' => 'Failed to load dashboard: ' . $e->getMessage()
-            ], 500);
+        if (!$cloudName || !$apiKey || !$apiSecret) {
+            return $json($res, ['success' => false, 'error' => 'Cloudinary config missing'], 500);
         }
+
+        $data = (array)$req->getParsedBody();
+        $fileType = $data['file_type'] ?? 'document';
+        $isRaw = in_array($fileType, ['permits', 'gov_id', 'portfolio'], true);
+        $uploadType = $isRaw ? 'raw' : 'image';
+
+        $timestamp = time();
+        $folder = "solennia/vendor/{$auth->mysql_id}";
+        $publicId = "{$fileType}_{$timestamp}_" . bin2hex(random_bytes(4));
+
+        $params = [
+            'folder' => $folder,
+            'public_id' => $publicId,
+            'timestamp' => $timestamp
+        ];
+
+        ksort($params);
+        $signature = sha1(implode('&', array_map(fn($k, $v) => "$k=$v", array_keys($params), $params)) . $apiSecret);
+
+        return $json($res, [
+            'success' => true,
+            'upload_url' => "https://api.cloudinary.com/v1_1/{$cloudName}/{$uploadType}/upload",
+            'params' => array_merge($params, [
+                'api_key' => $apiKey,
+                'signature' => $signature
+            ])
+        ]);
     })->add(new AuthMiddleware());
 
-    // Get all vendors (public)
-    $app->get('/api/vendors/public', function (Request $req, Response $res) use ($json) {
-        try {
-            $vendors = DB::table('event_service_provider as esp')
-                ->leftJoin('credential as c', 'esp.UserID', '=', 'c.id')
-                ->where('esp.ApplicationStatus', 'Approved')
-                ->whereNotNull('esp.avatar')
-                ->select(
-                    'esp.ID as id',
-                    'esp.UserID as user_id',
-                    'esp.BusinessName as business_name',
-                    'esp.Category as category',
-                    'esp.BusinessAddress as address',
-                    'esp.Description as description',
-                    'esp.bio',
-                    'esp.Pricing as pricing',
-                    'esp.HeroImageUrl as hero_image_url',
-                    'esp.avatar as vendor_logo',
-                    'esp.services',
-                    'esp.service_areas',
-                    'c.firebase_uid',
-                    'c.avatar as user_avatar'
-                )
-                ->orderByDesc('esp.DateApplied')
-                ->get();
-
-            $vendorsList = [];
-            foreach ($vendors as $vendor) {
-                $vendorsList[] = [
-                    'id' => $vendor->id,
-                    'user_id' => $vendor->user_id,
-                    'business_name' => $vendor->business_name,
-                    'category' => $vendor->category,
-                    'description' => $vendor->description,
-                    'bio' => $vendor->bio,
-                    'pricing' => $vendor->pricing,
-                    'hero_image_url' => $vendor->hero_image_url,
-                    'vendor_logo' => $vendor->vendor_logo,
-                    'address' => $vendor->address,
-                    'firebase_uid' => $vendor->firebase_uid
-                ];
-            }
-
-            return $json($res, [
-                'success' => true,
-                'vendors' => $vendorsList
-            ]);
-
-        } catch (\Throwable $e) {
-            error_log('VENDORS_PUBLIC_ERROR: ' . $e->getMessage());
-            return $json($res, [
-                'success' => false,
-                'error' => 'Failed to load vendors',
-                'message' => $e->getMessage()
-            ], 500);
-        }
-    });
-
-    // Get single vendor (public)
-    $app->get('/api/vendor/public/{userId}', function (Request $req, Response $res, array $args) use ($json) {
-        try {
-            $userId = (int) $args['userId'];
-
-            $vendor = DB::table('event_service_provider as esp')
-                ->leftJoin('credential as c', 'esp.UserID', '=', 'c.id')
-                ->where('esp.UserID', $userId)
-                ->where('esp.ApplicationStatus', 'Approved')
-                ->select(
-                    'esp.*',
-                    'c.firebase_uid',
-                    'c.first_name',
-                    'c.last_name',
-                    'c.avatar as user_avatar'
-                )
-                ->first();
-
-            if (!$vendor) {
-                return $json($res, [
-                    'success' => false,
-                    'error' => 'Vendor not found'
-                ], 404);
-            }
-
-            // ✅ GALLERY FIX: Fetch from vendor_gallery table
-            $gallery = DB::table('vendor_gallery')
-                ->where('user_id', $userId)
-                ->orderBy('created_at', 'desc')
-                ->pluck('image_url')
-                ->toArray();
-
-            // Handle both JSON and plain text for services
-            $services = $vendor->services;
-            if ($services) {
-                $decoded = @json_decode($services, true);
-                if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
-                    $services = $decoded;
-                }
-            }
-
-            // Handle both JSON and plain text for service_areas
-            $service_areas = $vendor->service_areas;
-            if ($service_areas) {
-                $decoded = @json_decode($service_areas, true);
-                if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
-                    $service_areas = $decoded;
-                }
-            }
-
-            $vendorData = [
-                'id' => $vendor->ID,
-                'user_id' => $vendor->UserID,
-                'firebase_uid' => $vendor->firebase_uid,
-                'owner_name' => trim($vendor->first_name . ' ' . $vendor->last_name),
-                'business_name' => $vendor->BusinessName,
-                'category' => $vendor->Category,
-                'description' => $vendor->Description,
-                'bio' => $vendor->bio,
-                'pricing' => $vendor->Pricing,
-                'services' => $services ?: null,
-                'service_areas' => $service_areas ?: null,
-                'business_email' => $vendor->BusinessEmail,
-                'business_address' => $vendor->BusinessAddress,
-                'hero_image_url' => $vendor->HeroImageUrl,
-                'vendor_logo' => $vendor->avatar,
-                'user_avatar' => $vendor->user_avatar,
-                'gallery' => $gallery
-            ];
-
-            return $json($res, [
-                'success' => true,
-                'vendor' => $vendorData
-            ]);
-
-        } catch (\Throwable $e) {
-            error_log('VENDOR_PUBLIC_ERROR: ' . $e->getMessage());
-            return $json($res, [
-                'success' => false,
-                'error' => 'Failed to load vendor'
-            ], 500);
-        }
-    });
-
-    // ✅ ULTRA FAST: Vendor application - NO FILE UPLOAD (receives URLs only)
+    /* ===========================================================
+     * ENHANCED: VENDOR APPLICATION SUBMISSION
+     * =========================================================== */
     $app->post('/api/vendor/apply', function (Request $req, Response $res) use ($json, $sendNotification, $sendToAdmins) {
-
         try {
             $auth = $req->getAttribute('user');
             if (!$auth || !isset($auth->mysql_id)) {
@@ -364,24 +392,44 @@ return function (App $app) {
             if ($role != 0) {
                 return $json($res, [
                     'success' => false,
-                    'error'   => 'Only clients (role 0) can apply.'
+                    'error' => 'Only clients (role 0) can apply.'
                 ], 403);
             }
 
             $data = (array) $req->getParsedBody();
 
-            // ✅ CHANGED: Now requires URLs instead of files
-            $required = ['business_name','category','address','description','pricing','permits_url','gov_id_url','portfolio_url'];
+            // ENHANCED: Required fields now include region and city
+            $validCategories = ['Supplier', 'Venue'];
+            if (!in_array($data['category'], $validCategories)) {
+                return $json($res, [
+                    'success' => false,
+                    'error' => 'Invalid category. Must be "Supplier" or "Venue".'
+                ], 400);
+            }
+
+            $required = [
+                'business_name',
+                'category',
+                'address',
+                'description',
+                'pricing',
+                'permits_url',
+                'gov_id_url',
+                'portfolio_url',
+                'region',  // NEW
+                'city'     // NEW
+            ];
+
             foreach ($required as $field) {
                 if (empty($data[$field])) {
                     return $json($res, [
                         'success' => false,
-                        'error'   => "Missing field: {$field}"
+                        'error' => "Missing field: {$field}"
                     ], 422);
                 }
             }
 
-            // ✅ Validate URLs are from Cloudinary
+            // Validate Cloudinary URLs
             $cloudinaryDomain = 'res.cloudinary.com';
             foreach (['permits_url', 'gov_id_url', 'portfolio_url'] as $urlField) {
                 if (strpos($data[$urlField], $cloudinaryDomain) === false) {
@@ -400,27 +448,45 @@ return function (App $app) {
             if ($exists) {
                 return $json($res, [
                     'success' => false,
-                    'error'   => 'You already have a pending or approved application.'
+                    'error' => 'You already have a pending or approved application.'
                 ], 400);
             }
 
-            // ✅ NO FILE UPLOAD - INSTANT INSERT!
+            // ENHANCED: Insert data with new fields
             $insertData = [
-                'user_id'       => $userId,
+                'user_id' => $userId,
                 'business_name' => $data['business_name'],
-                'category'      => $data['category'],
-                'address'       => $data['address'],
-                'permits'       => $data['permits_url'],  // ✅ Direct URL
-                'gov_id'        => $data['gov_id_url'],    // ✅ Direct URL
-                'portfolio'     => $data['portfolio_url'], // ✅ Direct URL
-                'contact_email'=> $data['contact_email']
+                'category' => $data['category'],
+                'address' => $data['address'],
+                'permits' => $data['permits_url'],
+                'gov_id' => $data['gov_id_url'],
+                'portfolio' => $data['portfolio_url'],
+                'contact_email' => $data['contact_email']
                     ?? DB::table('credential')->where('id', $userId)->value('email'),
-                'description'   => $data['description'],
-                'pricing'       => $data['pricing'],
-                'status'        => 'Pending',
-                'created_at'    => date('Y-m-d H:i:s')
+                'description' => $data['description'],
+                'pricing' => $data['pricing'],
+                'status' => 'Pending',
+                'created_at' => date('Y-m-d H:i:s'),
+
+                // NEW FIELDS
+                'region' => $data['region'],
+                'city' => $data['city'],
+                'contact_number' => $data['contact_number'] ?? null,
+                'selfie_with_id' => $data['selfie_with_id_url'] ?? null,
+                'sample_photos' => $data['sample_photos'] ?? null,
+                'past_event_photos' => $data['past_event_photos'] ?? null,
             ];
 
+            // Social links
+            if (!empty($data['facebook_page']) || !empty($data['instagram_page'])) {
+                $socialLinks = [
+                    'facebook' => $data['facebook_page'] ?? '',
+                    'instagram' => $data['instagram_page'] ?? ''
+                ];
+                $insertData['social_links'] = json_encode($socialLinks);
+            }
+
+            // Venue-specific
             if (strtolower(trim($data['category'])) === 'venue') {
                 $insertData['venue_subcategory'] = $data['venue_subcategory'] ?? null;
                 $insertData['venue_capacity'] = $data['venue_capacity'] ?? null;
@@ -429,15 +495,20 @@ return function (App $app) {
                 $insertData['venue_parking'] = $data['venue_parking'] ?? null;
             }
 
+            // Catering-specific
+            if (stripos($data['category'], 'Catering') !== false) {
+                $insertData['menu_list'] = $data['menu_list_url'] ?? null;
+            }
+
             $appId = DB::table('vendor_application')->insertGetId($insertData);
 
-            error_log("VENDOR_APPLICATION_SUCCESS: AppID={$appId}, UserID={$userId}");
+            error_log("VENDOR_APPLICATION_SUCCESS: AppID={$appId}, UserID={$userId}, Region={$data['region']}, City={$data['city']}");
 
-            // Send notifications (async - doesn't block response)
+            // Send notifications
             $sendToAdmins(
                 'application_submitted',
                 'New Vendor Application',
-                "{$data['business_name']} has submitted a vendor application"
+                "{$data['business_name']} has submitted a vendor application for {$data['city']}, {$data['region']}"
             );
 
             $sendNotification(
@@ -447,33 +518,42 @@ return function (App $app) {
                 'Your vendor application has been received and is under review.'
             );
 
-            // ✅ INSTANT RESPONSE (< 100ms instead of 30+ seconds!)
             return $json($res, [
                 'success' => true,
-                'message' => 'Vendor application submitted!',
-                'application_id' => $appId
+                'message' => 'Vendor application submitted successfully!',
+                'application_id' => $appId,
+                'region' => $data['region'],
+                'city' => $data['city']
             ], 201);
 
         } catch (\Throwable $e) {
             error_log('VENDOR_APPLY_ERROR: ' . $e->getMessage());
             return $json($res, [
                 'success' => false,
-                'error'   => 'Server error: ' . $e->getMessage()
+                'error' => 'Server error: ' . $e->getMessage()
             ], 500);
         }
-
     })->add(new AuthMiddleware());
 
-    // Check vendor status
+    /* ===========================================================
+     * CHECK VENDOR STATUS
+     * =========================================================== */
     $app->get('/api/vendor/status', function (Request $req, Response $res) {
         $controller = new VendorController();
         return $controller->getVendorStatus($req, $res);
     })->add(new AuthMiddleware());
 
-    // Vendor update routes
+    $app->get('/api/vendor/dashboard', function (Request $req, Response $res) {
+        $controller = new VendorController();
+        return $controller->getDashboard($req, $res);
+    })->add(new AuthMiddleware());
+
+    /* ===========================================================
+     * CREATE/UPDATE VENDOR PROFILE
+     * =========================================================== */
     $app->post('/api/vendor/profile', function (Request $req, Response $res) {
         $controller = new VendorController();
-        return $controller->updateProfile($req, $res);
+        return $controller->createVendorProfile($req, $res);
     })->add(new AuthMiddleware());
 
     $app->post('/api/vendor/logo', function (Request $req, Response $res) {
@@ -496,4 +576,33 @@ return function (App $app) {
         return $controller->uploadGallery($req, $res);
     })->add(new AuthMiddleware());
 
+    // Profile Analytics Endpoint
+    $app->get('/api/vendor/analytics', function (Request $req, Response $res) {
+        $controller = new VendorController();
+        return $controller->getProfileAnalytics($req, $res);
+    })->add(new AuthMiddleware());
+
+    /* ===========================================================
+     * VENDOR LISTINGS ROUTES (Multiple Listings Support)
+     * =========================================================== */
+
+    $app->get('/api/vendor/my-listings', function (Request $req, Response $res) {
+        $controller = new VendorController();
+        return $controller->getMyVendorListings($req, $res);
+    })->add(new AuthMiddleware());
+
+    $app->post('/api/vendor/listings', function (Request $req, Response $res) {
+        $controller = new VendorController();
+        return $controller->createVendorListing($req, $res);
+    })->add(new AuthMiddleware());
+
+    $app->put('/api/vendor/listings/{id}', function (Request $req, Response $res, array $args) {
+        $controller = new VendorController();
+        return $controller->updateVendorListing($req, $res, $args);
+    })->add(new AuthMiddleware());
+
+    $app->delete('/api/vendor/listings/{id}', function (Request $req, Response $res, array $args) {
+        $controller = new VendorController();
+        return $controller->deleteVendorListing($req, $res, $args);
+    })->add(new AuthMiddleware());
 };

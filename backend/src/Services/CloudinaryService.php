@@ -1,8 +1,7 @@
 <?php
 namespace Src\Services;
 
-use Src\Services\CloudinaryService;
-
+use Cloudinary\Cloudinary;
 
 class CloudinaryService
 {
@@ -12,14 +11,33 @@ class CloudinaryService
     {
         $this->cloudinary = new Cloudinary([
             'cloud' => [
-                'cloud_name' => getenv('CLOUDINARY_CLOUD'),
-                'api_key'    => getenv('CLOUDINARY_KEY'),
-                'api_secret' => getenv('CLOUDINARY_SECRET')
+                'cloud_name' => $this->env('CLOUDINARY_CLOUD'),
+                'api_key'    => $this->env('CLOUDINARY_KEY'),
+                'api_secret' => $this->env('CLOUDINARY_SECRET')
             ],
             'url' => [
                 'secure' => true
             ]
         ]);
+    }
+
+    /**
+     * Safe env reader (Railway + local)
+     */
+    private function env(string $key, $default = null)
+    {
+        $value = getenv($key);
+        if ($value !== false) return $value;
+
+        if (array_key_exists($key, $_SERVER)) {
+            return $_SERVER[$key];
+        }
+
+        if (array_key_exists($key, $_ENV)) {
+            return $_ENV[$key];
+        }
+
+        return $default;
     }
 
     /**

@@ -17,7 +17,7 @@ return function (App $app) {
                 'title' => $title,
                 'message' => $message,
                 'read' => false,
-                'created_at' => DB::raw('NOW()')
+                'created_at' => date('Y-m-d H:i:s')
             ]);
         } catch (\Exception $e) {
             error_log("Failed to send notification: " . $e->getMessage());
@@ -51,6 +51,14 @@ return function (App $app) {
                     'va.venue_amenities',
                     'va.venue_operating_hours',
                     'va.venue_parking',
+                    // NEW FIELDS
+                    'va.contact_number',
+                    'va.region',
+                    'va.city',
+                    'va.selfie_with_id',
+                    'va.social_links',
+                    'va.sample_photos',
+                    'va.menu_list',
                     'c.first_name',
                     'c.last_name',
                     'c.username',
@@ -96,6 +104,7 @@ return function (App $app) {
             $data   = (array) $req->getParsedBody();
             $appId  = (int) ($data['id'] ?? 0);
             $action = strtolower(trim($data['action'] ?? ''));
+            $reason = trim($data['reason'] ?? '');
 
             if (!$appId || !in_array($action, ['approve', 'deny'], true)) {
                 $res->getBody()->write(json_encode([
@@ -116,21 +125,29 @@ return function (App $app) {
             }
 
             if ($action === 'deny') {
+                // Update application status
                 DB::table('vendor_application')
                     ->where('id', $appId)
-                    ->update(['status' => 'Denied']);
+                    ->update([
+                        'status' => 'Denied',
+                        'rejection_reason' => $reason
+                    ]);
 
-                // Send denial notification
+                // Send detailed denial notification with reason
+                $notificationMessage = $reason 
+                    ? "Your vendor application has been denied.\n\nReason: {$reason}\n\nYou may reapply after addressing the concerns mentioned above."
+                    : "Your vendor application has been denied. Please contact support for more information.";
+
                 $sendNotification(
                     $appRow->user_id,
                     'application_denied',
-                    'Application Update',
-                    'Thank you for your application. Unfortunately, we cannot approve it at this time. Please contact support for more information.'
+                    '❌ Application Denied',
+                    $notificationMessage
                 );
 
                 $res->getBody()->write(json_encode([
                     'success' => true,
-                    'message' => 'Application denied.'
+                    'message' => 'Application denied and notification sent to applicant.'
                 ]));
 
                 return $res->withHeader('Content-Type', 'application/json');
@@ -372,6 +389,24 @@ return function (App $app) {
                 ->withStatus(500);
         }
 
+    })->add(new AuthMiddleware());
+
+    // Admin: Get all reports
+    $app->get('/api/admin/reports', function (Request $req, Response $res) {
+        $controller = new \Src\Controllers\FeedbackController();
+        return $controller->getAllReports($req, $res);
+    })->add(new AuthMiddleware());
+
+    // Admin: Update report status
+    $app->patch('/api/admin/reports/{id}', function (Request $req, Response $res, array $args) {
+        $controller = new \Src\Controllers\FeedbackController();
+        return $controller->updateReportStatus($req, $res, $args);
+    })->add(new AuthMiddleware());
+
+    // Admin: Get dashboard analytics
+    $app->get('/api/admin/analytics', function (Request $req, Response $res) {
+        $controller = new \Src\Controllers\AdminController();
+        return $controller->getAdminAnalytics($req, $res);
     })->add(new AuthMiddleware());
 
 };

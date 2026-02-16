@@ -11,7 +11,9 @@
 node_modules/
 dist/
 dist-ssr/
+build/
 .vite/
+*.local
 
 #################################################
 # BACKEND (PHP / SLIM)
@@ -21,6 +23,7 @@ backend/vendor/
 backend/.phpunit.cache/
 backend/cache/
 backend/logs/
+composer.phar
 
 #################################################
 # RUNTIME / TEMP FILES
@@ -29,6 +32,8 @@ backend/logs/
 *.tmp
 *.cache
 *.pid
+*.bak
+*.backup
 
 #################################################
 # UPLOADS / GENERATED FILES
@@ -39,10 +44,23 @@ storage/
 storage/logs/
 
 #################################################
+# DATABASE
+#################################################
+*.sql
+*.sqlite
+*.db
+!database_schema.sql
+!*migration*.sql
+
+#################################################
 # SYSTEM / OS FILES
 #################################################
 .DS_Store
 Thumbs.db
+desktop.ini
+._*
+.Spotlight-V100
+.Trashes
 
 #################################################
 # EDITORS / IDEs
@@ -51,12 +69,17 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+*~
+.project
+.settings/
 
 #################################################
 # TESTING / COVERAGE
 #################################################
 coverage/
 .phpunit.result.cache
+phpunit.xml
+!phpunit.xml.dist
 
 #################################################
 # PACKAGE MANAGERS
@@ -76,3 +99,22 @@ firebase-debug.log
 # CLOUDINARY TEMP
 #################################################
 cloudinary/
+
+#################################################
+# RAILWAY / VERCEL (DEPLOYMENT)
+#################################################
+.vercel
+.railway/
+
+#################################################
+# GIT / VERSION CONTROL
+#################################################
+*.orig
+*.rej
+.git-rewrite/
+
+#################################################
+# DOCUMENTATION TEMP FILES
+#################################################
+*.pdf
+!documentation/*.pdf

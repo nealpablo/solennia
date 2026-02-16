@@ -29,12 +29,12 @@ export default function Footer() {
             “One click closer to the perfect event.”
           </p>
 
-          <p className="text-[0.7rem] text-[#c9bda4]">
-            © 2025 Solennia. All rights reserved.
-          </p>
-
           <p className="text-xs">
             solenniainquires@gmail.com
+          </p>
+
+          <p className="text-[0.7rem] text-[#c9bda4]">
+            © 2025 Solennia. All rights reserved.
           </p>
         </div>
 
@@ -52,26 +52,8 @@ export default function Footer() {
           "
         >
           <li>
-            <Link to="/" className="hover:underline hover:text-[#f2e7c6] transition-colors">
-              Home
-            </Link>
-          </li>
-
-          <li>
             <Link to="/about" className="hover:underline hover:text-[#f2e7c6] transition-colors">
-              About Us
-            </Link>
-          </li>
-
-          <li>
-            <Link to="/vendors" className="hover:underline hover:text-[#f2e7c6] transition-colors">
-              Explore Vendors
-            </Link>
-          </li>
-
-          <li>
-            <Link to="/" className="hover:underline hover:text-[#f2e7c6] transition-colors">
-              Wedding Planner AI
+              ABOUT US
             </Link>
           </li>
         </ul>

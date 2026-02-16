@@ -1,0 +1,197 @@
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
+import ChatInterface from '../components/ChatInterface';
+import BookingPreview from '../components/BookingPreview';
+import toast from '../utils/toast';
+
+const API = import.meta.env.VITE_API_BASE ||
+  import.meta.env.VITE_API_URL ||
+  (import.meta.env.PROD
+    ? "https://solennia.up.railway.app/api"
+    : "/api");
+
+export default function ConversationalBooking() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const hasProcessedInitial = useRef(false);
+
+  const [messages, setMessages] = useState([
+    {
+      role: 'assistant',
+      content: "Hi! I'm your AI Assistant. 👋\n\nJust tell me about your event like you're chatting with a friend, and I'll help you find and book the perfect vendors and venues.\n\nWhat event are you planning?"
+    }
+  ]);
+
+  const [extractedData, setExtractedData] = useState({
+    event_type: null,
+    date: null,
+    time: null,
+    location: null,
+    budget: null,
+    guests: null,
+    venue_id: null,
+    vendor_id: null,
+    preferences: []
+  });
+
+  const [bookingStage, setBookingStage] = useState('discovery');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [bookingCreated, setBookingCreated] = useState(false);
+
+  useEffect(() => {
+    const token = localStorage.getItem('solennia_token');
+    if (!token) {
+      toast.error('Please log in to create a booking');
+      navigate('/');
+      return;
+    }
+
+    // Handle initial message from URL or SessionStorage (post-login)
+    // Synchronous check with useRef prevents double-triggering in StrictMode
+    if (!hasProcessedInitial.current) {
+      const urlMsg = searchParams.get('ai_message');
+      const sessionMsg = sessionStorage.getItem("pending_ai_query");
+      const messageToProcess = urlMsg || sessionMsg;
+
+      if (messageToProcess) {
+        hasProcessedInitial.current = true;
+
+        if (sessionMsg) sessionStorage.removeItem("pending_ai_query");
+
+        // Slight delay for stability
+        setTimeout(() => {
+          handleSendMessage(messageToProcess);
+        }, 500);
+      }
+    }
+
+    // Handle context from venue/vendor pages
+    if (location.state?.initialMessage) {
+      // Logic for venue/vendor context...
+      if (location.state.venueContext) {
+        const venue = location.state.venueContext;
+        setMessages([
+          {
+            role: 'assistant',
+            content: `Hi! I see you're interested in booking **${venue.venueName}**! 🏛️\n\nI'm your AI Assistant and I'm here to help you complete this booking.\n\nWhat type of event are you planning?`
+          }
+        ]);
+      } else if (location.state.vendorContext) {
+        const vendor = location.state.vendorContext;
+        setMessages([
+          {
+            role: 'assistant',
+            content: `Hi! I see you're interested in booking **${vendor.vendorName}** for ${vendor.category}! 📸\n\nI'm your AI Assistant and I'm here to help you complete this booking.\n\nTell me about your event!`
+          }
+        ]);
+      }
+    }
+  }, [navigate]);
+
+  const handleSendMessage = async (userMessage) => {
+    setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
+    setIsProcessing(true);
+
+    try {
+      const token = localStorage.getItem('solennia_token');
+
+      const response = await fetch(`${API}/ai/conversational-booking`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          message: userMessage,
+          currentData: extractedData,
+          stage: bookingStage,
+          history: messages.slice(1)
+        })
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to process message');
+      }
+
+      if (data.extractedInfo && Object.keys(data.extractedInfo).length > 0) {
+        setExtractedData(prev => ({ ...prev, ...data.extractedInfo }));
+      }
+
+      if (data.stage) {
+        setBookingStage(data.stage);
+      }
+
+      setMessages(prev => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: data.aiResponse,
+          vendors: data.suggestedVendors || []
+        }
+      ]);
+
+      if (data.bookingCreated && data.bookingId) {
+        setBookingCreated(true);
+        toast.success('Booking created successfully! 🎉');
+        setTimeout(() => navigate('/my-bookings'), 3000);
+      }
+
+    } catch (error) {
+      console.error('Error:', error);
+      toast.error(error.message || 'Failed to send message');
+      setMessages(prev => [
+        ...prev,
+        { role: 'assistant', content: "I'm sorry, I encountered an error. Please try again." }
+      ]);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#f6f0e8] py-8">
+      <div className="max-w-7xl mx-auto px-4">
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            AI Booking Assistant
+          </h1>
+          <p className="text-gray-600">
+            Book Suppliers & Venues with Natural Conversation
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 h-[600px]">
+            <ChatInterface
+              messages={messages}
+              onSendMessage={handleSendMessage}
+              isProcessing={isProcessing}
+            />
+          </div>
+
+          <div className="lg:col-span-1">
+            <BookingPreview data={extractedData} stage={bookingStage} />
+          </div>
+        </div>
+
+        {bookingCreated && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-8 max-w-md text-center">
+              <div className="text-6xl mb-4">🎉</div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                Booking Created!
+              </h2>
+              <p className="text-gray-600 mb-6">
+                Your booking request has been sent. Redirecting...
+              </p>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-800 mx-auto"></div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

@@ -1,4 +1,11 @@
 <?php
+// ============================================================
+// SUPPRESS ALL PHP ERRORS FROM DISPLAYING
+// ============================================================
+ini_set('display_errors', '0');
+ini_set('display_startup_errors', '0');
+error_reporting(0);
+
 use Slim\Factory\AppFactory;
 use Dotenv\Dotenv;
 
@@ -25,10 +32,9 @@ else {
 // Slim app
 // -------------------------------------------------------------
 $app = AppFactory::create();
-$app->addBodyParsingMiddleware();
 
 // -------------------------------------------------------------
-// ✅ OPTIMIZED CORS MIDDLEWARE with Caching
+// ✅ CORS MIDDLEWARE - MUST BE FIRST, BEFORE BODY PARSING
 // -------------------------------------------------------------
 $app->add(function ($request, $handler) {
     $method = strtoupper($request->getMethod());
@@ -38,29 +44,22 @@ $app->add(function ($request, $handler) {
     $origin = rtrim($origin, '/');
 
     $allowedOrigins = getenv('CORS_ALLOWED_ORIGINS') ?: '*';
-    $allowedOrigins = trim($allowedOrigins, '"\''); // Remove potential quotes
     $allowedOrigins = rtrim($allowedOrigins, '/');
 
     // ✅ Determine allowed origin
-    $allowOrigin = '';
-
-    if ($allowedOrigins === '*') {
-        $allowOrigin = $origin ?: '*'; // Reflect origin or wildcard
-    }
-    else {
+    $allowOrigin = '*';
+    if ($allowedOrigins !== '*') {
         $allowedList = array_map('trim', explode(',', $allowedOrigins));
         $allowedList = array_map(function ($url) {
-                    return rtrim(trim($url, '"\''), '/'); }
+                    return rtrim($url, '/'); }
                 , $allowedList);
 
                 if (in_array($origin, $allowedList, true)) {
                     $allowOrigin = $origin;
                 }
-                else {
-                    // Default to first allowed origin or null if not matching (to avoid open proxy)
-                    // But for now, let's fallback to empty which blocks CORS
-                    $allowOrigin = '';
-                }
+            }
+            else {
+                $allowOrigin = $origin ?: '*';
             }
 
             // ✅ Fast path for OPTIONS - respond immediately without processing
@@ -87,7 +86,7 @@ $app->add(function ($request, $handler) {
             ->withHeader('Vary', 'Origin');        });
 
 // -------------------------------------------------------------
-// ✅ PERFORMANCE MIDDLEWARE - Response Time Tracking
+// ✅ BODY PARSING MIDDLEWARE (MUST BE AFTER CORS, BEFORE ROUTES)
 // -------------------------------------------------------------
 $app->add(function ($request, $handler) {
     $start = microtime(true);
@@ -115,29 +114,30 @@ $app->add(function ($request, $handler) {
 // -------------------------------------------------------------
 // DB bootstrap (use optimized version)
 // -------------------------------------------------------------
-try {
-    require BASE_PATH . '/src/bootstrap.php';
-}
-catch (\Throwable $e) {
-    error_log("BOOTSTRAP_ERROR: " . $e->getMessage());
-// Continue execution so we can at least return CORS headers for OPTIONS
-// Routes that need DB will fail later
-}
+require BASE_PATH . '/src/bootstrap.php';
 
 // -------------------------------------------------------------
-// Routes
+// Routes Loader
 // -------------------------------------------------------------
 $loadRoutes = function (string $rel) use ($app) {
     $file = BASE_PATH . $rel;
+
     if (!is_file($file)) {
-        throw new RuntimeException("Route file not found: {$file}");
+        return;
     }
-    $ret = require $file;
-    if (is_callable($ret)) {
-        $ret($app);
+
+    try {
+        $ret = require $file;
+        if (is_callable($ret)) {
+            $ret($app);
+        }
+    }
+    catch (Throwable $e) {
     }
 };
 
+
+// Load all routes (don't let one fail all others)
 $loadRoutes('/src/Routes/authRoutes.php');
 $loadRoutes('/src/Routes/userRoutes.php');
 $loadRoutes('/src/Routes/vendorRoutes.php');
@@ -147,6 +147,11 @@ $loadRoutes('/src/Routes/adminRoutes.php');
 $loadRoutes('/src/Routes/notificationRoutes.php');
 $loadRoutes('/src/Routes/chatRoutes.php');
 $loadRoutes('/src/Routes/usernameResolverRoutes.php');
+$loadRoutes('/src/Routes/bookingRoutes.php');
+$loadRoutes('/src/Routes/availabilityRoutes.php');
+$loadRoutes('/src/Routes/aiRoutes.php');
+
+error_log("All route files loaded");
 
 $errorMiddleware = $app->addErrorMiddleware(true, true, true);
 $errorMiddleware->setDefaultErrorHandler(function (\Psr\Http\Message\ServerRequestInterface $request, \Throwable $exception, bool $displayErrorDetails, bool $logErrors, bool $logErrorDetails
@@ -169,7 +174,9 @@ $errorMiddleware->setDefaultErrorHandler(function (\Psr\Http\Message\ServerReque
     $response->getBody()->write(json_encode([
         'success' => false,
         'error' => $displayErrorDetails ? $exception->getMessage() : 'Internal server error',
-        'code' => $statusCode
+        'code' => $statusCode,
+        'file' => $displayErrorDetails ? $exception->getFile() : null,
+        'line' => $displayErrorDetails ? $exception->getLine() : null
     ]));
 
     return $response->withHeader('Content-Type', 'application/json');
@@ -190,12 +197,15 @@ $app->get('/api/health', function ($req, $res) {
     }
     catch (Throwable $e) {
         $dbStatus = 'error';
+        $dbMessage = $e->getMessage();
     }
 
     $res->getBody()->write(json_encode([
         'status' => 'ok',
         'database' => $dbStatus,
-        'timestamp' => date('Y-m-d H:i:s')
+        'db_message' => $dbMessage,
+        'timestamp' => date('Y-m-d H:i:s'),
+        'php_version' => phpversion()
     ]));
     return $res->withHeader('Content-Type', 'application/json');
 });
@@ -238,14 +248,50 @@ $app->get('/api/dbdiag', function ($req, $res) {
 
 $app->get('/routes', function ($request, $response) use ($app) {
     $routes = [];
-    foreach ($app->getRouteCollector()->getRoutes() as $route) {
+    $routeCollector = $app->getRouteCollector();
+    foreach ($routeCollector->getRoutes() as $route) {
         $routes[] = [
+            'methods' => implode('|', $route->getMethods()),
             'pattern' => $route->getPattern(),
-            'methods' => $route->getMethods()
+            'name' => $route->getName()
         ];
     }
-    $response->getBody()->write(json_encode($routes, JSON_PRETTY_PRINT));
-    return $response->withHeader('Content-Type', 'application/json');
+    $res->getBody()->write(json_encode([
+        'total' => count($routes),
+        'routes' => $routes
+    ], JSON_PRETTY_PRINT));
+    return $res->withHeader('Content-Type', 'application/json');
 });
 
+// ✅ DEBUG: Environment check
+$app->get('/api/debug/env', function ($req, $res) {
+    $res->getBody()->write(json_encode([
+        'DB_HOST' => getenv('DB_HOST'),
+        'DB_DATABASE' => getenv('DB_DATABASE'),
+        'DB_USERNAME' => getenv('DB_USERNAME'),
+        'DB_PASSWORD' => getenv('DB_PASSWORD') ? 'SET' : 'NOT SET',
+        'env_file_exists' => file_exists(BASE_PATH . '/.env'),
+        'base_path' => BASE_PATH
+    ], JSON_PRETTY_PRINT));
+    return $res->withHeader('Content-Type', 'application/json');
+});
+
+// ✅ DEBUG: Check if booking routes file exists
+$app->get('/api/debug/files', function ($req, $res) {
+    $basePath = realpath(__DIR__ . '/..');
+    $routesPath = $basePath . '/src/Routes';
+
+    $files = is_dir($routesPath) ? scandir($routesPath) : [];
+
+    $res->getBody()->write(json_encode([
+        'base_path' => $basePath,
+        'routes_path' => $routesPath,
+        'routes_dir_exists' => is_dir($routesPath),
+        'booking_file_exists' => is_file($routesPath . '/bookingRoutes.php'),
+        'files_in_routes' => $files
+    ], JSON_PRETTY_PRINT));
+    return $res->withHeader('Content-Type', 'application/json');
+});
+
+// Run app
 $app->run();

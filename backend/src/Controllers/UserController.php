@@ -20,7 +20,7 @@ class UserController
     }
 
     /* ============================================================
-       ✅ Return single user
+        Return single user
     ============================================================ */
     public function show(Request $request, Response $response, $args)
     {
@@ -37,8 +37,6 @@ class UserController
 
     /* ============================================================
        ⚠️ Create new user (Admins only)
-       * Left here to preserve original CRUD structure
-       * BUT Solennia normally uses AuthController for creation.
     ============================================================ */
     public function store(Request $request, Response $response)
     {
@@ -53,7 +51,7 @@ class UserController
     }
 
     /* ============================================================
-       ✅ Update user fields (Admin panel)
+        Update user fields (Admin panel)
     ============================================================ */
     public function update(Request $request, Response $response, $args)
     {
@@ -76,7 +74,7 @@ class UserController
     }
 
     /* ============================================================
-       ❌ Delete user (Admin panel)
+        Delete user (Admin panel)
     ============================================================ */
     public function destroy(Request $request, Response $response, $args)
     {

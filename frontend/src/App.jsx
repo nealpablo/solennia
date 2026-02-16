@@ -8,18 +8,27 @@ import Footer from "./partials/Footer";
 import Modals from "./partials/Modals";
 
 // Pages
-
 import HomePage from "./pages/HomePage";
 import Venue from "./pages/Venue";
 import VenueDetail from "./pages/VenueDetail";
 import Vendors from "./pages/Vendors";
 import VendorProfile from "./pages/VendorProfile";
 import Profile from "./pages/Profile";
+import ManageListings from "./pages/ManageListings";
 import Chat from "./pages/Chat";
 import AdminPanel from "./pages/AdminPanel";
 import VendorDashboard from "./pages/VendorDashboard";
+import VendorProfileSetup from "./pages/VendorProfileSetup";
 import VenueDashboard from "./pages/VenueDashboard";
 import AboutUs from "./pages/AboutUs";
+import ClientDashboard from "./pages/ClientDashboard";
+import AdminDashboard from "./pages/AdminDashboard";
+
+import ConversationalBooking from "./pages/ConversationalBooking";
+import CreateBooking from "./pages/CreateBooking";
+import CreateVenueBooking from "./pages/CreateVenueBooking";
+import MyBookings from "./pages/MyBookings";
+import VendorBookingRequests from "./pages/VendorBookingRequests"; // UC08 - Vendor booking management with Complete feature
 
 /* =========================
    LAYOUT WRAPPER
@@ -80,7 +89,6 @@ function Layout({ children }) {
       profileBtn?.removeEventListener("click", openProfileMenu);
       menuSignIn?.removeEventListener("click", openLogin);
       menuSignUp?.removeEventListener("click", openRegister);
-
       document.removeEventListener("click", closeProfileMenu);
     };
   }, [location.pathname]);
@@ -107,11 +115,21 @@ export default function App() {
         <Route path="/vendors" element={<Vendors />} />
         <Route path="/vendor-profile" element={<VendorProfile />} />
         <Route path="/profile" element={<Profile />} />
+        <Route path="/manage-listings" element={<ManageListings />} />
         <Route path="/chat" element={<Chat />} />
         <Route path="/admin" element={<AdminPanel />} />
         <Route path="/vendor-dashboard" element={<VendorDashboard />} />
+        <Route path="/vendor-profile-setup" element={<VendorProfileSetup />} />
         <Route path="/venue-dashboard" element={<VenueDashboard />} />
+        <Route path="/client-dashboard" element={<ClientDashboard />} />
+        <Route path="/admin-dashboard" element={<AdminDashboard />} />
         <Route path="/about" element={<AboutUs />} />
+        <Route path="/ai-booking" element={<ConversationalBooking />} />
+        <Route path="/create-booking" element={<CreateBooking />} />
+        <Route path="/create-venue-booking" element={<CreateVenueBooking />} />
+        <Route path="/my-bookings" element={<MyBookings />} />
+        <Route path="/vendor-bookings" element={<VendorBookingRequests />} /> {/* UC08 - NEW! Vendor booking management */}
+        <Route path="/manage-bookings" element={<VendorBookingRequests />} /> {/* Alternative route */}
       </Routes>
     </Layout>
   );

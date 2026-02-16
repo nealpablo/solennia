@@ -11,13 +11,22 @@ return function (App $app) {
     /* ===========================================================
      *  CLOUDINARY INSTANCE
      * =========================================================== */
-    $cloudinary = new Cloudinary([
-        'cloud' => [
-            'cloud_name' => getenv('CLOUDINARY_CLOUD'),
-            'api_key'    => getenv('CLOUDINARY_KEY'),
-            'api_secret' => getenv('CLOUDINARY_SECRET')
-        ]
-    ]);
+    $cloudinary = null;
+
+    $cloudName = envx('CLOUDINARY_CLOUD');
+    $apiKey    = envx('CLOUDINARY_KEY');
+    $apiSecret = envx('CLOUDINARY_SECRET');
+
+    if ($cloudName && $apiKey && $apiSecret) {
+        $cloudinary = new Cloudinary([
+            'cloud' => [
+                'cloud_name' => $cloudName,
+                'api_key'    => $apiKey,
+                'api_secret' => $apiSecret
+            ],
+            'url' => ['secure' => true]
+        ]);
+    }
 
     /* ===========================================================
      *  GET ALL USERS (ADMIN PANEL)
@@ -49,9 +58,8 @@ return function (App $app) {
             return $res->withHeader('Content-Type','application/json')->withStatus(401);
         }
 
-        // ✅ FIX: Use mysql_id instead of sub (Firebase UID)
         $userId = $auth->mysql_id ?? null;
-        
+
         if (!$userId) {
             $res->getBody()->write(json_encode(['error' => 'Invalid user token']));
             return $res->withHeader('Content-Type','application/json')->withStatus(401);
@@ -68,29 +76,29 @@ return function (App $app) {
     })->add(new AuthMiddleware());
 
     /* ===========================================================
-     *  UPDATE USER PROFILE + CLOUDINARY AVATAR (✅ FIXED)
+     *  UPDATE USER PROFILE + CLOUDINARY AVATAR
      * =========================================================== */
     $app->post('/api/user/update', function (Request $req, Response $res) use ($cloudinary) {
 
+        if (!$cloudinary) {
+            $res->getBody()->write(json_encode([
+                'success' => false,
+                'error' => 'Cloudinary is not configured'
+            ]));
+            return $res->withHeader('Content-Type','application/json')->withStatus(500);
+        }
+
         $auth = $req->getAttribute('user');
 
-        if (!$auth) {
+        if (!$auth || !isset($auth->mysql_id)) {
             $res->getBody()->write(json_encode(['error' => 'Unauthorized']));
             return $res->withHeader('Content-Type','application/json')->withStatus(401);
         }
 
-        // ✅ CRITICAL FIX: Use mysql_id (integer) instead of sub (Firebase UID string)
-        $userId = $auth->mysql_id ?? null;
-        
-        if (!$userId) {
-            $res->getBody()->write(json_encode(['error' => 'Invalid user token - missing mysql_id']));
-            return $res->withHeader('Content-Type','application/json')->withStatus(401);
-        }
-
+        $userId = $auth->mysql_id;
         $data   = $req->getParsedBody();
         $files  = $req->getUploadedFiles();
 
-        /* Update fields if provided */
         if (!empty($data)) {
             DB::table('credential')->where('id', $userId)->update([
                 'first_name' => $data['first_name'] ?? DB::raw('first_name'),
@@ -100,46 +108,38 @@ return function (App $app) {
             ]);
         }
 
-        /* ✅ FIX: Avatar Upload - Store URL and return it */
         $avatarUrl = null;
-        if (isset($files['avatar']) && $files['avatar']->getError() === UPLOAD_ERR_OK) {
 
+        if (isset($files['avatar']) && $files['avatar']->getError() === UPLOAD_ERR_OK) {
             try {
                 $tmp = $files['avatar']->getStream()->getMetadata('uri');
 
                 $upload = $cloudinary->uploadApi()->upload($tmp, [
-                    "folder"        => "solennia/user_avatars/{$userId}",
-                    "resource_type" => "image",
-                    "public_id"     => "avatar_" . time(),
-                    "transformation" => [
-                        ["width" => 400, "height" => 400, "crop" => "fill"]
+                    'folder' => "solennia/user_avatars/{$userId}",
+                    'resource_type' => 'image',
+                    'public_id' => 'avatar_' . time(),
+                    'transformation' => [
+                        ['width' => 400, 'height' => 400, 'crop' => 'fill']
                     ]
                 ]);
 
                 $avatarUrl = $upload['secure_url'];
-                
-                // ✅ UPDATE USING MYSQL ID
-                $updated = DB::table('credential')
+
+                DB::table('credential')
                     ->where('id', $userId)
                     ->update(['avatar' => $avatarUrl]);
-                
-                // Log for debugging
-                error_log("Avatar update - UserID: {$userId}, URL: {$avatarUrl}, Rows affected: {$updated}");
 
             } catch (\Throwable $e) {
                 error_log("Avatar upload error: " . $e->getMessage());
                 $res->getBody()->write(json_encode([
                     'success' => false,
-                    'error'   => 'Avatar upload failed: ' . $e->getMessage()
+                    'error'   => 'Avatar upload failed'
                 ]));
                 return $res->withHeader('Content-Type','application/json')->withStatus(500);
             }
         }
 
-        /* ✅ FIX: Get updated user data and return avatar URL */
-        $updatedUser = DB::table('credential')
-            ->where('id', $userId)
-            ->first();
+        $updatedUser = DB::table('credential')->where('id', $userId)->first();
 
         $res->getBody()->write(json_encode([
             'success' => true,
@@ -156,7 +156,7 @@ return function (App $app) {
      * =========================================================== */
     $app->post('/api/user/update-username', function (Request $req, Response $res) {
         $jwt = $req->getAttribute('user');
-        
+
         if (!$jwt || !isset($jwt->mysql_id)) {
             $res->getBody()->write(json_encode([
                 'success' => false,
@@ -177,7 +177,6 @@ return function (App $app) {
             return $res->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
-        // Check if username is already taken by another user
         $existing = DB::table('credential')
             ->where('username', $username)
             ->where('id', '!=', $userId)
@@ -191,7 +190,6 @@ return function (App $app) {
             return $res->withHeader('Content-Type', 'application/json')->withStatus(409);
         }
 
-        // Update username
         DB::table('credential')
             ->where('id', $userId)
             ->update(['username' => $username]);
@@ -201,16 +199,16 @@ return function (App $app) {
             'message' => 'Username updated successfully',
             'username' => $username
         ]));
+
         return $res->withHeader('Content-Type', 'application/json');
     })->add(new AuthMiddleware());
-
 
     /* ===========================================================
      *  UPDATE PHONE NUMBER
      * =========================================================== */
     $app->post('/api/user/update-phone', function (Request $req, Response $res) {
         $jwt = $req->getAttribute('user');
-        
+
         if (!$jwt || !isset($jwt->mysql_id)) {
             $res->getBody()->write(json_encode([
                 'success' => false,
@@ -223,8 +221,6 @@ return function (App $app) {
         $data = (array)$req->getParsedBody();
         $phone = trim($data['phone'] ?? '');
 
-        // Phone can be empty (user removing their phone number)
-        // But if provided, do basic validation
         if ($phone && !preg_match('/^\+?[0-9]{10,15}$/', $phone)) {
             $res->getBody()->write(json_encode([
                 'success' => false,
@@ -233,7 +229,6 @@ return function (App $app) {
             return $res->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
-        // Update phone
         DB::table('credential')
             ->where('id', $userId)
             ->update(['phone' => $phone]);
@@ -243,6 +238,7 @@ return function (App $app) {
             'message' => 'Phone number updated successfully',
             'phone' => $phone
         ]));
+
         return $res->withHeader('Content-Type', 'application/json');
     })->add(new AuthMiddleware());
 

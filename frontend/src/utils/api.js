@@ -1,5 +1,5 @@
 // src/utils/api.js
-// ✅ Optimized API utility with timeout, retry logic, and error handling
+//  Optimized API utility with timeout, retry logic, and error handling
 
 const API = 
   import.meta.env.VITE_API_BASE || 
@@ -8,7 +8,7 @@ const API =
     ? "https://solennia.up.railway.app/api" : "/api");
 
 /**
- * ✅ Fetch with timeout support
+ *  Fetch with timeout support
  * @param {string} url - The URL to fetch
  * @param {object} options - Fetch options
  * @param {number} timeout - Timeout in milliseconds (default: 15000)
@@ -43,7 +43,7 @@ const fetchWithTimeout = (url, options = {}, timeout = 15000) => {
 };
 
 /**
- * ✅ Fetch with retry logic
+ *  Fetch with retry logic
  * @param {string} url - The URL to fetch
  * @param {object} options - Fetch options
  * @param {number} retries - Number of retries (default: 2)
@@ -79,7 +79,7 @@ const fetchWithRetry = async (url, options = {}, retries = 2, timeout = 15000) =
 };
 
 /**
- * ✅ GET request with timeout and retry
+ *  GET request with timeout and retry
  * @param {string} endpoint - API endpoint (e.g., '/auth/me')
  * @param {object} headers - Additional headers
  * @param {number} timeout - Timeout in milliseconds (default: 15000)
@@ -118,7 +118,7 @@ export const apiGet = async (endpoint, headers = {}, timeout = 15000) => {
 };
 
 /**
- * ✅ POST request with timeout and retry
+ *  POST request with timeout and retry
  * @param {string} endpoint - API endpoint
  * @param {object} data - Request body
  * @param {object} headers - Additional headers
@@ -159,7 +159,7 @@ export const apiPost = async (endpoint, data = {}, headers = {}, timeout = 20000
 };
 
 /**
- * ✅ PUT request with timeout and retry
+ *  PUT request with timeout and retry
  * @param {string} endpoint - API endpoint
  * @param {object} data - Request body
  * @param {object} headers - Additional headers
@@ -200,7 +200,7 @@ export const apiPut = async (endpoint, data = {}, headers = {}, timeout = 20000)
 };
 
 /**
- * ✅ DELETE request with timeout and retry
+ *  DELETE request with timeout and retry
  * @param {string} endpoint - API endpoint
  * @param {object} headers - Additional headers
  * @param {number} timeout - Timeout in milliseconds (default: 15000)
@@ -239,7 +239,7 @@ export const apiDelete = async (endpoint, headers = {}, timeout = 15000) => {
 };
 
 /**
- * ✅ Upload file with progress tracking and timeout
+ *  Upload file with progress tracking and timeout
  * @param {string} endpoint - API endpoint
  * @param {FormData} formData - Form data with files
  * @param {Function} onProgress - Progress callback (0-100)
@@ -310,7 +310,7 @@ export const apiUpload = async (endpoint, formData, onProgress = null, timeout =
 };
 
 /**
- * ✅ Validate file before upload
+ *  Validate file before upload
  * @param {File} file - File to validate
  * @param {number} maxSize - Max size in bytes (default: 10MB)
  * @param {string[]} allowedTypes - Allowed MIME types
