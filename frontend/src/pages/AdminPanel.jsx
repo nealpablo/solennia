@@ -614,44 +614,23 @@ export default function AdminPanel() {
                     </div>
                   )}
                   {selectedApp.gov_id && (
-                    <div
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        console.log('Clicking Gov ID:', selectedApp.gov_id);
-                        previewDocument(selectedApp.gov_id, "Government ID");
-                      }}
-                      className="cursor-pointer group"
-                    >
-                      <div className="h-24 bg-blue-50 rounded border-2 border-blue-200 flex items-center justify-center group-hover:bg-blue-100 group-hover:border-blue-400 transition-all">
-                        <span className="text-sm font-bold text-blue-700">📄 View Valid ID</span>
+                    <div onClick={(e) => { e.stopPropagation(); previewDocument(selectedApp.gov_id, "Government ID"); }} className="cursor-pointer group">
+                      <div className="h-24 bg-gray-100 rounded border flex items-center justify-center group-hover:bg-blue-50 transition-colors">
+                        <span className="text-xs font-semibold text-blue-600">View Valid ID</span>
                       </div>
                     </div>
                   )}
                   {selectedApp.permits && (
-                    <div
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        console.log('Clicking Permits:', selectedApp.permits);
-                        previewDocument(selectedApp.permits, "Business Permit");
-                      }}
-                      className="cursor-pointer group"
-                    >
-                      <div className="h-24 bg-green-50 rounded border-2 border-green-200 flex items-center justify-center group-hover:bg-green-100 group-hover:border-green-400 transition-all">
-                        <span className="text-sm font-bold text-green-700">📋 View Permit</span>
+                    <div onClick={(e) => { e.stopPropagation(); previewDocument(selectedApp.permits, "Business Permit"); }} className="cursor-pointer group">
+                      <div className="h-24 bg-gray-100 rounded border flex items-center justify-center group-hover:bg-blue-50 transition-colors">
+                        <span className="text-xs font-semibold text-blue-600">View Permit</span>
                       </div>
                     </div>
                   )}
                   {selectedApp.portfolio && (
-                    <div
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        console.log('Clicking Portfolio:', selectedApp.portfolio);
-                        previewDocument(selectedApp.portfolio, "Portfolio");
-                      }}
-                      className="cursor-pointer group"
-                    >
-                      <div className="h-24 bg-purple-50 rounded border-2 border-purple-200 flex items-center justify-center group-hover:bg-purple-100 group-hover:border-purple-400 transition-all">
-                        <span className="text-sm font-bold text-purple-700">🎨 View Services/Portfolio</span>
+                    <div onClick={(e) => { e.stopPropagation(); previewDocument(selectedApp.portfolio, "Portfolio"); }} className="cursor-pointer group">
+                      <div className="h-24 bg-gray-100 rounded border flex items-center justify-center group-hover:bg-blue-50 transition-colors">
+                        <span className="text-xs font-semibold text-blue-600">View Services/Portfolio</span>
                       </div>
                     </div>
                   )}
