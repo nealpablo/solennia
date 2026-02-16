@@ -36,7 +36,6 @@ export default function ChatInterface({ messages, onSendMessage, isProcessing })
             >
               {msg.role === 'assistant' && (
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-2xl">🤖</span>
                   <span className="font-semibold text-sm">Solennia AI</span>
                 </div>
               )}

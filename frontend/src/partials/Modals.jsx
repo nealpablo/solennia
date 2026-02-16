@@ -78,7 +78,10 @@ export default function Modals() {
   const [selectedFiles, setSelectedFiles] = useState({
     permits: null,
     gov_id: null,
-    portfolio: null
+    portfolio: null,
+    selfie_with_id: null,
+    sample_photos: null,
+    menu_list: null
   });
 
   // Venue inquiry state
@@ -144,6 +147,10 @@ export default function Modals() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  const [regions, setRegions] = useState([]);
+  const [cities, setCities] = useState([]);
+  const [selectedRegion, setSelectedRegion] = useState("");
+
   const [vendorForm, setVendorForm] = useState({
     business_name: "",
     full_name: "",
@@ -156,6 +163,17 @@ export default function Modals() {
     permits: null,
     gov_id: null,
     portfolio: null,
+
+    // NEW FIELDS - ADD THESE:
+    contact_number: "",           // NEW
+    region: "",                    // NEW
+    city: "",                      // NEW
+    selfie_with_id: null,         // NEW
+    facebook_page: "",             // NEW
+    instagram_page: "",            // NEW
+    sample_photos: null,           // NEW
+    menu_list: null,               // NEW (for caterers)
+
     // Venue-specific fields
     venue_subcategory: "",
     venue_capacity: "",
@@ -354,7 +372,46 @@ export default function Modals() {
     //  Reset upload state
     setUploadProgress({ permits: 0, gov_id: 0, portfolio: 0 });
     setUploadedUrls({ permits_url: '', gov_id_url: '', portfolio_url: '' });
-    setSelectedFiles({ permits: null, gov_id: null, portfolio: null });
+    setSelectedFiles({
+      permits: null,
+      gov_id: null,
+      portfolio: null,
+      selfie_with_id: null,
+      sample_photos: null,
+      menu_list: null
+    });
+
+    // Reset vendorForm
+    setVendorForm({
+      business_name: "",
+      full_name: "",
+      category: "",
+      category_other: "",
+      address: "",
+      description: "",
+      pricing: "",
+      contact_email: "",
+      permits: null,
+      gov_id: null,
+      portfolio: null,
+      contact_number: "",
+      region: "",
+      city: "",
+      selfie_with_id: null,
+      facebook_page: "",
+      instagram_page: "",
+      sample_photos: null,
+      menu_list: null,
+      venue_subcategory: "",
+      venue_capacity: "",
+      venue_amenities: "",
+      venue_operating_hours: "",
+      venue_parking: "",
+    });
+
+    // Reset region/city state
+    setSelectedRegion("");
+    setCities([]);
   };
 
   const openVendorTerms = () => {
@@ -362,12 +419,16 @@ export default function Modals() {
   };
 
   const openVendorBackground = () => {
-    closeAllVendorModals();
+    // DON'T call closeAllVendorModals() - just hide other modals
+    document.getElementById("vendorTerms")?.classList.add("hidden");
     document.getElementById("vendorBackground")?.classList.remove("hidden");
+    document.getElementById("vendorMedia")?.classList.add("hidden");
   };
 
   const openVendorMedia = () => {
-    closeAllVendorModals();
+    // DON'T call closeAllVendorModals() - just hide other modals
+    document.getElementById("vendorTerms")?.classList.add("hidden");
+    document.getElementById("vendorBackground")?.classList.add("hidden");
     document.getElementById("vendorMedia")?.classList.remove("hidden");
   };
 
@@ -380,7 +441,36 @@ export default function Modals() {
     window.solenniaLogout = handleLogout;
   }, []);
 
+  const fetchRegions = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/regions`);
+      const data = await response.json();
+      if (data.success && data.regions) {
+        setRegions(data.regions);
+      }
+    } catch (error) {
+      console.error('Failed to fetch regions:', error);
+      toast.error('Failed to load regions');
+    }
+  };
 
+  const fetchCities = async (regionCode) => {
+    try {
+      const response = await fetch(`${API_BASE}/cities/${regionCode}`);
+      const data = await response.json();
+      if (data.success && data.cities) {
+        setCities(data.cities);
+      }
+    } catch (error) {
+      console.error('Failed to fetch cities:', error);
+      toast.error('Failed to load cities');
+    }
+  };
+
+  // Load regions when component mounts
+  useEffect(() => {
+    fetchRegions();
+  }, []);
 
   // Upload single file directly to Cloudinary (RETURNS URL)
   const uploadToCloudinary = async (file, fileType) => {
@@ -458,30 +548,59 @@ export default function Modals() {
     };
   };
 
-  //  File validation (keep this as is)
+  const uploadSingleFile = async (file, fileType) => {
+    if (!file) return "";
+
+    try {
+      const token = localStorage.getItem("solennia_token");
+
+      // Get signature
+      const sigRes = await fetch(`${API_BASE}/vendor/get-upload-signature`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ file_type: fileType }),
+      });
+
+      const sigData = await sigRes.json();
+      if (!sigData.success) throw new Error("Failed to get upload signature");
+
+      // Upload to Cloudinary
+      const formData = new FormData();
+      formData.append("file", file);
+      Object.entries(sigData.params).forEach(([key, val]) => {
+        formData.append(key, val);
+      });
+
+      const uploadRes = await fetch(sigData.upload_url, {
+        method: "POST",
+        body: formData,
+      });
+
+      const uploadData = await uploadRes.json();
+      return uploadData.secure_url || "";
+    } catch (error) {
+      console.error(`Upload error for ${fileType}:`, error);
+      return "";
+    }
+  };
+
   const handleVendorFileChange = (e, fileType) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file size (5MB limit)
-    const maxSize = 5 * 1024 * 1024;
+    const maxSize = 10 * 1024 * 1024; // 10MB
     if (file.size > maxSize) {
-      toast.error(`${fileType} file must be under 5MB`);
-      e.target.value = '';
-      return;
-    }
-
-    // Validate file type
-    const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'application/pdf'];
-    if (!validTypes.includes(file.type)) {
-      toast.error(`${fileType} must be PNG, JPG, or PDF`);
+      toast.error(`${fileType} must be under 10MB`);
       e.target.value = '';
       return;
     }
 
     // Store file in state
     setSelectedFiles(prev => ({ ...prev, [fileType]: file }));
-    console.log(`File selected for ${fileType}:`, file.name);
+    toast.success(`${fileType} selected: ${file.name}`);
   };
 
   /* =========================
@@ -893,14 +1012,16 @@ export default function Modals() {
         full_name: formData.get("full_name"),
         contact_email: formData.get("contact_email"),
         category: category,
-        category_other: formData.get("category_other") || "",
         address: formData.get("address"),
-        // Venue-specific fields
-        venue_subcategory: category === "Venue" ? formData.get("venue_subcategory") : "",
-        venue_capacity: category === "Venue" ? formData.get("venue_capacity") : "",
-        venue_amenities: category === "Venue" ? formData.get("venue_amenities") : "",
-        venue_operating_hours: category === "Venue" ? formData.get("venue_operating_hours") : "",
-        venue_parking: category === "Venue" ? formData.get("venue_parking") : "",
+        contact_number: formData.get("contact_number") || "",
+        region: formData.get("region") || "",
+        city: formData.get("city") || "",
+        // No venue subcategories in application; details in Manage Listings
+        venue_subcategory: "",
+        venue_capacity: "",
+        venue_amenities: "",
+        venue_operating_hours: "",
+        venue_parking: "",
       }));
       openVendorMedia();
     } else {
@@ -927,7 +1048,27 @@ export default function Modals() {
         portfolio_url,
       } = await uploadAllVendorFiles();
 
-      // 2️⃣ Submit vendor application
+      // 2️⃣ Upload additional files (NEW)
+      let selfie_with_id_url = "";
+      let sample_photos_url = "";
+      let menu_list_url = "";
+
+      // Upload selfie with ID if provided
+      if (selectedFiles.selfie_with_id) {
+        selfie_with_id_url = await uploadSingleFile(selectedFiles.selfie_with_id, 'selfie_with_id');
+      }
+
+      // Upload sample photos if provided
+      if (selectedFiles.sample_photos) {
+        sample_photos_url = await uploadSingleFile(selectedFiles.sample_photos, 'sample_photos');
+      }
+
+      // Upload menu list if provided (for caterers)
+      if (selectedFiles.menu_list) {
+        menu_list_url = await uploadSingleFile(selectedFiles.menu_list, 'menu_list');
+      }
+
+      // 3️⃣ Submit vendor application with NEW FIELDS
       const res = await fetch(`${API_BASE}/vendor/apply`, {
         method: "POST",
         headers: {
@@ -939,20 +1080,26 @@ export default function Modals() {
           full_name: vendorForm.full_name,
           contact_email: vendorForm.contact_email,
           category: vendorForm.category,
-          category_other: vendorForm.category_other,
           address: vendorForm.address,
           description: e.target.description.value,
           pricing: e.target.pricing.value,
-          venue_subcategory: vendorForm.venue_subcategory,
-          venue_capacity: vendorForm.venue_capacity,
-          venue_amenities: vendorForm.venue_amenities,
-          venue_operating_hours: vendorForm.venue_operating_hours,
-          venue_parking: vendorForm.venue_parking,
-
-          // 🔥 GUARANTEED NON-EMPTY
+          contact_number: vendorForm.contact_number,
+          region: vendorForm.region,
+          city: vendorForm.city,
+          selfie_with_id_url: selfie_with_id_url,
+          facebook_page: vendorForm.facebook_page || "",
+          instagram_page: vendorForm.instagram_page || "",
+          sample_photos: sample_photos_url,
+          menu_list_url: menu_list_url,
           permits_url,
           gov_id_url,
           portfolio_url,
+          // No venue subcategories at application stage
+          venue_subcategory: null,
+          venue_capacity: null,
+          venue_amenities: null,
+          venue_operating_hours: null,
+          venue_parking: null,
         }),
       });
 
@@ -2438,73 +2585,100 @@ export default function Modals() {
                 id="vendorCategory"
                 required
                 className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
-                onChange={(e) => {
-                  const otherInput = document.getElementById("vendorCategoryOther");
-                  const venueFields = document.getElementById("venueSpecificFields");
-                  const venueSubcat = document.getElementById("venueSubcategory");
-                  const venueCapacity = document.getElementById("venueCapacity");
-                  const venueParking = document.getElementById("venueParking");
-                  const venueHours = document.getElementById("venueOperatingHours");
-                  const venueAmenities = document.getElementById("venueAmenities");
-
-                  // Handle "Others" category
-                  if (e.target.value === "Others") {
-                    otherInput?.classList.remove("hidden");
-                    otherInput?.setAttribute("required", "required");
-                  } else {
-                    otherInput?.classList.add("hidden");
-                    otherInput?.removeAttribute("required");
-                  }
-
-                  // Handle "Venue" category - show venue-specific fields
-                  if (e.target.value === "Venue") {
-                    venueFields?.classList.remove("hidden");
-                    venueSubcat?.setAttribute("required", "required");
-                    venueCapacity?.setAttribute("required", "required");
-                    venueParking?.setAttribute("required", "required");
-                    venueHours?.setAttribute("required", "required");
-                    venueAmenities?.setAttribute("required", "required");
-                  } else {
-                    venueFields?.classList.add("hidden");
-                    venueSubcat?.removeAttribute("required");
-                    venueCapacity?.removeAttribute("required");
-                    venueParking?.removeAttribute("required");
-                    venueHours?.removeAttribute("required");
-                    venueAmenities?.removeAttribute("required");
-                  }
+                onChange={() => {
+                  // No subcategories in application stage; details handled in Manage Listings
                 }}
               >
                 <option value="">Select a category</option>
+                <option value="Supplier">Supplier</option>
                 <option value="Venue">Venue</option>
-                <option value="Catering">Catering</option>
-                <option value="Photography & Videography">Photography & Videography</option>
-                <option value="Decoration">Decoration</option>
-                <option value="Entertainment">Entertainment</option>
-                <option value="Others">Others</option>
               </select>
-
-              <input
-                type="text"
-                id="vendorCategoryOther"
-                name="category_other"
-                placeholder="Please specify your category"
-                className="mt-2 w-full rounded-md bg-gray-100 border border-gray-300 p-2 hidden"
-              />
             </div>
 
             <div>
               <label className="block text-sm font-semibold uppercase">
-                Business Address / Service Areas <span className="text-red-600">*</span>
+                Specific Address <span className="text-red-600">*</span>
               </label>
-              <textarea
+              <input
                 name="address"
+                type="text"
                 required
+                placeholder="Street, building, barangay, or service area"
                 className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
               />
             </div>
 
-            {/* ================= VENUE-SPECIFIC FIELDS ================= */}
-            <div id="venueSpecificFields" className="hidden space-y-5 border-t border-gray-300 pt-5">
+            {/* === NEW: CONTACT NUMBER FIELD === */}
+            <div>
+              <label className="block text-sm font-semibold uppercase">
+                Contact Number <span className="text-red-600">*</span>
+              </label>
+              <input
+                name="contact_number"
+                type="tel"
+                required
+                placeholder="09XXXXXXXXX"
+                pattern="(09|\+639)\d{9}"
+                className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Philippine mobile number format: 09XXXXXXXXX
+              </p>
+            </div>
+
+            {/* === NEW: REGION DROPDOWN === */}
+            <div>
+              <label className="block text-sm font-semibold uppercase">
+                Region <span className="text-red-600">*</span>
+              </label>
+              <select
+                name="region"
+                required
+                onChange={(e) => {
+                  const regionCode = e.target.value;
+                  setSelectedRegion(regionCode);
+                  if (regionCode) {
+                    fetchCities(regionCode);
+                  }
+                }}
+                className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
+              >
+                <option value="">Select Region</option>
+                {regions.map((region) => (
+                  <option key={region.region_code} value={region.region_code}>
+                    {region.region_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* === NEW: CITY DROPDOWN (filtered by region) === */}
+            <div>
+              <label className="block text-sm font-semibold uppercase">
+                City <span className="text-red-600">*</span>
+              </label>
+              <select
+                name="city"
+                required
+                disabled={!selectedRegion}
+                className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
+              >
+                <option value="">Select City</option>
+                {cities.map((city) => (
+                  <option key={city.city_code} value={city.city_name}>
+                    {city.city_name}
+                  </option>
+                ))}
+              </select>
+              {!selectedRegion && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Please select a region first
+                </p>
+              )}
+            </div>
+
+            {/* Venue-specific details (type, capacity, etc.) are set in Manage Listings after approval */}
+            <div id="venueSpecificFields" className="hidden space-y-5 border-t border-gray-300 pt-5" aria-hidden="true">
               <h3 className="text-sm font-semibold uppercase text-[#7a5d47]">
                 Venue Details
               </h3>
@@ -2755,6 +2929,143 @@ export default function Modals() {
                   )}
                 </div>
               </div>
+            </div>
+
+            {/* === NEW: SELFIE WITH ID === */}
+            <div>
+              <label className="block text-xs font-semibold uppercase mb-1">
+                Selfie with ID <span className="text-blue-600">(Recommended)</span>
+              </label>
+              <input
+                type="file"
+                accept=".png,.jpg,.jpeg"
+                onChange={(e) => handleVendorFileChange(e, 'selfie_with_id')}
+                className="w-full rounded-md bg-gray-100 border border-gray-300 p-2 text-sm"
+              />
+              {selectedFiles.selfie_with_id && (
+                <p className="text-xs text-green-600 mt-1">
+                  ✓ {selectedFiles.selfie_with_id.name}
+                </p>
+              )}
+              <p className="text-xs text-gray-500 mt-1">
+                Hold your ID next to your face. Increases verification score by +20 points
+              </p>
+            </div>
+
+            {/* === NEW: SOCIAL MEDIA LINKS === */}
+            <div className="border-t border-gray-300 pt-4 mt-4">
+              <h3 className="text-sm font-semibold uppercase text-[#7a5d47] mb-3">
+                Social Media Links (Optional - Increases Verification Score)
+              </h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold uppercase mb-1">
+                    Facebook Page
+                  </label>
+                  <input
+                    type="url"
+                    name="facebook_page"
+                    placeholder="https://facebook.com/yourpage"
+                    onChange={(e) => setVendorForm({ ...vendorForm, facebook_page: e.target.value })}
+                    className="w-full rounded-md bg-gray-100 border border-gray-300 p-2 text-sm"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">+10 verification points</p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold uppercase mb-1">
+                    Instagram Page
+                  </label>
+                  <input
+                    type="url"
+                    name="instagram_page"
+                    placeholder="https://instagram.com/yourpage"
+                    onChange={(e) => setVendorForm({ ...vendorForm, instagram_page: e.target.value })}
+                    className="w-full rounded-md bg-gray-100 border border-gray-300 p-2 text-sm"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">+10 verification points</p>
+                </div>
+              </div>
+            </div>
+
+            {/* === NEW: CATEGORY-SPECIFIC UPLOADS === */}
+            <div className="border-t border-gray-300 pt-4 mt-4">
+              <h3 className="text-sm font-semibold uppercase text-[#7a5d47] mb-3">
+                Portfolio & Samples (Optional but Recommended)
+              </h3>
+
+              {/* Sample Photos - For all suppliers */}
+              <div className="mb-4">
+                <label className="block text-xs font-semibold uppercase mb-1">
+                  Sample Photos
+                </label>
+                <input
+                  type="file"
+                  accept=".png,.jpg,.jpeg"
+                  onChange={(e) => handleVendorFileChange(e, 'sample_photos')}
+                  className="w-full rounded-md bg-gray-100 border border-gray-300 p-2 text-sm"
+                />
+                {selectedFiles.sample_photos && (
+                  <p className="text-xs text-green-600 mt-1">
+                    ✓ {selectedFiles.sample_photos.name}
+                  </p>
+                )}
+                <p className="text-xs text-gray-500 mt-1">
+                  Upload samples of your work. +15 verification points
+                </p>
+              </div>
+
+              {/* Menu List - Only for Caterers */}
+              {vendorForm.category && vendorForm.category.toLowerCase().includes('catering') && (
+                <div className="mb-4 bg-yellow-50 border border-yellow-200 rounded p-3">
+                  <label className="block text-xs font-semibold uppercase mb-1">
+                    Menu List <span className="text-blue-600">(Catering Only)</span>
+                  </label>
+                  <input
+                    type="file"
+                    accept=".png,.jpg,.jpeg,.pdf"
+                    onChange={(e) => handleVendorFileChange(e, 'menu_list')}
+                    className="w-full rounded-md bg-gray-100 border border-gray-300 p-2 text-sm"
+                  />
+                  {selectedFiles.menu_list && (
+                    <p className="text-xs text-green-600 mt-1">
+                      ✓ {selectedFiles.menu_list.name}
+                    </p>
+                  )}
+                  <p className="text-xs text-gray-500 mt-1">
+                    Upload your menu (PDF or image)
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* === NEW: VERIFICATION SCORE PREVIEW === */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
+              <h4 className="font-semibold text-blue-900 mb-2">📊 Verification Score Preview</h4>
+              <p className="text-sm text-blue-800 mb-2">
+                Your estimated verification score based on documents provided:
+              </p>
+              <ul className="text-sm text-blue-800 space-y-1">
+                <li>✓ Government ID: +30 points (Required)</li>
+                {selectedFiles.selfie_with_id && <li>✓ Selfie with ID: +20 points</li>}
+                {selectedFiles.sample_photos && <li>✓ Sample Photos: +15 points</li>}
+                {vendorForm.facebook_page && <li>✓ Facebook Page: +10 points</li>}
+                {vendorForm.instagram_page && <li>✓ Instagram Page: +10 points</li>}
+              </ul>
+              <p className="text-sm font-semibold text-blue-900 mt-2">
+                Estimated Score: {
+                  30 +
+                  (selectedFiles.selfie_with_id ? 20 : 0) +
+                  (selectedFiles.sample_photos ? 15 : 0) +
+                  (vendorForm.facebook_page ? 10 : 0) +
+                  (vendorForm.instagram_page ? 10 : 0) +
+                  15
+                }/100 points
+              </p>
+              <p className="text-xs text-gray-600 mt-1">
+                Higher scores rank better in search results!
+              </p>
             </div>
 
             {/* Submit Button with Loading State */}

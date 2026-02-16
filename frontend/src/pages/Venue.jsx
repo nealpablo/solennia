@@ -22,8 +22,6 @@ const PER_PAGE = 8;
 export default function Venue() {
   const [venues, setVenues] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [isVenueVendor, setIsVenueVendor] = useState(false);
-  const [checkingVendor, setCheckingVendor] = useState(true);
   const [filter, setFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -34,7 +32,6 @@ export default function Venue() {
   ========================= */
   useEffect(() => {
     fetchVenues();
-    checkVenueVendorStatus();
   }, []);
 
   const fetchVenues = async () => {
@@ -51,49 +48,6 @@ export default function Venue() {
     } finally {
       setLoading(false);
     }
-  };
-
-  /* =========================
-     CHECK VENUE  VENDOR STATUS
-  ========================= */
-  const checkVenueVendorStatus = async () => {
-    const token = localStorage.getItem("solennia_token");
-
-    if (!token) {
-      setCheckingVendor(false);
-      return;
-    }
-
-    try {
-      const res = await fetch(`${API_BASE}/vendor/status`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      const data = await res.json();
-
-      // Check if venue vendor based on category
-      if (data.success && data.category?.toLowerCase() === "venue" && data.status === "approved") {
-        setIsVenueVendor(true);
-      }
-    } catch (err) {
-      console.error("Failed to check supplier status:", err);
-    } finally {
-      setCheckingVendor(false);
-    }
-  };
-
-  const handleCreateListing = () => {
-    if (!localStorage.getItem("solennia_token")) {
-      toast.warning("Please login first");
-      return;
-    }
-
-    if (!isVenueVendor) {
-      toast.warning("Only approved venue Suppliers can create listings");
-      return;
-    }
-
-    navigate("/venue-dashboard");
   };
 
   // Filter venues by category (DB values: Church, Garden, Resort, Conference, Other)
@@ -120,7 +74,7 @@ export default function Venue() {
     setCurrentPage(1);
   }, [filter]);
 
-  if (loading || checkingVendor) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -142,20 +96,6 @@ export default function Venue() {
           Discover the perfect venue for your special day
         </p>
 
-        {/* Create Venue Listing Button - Only for Approved Venue Vendors */}
-        {isVenueVendor && (
-          <div className="flex justify-center">
-            <button
-              onClick={handleCreateListing}
-              className="px-6 py-3 bg-[#7a5d47] hover:bg-[#654a38] text-white font-semibold rounded-lg transition-colors flex items-center gap-2 shadow-md"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
-              </svg>
-              Make a Listing
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Filter Bar - Uses DB values (Church, Garden, etc.) for filtering */}
@@ -184,25 +124,15 @@ export default function Venue() {
             {filter === "all" ? "No Venues Available Yet" : `No ${VENUE_CATEGORIES.find(c => c.value === filter)?.label || filter} Available`}
           </h3>
           <p className="text-gray-500 mb-6">
-            {isVenueVendor
-              ? "Be the first to add your venue to the platform!"
-              : "Check back soon for amazing venue listings."}
+            Check back soon for amazing venue listings. Venue owners can manage listings from Profile → Manage Listings.
           </p>
-          {isVenueVendor && (
-            <button
-              onClick={handleCreateListing}
-              className="px-6 py-3 bg-[#e8ddae] hover:bg-[#dbcf9f] text-gray-800 font-semibold rounded-lg transition-colors"
-            >
-              Create Your First Venue Listing
-            </button>
-          )}
         </div>
       ) : (
         <>
           {/* Venue Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             {visibleVenues.map((venue) => (
-              <VenueCard key={venue.id} venue={venue} navigate={navigate} />
+              <VenueCard key={venue.unique_key || venue.id} venue={venue} navigate={navigate} />
             ))}
           </div>
 
@@ -313,7 +243,7 @@ function VenueCard({ venue, navigate }) {
   };
 
   //  Get image from logo field or portfolio
-  const venueImage = venue.logo || venue.portfolio || venue.portfolio_image || venue.HeroImageUrl || "https://via.placeholder.com/400x300?text=Venue+Image";
+  const venueImage = venue.logo || venue.portfolio || venue.portfolio_image || venue.HeroImageUrl || "/images/placeholder.svg";
 
   // Parse gallery if it's a JSON string
   let galleryImages = [];
@@ -331,7 +261,7 @@ function VenueCard({ venue, navigate }) {
   return (
     <Link
       to={`/venue/${venue.id}`}
-      className="group bg-white rounded-lg overflow-hidden shadow-md hover:shadow-xl transition-all duration-300"
+      className="group bg-white rounded-lg overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col h-full"
     >
       {/* Image Container */}
       <div className="relative h-48 overflow-hidden bg-gray-200">
@@ -340,7 +270,7 @@ function VenueCard({ venue, navigate }) {
           alt={venue.venue_name || venue.business_name}
           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
           onError={(e) => {
-            e.target.src = "https://via.placeholder.com/400x300?text=Venue+Image";
+            e.target.src = "/images/placeholder.svg";
           }}
         />
 
@@ -397,7 +327,7 @@ function VenueCard({ venue, navigate }) {
       )}
 
       {/* Card Content */}
-      <div className="p-4 flex flex-col" style={{ minHeight: '180px' }}>
+      <div className="p-4 flex flex-col flex-1" style={{ minHeight: '180px' }}>
         <h3 className="font-semibold text-gray-800 mb-1 line-clamp-1 group-hover:text-[#7a5d47] transition-colors">
           {venue.venue_name || venue.business_name}
         </h3>

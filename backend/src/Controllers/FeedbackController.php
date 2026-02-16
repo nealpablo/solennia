@@ -177,9 +177,9 @@ class FeedbackController
                         'CreatedAt' => DB::raw('NOW()')
                     ]);
 
-                    // Notify admins about the report
+                    // Notify admins about the report (role 2 = admin)
                     $admins = DB::table('credential')
-                        ->where('user_role', 'admin')
+                        ->where('role', 2)
                         ->get();
 
                     foreach ($admins as $admin) {
@@ -297,22 +297,49 @@ class FeedbackController
         }
     }
 
-    /**
-     * Get all feedback for a vendor
-     * GET /api/vendors/{id}/feedback
-     */
     public function getVendorFeedback(Request $req, Response $res, array $args): Response
     {
         try {
             $vendorId = $args['id'] ?? null;
+            $vendorEspId = null;
 
-            // Get vendor ESP ID
+            // 1. Try Legacy ESP
             $vendor = DB::table('event_service_provider')
                 ->where('UserID', $vendorId)
                 ->first();
 
-            if (!$vendor) {
-                return $this->json($res, ['success' => false, 'error' => 'Vendor not found'], 404);
+            if ($vendor) {
+                $vendorEspId = $vendor->ID;
+            } else {
+                // 2. Try Vendor Listings (New System)
+                // If the user has a vendor listing, we might need to find how their bookings are stored.
+                // Currently bookings link to EventServiceProviderID.
+                // If the booking functionality hasn't been updated to support listing_id directly,
+                // we might not find feedbacks for pure vendor_listings yet unless they have a dummy ESP record.
+                // However, let's assume if we can't find ESP, we check if they are a valid vendor at least.
+                
+                $listing = DB::table('vendor_listings')
+                    ->where('user_id', $vendorId)
+                    ->where('status', 'Active')
+                    ->first();
+                
+                if (!$listing) {
+                     return $this->json($res, ['success' => false, 'error' => 'Vendor not found'], 404);
+                }
+                // If they have a listing but no ESP, we can't easily find bookings by ESP ID.
+                // But maybe bookings are using a different mechanism or we should check for bookings by vendor_user_id if available?
+                // The booking table has vendor_user_id? Let's check the query below.
+                // The query below uses `where('bf.EventServiceProviderID', $vendor->ID)`.
+                // If there is no ESP ID, this query will fail or return nothing.
+                
+                // For now, let's just return empty feedback if no ESP record exists, rather than 404.
+                // This prevents the page from crashing/erroring with 404.
+                return $this->json($res, [
+                    'success' => true,
+                    'feedback' => [],
+                    'average_rating' => null,
+                    'total_reviews' => 0
+                ]);
             }
 
             // Get all feedback for this vendor (EXCLUDING venue-only bookings)
@@ -320,7 +347,7 @@ class FeedbackController
             $feedback = DB::table('booking_feedback as bf')
                 ->leftJoin('credential as c', 'bf.UserID', '=', 'c.id')
                 ->leftJoin('booking as b', 'bf.BookingID', '=', 'b.ID')
-                ->where('bf.EventServiceProviderID', $vendor->ID)
+                ->where('bf.EventServiceProviderID', $vendorEspId)
                 ->whereNull('b.venue_id')  // Exclude venue bookings
                 ->select([
                     'bf.*',
@@ -337,13 +364,13 @@ class FeedbackController
             // Calculate average rating and total reviews for vendor-only bookings
             $avgRating = DB::table('booking_feedback as bf')
                 ->join('booking as b', 'bf.BookingID', '=', 'b.ID')
-                ->where('bf.EventServiceProviderID', $vendor->ID)
+                ->where('bf.EventServiceProviderID', $vendorEspId)
                 ->whereNull('b.venue_id')
                 ->avg('bf.Rating');
 
             $totalReviews = DB::table('booking_feedback as bf')
                 ->join('booking as b', 'bf.BookingID', '=', 'b.ID')
-                ->where('bf.EventServiceProviderID', $vendor->ID)
+                ->where('bf.EventServiceProviderID', $vendorEspId)
                 ->whereNull('b.venue_id')
                 ->count();
 
@@ -372,9 +399,9 @@ class FeedbackController
                 return $this->json($res, ['success' => false, 'error' => 'Unauthorized'], 401);
             }
 
-            // Check if user is admin
+            // Check if user is admin (role 2 = admin)
             $userProfile = DB::table('credential')->where('id', $user->mysql_id)->first();
-            if (!$userProfile || $userProfile->user_role !== 'admin') {
+            if (!$userProfile || (int)($userProfile->role ?? 0) !== 2) {
                 return $this->json($res, ['success' => false, 'error' => 'Access denied - Admin only'], 403);
             }
 
@@ -393,10 +420,12 @@ class FeedbackController
                     'bf.Comment as feedback_comment',
                     'b.ServiceName',
                     'b.EventDate',
+                    'b.ID as BookingID',
                     'c.first_name as reporter_first_name',
                     'c.last_name as reporter_last_name',
                     'c.email as reporter_email',
                     'esp.BusinessName as vendor_name',
+                    'esp.UserID as vendor_user_id',
                     'vc.email as vendor_email'
                 ])
                 ->orderBy('sr.CreatedAt', 'DESC');
@@ -430,9 +459,9 @@ class FeedbackController
                 return $this->json($res, ['success' => false, 'error' => 'Unauthorized'], 401);
             }
 
-            // Check if user is admin
+            // Check if user is admin (role 2 = admin)
             $userProfile = DB::table('credential')->where('id', $user->mysql_id)->first();
-            if (!$userProfile || $userProfile->user_role !== 'admin') {
+            if (!$userProfile || (int)($userProfile->role ?? 0) !== 2) {
                 return $this->json($res, ['success' => false, 'error' => 'Access denied - Admin only'], 403);
             }
 
@@ -440,15 +469,17 @@ class FeedbackController
             $data = (array) $req->getParsedBody();
             $newStatus = $data['status'] ?? null;
 
-            $validStatuses = ['Pending', 'Under_Review', 'Resolved', 'Dismissed'];
+            $validStatuses = ['Pending', 'Under_Review', 'Resolved', 'Dismissed', 'Rejected'];
             if (!in_array($newStatus, $validStatuses)) {
                 return $this->json($res, ['success' => false, 'error' => 'Invalid status'], 400);
             }
+            // Store Rejected as Dismissed in DB if table uses Dismissed
+            $statusToSave = ($newStatus === 'Rejected') ? 'Dismissed' : $newStatus;
 
             DB::table('supplier_reports')
                 ->where('ID', $reportId)
                 ->update([
-                    'Status' => $newStatus,
+                    'Status' => $statusToSave,
                     'AdminNotes' => $data['admin_notes'] ?? null,
                     'ReviewedBy' => $user->mysql_id,
                     'ReviewedAt' => DB::raw('NOW()'),

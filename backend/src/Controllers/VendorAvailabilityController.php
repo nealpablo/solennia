@@ -24,17 +24,30 @@ class VendorAvailabilityController
             ], 400);
         }
         
-        // Verify vendor exists
-        $vendor = DB::table('credential')
-            ->where('id', $vendorId)
-            ->where('role', 1)
-            ->first();
-        
-        if (!$vendor) {
-            return $this->json($response, [
-                'success' => false,
-                'error' => 'Vendor not found'
-            ], 404);
+        // Verify vendor exists (Check for Active Listing or Approved ESP)
+        $hasActiveListing = DB::table('vendor_listings')
+            ->where('user_id', $vendorId)
+            ->where('status', 'Active')
+            ->exists();
+            
+        $hasApprovedEsp = DB::table('event_service_provider')
+            ->where('UserID', $vendorId)
+            ->where('ApplicationStatus', 'Approved')
+            ->exists();
+            
+        if (!$hasActiveListing && !$hasApprovedEsp) {
+            // Fallback: check if role is 1 (Vendor) just in case
+             $isVendorRole = DB::table('credential')
+                ->where('id', $vendorId)
+                ->where('role', 1)
+                ->exists();
+                
+            if (!$isVendorRole) {
+                return $this->json($response, [
+                    'success' => false,
+                    'error' => 'Vendor not found'
+                ], 404);
+            }
         }
         
         $queryParams = $request->getQueryParams();

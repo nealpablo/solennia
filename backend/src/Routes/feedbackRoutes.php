@@ -47,16 +47,4 @@ return function (App $app) {
     $app->get('/api/venues/{id}/feedback', function (Request $req, Response $res, array $args) use ($feedbackController) {
         return $feedbackController->getVenueFeedback($req, $res, $args);
     });
-
-    // Get all supplier reports (Admin only)
-    // GET /api/admin/reports
-    $app->get('/api/admin/reports', function (Request $req, Response $res) use ($feedbackController) {
-        return $feedbackController->getAllReports($req, $res);
-    })->add(new AuthMiddleware());
-
-    // Update report status (Admin only)
-    // PATCH /api/admin/reports/{id}
-    $app->patch('/api/admin/reports/{id}', function (Request $req, Response $res, array $args) use ($feedbackController) {
-        return $feedbackController->updateReportStatus($req, $res, $args);
-    })->add(new AuthMiddleware());
 };

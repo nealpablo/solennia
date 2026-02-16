@@ -4,12 +4,21 @@
 
 /* Font configuration: Headers use Cinzel, body text uses Cormorant Garamond (similar to Centaur) */
 @layer base {
-  h1, h2, h3, h4, h5, h6 {
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     font-family: 'Cinzel', serif;
   }
-  
+
   /* Ensure forms, inputs, and chat elements use Cormorant Garamond */
-  input, textarea, select, button {
+  input,
+  textarea,
+  select,
+  button {
     font-family: 'Libre Baskerville', serif;
   }
 }
@@ -23,18 +32,21 @@
   margin-top: 0.75rem;
   max-width: 320px;
 }
+
 .calendar-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 0.5rem;
 }
+
 .calendar-month {
   font-size: 0.95rem;
   font-weight: 600;
   margin: 0;
   color: #7a5d47;
 }
+
 .calendar-nav-btn {
   background: #7a5d47;
   color: white;
@@ -49,9 +61,11 @@
   justify-content: center;
   transition: 0.2s;
 }
+
 .calendar-nav-btn:hover {
   background: #654a38;
 }
+
 .calendar-legend {
   display: flex;
   gap: 1rem;
@@ -60,37 +74,49 @@
   font-size: 0.75rem;
   color: #5d4a38;
 }
+
 .legend-item {
   display: flex;
   align-items: center;
   gap: 0.3rem;
 }
+
 .legend-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
   border: 1px solid #c9bda4;
 }
-.legend-available { background: #7a5d47; }
-.legend-booked { background: #c9bda4; }
+
+.legend-available {
+  background: #7a5d47;
+}
+
+.legend-booked {
+  background: #c9bda4;
+}
+
 .calendar-weekdays {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   gap: 2px;
   margin-bottom: 2px;
 }
-.calendar-weekdays > div {
+
+.calendar-weekdays>div {
   text-align: center;
   font-size: 0.65rem;
   font-weight: 600;
   padding: 0.25rem;
   color: #7a5d47;
 }
+
 .calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   gap: 2px;
 }
+
 .calendar-day {
   aspect-ratio: 1;
   min-height: 28px;
@@ -105,44 +131,62 @@
   background: #fff;
   transition: 0.15s;
 }
+
 .calendar-day-empty {
   background: transparent;
   border: none;
 }
-.calendar-day-number { font-size: 0.75rem; font-weight: 500; }
+
+.calendar-day-number {
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
 .calendar-day-indicator {
   position: absolute;
   bottom: 1px;
   font-size: 0.65rem;
   font-weight: bold;
 }
+
 .calendar-day-today {
   border: 2px solid #7a5d47;
   font-weight: 600;
   background: #f6f0e8;
 }
+
 .calendar-day-past {
   opacity: 0.5;
   background: #f0ebe0;
 }
+
 .calendar-day-available {
   background: #e8ddae;
   border: 1px solid #7a5d47;
   font-weight: 600;
 }
-.calendar-day-available .calendar-day-indicator { color: #5d4436; }
+
+.calendar-day-available .calendar-day-indicator {
+  color: #5d4436;
+}
+
 .calendar-day-booked {
   background: #e5e0d5;
   border: 1px solid #c9bda4;
   font-weight: 600;
 }
-.calendar-day-booked .calendar-day-indicator { color: #7a5d47; }
+
+.calendar-day-booked .calendar-day-indicator {
+  color: #7a5d47;
+}
+
 .calendar-loading {
   text-align: center;
   padding: 0.5rem;
   color: #7a5d47;
   font-size: 0.8rem;
 }
+
 .upcoming-availability {
   background: #fff;
   border: 1px solid #d9d0c3;
@@ -151,8 +195,20 @@
   margin-top: 1rem;
   margin-bottom: 1rem;
 }
-.upcoming-title { font-size: 0.95rem; font-weight: 600; margin: 0 0 1rem 0; color: #7a5d47; }
-.upcoming-list { display: flex; flex-direction: column; gap: 0.75rem; }
+
+.upcoming-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 0 0 1rem 0;
+  color: #7a5d47;
+}
+
+.upcoming-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
 .upcoming-item {
   display: grid;
   grid-template-columns: auto 1fr auto;
@@ -162,9 +218,25 @@
   border-radius: 8px;
   border: 1px solid #e5e5e5;
 }
-.upcoming-available { background: #dcfce7; border-color: #86efac; }
-.upcoming-booked { background: #fee2e2; border-color: #fca5a5; }
-.upcoming-date { display: flex; align-items: center; gap: 0.5rem; font-weight: 600; font-size: 0.9rem; }
+
+.upcoming-available {
+  background: #dcfce7;
+  border-color: #86efac;
+}
+
+.upcoming-booked {
+  background: #fee2e2;
+  border-color: #fca5a5;
+}
+
+.upcoming-date {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
 .upcoming-icon {
   display: inline-flex;
   align-items: center;
@@ -174,13 +246,49 @@
   border-radius: 50%;
   font-size: 0.75rem;
 }
-.upcoming-available .upcoming-icon { background: #22c55e; color: white; }
-.upcoming-booked .upcoming-icon { background: #ef4444; color: white; }
-.upcoming-time { font-size: 0.85rem; color: #666; }
-.upcoming-status { font-size: 0.85rem; font-weight: 600; padding: 0.25rem 0.75rem; border-radius: 9999px; white-space: nowrap; }
-.upcoming-available .upcoming-status { background: #22c55e; color: white; }
-.upcoming-booked .upcoming-status { background: #ef4444; color: white; }
-.upcoming-notes { grid-column: 1 / -1; font-size: 0.85rem; color: #666; font-style: italic; padding-top: 0.5rem; border-top: 1px solid rgba(0,0,0,0.1); }
+
+.upcoming-available .upcoming-icon {
+  background: #22c55e;
+  color: white;
+}
+
+.upcoming-booked .upcoming-icon {
+  background: #ef4444;
+  color: white;
+}
+
+.upcoming-time {
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.upcoming-status {
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  white-space: nowrap;
+}
+
+.upcoming-available .upcoming-status {
+  background: #22c55e;
+  color: white;
+}
+
+.upcoming-booked .upcoming-status {
+  background: #ef4444;
+  color: white;
+}
+
+.upcoming-notes {
+  grid-column: 1 / -1;
+  font-size: 0.85rem;
+  color: #666;
+  font-style: italic;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
 .no-availability {
   background: #fff9e6;
   border: 1px solid #f5e8c7;
@@ -190,8 +298,19 @@
   margin-bottom: 1rem;
   text-align: center;
 }
-.no-availability p { margin: 0.5rem 0; font-size: 0.95rem; color: #7a5d47; }
+
+.no-availability p {
+  margin: 0.5rem 0;
+  font-size: 0.95rem;
+  color: #7a5d47;
+}
+
 @media (max-width: 640px) {
-  .calendar-container { max-width: 100%; }
-  .calendar-day { min-height: 24px; }
+  .calendar-container {
+    max-width: 100%;
+  }
+
+  .calendar-day {
+    min-height: 24px;
+  }
 }

@@ -59,7 +59,7 @@ export default function VenueDetail() {
             || data.venue.portfolio
             || data.venue.portfolio_image
             || data.venue.HeroImageUrl
-            || "https://via.placeholder.com/800?text=Venue+Image";
+            || "/images/placeholder.svg";
 
           // Combine main image with gallery
           const allImages = [mainImage, ...galleryImages].filter(Boolean);
@@ -330,7 +330,7 @@ export default function VenueDetail() {
             alt={venue.name}
             className="w-full h-full object-cover"
             onError={(e) => {
-              e.target.src = "https://via.placeholder.com/800?text=Venue+Image";
+              e.target.src = "/images/placeholder.svg";
             }}
           />
         </div>
@@ -344,12 +344,12 @@ export default function VenueDetail() {
                 }`}
               onClick={() => setSelectedImage(idx)}
             >
-              <img
+                <img
                 src={img}
                 alt={`${venue.name} ${idx + 1}`}
                 className="w-full h-full object-cover"
                 onError={(e) => {
-                  e.target.src = "https://via.placeholder.com/400?text=Image";
+                  e.target.src = "/images/placeholder.svg";
                 }}
               />
             </div>
@@ -368,11 +368,11 @@ export default function VenueDetail() {
       <div className="relative -mt-24 mb-6 px-4">
         <div className="w-40 h-40 rounded-full border-4 border-white bg-white shadow-lg overflow-hidden">
           <img
-            src={venue.images[0] || "https://via.placeholder.com/160?text=Venue"}
+            src={venue.images[0] || "/images/placeholder.svg"}
             alt={`${venue.name} profile`}
             className="w-full h-full object-cover"
             onError={(e) => {
-              e.target.src = "https://via.placeholder.com/160?text=Venue";
+              e.target.src = "/images/placeholder.svg";
             }}
           />
         </div>

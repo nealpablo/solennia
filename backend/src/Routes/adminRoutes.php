@@ -51,6 +51,14 @@ return function (App $app) {
                     'va.venue_amenities',
                     'va.venue_operating_hours',
                     'va.venue_parking',
+                    // NEW FIELDS
+                    'va.contact_number',
+                    'va.region',
+                    'va.city',
+                    'va.selfie_with_id',
+                    'va.social_links',
+                    'va.sample_photos',
+                    'va.menu_list',
                     'c.first_name',
                     'c.last_name',
                     'c.username',
@@ -381,6 +389,24 @@ return function (App $app) {
                 ->withStatus(500);
         }
 
+    })->add(new AuthMiddleware());
+
+    // Admin: Get all reports
+    $app->get('/api/admin/reports', function (Request $req, Response $res) {
+        $controller = new \Src\Controllers\FeedbackController();
+        return $controller->getAllReports($req, $res);
+    })->add(new AuthMiddleware());
+
+    // Admin: Update report status
+    $app->patch('/api/admin/reports/{id}', function (Request $req, Response $res, array $args) {
+        $controller = new \Src\Controllers\FeedbackController();
+        return $controller->updateReportStatus($req, $res, $args);
+    })->add(new AuthMiddleware());
+
+    // Admin: Get dashboard analytics
+    $app->get('/api/admin/analytics', function (Request $req, Response $res) {
+        $controller = new \Src\Controllers\AdminController();
+        return $controller->getAdminAnalytics($req, $res);
     })->add(new AuthMiddleware());
 
 };

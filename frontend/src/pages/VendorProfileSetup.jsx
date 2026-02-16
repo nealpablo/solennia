@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { tokenExpired } from "../utils/auth";
 import { useNavigate } from "react-router-dom";
 import toast from "../utils/toast";
 
@@ -32,7 +33,7 @@ export default function VendorProfileSetup() {
       navigate("/");
       return;
     }
-    
+    if (tokenExpired(token)) { navigate('/'); return; }
     checkVendorStatus();
   }, [token]);
 
@@ -138,11 +139,15 @@ export default function VendorProfileSetup() {
       
       if (data.success) {
         toast.success("Supplier profile created successfully! 🎉");
-        
+
         // Update role in localStorage to ensure proper navigation
         localStorage.setItem("solennia_role", "1");
-        
-        setTimeout(() => navigate("/vendor-dashboard"), 1500);
+
+        // Redirect to ManageListings so they can immediately create their first listing
+        setTimeout(() => {
+          toast.info("Now create your first listing!");
+          navigate("/manage-listings");
+        }, 1500);
       } else {
         toast.error(data.error || "Failed to create profile");
       }
@@ -176,8 +181,8 @@ export default function VendorProfileSetup() {
               <h1 className="text-3xl font-bold">Complete Your Supplier Profile 🎉</h1>
             </div>
             <p className="text-white/90">
-              Congratulations! Your application has been approved. 
-              Complete your profile to start receiving bookings.
+              Congratulations! Your application has been approved.
+              Complete your basic profile, then you'll create your first listing.
             </p>
           </div>
 

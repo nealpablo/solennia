@@ -156,7 +156,7 @@ export default function ConversationalBooking() {
       <div className="max-w-7xl mx-auto px-4">
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            🤖 AI Booking Assistant
+            AI Booking Assistant
           </h1>
           <p className="text-gray-600">
             Book Suppliers & Venues with Natural Conversation

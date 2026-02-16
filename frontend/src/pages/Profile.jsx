@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { tokenExpired } from "../utils/auth";
+import { useNavigate, useLocation } from "react-router-dom";
 import { auth } from "../firebase";
 import { updatePassword, reauthenticateWithCredential, EmailAuthProvider } from "firebase/auth";
 import toast from "../utils/toast";
@@ -11,6 +12,18 @@ const API =
   import.meta.env.VITE_API_URL ||
   (import.meta.env.PROD
     ? "https://solennia.up.railway.app/api" : "/api");
+
+// Utility: coerce gallery/amenities values into string arrays safely
+function ensureArray(val, sep = ',') {
+  if (!val) return [];
+  if (Array.isArray(val)) return val;
+  if (typeof val === 'string') return val.trim() === '' ? [] : val.split(sep).map(s => s.trim()).filter(Boolean);
+  try {
+    const parsed = JSON.parse(val);
+    if (Array.isArray(parsed)) return parsed.map(String);
+  } catch (e) { }
+  return [];
+}
 
 export default function Profile() {
   const navigate = useNavigate();
@@ -88,6 +101,33 @@ export default function Profile() {
   // 🔧 FIX: Add venue tracking for dual vendor/venue support
   const [ownedVenues, setOwnedVenues] = useState([]);
   const [selectedVenue, setSelectedVenue] = useState(null); // null = show vendor calendar
+
+  // Analytics Dashboard States
+  const [analytics, setAnalytics] = useState(null);
+  const [loadingAnalytics, setLoadingAnalytics] = useState(false);
+
+  // Client Dashboard States
+  const [clientAnalytics, setClientAnalytics] = useState(null);
+  const [clientRecentBookings, setClientRecentBookings] = useState([]);
+  const [loadingClientAnalytics, setLoadingClientAnalytics] = useState(false);
+
+  // Admin Dashboard States
+  const [adminAnalytics, setAdminAnalytics] = useState(null);
+  const [loadingAdminAnalytics, setLoadingAdminAnalytics] = useState(false);
+
+  // My Listings (venue CRUD in profile)
+  const [showListingModal, setShowListingModal] = useState(false);
+  const [editingVenueId, setEditingVenueId] = useState(null);
+  const [listingForm, setListingForm] = useState({ venue_name: "", region: "", city: "", specific_address: "", venue_subcategory: "", venue_capacity: "", pricing: "", description: "", hero_image: "", amenities: "" });
+  const [regions, setRegions] = useState([]);
+  const [cities, setCities] = useState([]);
+  const [listingRegion, setListingRegion] = useState("");
+  const [savingListing, setSavingListing] = useState(false);
+
+  // Vendor Service Modal
+  const [showServiceModal, setShowServiceModal] = useState(false);
+  const [serviceForm, setServiceForm] = useState({ bio: "", services: "", service_areas: "", address: "", event_type: "", service_category: "", budget_range: "", base_price: "", package_price: "", ai_description: "", region: "", city: "", specific_address: "" });
+  const [savingService, setSavingService] = useState(false);
 
   /* ================= CALENDAR: FORMAT DATE TO LOCAL TIMEZONE ================= */
   const formatDateToLocal = (date) => {
@@ -185,32 +225,52 @@ export default function Profile() {
 
   /* ================= VENDOR STATUS  ================= */
   useEffect(() => {
-    if (!token || role !== 0 && role !== 1) return;
+    if (!token || (role !== 0 && role !== 1)) return;
+    if (tokenExpired(token)) {
+      setVendorStatus(null);
+      return;
+    }
 
     fetch(`${API}/vendor/status`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => {
-        // Handle 401/404 gracefully
-        if (r.status === 401 || r.status === 404) {
-          console.log('Vendor status endpoint not available or unauthorized - skipping');
+        if (r.status === 401) {
+          setVendorStatus(null);
           return null;
         }
+        if (r.status === 404) return null;
         return r.json();
       })
       .then((j) => {
-        if (j && j.status) {
+        if (j && (j.status !== undefined || j.success)) {
           setVendorStatus(j);
-          if (j.status === 'pending') {
-            console.log('Vendor application is pending review');
-          }
         }
       })
-      .catch((err) => {
-        // Silently handle errors - vendor status is not critical
-        console.log('Vendor status check skipped:', err.message);
-      });
+      .catch(() => { });
   }, [token, role]);
+
+  // Populate serviceForm when vendor status/profile is loaded
+  useEffect(() => {
+    if (!vendorStatus) return;
+    const v = vendorStatus.vendor || {};
+    setServiceForm(prev => ({
+      ...prev,
+      bio: v.bio || prev.bio,
+      services: v.services || prev.services,
+      service_areas: v.service_areas || prev.service_areas,
+      address: v.BusinessAddress || prev.address,
+      event_type: v.service_type_tag || prev.event_type || "",
+      service_category: v.service_category || prev.service_category || "",
+      budget_range: vendorStatus.budget_tier || vendorStatus.price_range || prev.budget_range || "",
+      base_price: v.base_price || prev.base_price || "",
+      package_price: v.package_price || prev.package_price || "",
+      ai_description: v.ai_description || prev.ai_description || "",
+      region: vendorStatus.region || prev.region || "",
+      city: vendorStatus.city || prev.city || "",
+      specific_address: v.BusinessAddress || prev.specific_address || "",
+    }));
+  }, [vendorStatus]);
 
   /* ================= 🔧 FIX: LOAD OWNED VENUES ================= */
   useEffect(() => {
@@ -255,6 +315,144 @@ export default function Profile() {
         setOwnedVenues([]); // Set empty array to prevent infinite retries
       });
   }, [token, profile?.id]);
+
+  /* ================= LOAD ANALYTICS ON MOUNT ================= */
+  useEffect(() => {
+    if (role === 1) {
+      loadAnalytics();
+    } else if (role === 0) {
+      loadClientAnalytics();
+    } else if (role === 2) {
+      loadAdminAnalytics();
+    }
+  }, [token, role]);
+
+  useEffect(() => {
+    fetch(`${API}/regions`).then((r) => r.json()).then((d) => d.success && d.regions && setRegions(d.regions)).catch(() => { });
+  }, []);
+
+  // Open Manage Listings modal when navigated with ?open=listings
+  const location = useLocation();
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(location.search);
+      if (params.get("open") === "listings") {
+        setShowListingModal(true);
+      }
+    } catch (e) { }
+  }, [location.search]);
+
+  const fetchCitiesForListing = (regionCode) => {
+    if (!regionCode) return setCities([]);
+    fetch(`${API}/cities/${regionCode}`).then((r) => r.json()).then((d) => d.success && d.cities && setCities(d.cities)).catch(() => setCities([]));
+  };
+
+  const openAddListing = () => {
+    setEditingVenueId(null);
+    setListingForm({ venue_name: "", region: "", city: "", specific_address: "", venue_subcategory: "", venue_capacity: "", pricing: "", description: "", hero_image: "", amenities: "" });
+    setListingRegion("");
+    setCities([]);
+    setShowListingModal(true);
+  };
+
+  const openEditListing = (venue) => {
+    setEditingVenueId(venue.id);
+    setListingForm({
+      venue_name: venue.venue_name || "",
+      region: venue.region || "",
+      city: venue.city || "",
+      specific_address: venue.specific_address || venue.address || "",
+      venue_subcategory: venue.venue_subcategory || "",
+      venue_capacity: venue.venue_capacity ?? "",
+      pricing: venue.pricing ?? "",
+      description: venue.description || "",
+      hero_image: venue.HeroImageUrl || "",
+      amenities: Array.isArray(venue.amenities) ? venue.amenities.join(", ") : (typeof venue.amenities === "string" ? (() => { try { const a = JSON.parse(venue.amenities); return Array.isArray(a) ? a.join(", ") : ""; } catch { return ""; } })() : ""),
+    });
+    setListingRegion(venue.region || "");
+    if (venue.region) fetchCitiesForListing(venue.region);
+    setShowListingModal(true);
+  };
+
+  const saveVenueListing = async (e) => {
+    e.preventDefault();
+    if (!listingForm.venue_name.trim()) {
+      toast.error("Venue name is required");
+      return;
+    }
+    setSavingListing(true);
+    try {
+      const address = [listingForm.specific_address, listingForm.city, listingForm.region].filter(Boolean).join(", ") || listingForm.venue_name;
+      const amenities = ensureArray(listingForm.amenities);
+      const payload = { ...listingForm, address, amenities };
+      const url = editingVenueId ? `${API}/venue/listings/${editingVenueId}` : `${API}/venue/listings`;
+      const method = editingVenueId ? "PUT" : "POST";
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+      if (json.success) {
+        toast.success(editingVenueId ? "Listing updated" : "Listing created");
+        setShowListingModal(false);
+        const listRes = await fetch(`${API}/venue/my-listings`, { headers: { Authorization: `Bearer ${token}` } });
+        const listJson = await listRes.json();
+        if (listJson.success && listJson.venues) setOwnedVenues(listJson.venues);
+      } else {
+        toast.error(json.message || json.error || "Failed to save");
+      }
+    } catch (err) {
+      toast.error(err.message || "Failed to save");
+    } finally {
+      setSavingListing(false);
+    }
+  };
+
+  const deleteVenueListing = async (id) => {
+    if (!confirm("Delete this venue listing? It will no longer appear on the Venues page.")) return;
+    try {
+      const res = await fetch(`${API}/venue/listings/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) {
+        toast.success("Listing deleted");
+        setOwnedVenues((prev) => prev.filter((v) => v.id !== id));
+      } else {
+        const json = await res.json().catch(() => ({}));
+        toast.error(json.message || json.error || "Failed to delete");
+      }
+    } catch (err) {
+      toast.error(err.message || "Failed to delete");
+    }
+  };
+
+  const saveServiceDetails = async (e) => {
+    e.preventDefault();
+    setSavingService(true);
+    try {
+      const res = await fetch(`${API}/vendor/info`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(serviceForm),
+      });
+      const json = await res.json();
+      if (res.ok) {
+        toast.success("Service details updated!");
+        setShowServiceModal(false);
+        // Refresh vendor status to show updated info if needed
+        const statusRes = await fetch(`${API}/vendor/status`, { headers: { Authorization: `Bearer ${token}` } });
+        const statusJson = await statusRes.json();
+        if (statusJson && (statusJson.status !== undefined || statusJson.success)) {
+          setVendorStatus(statusJson);
+        }
+      } else {
+        toast.error(json.error || json.message || "Failed to update service");
+      }
+    } catch (err) {
+      toast.error(err.message || "Failed to update service");
+    } finally {
+      setSavingService(false);
+    }
+  };
 
   /* ================= CALENDAR: LOAD AVAILABILITY ================= */
   useEffect(() => {
@@ -532,6 +730,109 @@ export default function Profile() {
     });
 
     return { date: dateFormatted, time: timeFormatted, full: `${dateFormatted} at ${timeFormatted}` };
+  };
+
+  /* ================= LOAD ANALYTICS ================= */
+  const loadAnalytics = async () => {
+    if (!token || role !== 1) return; // Only for vendors/venue owners
+
+    setLoadingAnalytics(true);
+    try {
+      const res = await fetch(`${API}/vendor/analytics`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setAnalytics(data.analytics);
+      } else {
+        console.error('Failed to load analytics:', res.status);
+      }
+    } catch (err) {
+      console.error('Load analytics error:', err);
+    } finally {
+      setLoadingAnalytics(false);
+    }
+  };
+
+  /* ================= LOAD CLIENT ANALYTICS ================= */
+  const loadClientAnalytics = async () => {
+    if (!token || role !== 0) return;
+
+    setLoadingClientAnalytics(true);
+    try {
+      const [supplierRes, venueRes] = await Promise.all([
+        fetch(`${API}/bookings/user`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${API}/venue-bookings/user`, { headers: { Authorization: `Bearer ${token}` } })
+      ]);
+
+      const supplierData = supplierRes.ok ? await supplierRes.json() : { bookings: [] };
+      const venueData = venueRes.ok ? await venueRes.json() : { bookings: [] };
+
+      const supplierBookings = (supplierData.bookings || []).map(b => ({
+        ...b,
+        booking_type: 'supplier',
+        service_name: b.ServiceName || b.vendor_name
+      }));
+
+      const venueBookings = (venueData.bookings || []).map(b => ({
+        ...b,
+        booking_type: 'venue',
+        service_name: b.venue_name || b.ServiceName
+      }));
+
+      const allBookings = [...supplierBookings, ...venueBookings];
+
+      const now = new Date();
+      const totalBookings = allBookings.length;
+      const upcomingBookings = allBookings.filter(b => {
+        const eventDate = new Date(b.EventDate || b.start_date);
+        return (b.BookingStatus === 'Pending' || b.BookingStatus === 'Confirmed') && eventDate >= now;
+      }).length;
+      const completedBookings = allBookings.filter(b => b.BookingStatus === 'Completed').length;
+      const cancelledBookings = allBookings.filter(b => b.BookingStatus === 'Cancelled').length;
+
+      setClientAnalytics({
+        total_bookings: totalBookings,
+        upcoming_bookings: upcomingBookings,
+        completed_bookings: completedBookings,
+        cancelled_bookings: cancelledBookings
+      });
+
+      const sortedBookings = allBookings.sort((a, b) => {
+        const dateA = new Date(a.CreatedAt || a.BookingDate || 0);
+        const dateB = new Date(b.CreatedAt || b.BookingDate || 0);
+        return dateB - dateA;
+      });
+      setClientRecentBookings(sortedBookings.slice(0, 5));
+    } catch (error) {
+      console.error('Failed to load client analytics:', error);
+    } finally {
+      setLoadingClientAnalytics(false);
+    }
+  };
+
+  /* ================= LOAD ADMIN ANALYTICS ================= */
+  const loadAdminAnalytics = async () => {
+    if (!token || role !== 2) return;
+
+    setLoadingAdminAnalytics(true);
+    try {
+      const res = await fetch(`${API}/admin/analytics`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setAdminAnalytics(data.analytics);
+      } else {
+        console.error('Failed to load admin analytics:', res.status);
+      }
+    } catch (error) {
+      console.error('Failed to load admin analytics:', error);
+    } finally {
+      setLoadingAdminAnalytics(false);
+    }
   };
 
   /* ================= LOAD BOOKINGS ================= */
@@ -1039,18 +1340,26 @@ export default function Profile() {
   function dashboardHref() {
     if (role === 2) return "/admin";
     if (role === 1) {
+      const isVenue = vendorStatus?.category?.toLowerCase() === "venue";
+
       // Check if vendor needs profile setup
       if (vendorStatus && vendorStatus.needs_setup) {
-        return "/vendor-profile-setup";
+        // For venues, redirect to manage-listings to create venue listing
+        // For vendors, redirect to vendor-profile-setup
+        return isVenue ? "/manage-listings?venue" : "/vendor-profile-setup";
       }
-      return "/vendor-dashboard";
+      // Both venue and vendor redirect to manage-listings with appropriate query param
+      return isVenue ? "/manage-listings?venue" : "/manage-listings?vendor";
     }
     return null;
   }
 
   function dashboardLabel() {
     if (role === 2) return "Admin Panel";
-    if (role === 1) return "Manage Service";
+    if (role === 1) {
+      const isVenue = vendorStatus?.category?.toLowerCase() === "venue";
+      return isVenue ? "Manage Service" : "Manage Service";
+    }
     return null;
   }
 
@@ -1080,6 +1389,184 @@ export default function Profile() {
                         className="w-full h-full object-cover"
                         alt="Profile avatar"
                       />
+                    ) : role === 0 ? (
+                      /* CLIENT DASHBOARD ANALYTICS */
+                      <>
+                        <div className="flex justify-between items-center px-4 py-3 border-b border-gray-200 flex-shrink-0">
+                          <h2 className="text-base sm:text-lg font-bold text-gray-900 flex items-center gap-2">
+                            <svg className="w-5 h-5 text-[#7a5d47]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                            </svg>
+                            My Dashboard
+                          </h2>
+                          {loadingClientAnalytics && (
+                            <div className="w-4 h-4 border-2 border-[#7a5d47] border-t-transparent rounded-full animate-spin"></div>
+                          )}
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-4">
+                          {loadingClientAnalytics ? (
+                            <div className="flex items-center justify-center h-full">
+                              <div className="text-center">
+                                <div className="w-12 h-12 border-4 border-[#e8ddae] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                                <p className="text-gray-600">Loading dashboard...</p>
+                              </div>
+                            </div>
+                          ) : clientAnalytics ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              {/* Total Bookings */}
+                              <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200 shadow-sm hover:shadow-md transition-shadow">
+                                <div className="flex items-center justify-between mb-2">
+                                  <h3 className="text-sm font-semibold text-blue-900">Total Bookings</h3>
+                                  <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                  </svg>
+                                </div>
+                                <p className="text-3xl font-bold text-blue-700">{clientAnalytics.total_bookings}</p>
+                                <p className="text-xs text-blue-600 mt-1">All-time bookings</p>
+                              </div>
+
+                              {/* Upcoming Bookings */}
+                              <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 border border-green-200 shadow-sm hover:shadow-md transition-shadow">
+                                <div className="flex items-center justify-between mb-2">
+                                  <h3 className="text-sm font-semibold text-green-900">Upcoming</h3>
+                                  <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                  </svg>
+                                </div>
+                                <p className="text-3xl font-bold text-green-700">{clientAnalytics.upcoming_bookings}</p>
+                                <p className="text-xs text-green-600 mt-1">Pending & Confirmed</p>
+                              </div>
+
+                              {/* Completed Bookings */}
+                              <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4 border border-purple-200 shadow-sm hover:shadow-md transition-shadow">
+                                <div className="flex items-center justify-between mb-2">
+                                  <h3 className="text-sm font-semibold text-purple-900">Completed</h3>
+                                  <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                </div>
+                                <p className="text-3xl font-bold text-purple-700">{clientAnalytics.completed_bookings}</p>
+                                <p className="text-xs text-purple-600 mt-1">Successfully delivered</p>
+                              </div>
+
+                              {/* Cancelled Bookings */}
+                              <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl p-4 border border-red-200 shadow-sm hover:shadow-md transition-shadow">
+                                <div className="flex items-center justify-between mb-2">
+                                  <h3 className="text-sm font-semibold text-red-900">Cancelled</h3>
+                                  <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                </div>
+                                <p className="text-3xl font-bold text-red-700">{clientAnalytics.cancelled_bookings}</p>
+                                <p className="text-xs text-red-600 mt-1">Did not proceed</p>
+                              </div>
+
+                              {/* Recent Activity */}
+                              {clientRecentBookings.length > 0 && (
+                                <div className="col-span-1 sm:col-span-2 mt-4">
+                                  <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                                    <svg className="w-5 h-5 text-[#7a5d47]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    Recent Booking Activity
+                                  </h3>
+                                  <div className="space-y-2">
+                                    {clientRecentBookings.slice(0, 5).map((booking, idx) => (
+                                      <div key={idx} className="bg-white rounded-lg p-3 border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+                                        <div className="flex justify-between items-start">
+                                          <div className="flex-1">
+                                            <p className="font-semibold text-gray-900 text-sm">{booking.service_name || 'N/A'}</p>
+                                            <p className="text-xs text-gray-600 mt-1">
+                                              {new Date(booking.EventDate || booking.start_date).toLocaleDateString()}
+                                            </p>
+                                          </div>
+                                          <span className={`text-xs px-2 py-1 rounded-full font-medium ${booking.BookingStatus === 'Confirmed' ? 'bg-green-100 text-green-700' :
+                                            booking.BookingStatus === 'Pending' ? 'bg-yellow-100 text-yellow-700' :
+                                              booking.BookingStatus === 'Completed' ? 'bg-blue-100 text-blue-700' :
+                                                booking.BookingStatus === 'Cancelled' ? 'bg-red-100 text-red-700' :
+                                                  'bg-gray-100 text-gray-700'
+                                            }`}>
+                                            {booking.BookingStatus}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-center h-full">
+                              <div className="text-center">
+                                <svg className="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                </svg>
+                                <p className="text-gray-600">No dashboard data available</p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    ) : role === 2 ? (
+                      /* ADMIN DASHBOARD ANALYTICS */
+                      <>
+                        <div className="flex justify-between items-center px-4 py-3 border-b border-gray-200 flex-shrink-0">
+                          <h2 className="text-base sm:text-lg font-bold text-gray-900 flex items-center gap-2">
+                            <svg className="w-5 h-5 text-[#7a5d47]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                            </svg>
+                            Admin Dashboard
+                          </h2>
+                          {loadingAdminAnalytics && (
+                            <div className="w-4 h-4 border-2 border-[#7a5d47] border-t-transparent rounded-full animate-spin"></div>
+                          )}
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-4">
+                          {loadingAdminAnalytics ? (
+                            <div className="flex items-center justify-center h-full">
+                              <div className="text-center">
+                                <div className="w-12 h-12 border-4 border-[#e8ddae] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                                <p className="text-gray-600">Loading dashboard...</p>
+                              </div>
+                            </div>
+                          ) : adminAnalytics ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200 shadow-sm hover:shadow-md transition-shadow">
+                                <div className="flex items-center justify-between mb-2">
+                                  <h3 className="text-sm font-semibold text-blue-900">Total Users</h3>
+                                  <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                                  </svg>
+                                </div>
+                                <p className="text-3xl font-bold text-blue-700">{adminAnalytics.total_users}</p>
+                                <p className="text-xs text-blue-600 mt-1">All registered users</p>
+                              </div>
+
+                              <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 border border-green-200 shadow-sm hover:shadow-md transition-shadow">
+                                <div className="flex items-center justify-between mb-2">
+                                  <h3 className="text-sm font-semibold text-green-900">Event Service Providers</h3>
+                                  <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                  </svg>
+                                </div>
+                                <p className="text-3xl font-bold text-green-700">{adminAnalytics.total_providers}</p>
+                                <p className="text-xs text-green-600 mt-1">Active service providers</p>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-center h-full">
+                              <div className="text-center">
+                                <svg className="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                </svg>
+                                <p className="text-gray-600">No dashboard data available</p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </>
                     ) : (
                       <svg
                         viewBox="0 0 24 24"
@@ -1168,6 +1655,266 @@ export default function Profile() {
                     </button>
                   )}
 
+                  {/* Manage Listing Section */}
+                  {role === 1 && vendorStatus && !vendorStatus.needs_setup && (
+                    <div className="border-t border-[#c9bda4] pt-3 mt-3 space-y-2">
+                      <div className="flex items-center justify-between px-1">
+                        <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Manage My Listing</p>
+
+                      </div>
+
+                      {vendorStatus.category === "Venue" ? (
+                        <>
+
+
+                          {ownedVenues.length > 0 && (
+                            <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                              {ownedVenues.map((v) => (
+                                <div key={v.id} className="flex flex-col gap-1 bg-white/80 rounded p-2 border border-[#e8ddae]">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs truncate font-medium">{v.venue_name}</span>
+                                    <a href={`/venues/${v.id}`} target="_blank" rel="noopener noreferrer" className="text-[10px] text-gray-500 hover:text-[#7a5d47] ml-2">View</a>
+                                  </div>
+                                  <div className="flex gap-1">
+                                    <button type="button" onClick={() => openEditListing(v)} className="flex-1 text-[#7a5d47] text-xs px-1.5 py-1 rounded bg-[#fdfaf5] hover:bg-[#e8ddae] border border-[#e8ddae]">Edit</button>
+                                    <button type="button" onClick={() => deleteVenueListing(v.id)} className="text-red-600 text-xs px-2 py-1 rounded hover:bg-red-50 border border-transparent">Delete</button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </>
+                      ) : role === 0 ? (
+                        /* CLIENT DASHBOARD ANALYTICS */
+                        <>
+                          <div className="flex justify-between items-center px-4 py-3 border-b border-gray-200 flex-shrink-0">
+                            <h2 className="text-base sm:text-lg font-bold text-gray-900 flex items-center gap-2">
+                              <svg className="w-5 h-5 text-[#7a5d47]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                              </svg>
+                              My Dashboard
+                            </h2>
+                            {loadingClientAnalytics && (
+                              <div className="w-4 h-4 border-2 border-[#7a5d47] border-t-transparent rounded-full animate-spin"></div>
+                            )}
+                          </div>
+
+                          <div className="flex-1 overflow-y-auto p-4">
+                            {loadingClientAnalytics ? (
+                              <div className="flex items-center justify-center h-full">
+                                <div className="text-center">
+                                  <div className="w-12 h-12 border-4 border-[#e8ddae] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                                  <p className="text-gray-600">Loading dashboard...</p>
+                                </div>
+                              </div>
+                            ) : clientAnalytics ? (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                {/* Total Bookings */}
+                                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200 shadow-sm hover:shadow-md transition-shadow">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <h3 className="text-sm font-semibold text-blue-900">Total Bookings</h3>
+                                    <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                    </svg>
+                                  </div>
+                                  <p className="text-3xl font-bold text-blue-700">{clientAnalytics.total_bookings}</p>
+                                  <p className="text-xs text-blue-600 mt-1">All-time bookings</p>
+                                </div>
+
+                                {/* Upcoming Bookings */}
+                                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 border border-green-200 shadow-sm hover:shadow-md transition-shadow">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <h3 className="text-sm font-semibold text-green-900">Upcoming</h3>
+                                    <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                    </svg>
+                                  </div>
+                                  <p className="text-3xl font-bold text-green-700">{clientAnalytics.upcoming_bookings}</p>
+                                  <p className="text-xs text-green-600 mt-1">Pending & Confirmed</p>
+                                </div>
+
+                                {/* Completed Bookings */}
+                                <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4 border border-purple-200 shadow-sm hover:shadow-md transition-shadow">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <h3 className="text-sm font-semibold text-purple-900">Completed</h3>
+                                    <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                  </div>
+                                  <p className="text-3xl font-bold text-purple-700">{clientAnalytics.completed_bookings}</p>
+                                  <p className="text-xs text-purple-600 mt-1">Successfully delivered</p>
+                                </div>
+
+                                {/* Cancelled Bookings */}
+                                <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl p-4 border border-red-200 shadow-sm hover:shadow-md transition-shadow">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <h3 className="text-sm font-semibold text-red-900">Cancelled</h3>
+                                    <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                  </div>
+                                  <p className="text-3xl font-bold text-red-700">{clientAnalytics.cancelled_bookings}</p>
+                                  <p className="text-xs text-red-600 mt-1">Did not proceed</p>
+                                </div>
+
+                                {/* Recent Activity */}
+                                {clientRecentBookings.length > 0 && (
+                                  <div className="col-span-1 sm:col-span-2 mt-4">
+                                    <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                                      <svg className="w-5 h-5 text-[#7a5d47]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                      </svg>
+                                      Recent Booking Activity
+                                    </h3>
+                                    <div className="space-y-2">
+                                      {clientRecentBookings.slice(0, 5).map((booking, idx) => (
+                                        <div key={idx} className="bg-white rounded-lg p-3 border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+                                          <div className="flex justify-between items-start">
+                                            <div className="flex-1">
+                                              <p className="font-semibold text-gray-900 text-sm">{booking.service_name || 'N/A'}</p>
+                                              <p className="text-xs text-gray-600 mt-1">
+                                                {new Date(booking.EventDate || booking.start_date).toLocaleDateString()}
+                                              </p>
+                                            </div>
+                                            <span className={`text-xs px-2 py-1 rounded-full font-medium ${booking.BookingStatus === 'Confirmed' ? 'bg-green-100 text-green-700' :
+                                              booking.BookingStatus === 'Pending' ? 'bg-yellow-100 text-yellow-700' :
+                                                booking.BookingStatus === 'Completed' ? 'bg-blue-100 text-blue-700' :
+                                                  booking.BookingStatus === 'Cancelled' ? 'bg-red-100 text-red-700' :
+                                                    'bg-gray-100 text-gray-700'
+                                              }`}>
+                                              {booking.BookingStatus}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-center h-full">
+                                <div className="text-center">
+                                  <svg className="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                  </svg>
+                                  <p className="text-gray-600">No dashboard data available</p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      ) : role === 2 ? (
+                        /* ADMIN DASHBOARD ANALYTICS */
+                        <>
+                          <div className="flex justify-between items-center px-4 py-3 border-b border-gray-200 flex-shrink-0">
+                            <h2 className="text-base sm:text-lg font-bold text-gray-900 flex items-center gap-2">
+                              <svg className="w-5 h-5 text-[#7a5d47]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                              </svg>
+                              Admin Dashboard
+                            </h2>
+                            {loadingAdminAnalytics && (
+                              <div className="w-4 h-4 border-2 border-[#7a5d47] border-t-transparent rounded-full animate-spin"></div>
+                            )}
+                          </div>
+
+                          <div className="flex-1 overflow-y-auto p-4">
+                            {loadingAdminAnalytics ? (
+                              <div className="flex items-center justify-center h-full">
+                                <div className="text-center">
+                                  <div className="w-12 h-12 border-4 border-[#e8ddae] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                                  <p className="text-gray-600">Loading dashboard...</p>
+                                </div>
+                              </div>
+                            ) : adminAnalytics ? (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200 shadow-sm hover:shadow-md transition-shadow">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <h3 className="text-sm font-semibold text-blue-900">Total Users</h3>
+                                    <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                                    </svg>
+                                  </div>
+                                  <p className="text-3xl font-bold text-blue-700">{adminAnalytics.total_users}</p>
+                                  <p className="text-xs text-blue-600 mt-1">All registered users</p>
+                                </div>
+
+                                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 border border-green-200 shadow-sm hover:shadow-md transition-shadow">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <h3 className="text-sm font-semibold text-green-900">Event Service Providers</h3>
+                                    <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                    </svg>
+                                  </div>
+                                  <p className="text-3xl font-bold text-green-700">{adminAnalytics.total_providers}</p>
+                                  <p className="text-xs text-green-600 mt-1">Active service providers</p>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-center h-full">
+                                <div className="text-center">
+                                  <svg className="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                  </svg>
+                                  <p className="text-gray-600">No dashboard data available</p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      ) : (
+                        <div className="bg-white/50 rounded p-2 border border-[#e8ddae]">
+                          {vendorStatus.category?.toLowerCase() === "venue" ? (
+                            // Show venue listing info for venue users
+                            ownedVenues.length > 0 ? (
+                              <>
+                                <p className="text-xs font-medium text-[#5d4436] mb-1 truncate">{ownedVenues[0].venue_name || "My Venue"}</p>
+                                <p className="text-[10px] text-gray-500 mb-2 line-clamp-1">{ownedVenues[0].venue_subcategory || "Venue"}</p>
+                                {ownedVenues.length > 1 && (
+                                  <p className="text-[10px] text-gray-400 mb-2">+{ownedVenues.length - 1} more venue(s)</p>
+                                )}
+                              </>
+                            ) : (
+                              <>
+                                <p className="text-xs font-medium text-[#5d4436] mb-1 truncate">No venue listings yet</p>
+                                <p className="text-[10px] text-gray-500 mb-2 line-clamp-1">Create your first venue</p>
+                              </>
+                            )
+                          ) : (
+                            // Show vendor info for non-venue vendors
+                            <>
+                              <p className="text-xs font-medium text-[#5d4436] mb-1 truncate">{vendorStatus.business_name || "My Service"}</p>
+                              <p className="text-[10px] text-gray-500 mb-2 line-clamp-1">{vendorStatus.category || "Vendor"}</p>
+                            </>
+                          )}
+                          <button
+                            onClick={() => {
+                              if (vendorStatus.category?.toLowerCase() === "venue") {
+                                // For venues, open the listing modal or navigate to manage
+                                if (ownedVenues.length > 0) {
+                                  openEditListing(ownedVenues[0]);
+                                } else {
+                                  setShowListingModal(true);
+                                }
+                              } else {
+                                setServiceForm({
+                                  bio: vendorStatus.bio || "",
+                                  services: vendorStatus.services || "",
+                                  service_areas: vendorStatus.service_areas || "",
+                                  address: vendorStatus.address || vendorStatus.business_address || ""
+                                });
+                                setShowServiceModal(true);
+                              }
+                            }}
+                            className="w-full bg-[#e8ddae] text-[#3b2f25] px-2 py-1.5 rounded text-xs font-semibold hover:bg-[#dbcf9f] transition-colors mb-1"
+                          >
+                            {vendorStatus.category?.toLowerCase() === "venue" ? (ownedVenues.length > 0 ? "Edit Venue" : "Add Venue") : "Edit Listing Details"}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {dashboardHref() && dashboardLabel() && (
                     <a
                       href={dashboardHref()}
@@ -1187,77 +1934,664 @@ export default function Profile() {
                       className={`w-full bg-gradient-to-r from-[#7a5d47] to-[#5d4436] text-white px-4 py-3 rounded-lg text-sm font-semibold hover:opacity-90 shadow-md ${vendorStatus && vendorStatus.status === "pending" ? "opacity-50 cursor-not-allowed" : ""
                         }`}
                     >
-                      {vendorStatus && vendorStatus.status === "pending" ? "Application Pending" : "Join as Supplier"}
+                      {vendorStatus && vendorStatus.status === "pending" ? "Application Pending" : "Join as Event Service Provider"}
                     </button>
                   )}
                 </div>
               </div>
             </div>
 
-            {/* RIGHT COLUMN - FAVORITES */}
+            {/* RIGHT COLUMN - ANALYTICS DASHBOARD (for vendors) OR FAVORITES (for clients) */}
             <div className="lg:col-span-3 mt-4 lg:mt-0">
               <div className="bg-white rounded-2xl shadow-lg border border-[#c9bda4] overflow-hidden flex flex-col" style={{ height: 'calc(100vh - 180px)' }}>
-                <div className="flex justify-between items-center px-4 py-3 border-b border-gray-200 flex-shrink-0">
-                  <h2 className="text-base sm:text-lg font-bold text-gray-900 flex items-center gap-2">
-                    <svg className="w-5 h-5 text-[#7a5d47]" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
-                    </svg>
-                    Favorites
-                  </h2>
-                  <span className="text-xs text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full font-medium">
-                    2 items
-                  </span>
-                </div>
 
-                <div className="flex-1 overflow-y-auto">
-                  <div className="group relative overflow-hidden cursor-pointer transition-transform duration-300 hover:-translate-y-2">
-                    <img
-                      src="/images/gallery1.jpg"
-                      className="w-full h-72 object-cover"
-                      alt="Favorite 1"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/25 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                      <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
-                        <h3 className="text-xl font-bold mb-1">Kids Party Venue</h3>
-                        <p className="text-xs text-gray-200 mb-2">Perfect space for children's celebrations</p>
-                        <button className="w-full bg-[#7a5d47] text-white px-4 py-2 rounded-lg text-xs font-semibold hover:bg-[#5d4436] transition-colors">
-                          View Details
-                        </button>
-                      </div>
+                {/* ANALYTICS DASHBOARD FOR VENDORS/VENUE OWNERS */}
+                {role === 1 ? (
+                  <>
+                    <div className="flex justify-between items-center px-4 py-3 border-b border-gray-200 flex-shrink-0">
+                      <h2 className="text-base sm:text-lg font-bold text-gray-900 flex items-center gap-2">
+                        <svg className="w-5 h-5 text-[#7a5d47]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
+                        Dashboard Analytics
+                      </h2>
+                      {loadingAnalytics && (
+                        <div className="w-4 h-4 border-2 border-[#7a5d47] border-t-transparent rounded-full animate-spin"></div>
+                      )}
                     </div>
-                  </div>
 
-                  <div className="group relative overflow-hidden cursor-pointer transition-transform duration-300 hover:-translate-y-2">
-                    <img
-                      src="/images/gallery2.jpg"
-                      className="w-full h-72 object-cover"
-                      alt="Favorite 2"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/25 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                      <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
-                        <h3 className="text-xl font-bold mb-1">Wedding Venue</h3>
-                        <p className="text-xs text-gray-200 mb-2">Elegant outdoor ceremony space</p>
-                        <button className="w-full bg-[#7a5d47] text-white px-4 py-2 rounded-lg text-xs font-semibold hover:bg-[#5d4436] transition-colors">
-                          View Details
-                        </button>
-                      </div>
+                    <div className="flex-1 overflow-y-auto p-4">
+                      {loadingAnalytics ? (
+                        <div className="flex items-center justify-center h-full">
+                          <div className="text-center">
+                            <div className="w-12 h-12 border-4 border-[#e8ddae] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                            <p className="text-gray-600">Loading analytics...</p>
+                          </div>
+                        </div>
+                      ) : analytics ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          {/* Total Bookings */}
+                          <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200 shadow-sm hover:shadow-md transition-shadow">
+                            <div className="flex items-center justify-between mb-2">
+                              <h3 className="text-sm font-semibold text-blue-900">Total Bookings</h3>
+                              <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                              </svg>
+                            </div>
+                            <p className="text-3xl font-bold text-blue-700">{analytics.total_bookings}</p>
+                            <p className="text-xs text-blue-600 mt-1">All-time bookings</p>
+                          </div>
+
+                          {/* Upcoming Bookings */}
+                          <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 border border-green-200 shadow-sm hover:shadow-md transition-shadow">
+                            <div className="flex items-center justify-between mb-2">
+                              <h3 className="text-sm font-semibold text-green-900">Upcoming</h3>
+                              <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
+                            </div>
+                            <p className="text-3xl font-bold text-green-700">{analytics.upcoming_bookings}</p>
+                            <p className="text-xs text-green-600 mt-1">Pending & Confirmed</p>
+                          </div>
+
+                          {/* Completed Bookings */}
+                          <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4 border border-purple-200 shadow-sm hover:shadow-md transition-shadow">
+                            <div className="flex items-center justify-between mb-2">
+                              <h3 className="text-sm font-semibold text-purple-900">Completed</h3>
+                              <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                            </div>
+                            <p className="text-3xl font-bold text-purple-700">{analytics.completed_bookings}</p>
+                            <p className="text-xs text-purple-600 mt-1">Successfully delivered</p>
+                          </div>
+
+                          {/* Cancelled Bookings */}
+                          <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl p-4 border border-red-200 shadow-sm hover:shadow-md transition-shadow">
+                            <div className="flex items-center justify-between mb-2">
+                              <h3 className="text-sm font-semibold text-red-900">Cancelled</h3>
+                              <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                            </div>
+                            <p className="text-3xl font-bold text-red-700">{analytics.cancelled_bookings}</p>
+                            <p className="text-xs text-red-600 mt-1">Did not proceed</p>
+                          </div>
+
+                          {/* Average Rating */}
+                          <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-xl p-4 border border-yellow-200 shadow-sm hover:shadow-md transition-shadow">
+                            <div className="flex items-center justify-between mb-2">
+                              <h3 className="text-sm font-semibold text-yellow-900">Average Rating</h3>
+                              <svg className="w-6 h-6 text-yellow-600" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+                              </svg>
+                            </div>
+                            <p className="text-3xl font-bold text-yellow-700">{analytics.average_rating > 0 ? analytics.average_rating.toFixed(1) : 'N/A'}</p>
+                            <p className="text-xs text-yellow-600 mt-1">Out of 5.0 stars</p>
+                          </div>
+
+                          {/* Total Reviews */}
+                          <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-4 border border-orange-200 shadow-sm hover:shadow-md transition-shadow">
+                            <div className="flex items-center justify-between mb-2">
+                              <h3 className="text-sm font-semibold text-orange-900">Total Reviews</h3>
+                              <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                              </svg>
+                            </div>
+                            <p className="text-3xl font-bold text-orange-700">{analytics.total_reviews}</p>
+                            <p className="text-xs text-orange-600 mt-1">Customer feedback</p>
+                          </div>
+                        </div>
+                      ) : role === 0 ? (
+                        /* CLIENT DASHBOARD ANALYTICS */
+                        <>
+                          <div className="flex justify-between items-center px-4 py-3 border-b border-gray-200 flex-shrink-0">
+                            <h2 className="text-base sm:text-lg font-bold text-gray-900 flex items-center gap-2">
+                              <svg className="w-5 h-5 text-[#7a5d47]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                              </svg>
+                              My Dashboard
+                            </h2>
+                            {loadingClientAnalytics && (
+                              <div className="w-4 h-4 border-2 border-[#7a5d47] border-t-transparent rounded-full animate-spin"></div>
+                            )}
+                          </div>
+
+                          <div className="flex-1 overflow-y-auto p-4">
+                            {loadingClientAnalytics ? (
+                              <div className="flex items-center justify-center h-full">
+                                <div className="text-center">
+                                  <div className="w-12 h-12 border-4 border-[#e8ddae] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                                  <p className="text-gray-600">Loading dashboard...</p>
+                                </div>
+                              </div>
+                            ) : clientAnalytics ? (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                {/* Total Bookings */}
+                                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200 shadow-sm hover:shadow-md transition-shadow">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <h3 className="text-sm font-semibold text-blue-900">Total Bookings</h3>
+                                    <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                    </svg>
+                                  </div>
+                                  <p className="text-3xl font-bold text-blue-700">{clientAnalytics.total_bookings}</p>
+                                  <p className="text-xs text-blue-600 mt-1">All-time bookings</p>
+                                </div>
+
+                                {/* Upcoming Bookings */}
+                                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 border border-green-200 shadow-sm hover:shadow-md transition-shadow">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <h3 className="text-sm font-semibold text-green-900">Upcoming</h3>
+                                    <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                    </svg>
+                                  </div>
+                                  <p className="text-3xl font-bold text-green-700">{clientAnalytics.upcoming_bookings}</p>
+                                  <p className="text-xs text-green-600 mt-1">Pending & Confirmed</p>
+                                </div>
+
+                                {/* Completed Bookings */}
+                                <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4 border border-purple-200 shadow-sm hover:shadow-md transition-shadow">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <h3 className="text-sm font-semibold text-purple-900">Completed</h3>
+                                    <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                  </div>
+                                  <p className="text-3xl font-bold text-purple-700">{clientAnalytics.completed_bookings}</p>
+                                  <p className="text-xs text-purple-600 mt-1">Successfully delivered</p>
+                                </div>
+
+                                {/* Cancelled Bookings */}
+                                <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl p-4 border border-red-200 shadow-sm hover:shadow-md transition-shadow">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <h3 className="text-sm font-semibold text-red-900">Cancelled</h3>
+                                    <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                  </div>
+                                  <p className="text-3xl font-bold text-red-700">{clientAnalytics.cancelled_bookings}</p>
+                                  <p className="text-xs text-red-600 mt-1">Did not proceed</p>
+                                </div>
+
+                                {/* Recent Activity */}
+                                {clientRecentBookings.length > 0 && (
+                                  <div className="col-span-1 sm:col-span-2 mt-4">
+                                    <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                                      <svg className="w-5 h-5 text-[#7a5d47]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                      </svg>
+                                      Recent Booking Activity
+                                    </h3>
+                                    <div className="space-y-2">
+                                      {clientRecentBookings.slice(0, 5).map((booking, idx) => (
+                                        <div key={idx} className="bg-white rounded-lg p-3 border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+                                          <div className="flex justify-between items-start">
+                                            <div className="flex-1">
+                                              <p className="font-semibold text-gray-900 text-sm">{booking.service_name || 'N/A'}</p>
+                                              <p className="text-xs text-gray-600 mt-1">
+                                                {new Date(booking.EventDate || booking.start_date).toLocaleDateString()}
+                                              </p>
+                                            </div>
+                                            <span className={`text-xs px-2 py-1 rounded-full font-medium ${booking.BookingStatus === 'Confirmed' ? 'bg-green-100 text-green-700' :
+                                              booking.BookingStatus === 'Pending' ? 'bg-yellow-100 text-yellow-700' :
+                                                booking.BookingStatus === 'Completed' ? 'bg-blue-100 text-blue-700' :
+                                                  booking.BookingStatus === 'Cancelled' ? 'bg-red-100 text-red-700' :
+                                                    'bg-gray-100 text-gray-700'
+                                              }`}>
+                                              {booking.BookingStatus}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-center h-full">
+                                <div className="text-center">
+                                  <svg className="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                  </svg>
+                                  <p className="text-gray-600">No dashboard data available</p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      ) : role === 2 ? (
+                        /* ADMIN DASHBOARD ANALYTICS */
+                        <>
+                          <div className="flex justify-between items-center px-4 py-3 border-b border-gray-200 flex-shrink-0">
+                            <h2 className="text-base sm:text-lg font-bold text-gray-900 flex items-center gap-2">
+                              <svg className="w-5 h-5 text-[#7a5d47]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                              </svg>
+                              Admin Dashboard
+                            </h2>
+                            {loadingAdminAnalytics && (
+                              <div className="w-4 h-4 border-2 border-[#7a5d47] border-t-transparent rounded-full animate-spin"></div>
+                            )}
+                          </div>
+
+                          <div className="flex-1 overflow-y-auto p-4">
+                            {loadingAdminAnalytics ? (
+                              <div className="flex items-center justify-center h-full">
+                                <div className="text-center">
+                                  <div className="w-12 h-12 border-4 border-[#e8ddae] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                                  <p className="text-gray-600">Loading dashboard...</p>
+                                </div>
+                              </div>
+                            ) : adminAnalytics ? (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200 shadow-sm hover:shadow-md transition-shadow">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <h3 className="text-sm font-semibold text-blue-900">Total Users</h3>
+                                    <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                                    </svg>
+                                  </div>
+                                  <p className="text-3xl font-bold text-blue-700">{adminAnalytics.total_users}</p>
+                                  <p className="text-xs text-blue-600 mt-1">All registered users</p>
+                                </div>
+
+                                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 border border-green-200 shadow-sm hover:shadow-md transition-shadow">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <h3 className="text-sm font-semibold text-green-900">Event Service Providers</h3>
+                                    <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                    </svg>
+                                  </div>
+                                  <p className="text-3xl font-bold text-green-700">{adminAnalytics.total_providers}</p>
+                                  <p className="text-xs text-green-600 mt-1">Active service providers</p>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-center h-full">
+                                <div className="text-center">
+                                  <svg className="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                  </svg>
+                                  <p className="text-gray-600">No dashboard data available</p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      ) : (
+                        <div className="flex items-center justify-center h-full">
+                          <div className="text-center">
+                            <svg className="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                            </svg>
+                            <p className="text-gray-600">No analytics data available</p>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                </div>
+                  </>
+                ) : role === 0 ? (
+                  /* CLIENT DASHBOARD ANALYTICS */
+                  <>
+                    <div className="flex justify-between items-center px-4 py-3 border-b border-gray-200 flex-shrink-0">
+                      <h2 className="text-base sm:text-lg font-bold text-gray-900 flex items-center gap-2">
+                        <svg className="w-5 h-5 text-[#7a5d47]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
+                        My Dashboard
+                      </h2>
+                      {loadingClientAnalytics && (
+                        <div className="w-4 h-4 border-2 border-[#7a5d47] border-t-transparent rounded-full animate-spin"></div>
+                      )}
+                    </div>
 
-                <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 flex-shrink-0">
-                  <button className="w-full bg-[#7a5d47] text-white px-6 py-2 rounded-lg hover:opacity-90 font-semibold flex items-center justify-center gap-2 text-sm">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                    </svg>
-                    Compare Favorites
-                  </button>
-                </div>
+                    <div className="flex-1 overflow-y-auto p-4">
+                      {loadingClientAnalytics ? (
+                        <div className="flex items-center justify-center h-full">
+                          <div className="text-center">
+                            <div className="w-12 h-12 border-4 border-[#e8ddae] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                            <p className="text-gray-600">Loading dashboard...</p>
+                          </div>
+                        </div>
+                      ) : clientAnalytics ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          {/* Total Bookings */}
+                          <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200 shadow-sm hover:shadow-md transition-shadow">
+                            <div className="flex items-center justify-between mb-2">
+                              <h3 className="text-sm font-semibold text-blue-900">Total Bookings</h3>
+                              <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                              </svg>
+                            </div>
+                            <p className="text-3xl font-bold text-blue-700">{clientAnalytics.total_bookings}</p>
+                            <p className="text-xs text-blue-600 mt-1">All-time bookings</p>
+                          </div>
+
+                          {/* Upcoming Bookings */}
+                          <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 border border-green-200 shadow-sm hover:shadow-md transition-shadow">
+                            <div className="flex items-center justify-between mb-2">
+                              <h3 className="text-sm font-semibold text-green-900">Upcoming</h3>
+                              <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
+                            </div>
+                            <p className="text-3xl font-bold text-green-700">{clientAnalytics.upcoming_bookings}</p>
+                            <p className="text-xs text-green-600 mt-1">Pending & Confirmed</p>
+                          </div>
+
+                          {/* Completed Bookings */}
+                          <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4 border border-purple-200 shadow-sm hover:shadow-md transition-shadow">
+                            <div className="flex items-center justify-between mb-2">
+                              <h3 className="text-sm font-semibold text-purple-900">Completed</h3>
+                              <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                            </div>
+                            <p className="text-3xl font-bold text-purple-700">{clientAnalytics.completed_bookings}</p>
+                            <p className="text-xs text-purple-600 mt-1">Successfully delivered</p>
+                          </div>
+
+                          {/* Cancelled Bookings */}
+                          <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl p-4 border border-red-200 shadow-sm hover:shadow-md transition-shadow">
+                            <div className="flex items-center justify-between mb-2">
+                              <h3 className="text-sm font-semibold text-red-900">Cancelled</h3>
+                              <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                            </div>
+                            <p className="text-3xl font-bold text-red-700">{clientAnalytics.cancelled_bookings}</p>
+                            <p className="text-xs text-red-600 mt-1">Did not proceed</p>
+                          </div>
+
+                          {/* Recent Activity */}
+                          {clientRecentBookings.length > 0 && (
+                            <div className="col-span-1 sm:col-span-2 mt-4">
+                              <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                                <svg className="w-5 h-5 text-[#7a5d47]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                Recent Booking Activity
+                              </h3>
+                              <div className="space-y-2">
+                                {clientRecentBookings.slice(0, 5).map((booking, idx) => (
+                                  <div key={idx} className="bg-white rounded-lg p-3 border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+                                    <div className="flex justify-between items-start">
+                                      <div className="flex-1">
+                                        <p className="font-semibold text-gray-900 text-sm">{booking.service_name || 'N/A'}</p>
+                                        <p className="text-xs text-gray-600 mt-1">
+                                          {new Date(booking.EventDate || booking.start_date).toLocaleDateString()}
+                                        </p>
+                                      </div>
+                                      <span className={`text-xs px-2 py-1 rounded-full font-medium ${booking.BookingStatus === 'Confirmed' ? 'bg-green-100 text-green-700' :
+                                        booking.BookingStatus === 'Pending' ? 'bg-yellow-100 text-yellow-700' :
+                                          booking.BookingStatus === 'Completed' ? 'bg-blue-100 text-blue-700' :
+                                            booking.BookingStatus === 'Cancelled' ? 'bg-red-100 text-red-700' :
+                                              'bg-gray-100 text-gray-700'
+                                        }`}>
+                                        {booking.BookingStatus}
+                                      </span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-center h-full">
+                          <div className="text-center">
+                            <svg className="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                            </svg>
+                            <p className="text-gray-600">No dashboard data available</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                ) : role === 2 ? (
+                  /* ADMIN DASHBOARD ANALYTICS */
+                  <>
+                    <div className="flex justify-between items-center px-4 py-3 border-b border-gray-200 flex-shrink-0">
+                      <h2 className="text-base sm:text-lg font-bold text-gray-900 flex items-center gap-2">
+                        <svg className="w-5 h-5 text-[#7a5d47]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
+                        Admin Dashboard
+                      </h2>
+                      {loadingAdminAnalytics && (
+                        <div className="w-4 h-4 border-2 border-[#7a5d47] border-t-transparent rounded-full animate-spin"></div>
+                      )}
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto p-4">
+                      {loadingAdminAnalytics ? (
+                        <div className="flex items-center justify-center h-full">
+                          <div className="text-center">
+                            <div className="w-12 h-12 border-4 border-[#e8ddae] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                            <p className="text-gray-600">Loading dashboard...</p>
+                          </div>
+                        </div>
+                      ) : adminAnalytics ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200 shadow-sm hover:shadow-md transition-shadow">
+                            <div className="flex items-center justify-between mb-2">
+                              <h3 className="text-sm font-semibold text-blue-900">Total Users</h3>
+                              <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                              </svg>
+                            </div>
+                            <p className="text-3xl font-bold text-blue-700">{adminAnalytics.total_users}</p>
+                            <p className="text-xs text-blue-600 mt-1">All registered users</p>
+                          </div>
+
+                          <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 border border-green-200 shadow-sm hover:shadow-md transition-shadow">
+                            <div className="flex items-center justify-between mb-2">
+                              <h3 className="text-sm font-semibold text-green-900">Event Service Providers</h3>
+                              <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                              </svg>
+                            </div>
+                            <p className="text-3xl font-bold text-green-700">{adminAnalytics.total_providers}</p>
+                            <p className="text-xs text-green-600 mt-1">Active service providers</p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-center h-full">
+                          <div className="text-center">
+                            <svg className="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                            </svg>
+                            <p className="text-gray-600">No dashboard data available</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  /* FALLBACK - Should not reach here */
+                  <div className="flex items-center justify-center h-full">
+                    <p className="text-gray-600">Dashboard not available</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
         </div>
       </main>
+
+      {/* ================= VENUE LISTING MODAL (Profile) ================= */}
+      {showListingModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => !savingListing && setShowListingModal(false)}>
+          <div className="bg-white rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-xl font-bold mb-4">{editingVenueId ? "Edit venue listing" : "Add venue listing"}</h2>
+            <p className="text-sm text-gray-600 mb-4">This listing will appear on the Venues page.</p>
+            <form onSubmit={saveVenueListing} className="space-y-3">
+              <input
+                placeholder="Venue name *"
+                className="w-full p-2 border rounded"
+                value={listingForm.venue_name}
+                onChange={(e) => setListingForm((f) => ({ ...f, venue_name: e.target.value }))}
+                required
+              />
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Region</label>
+                <select
+                  className="w-full p-2 border rounded"
+                  value={listingForm.region}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setListingForm((f) => ({ ...f, region: v, city: "" }));
+                    setListingRegion(v);
+                    if (v) fetchCitiesForListing(v);
+                  }}
+                >
+                  <option value="">Select region</option>
+                  {regions.map((r) => (
+                    <option key={r.region_code} value={r.region_code}>{r.region_name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">City</label>
+                <select
+                  className="w-full p-2 border rounded"
+                  value={listingForm.city}
+                  onChange={(e) => setListingForm((f) => ({ ...f, city: e.target.value }))}
+                  disabled={!listingRegion}
+                >
+                  <option value="">Select city</option>
+                  {cities.map((c) => (
+                    <option key={c.city_code} value={c.city_name}>{c.city_name}</option>
+                  ))}
+                </select>
+              </div>
+              <input
+                placeholder="Specific address (street, barangay)"
+                className="w-full p-2 border rounded"
+                value={listingForm.specific_address}
+                onChange={(e) => setListingForm((f) => ({ ...f, specific_address: e.target.value }))}
+              />
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Venue type</label>
+                <select
+                  className="w-full p-2 border rounded"
+                  value={listingForm.venue_subcategory}
+                  onChange={(e) => setListingForm((f) => ({ ...f, venue_subcategory: e.target.value }))}
+                >
+                  <option value="">Select type</option>
+                  <option value="Church">Church</option>
+                  <option value="Garden">Garden</option>
+                  <option value="Resort">Resort</option>
+                  <option value="Conference">Conference</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  placeholder="Capacity"
+                  type="number"
+                  className="w-full p-2 border rounded"
+                  value={listingForm.venue_capacity}
+                  onChange={(e) => setListingForm((f) => ({ ...f, venue_capacity: e.target.value }))}
+                />
+                <input
+                  placeholder="Pricing"
+                  className="w-full p-2 border rounded"
+                  value={listingForm.pricing}
+                  onChange={(e) => setListingForm((f) => ({ ...f, pricing: e.target.value }))}
+                />
+              </div>
+              <textarea
+                placeholder="Description"
+                className="w-full p-2 border rounded h-20"
+                value={listingForm.description}
+                onChange={(e) => setListingForm((f) => ({ ...f, description: e.target.value }))}
+              />
+              <input
+                placeholder="Amenities (comma-separated)"
+                className="w-full p-2 border rounded"
+                value={listingForm.amenities}
+                onChange={(e) => setListingForm((f) => ({ ...f, amenities: e.target.value }))}
+              />
+              <input
+                placeholder="Image URL (hero)"
+                className="w-full p-2 border rounded"
+                value={listingForm.hero_image}
+                onChange={(e) => setListingForm((f) => ({ ...f, hero_image: e.target.value }))}
+              />
+              <div className="flex gap-2 justify-end pt-2">
+                <button type="button" onClick={() => setShowListingModal(false)} disabled={savingListing} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">
+                  Cancel
+                </button>
+                <button type="submit" disabled={savingListing} className="px-6 py-2 bg-[#7a5d47] text-white rounded hover:bg-[#6a503d] disabled:opacity-50">
+                  {savingListing ? "Saving…" : "Save"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= EDIT SERVICE MODAL (For Non-Venue Vendors) ================= */}
+      {showServiceModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => !savingService && setShowServiceModal(false)}>
+          <div className="bg-white rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-xl font-bold mb-4">Edit Service Details</h2>
+            <p className="text-sm text-gray-600 mb-4">Update your service information presented to clients.</p>
+            <form onSubmit={saveServiceDetails} className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">About your service (Bio)</label>
+                <textarea
+                  placeholder="Tell clients about what you do..."
+                  className="w-full p-2 border rounded h-24"
+                  value={serviceForm.bio}
+                  onChange={(e) => setServiceForm(f => ({ ...f, bio: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Services Offered</label>
+                <textarea
+                  placeholder="List your specific services..."
+                  className="w-full p-2 border rounded h-16"
+                  value={serviceForm.services}
+                  onChange={(e) => setServiceForm(f => ({ ...f, services: e.target.value }))}
+                />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Service Areas</label>
+                  <input
+                    placeholder="e.g. Metro Manila, Cavite"
+                    className="w-full p-2 border rounded"
+                    value={serviceForm.service_areas}
+                    onChange={(e) => setServiceForm(f => ({ ...f, service_areas: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Business Address</label>
+                  <input
+                    placeholder="Your office or base location"
+                    className="w-full p-2 border rounded"
+                    value={serviceForm.address}
+                    onChange={(e) => setServiceForm(f => ({ ...f, address: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2 justify-end pt-4 border-t border-gray-100">
+                <button type="button" onClick={() => setShowServiceModal(false)} disabled={savingService} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">
+                  Cancel
+                </button>
+                <button type="submit" disabled={savingService} className="px-6 py-2 bg-[#7a5d47] text-white rounded hover:bg-[#6a503d] disabled:opacity-50">
+                  {savingService ? "Saving..." : "Save Changes"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* ================= BOOKINGS MODAL WITH TABS ================= */}
       {showBookingsModal && (
@@ -1476,21 +2810,29 @@ export default function Profile() {
                                   {role === 1 ? `Client: ${booking.client_name}` : (booking.isVenueBooking || booking.booking_type === "venue" ? `Venue: ${booking.venue_name || booking.ServiceName}` : `Vendor: ${booking.vendor_name}`)}
                                 </p>
                               </div>
-                              <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusBadge(booking.BookingStatus)}`}>
-                                {booking.BookingStatus}
-                              </span>
+                              {(() => {
+                                let displayStatus = booking.BookingStatus;
+                                if (rescheduleHistory && rescheduleHistory.length > 0) {
+                                  const latest = [...rescheduleHistory].sort((a, b) => b.ID - a.ID)[0];
+                                  if (latest && latest.Status === 'Rejected') displayStatus = 'Rejected';
+                                }
+                                return (
+                                  <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusBadge(displayStatus)}`}>
+                                    {displayStatus}
+                                  </span>
+                                );
+                              })()}
                             </div>
 
                             {rescheduleHistory.map((reschedule) => (
                               <div
                                 key={reschedule.ID}
-                                className={`mb-3 p-3 rounded border-l-4 ${
-                                  reschedule.Status === 'Approved'
-                                    ? 'bg-green-50 border-green-500'
-                                    : reschedule.Status === 'Pending'
+                                className={`mb-3 p-3 rounded border-l-4 ${reschedule.Status === 'Approved'
+                                  ? 'bg-green-50 border-green-500'
+                                  : reschedule.Status === 'Pending'
                                     ? 'bg-yellow-50 border-yellow-500'
                                     : 'bg-red-50 border-red-500'
-                                }`}
+                                  }`}
                               >
                                 <div className="flex items-start gap-2">
                                   <div className="flex-1">
@@ -1498,8 +2840,8 @@ export default function Profile() {
                                       {reschedule.Status === 'Approved'
                                         ? '✅ Approved Reschedule'
                                         : reschedule.Status === 'Pending'
-                                        ? '⏳ Awaiting Approval'
-                                        : '❌ Rejected Reschedule'}
+                                          ? '⏳ Awaiting Approval'
+                                          : '❌ Rejected Reschedule'}
                                     </p>
                                     <div className="bg-white border rounded p-2 space-y-1">
                                       <p className="text-xs text-gray-700">
@@ -1664,9 +3006,26 @@ export default function Profile() {
                 <div>
                   <label className="text-sm font-semibold text-gray-600">Status</label>
                   <p>
-                    <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold border ${getStatusBadge(selectedBooking.BookingStatus)}`}>
-                      {selectedBooking.BookingStatus}
-                    </span>
+                    {(() => {
+                      let displayStatus = selectedBooking.BookingStatus;
+
+                      // Check if the latest reschedule request was rejected
+                      if (selectedBooking.reschedule_history?.length > 0) {
+                        // Sort by ID descending to get the latest
+                        const sortedHistory = [...selectedBooking.reschedule_history].sort((a, b) => b.ID - a.ID);
+                        const latestReschedule = sortedHistory[0];
+
+                        if (latestReschedule?.Status === 'Rejected') {
+                          displayStatus = 'Rejected';
+                        }
+                      }
+
+                      return (
+                        <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold border ${getStatusBadge(displayStatus)}`}>
+                          {displayStatus}
+                        </span>
+                      );
+                    })()}
                   </p>
                 </div>
 
@@ -1845,191 +3204,7 @@ export default function Profile() {
         </div>
       )}
 
-      {/* ================= RESCHEDULE MODAL ================= */}
-      {showRescheduleModal && rescheduleBooking && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[10001] p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
-            <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-6">
-              <div className="flex justify-between items-start">
-                <div>
-                  <h3 className="text-xl font-bold mb-1">📅 Reschedule Booking</h3>
-                  <p className="text-sm text-blue-100">
-                    {rescheduleBooking.ServiceName}
-                  </p>
-                </div>
-                <button
-                  onClick={() => {
-                    setShowRescheduleModal(false);
-                    setRescheduleBooking(null);
-                  }}
-                  className="text-white hover:text-gray-200 text-3xl font-light"
-                >
-                  ×
-                </button>
-              </div>
-            </div>
 
-            <form onSubmit={handleReschedule} className="p-6">
-              <div className="mb-4 bg-amber-50 border-l-4 border-amber-500 p-3 rounded">
-                <div className="flex items-start gap-2">
-                  <svg className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                  <div>
-                    <p className="text-sm font-semibold text-amber-900">Note:</p>
-                    <p className="text-xs text-amber-800 mt-1">
-                      Your booking status will change to "Pending" after rescheduling. The Supplier must approve your new schedule.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-gray-100 border border-gray-300 rounded-lg p-4 mb-4">
-                <p className="text-sm text-gray-600 mb-1">Current Schedule:</p>
-                <p className="font-semibold text-gray-900">
-                  {formatDateTime(rescheduleBooking.EventDate).date}
-                </p>
-                <p className="font-semibold text-gray-900">
-                  {formatDateTime(rescheduleBooking.EventDate).time}
-                </p>
-              </div>
-
-              <div className="mb-4">
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  New Date <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="date"
-                  value={rescheduleForm.new_date}
-                  onChange={(e) => setRescheduleForm({ ...rescheduleForm, new_date: e.target.value })}
-                  min={new Date().toISOString().split('T')[0]}
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div className="mb-4">
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  New Time <span className="text-red-500">*</span>
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {/* Hour Dropdown */}
-                  <select
-                    value={(() => {
-                      if (!rescheduleForm.new_time) return "";
-                      const [hours] = rescheduleForm.new_time.split(':');
-                      const h = parseInt(hours);
-                      return h === 0 ? "12" : h > 12 ? (h - 12).toString() : h.toString();
-                    })()}
-                    onChange={(e) => {
-                      const hour12 = parseInt(e.target.value);
-                      const [, mins] = (rescheduleForm.new_time || "14:00").split(':');
-                      const currentHour24 = rescheduleForm.new_time ? parseInt(rescheduleForm.new_time.split(':')[0]) : 14;
-                      const isPM = currentHour24 >= 12;
-                      let hour24 = hour12;
-                      if (isPM && hour12 !== 12) hour24 = hour12 + 12;
-                      if (!isPM && hour12 === 12) hour24 = 0;
-                      setRescheduleForm({ ...rescheduleForm, new_time: `${hour24.toString().padStart(2, '0')}:${mins || '00'}` });
-                    }}
-                    required
-                    className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Hr</option>
-                    {Array.from({ length: 12 }, (_, i) => i + 1).map(h => (
-                      <option key={h} value={h}>{h}</option>
-                    ))}
-                  </select>
-
-                  {/* Minute Dropdown - 15-minute intervals */}
-                  <select
-                    value={rescheduleForm.new_time ? rescheduleForm.new_time.split(':')[1] : ""}
-                    onChange={(e) => {
-                      const [hours] = (rescheduleForm.new_time || "14:00").split(':');
-                      setRescheduleForm({ ...rescheduleForm, new_time: `${hours || '14'}:${e.target.value}` });
-                    }}
-                    required
-                    className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Min</option>
-                    {['00', '15', '30', '45'].map(m => (
-                      <option key={m} value={m}>{m}</option>
-                    ))}
-                  </select>
-
-                  {/* AM/PM Dropdown */}
-                  <select
-                    value={(() => {
-                      if (!rescheduleForm.new_time) return "";
-                      const [hours] = rescheduleForm.new_time.split(':');
-                      return parseInt(hours) >= 12 ? "PM" : "AM";
-                    })()}
-                    onChange={(e) => {
-                      const [hours, mins] = (rescheduleForm.new_time || "14:00").split(':');
-                      let hour24 = parseInt(hours);
-                      const wasPM = hour24 >= 12;
-                      const nowPM = e.target.value === "PM";
-
-                      if (wasPM && !nowPM) {
-                        hour24 = hour24 === 12 ? 0 : hour24 - 12;
-                      } else if (!wasPM && nowPM) {
-                        hour24 = hour24 === 12 ? 12 : hour24 + 12;
-                      }
-
-                      setRescheduleForm({ ...rescheduleForm, new_time: `${hour24.toString().padStart(2, '0')}:${mins || '00'}` });
-                    }}
-                    required
-                    className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">--</option>
-                    <option value="AM">AM</option>
-                    <option value="PM">PM</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-6 flex gap-3">
-                <span className="text-xl">ℹ️</span>
-                <p className="text-sm text-blue-800">
-                  The Supplier will be notified of your reschedule request and must approve the new date and time.
-                </p>
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowRescheduleModal(false);
-                    setRescheduleBooking(null);
-                  }}
-                  disabled={processingBooking}
-                  className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 font-semibold disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={processingBooking}
-                  className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  {processingBooking ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      Processing...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      Request Reschedule
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* FEEDBACK MODAL ================= */}
       {showFeedbackModal && feedbackBooking && (
@@ -2042,6 +3217,152 @@ export default function Profile() {
           }}
           onSuccess={handleFeedbackSuccess}
         />
+      )}
+
+      {/* ================= RESCHEDULE MODAL ================= */}
+      {showRescheduleModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[10001] p-4 sm:p-6">
+          <div className="bg-[#f6f0e8] p-8 rounded-xl w-full max-w-md border border-[#c9bda4] shadow-2xl relative">
+            <h2 className="text-xl font-bold mb-2 text-[#5d4436] uppercase tracking-wide">Request Reschedule</h2>
+            <p className="text-sm text-gray-600 mb-6">
+              Propose a new date and time for your booking with <span className="font-semibold text-gray-800">{rescheduleBooking?.ServiceName}</span>.
+            </p>
+
+            <form onSubmit={handleReschedule} className="space-y-5">
+              <div>
+                <label className="block text-xs font-bold text-[#5d4436] uppercase mb-2 tracking-wider">New Date</label>
+                <input
+                  type="date"
+                  required
+                  min={new Date().toISOString().split('T')[0]}
+                  value={rescheduleForm.new_date}
+                  onChange={(e) => setRescheduleForm({ ...rescheduleForm, new_date: e.target.value })}
+                  className="w-full p-3 bg-white border border-[#e0d6c6] rounded-lg focus:ring-1 focus:ring-[#7a5d47] focus:border-[#7a5d47] outline-none text-gray-800"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#5d4436] uppercase mb-2 tracking-wider">New Time</label>
+                <div className="flex gap-2">
+                  {/* Hour Select */}
+                  <div className="relative flex-1">
+                    <select
+                      required
+                      value={(() => {
+                        const [h] = rescheduleForm.new_time.split(':');
+                        const hours = parseInt(h);
+                        return (hours % 12 || 12).toString();
+                      })()}
+                      onChange={(e) => {
+                        const newHour12 = parseInt(e.target.value);
+                        const [h, m] = rescheduleForm.new_time.split(':');
+                        const currentHour24 = parseInt(h);
+                        const isPM = currentHour24 >= 12;
+
+                        let newHour24 = newHour12;
+                        if (isPM && newHour12 !== 12) newHour24 += 12;
+                        if (!isPM && newHour12 === 12) newHour24 = 0;
+
+                        const timeString = `${newHour24.toString().padStart(2, '0')}:${m}`;
+                        setRescheduleForm({ ...rescheduleForm, new_time: timeString });
+                      }}
+                      className="w-full p-3 bg-white border border-[#e0d6c6] rounded-lg focus:ring-1 focus:ring-[#7a5d47] focus:border-[#7a5d47] outline-none text-gray-800 appearance-none"
+                    >
+                      {Array.from({ length: 12 }, (_, i) => i + 1).map(h => (
+                        <option key={h} value={h}>{h}</option>
+                      ))}
+                    </select>
+                    <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-gray-500">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+                      </svg>
+                    </div>
+                  </div>
+
+                  {/* Minute Select */}
+                  <div className="relative flex-1">
+                    <select
+                      required
+                      value={rescheduleForm.new_time.split(':')[1]}
+                      onChange={(e) => {
+                        const [h] = rescheduleForm.new_time.split(':');
+                        const newM = e.target.value;
+                        const timeString = `${h}:${newM}`;
+                        setRescheduleForm({ ...rescheduleForm, new_time: timeString });
+                      }}
+                      className="w-full p-3 bg-white border border-[#e0d6c6] rounded-lg focus:ring-1 focus:ring-[#7a5d47] focus:border-[#7a5d47] outline-none text-gray-800 appearance-none"
+                    >
+                      {['00', '15', '30', '45'].map(m => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
+                    </select>
+                    <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-gray-500">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+                      </svg>
+                    </div>
+                  </div>
+
+                  {/* AM/PM Select */}
+                  <div className="relative flex-1">
+                    <select
+                      required
+                      value={parseInt(rescheduleForm.new_time.split(':')[0]) >= 12 ? 'PM' : 'AM'}
+                      onChange={(e) => {
+                        const newAmpm = e.target.value;
+                        const [h, m] = rescheduleForm.new_time.split(':');
+                        let hour24 = parseInt(h);
+
+                        if (newAmpm === 'PM' && hour24 < 12) hour24 += 12;
+                        if (newAmpm === 'AM' && hour24 >= 12) hour24 -= 12;
+
+                        const timeString = `${hour24.toString().padStart(2, '0')}:${m}`;
+                        setRescheduleForm({ ...rescheduleForm, new_time: timeString });
+                      }}
+                      className="w-full p-3 bg-white border border-[#e0d6c6] rounded-lg focus:ring-1 focus:ring-[#7a5d47] focus:border-[#7a5d47] outline-none text-gray-800 appearance-none"
+                    >
+                      <option value="AM">AM</option>
+                      <option value="PM">PM</option>
+                    </select>
+                    <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-gray-500">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-4 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowRescheduleModal(false)}
+                  className="flex-1 px-4 py-3 bg-[#e8e4dc] text-[#5d4436] rounded-lg hover:bg-[#dcd6cc] font-bold transition-colors"
+                  disabled={processingBooking}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={processingBooking}
+                  className="flex-1 px-4 py-3 bg-[#7a5d47] text-white rounded-lg hover:bg-[#654a38] font-bold transition-colors disabled:opacity-50 flex items-center justify-center shadow-md"
+                >
+                  {processingBooking ? (
+                    <>
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Sending...
+                    </>
+                  ) : (
+                    "Submit Request"
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       {/* ================= AVATAR MODAL ================= */}
@@ -2273,6 +3594,184 @@ export default function Profile() {
                         <p className="text-xs text-green-600 flex items-center gap-1">
                           <span>✓</span> Passwords match
                         </p>
+                      ) : role === 0 ? (
+                        /* CLIENT DASHBOARD ANALYTICS */
+                        <>
+                          <div className="flex justify-between items-center px-4 py-3 border-b border-gray-200 flex-shrink-0">
+                            <h2 className="text-base sm:text-lg font-bold text-gray-900 flex items-center gap-2">
+                              <svg className="w-5 h-5 text-[#7a5d47]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                              </svg>
+                              My Dashboard
+                            </h2>
+                            {loadingClientAnalytics && (
+                              <div className="w-4 h-4 border-2 border-[#7a5d47] border-t-transparent rounded-full animate-spin"></div>
+                            )}
+                          </div>
+
+                          <div className="flex-1 overflow-y-auto p-4">
+                            {loadingClientAnalytics ? (
+                              <div className="flex items-center justify-center h-full">
+                                <div className="text-center">
+                                  <div className="w-12 h-12 border-4 border-[#e8ddae] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                                  <p className="text-gray-600">Loading dashboard...</p>
+                                </div>
+                              </div>
+                            ) : clientAnalytics ? (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                {/* Total Bookings */}
+                                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200 shadow-sm hover:shadow-md transition-shadow">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <h3 className="text-sm font-semibold text-blue-900">Total Bookings</h3>
+                                    <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                    </svg>
+                                  </div>
+                                  <p className="text-3xl font-bold text-blue-700">{clientAnalytics.total_bookings}</p>
+                                  <p className="text-xs text-blue-600 mt-1">All-time bookings</p>
+                                </div>
+
+                                {/* Upcoming Bookings */}
+                                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 border border-green-200 shadow-sm hover:shadow-md transition-shadow">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <h3 className="text-sm font-semibold text-green-900">Upcoming</h3>
+                                    <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                    </svg>
+                                  </div>
+                                  <p className="text-3xl font-bold text-green-700">{clientAnalytics.upcoming_bookings}</p>
+                                  <p className="text-xs text-green-600 mt-1">Pending & Confirmed</p>
+                                </div>
+
+                                {/* Completed Bookings */}
+                                <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4 border border-purple-200 shadow-sm hover:shadow-md transition-shadow">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <h3 className="text-sm font-semibold text-purple-900">Completed</h3>
+                                    <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                  </div>
+                                  <p className="text-3xl font-bold text-purple-700">{clientAnalytics.completed_bookings}</p>
+                                  <p className="text-xs text-purple-600 mt-1">Successfully delivered</p>
+                                </div>
+
+                                {/* Cancelled Bookings */}
+                                <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl p-4 border border-red-200 shadow-sm hover:shadow-md transition-shadow">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <h3 className="text-sm font-semibold text-red-900">Cancelled</h3>
+                                    <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                  </div>
+                                  <p className="text-3xl font-bold text-red-700">{clientAnalytics.cancelled_bookings}</p>
+                                  <p className="text-xs text-red-600 mt-1">Did not proceed</p>
+                                </div>
+
+                                {/* Recent Activity */}
+                                {clientRecentBookings.length > 0 && (
+                                  <div className="col-span-1 sm:col-span-2 mt-4">
+                                    <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                                      <svg className="w-5 h-5 text-[#7a5d47]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                      </svg>
+                                      Recent Booking Activity
+                                    </h3>
+                                    <div className="space-y-2">
+                                      {clientRecentBookings.slice(0, 5).map((booking, idx) => (
+                                        <div key={idx} className="bg-white rounded-lg p-3 border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+                                          <div className="flex justify-between items-start">
+                                            <div className="flex-1">
+                                              <p className="font-semibold text-gray-900 text-sm">{booking.service_name || 'N/A'}</p>
+                                              <p className="text-xs text-gray-600 mt-1">
+                                                {new Date(booking.EventDate || booking.start_date).toLocaleDateString()}
+                                              </p>
+                                            </div>
+                                            <span className={`text-xs px-2 py-1 rounded-full font-medium ${booking.BookingStatus === 'Confirmed' ? 'bg-green-100 text-green-700' :
+                                              booking.BookingStatus === 'Pending' ? 'bg-yellow-100 text-yellow-700' :
+                                                booking.BookingStatus === 'Completed' ? 'bg-blue-100 text-blue-700' :
+                                                  booking.BookingStatus === 'Cancelled' ? 'bg-red-100 text-red-700' :
+                                                    'bg-gray-100 text-gray-700'
+                                              }`}>
+                                              {booking.BookingStatus}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-center h-full">
+                                <div className="text-center">
+                                  <svg className="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                  </svg>
+                                  <p className="text-gray-600">No dashboard data available</p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      ) : role === 2 ? (
+                        /* ADMIN DASHBOARD ANALYTICS */
+                        <>
+                          <div className="flex justify-between items-center px-4 py-3 border-b border-gray-200 flex-shrink-0">
+                            <h2 className="text-base sm:text-lg font-bold text-gray-900 flex items-center gap-2">
+                              <svg className="w-5 h-5 text-[#7a5d47]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                              </svg>
+                              Admin Dashboard
+                            </h2>
+                            {loadingAdminAnalytics && (
+                              <div className="w-4 h-4 border-2 border-[#7a5d47] border-t-transparent rounded-full animate-spin"></div>
+                            )}
+                          </div>
+
+                          <div className="flex-1 overflow-y-auto p-4">
+                            {loadingAdminAnalytics ? (
+                              <div className="flex items-center justify-center h-full">
+                                <div className="text-center">
+                                  <div className="w-12 h-12 border-4 border-[#e8ddae] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                                  <p className="text-gray-600">Loading dashboard...</p>
+                                </div>
+                              </div>
+                            ) : adminAnalytics ? (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200 shadow-sm hover:shadow-md transition-shadow">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <h3 className="text-sm font-semibold text-blue-900">Total Users</h3>
+                                    <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                                    </svg>
+                                  </div>
+                                  <p className="text-3xl font-bold text-blue-700">{adminAnalytics.total_users}</p>
+                                  <p className="text-xs text-blue-600 mt-1">All registered users</p>
+                                </div>
+
+                                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 border border-green-200 shadow-sm hover:shadow-md transition-shadow">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <h3 className="text-sm font-semibold text-green-900">Event Service Providers</h3>
+                                    <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                    </svg>
+                                  </div>
+                                  <p className="text-3xl font-bold text-green-700">{adminAnalytics.total_providers}</p>
+                                  <p className="text-xs text-green-600 mt-1">Active service providers</p>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-center h-full">
+                                <div className="text-center">
+                                  <svg className="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                  </svg>
+                                  <p className="text-gray-600">No dashboard data available</p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </>
                       ) : (
                         <p className="text-xs text-red-600 flex items-center gap-1">
                           <span>✗</span> Passwords do not match

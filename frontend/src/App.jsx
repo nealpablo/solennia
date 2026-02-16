@@ -14,12 +14,15 @@ import VenueDetail from "./pages/VenueDetail";
 import Vendors from "./pages/Vendors";
 import VendorProfile from "./pages/VendorProfile";
 import Profile from "./pages/Profile";
+import ManageListings from "./pages/ManageListings";
 import Chat from "./pages/Chat";
 import AdminPanel from "./pages/AdminPanel";
 import VendorDashboard from "./pages/VendorDashboard";
 import VendorProfileSetup from "./pages/VendorProfileSetup";
 import VenueDashboard from "./pages/VenueDashboard";
 import AboutUs from "./pages/AboutUs";
+import ClientDashboard from "./pages/ClientDashboard";
+import AdminDashboard from "./pages/AdminDashboard";
 
 import ConversationalBooking from "./pages/ConversationalBooking";
 import CreateBooking from "./pages/CreateBooking";
@@ -112,11 +115,14 @@ export default function App() {
         <Route path="/vendors" element={<Vendors />} />
         <Route path="/vendor-profile" element={<VendorProfile />} />
         <Route path="/profile" element={<Profile />} />
+        <Route path="/manage-listings" element={<ManageListings />} />
         <Route path="/chat" element={<Chat />} />
         <Route path="/admin" element={<AdminPanel />} />
         <Route path="/vendor-dashboard" element={<VendorDashboard />} />
         <Route path="/vendor-profile-setup" element={<VendorProfileSetup />} />
         <Route path="/venue-dashboard" element={<VenueDashboard />} />
+        <Route path="/client-dashboard" element={<ClientDashboard />} />
+        <Route path="/admin-dashboard" element={<AdminDashboard />} />
         <Route path="/about" element={<AboutUs />} />
         <Route path="/ai-booking" element={<ConversationalBooking />} />
         <Route path="/create-booking" element={<CreateBooking />} />

@@ -35,40 +35,108 @@ return function (App $app) {
     // PUBLIC VENUE ROUTES
     // =========================================================
 
-    //  Public venue listing with firebase_uid join for chat functionality
+    //  Public venue listing
     $app->get('/api/venues', function (Request $r, Response $s) {
-        $venues = DB::table('venue_listings as v')
-            ->leftJoin('credential as c', 'v.user_id', '=', 'c.id')
-            ->select(
-                'v.*', 
-                'c.firebase_uid',
-                DB::raw('CONCAT(c.first_name," ",c.last_name) as owner_name')
-            )
-            ->where('v.status', 'Active')
-            ->orderByDesc('v.created_at')
-            ->get()
-            ->map(fn($v) => ($v->gallery = json_decode($v->gallery ?? '[]', true)) ? $v : $v);
-
-        $s->getBody()->write(json_encode(['success' => true, 'venues' => $venues]));
-        return $s->withHeader('Content-Type', 'application/json');
+        try {
+            $venues = DB::table('venue_listings as v')
+                ->leftJoin('credential as c', 'v.user_id', '=', 'c.id')
+                ->select(
+                    'v.id',
+                    'v.user_id',
+                    'v.venue_name as venue_name',
+                    'v.venue_name as business_name',
+                    'v.venue_subcategory',
+                    'v.description',
+                    'v.address',
+                    'v.venue_capacity',
+                    'v.venue_amenities',
+                    'v.venue_operating_hours',
+                    'v.venue_parking',
+                    'v.portfolio as avatar',
+                    'v.portfolio as business_logo_url',
+                    'v.portfolio',
+                    'v.portfolio_image',
+                    'v.HeroImageUrl',
+                    'v.gallery',
+                    'v.pricing',
+                    'v.status',
+                    'v.created_at',
+                    'c.firebase_uid',
+                    DB::raw('CONCAT(c.first_name," ",c.last_name) as owner_name')
+                )
+                ->orderByDesc('v.created_at')
+                ->get()
+                ->map(function($v) {
+                    $v->gallery = json_decode($v->gallery ?? '[]', true);
+                    $v->unique_key = 'vl_' . $v->id;
+                    return $v;
+                });
+            
+            $s->getBody()->write(json_encode(['success' => true, 'venues' => $venues]));
+            return $s->withHeader('Content-Type', 'application/json');
+        } catch (\Exception $e) {
+            error_log('VENUES_API_ERROR: ' . $e->getMessage());
+            $s->getBody()->write(json_encode(['success' => false, 'error' => $e->getMessage()]));
+            return $s->withHeader('Content-Type', 'application/json')->withStatus(500);
+        }
     });
 
-    //  Public venue detail
+    //  Public venue detail - checks venue_listings first, then falls back to event_service_provider
     $app->get('/api/venues/{id}', function (Request $r, Response $s, $a) {
+        $venueId = (int) $a['id'];
+
+        // First try to get from venue_listings
         $venue = DB::table('venue_listings as v')
             ->leftJoin('credential as c', 'v.user_id', '=', 'c.id')
             ->select('v.*', 'c.firebase_uid', DB::raw('CONCAT(c.first_name," ",c.last_name) as owner_name'))
-            ->where('v.id', (int)$a['id'])
+            ->where('v.id', $venueId)
             ->first();
 
-        if (!$venue) {
-            return $s->withStatus(404);
+        if ($venue) {
+            $venue->gallery = json_decode($venue->gallery ?? '[]', true);
+            $venue->source = 'venue_listings';
+            $s->getBody()->write(json_encode(['success' => true, 'venue' => $venue]));
+            return $s->withHeader('Content-Type', 'application/json');
         }
 
-        $venue->gallery = json_decode($venue->gallery ?? '[]', true);
+        // Fallback: check event_service_provider (legacy venue data)
+        $legacyVenue = DB::table('event_service_provider as esp')
+            ->leftJoin('credential as c', 'esp.UserID', '=', 'c.id')
+            ->select(
+                'esp.ID as id',
+                'esp.UserID as user_id',
+                'esp.BusinessName as venue_name',
+                'esp.BusinessName as business_name',
+                'esp.venue_subcategory',
+                'esp.Description as description',
+                'esp.BusinessAddress as address',
+                'esp.venue_capacity',
+                'esp.venue_amenities',
+                'esp.venue_operating_hours',
+                'esp.venue_parking',
+                'esp.avatar as logo',
+                'esp.portfolio',
+                'esp.portfolio_image',
+                'esp.HeroImageUrl',
+                'esp.gallery',
+                'esp.Pricing as pricing',
+                'esp.ApplicationStatus as status',
+                'c.firebase_uid',
+                DB::raw('CONCAT(c.first_name," ",c.last_name) as owner_name')
+            )
+            ->where('esp.ID', $venueId)
+            ->where('esp.Category', 'Venue')
+            ->where('esp.ApplicationStatus', 'Approved')
+            ->first();
 
-        $s->getBody()->write(json_encode(['success' => true, 'venue' => $venue]));
-        return $s->withHeader('Content-Type', 'application/json');
+        if ($legacyVenue) {
+            $legacyVenue->gallery = json_decode($legacyVenue->gallery ?? '[]', true);
+            $legacyVenue->source = 'event_service_provider';
+            $s->getBody()->write(json_encode(['success' => true, 'venue' => $legacyVenue]));
+            return $s->withHeader('Content-Type', 'application/json');
+        }
+
+        return $s->withStatus(404);
     });
 
     // =========================================================

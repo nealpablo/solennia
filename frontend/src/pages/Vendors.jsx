@@ -20,7 +20,7 @@ export default function Vendors() {
   const navigate = useNavigate();
 
   /* =========================
-     LOAD VENDORS (EXCLUDE VENUE VENDORS)
+     LOAD ALL VENDORS (NO FILTER)
   ========================= */
   useEffect(() => {
     async function load() {
@@ -35,9 +35,7 @@ export default function Vendors() {
         }
 
         const json = await res.json();
-        //  FILTER OUT VENUE VENDORS
-        const nonVenueVendors = (json.vendors || []).filter(v => v.Category !== "Venue");
-        setVendors(Array.isArray(nonVenueVendors) ? nonVenueVendors : []);
+        setVendors(Array.isArray(json.vendors) ? json.vendors : []);
       } catch (err) {
         console.error(err);
       } finally {
@@ -130,7 +128,7 @@ export default function Vendors() {
           {/* Vendor Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             {visibleVendors.map((vendor) => (
-              <VendorCard key={vendor.ID || vendor.UserID} vendor={vendor} navigate={navigate} />
+              <VendorCard key={vendor.unique_key || vendor.ID || vendor.UserID} vendor={vendor} navigate={navigate} />
             ))}
           </div>
 
@@ -236,7 +234,7 @@ function VendorCard({ vendor, navigate }) {
   };
 
   // Use vendor.avatar (business logo) instead of user_avatar (personal picture)
-  const vendorImage = vendor.avatar || vendor.HeroImageUrl || "https://via.placeholder.com/400x300?text=Vendor+Image";
+  const vendorImage = vendor.avatar || vendor.HeroImageUrl || "/images/placeholder.svg";
 
   // Parse gallery if it's a JSON string (matching venue logic)
   let galleryImages = [];
@@ -253,8 +251,8 @@ function VendorCard({ vendor, navigate }) {
 
   return (
     <Link
-      to={`/vendor-profile?id=${encodeURIComponent(vendor.UserID || vendor.ID)}`}
-      className="group bg-white rounded-lg overflow-hidden shadow-md hover:shadow-xl transition-all duration-300"
+      to={`/vendor-profile?id=${encodeURIComponent(vendor.UserID || vendor.ID)}&listingId=${encodeURIComponent(vendor.id)}`}
+      className="group bg-white rounded-lg overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col h-full"
     >
       {/* Image Container - Match Venue styling */}
       <div className="relative h-48 overflow-hidden bg-gray-200">
@@ -263,7 +261,7 @@ function VendorCard({ vendor, navigate }) {
           alt={vendor.BusinessName || "Vendor"}
           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
           onError={(e) => {
-            e.target.src = "https://via.placeholder.com/400x300?text=No+Image";
+            e.target.src = "/images/placeholder.svg";
           }}
         />
 
@@ -319,7 +317,7 @@ function VendorCard({ vendor, navigate }) {
       )}
 
       {/* Card Content - Match Venue structure */}
-      <div className="p-4 flex flex-col" style={{ minHeight: '180px' }}>
+      <div className="p-4 flex flex-col flex-1" style={{ minHeight: '180px' }}>
         <h3 className="font-semibold text-gray-800 mb-1 line-clamp-1 group-hover:text-[#7a5d47] transition-colors">
           {vendor.BusinessName || "Unnamed Supplier"}
         </h3>
@@ -359,7 +357,7 @@ function VendorCard({ vendor, navigate }) {
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              window.location.href = `/vendor-profile?id=${encodeURIComponent(vendor.UserID || vendor.ID)}`;
+              window.location.href = `/vendor-profile?id=${encodeURIComponent(vendor.UserID || vendor.ID)}&listingId=${encodeURIComponent(vendor.id)}`;
             }}
             className="flex-1 px-3 py-2 bg-[#7a5d47] hover:bg-[#654a38] text-white text-sm font-medium rounded-lg transition-colors"
           >
