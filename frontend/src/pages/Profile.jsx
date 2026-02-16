@@ -5,6 +5,7 @@ import { auth } from "../firebase";
 import { updatePassword, reauthenticateWithCredential, EmailAuthProvider } from "firebase/auth";
 import toast from "../utils/toast";
 import FeedbackModal from "../components/FeedbackModal";
+import { useConfirmModal } from "../hooks/useConfirmModal";
 import "../style.css";
 
 const API =
@@ -27,6 +28,7 @@ function ensureArray(val, sep = ',') {
 
 export default function Profile() {
   const navigate = useNavigate();
+  const { confirm, ConfirmModal } = useConfirmModal();
   const token = localStorage.getItem("solennia_token");
 
   const [profile, setProfile] = useState(null);
@@ -410,7 +412,7 @@ export default function Profile() {
   };
 
   const deleteVenueListing = async (id) => {
-    if (!confirm("Delete this venue listing? It will no longer appear on the Venues page.")) return;
+    const confirmed = await confirm({ title: "Delete this venue listing?", message: "It will no longer appear on the Venues page. This action cannot be undone." }); if (!confirmed) return;
     try {
       const res = await fetch(`${API}/venue/listings/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) {
@@ -677,7 +679,7 @@ export default function Profile() {
 
   /* ================= CALENDAR: DELETE AVAILABILITY ================= */
   const deleteAvailability = async (availabilityId) => {
-    if (!confirm("Delete this availability entry?")) return;
+    const confirmed = await confirm({ title: "Delete this availability entry?", message: "This action cannot be undone." }); if (!confirmed) return;
 
     if (!token) {
       toast.error("Please log in");
@@ -898,7 +900,7 @@ export default function Profile() {
 
   /* ================= ACCEPT BOOKING (VENDOR) ================= */
   const acceptBooking = async (bookingId) => {
-    if (!confirm('Accept this booking request?')) return;
+    const confirmed = await confirm({ title: 'Accept this booking request?', message: 'This will confirm the booking for the client.' }); if (!confirmed) return;
 
     setProcessingBooking(true);
     try {
@@ -930,7 +932,7 @@ export default function Profile() {
 
   /* ================= REJECT BOOKING (VENDOR) ================= */
   const rejectBooking = async (bookingId) => {
-    if (!confirm('Reject this booking request?')) return;
+    const confirmed = await confirm({ title: 'Reject this booking request?', message: 'This will decline the booking request.' }); if (!confirmed) return;
 
     setProcessingBooking(true);
     try {
@@ -962,7 +964,7 @@ export default function Profile() {
 
   /* =================  COMPLETE BOOKING (VENDOR) ================= */
   const completeBooking = async (bookingId) => {
-    if (!confirm('Mark this booking as completed? The client will be able to leave review.')) return;
+    const confirmed = await confirm({ title: 'Mark this booking as completed?', message: 'The client will be able to leave a review.' }); if (!confirmed) return;
 
     setProcessingBooking(true);
     try {
@@ -993,7 +995,7 @@ export default function Profile() {
 
   /* ================= CANCEL BOOKING (CLIENT) ================= */
   const cancelBooking = async (bookingId) => {
-    if (!confirm('Cancel this booking?')) return;
+    const confirmed = await confirm({ title: 'Cancel this booking?', message: 'This action cannot be undone.' }); if (!confirmed) return;
 
     setProcessingBooking(true);
     try {
@@ -1240,6 +1242,21 @@ export default function Profile() {
       if (editForm.newPassword.trim()) {
         if (!editForm.currentPassword.trim()) {
           throw new Error("Current password is required to change password");
+        }
+
+        // Validate password requirements: 8+ chars with letters, numbers & symbols
+        const password = editForm.newPassword;
+        if (password.length < 8) {
+          throw new Error("Password must be at least 8 characters long");
+        }
+        if (!/[a-zA-Z]/.test(password)) {
+          throw new Error("Password must contain at least one letter");
+        }
+        if (!/[0-9]/.test(password)) {
+          throw new Error("Password must contain at least one number");
+        }
+        if (!/[^a-zA-Z0-9]/.test(password)) {
+          throw new Error("Password must contain at least one symbol (e.g., !@#$%^&*)");
         }
 
         if (passwordStrength.score <= 2) {
@@ -1589,15 +1606,22 @@ export default function Profile() {
                   </button>
                 </div>
 
-                <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">{name}</h1>
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3">{name}</h1>
 
-                {profile?.username && (
-                  <p className="text-sm text-gray-600 mb-4">@{profile.username}</p>
-                )}
+                {/* Profile Info - Ultra Minimalist */}
+                <div className="mb-6 space-y-1">
+                  {profile?.username && (
+                    <p className="text-sm text-gray-600">@{profile.username}</p>
+                  )}
 
-                {profile?.email && (
-                  <p className="text-sm text-gray-700 mb-6">{profile.email}</p>
-                )}
+                  {profile?.email && (
+                    <p className="text-sm text-gray-600">{profile.email}</p>
+                  )}
+
+                  {profile?.phone && (
+                    <p className="text-sm text-gray-600">{profile.phone}</p>
+                  )}
+                </div>
 
                 <div className="space-y-3 w-full max-w-xs">
                   <button
@@ -3420,79 +3444,113 @@ export default function Profile() {
 
       {/* ================= EDIT PROFILE MODAL ================= */}
       {showEditModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[9999] p-4 sm:p-6">
-          <div className="bg-[#f6f0e8] rounded-2xl w-full max-w-2xl border border-[#c9bda4] shadow-lg max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-[#e8ddae] p-6 border-b border-gray-300 flex justify-between items-center z-10">
-              <h2 className="text-lg font-semibold">Edit Profile</h2>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[9999] p-4 sm:p-6">
+          <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-hidden border border-gray-200">
+            {/* Header */}
+            <div className="sticky top-0 bg-gradient-to-r from-[#7a5d47] to-[#5d4436] p-6 border-b border-gray-200 flex justify-between items-center z-10">
+              <div>
+                <h2 className="text-2xl font-bold text-white">Edit Profile</h2>
+                <p className="text-sm text-white/80 mt-1">Update your personal information</p>
+              </div>
               <button
                 onClick={() => setShowEditModal(false)}
-                className="text-2xl font-light hover:text-gray-600"
+                className="text-white hover:text-gray-200 text-3xl font-light transition-colors"
+                aria-label="Close"
               >
                 &times;
               </button>
             </div>
 
-            <form onSubmit={saveProfileChanges} className="p-6 space-y-6">
-              <div>
-                <label className="block text-sm font-semibold uppercase mb-2">
+            <form onSubmit={saveProfileChanges} className="p-8 space-y-8 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 100px)' }}>
+              {/* Username Section */}
+              <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
+                <label className="block text-sm font-bold uppercase mb-3 text-gray-700 tracking-wide">
                   Username
                 </label>
-                <div className="flex gap-2">
+                <div className="flex gap-3">
                   <input
                     type="text"
                     value={editForm.username}
                     readOnly
                     disabled
-                    className="flex-1 rounded-md bg-gray-200 border border-gray-300 p-2 cursor-not-allowed text-gray-600"
+                    className="flex-1 rounded-lg bg-gray-200 border border-gray-300 p-3 cursor-not-allowed text-gray-600 font-medium"
                   />
                   <button
                     type="button"
                     onClick={requestUsernameChange}
-                    className="bg-[#7a5d47] text-white px-4 py-2 rounded-md text-sm hover:opacity-90 whitespace-nowrap"
+                    className="bg-[#7a5d47] text-white px-6 py-3 rounded-lg text-sm font-semibold hover:bg-[#654a38] transition-colors whitespace-nowrap shadow-md"
                   >
                     Request Change
                   </button>
                 </div>
-                <p className="text-xs text-gray-600 mt-1">
-                  Current: @{profile?.username || "Not set"}
+                <p className="text-xs text-gray-600 mt-2 font-medium">
+                  Current: <span className="text-[#7a5d47]">@{profile?.username || "Not set"}</span>
                 </p>
-                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2 mt-2">
-                  ℹ️ Username changes require admin approval. Click "Request Change" to contact support.
-                </p>
+                <div className="flex items-start gap-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3 mt-3">
+                  <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                  </svg>
+                  <span>Username changes require admin approval. Click "Request Change" to contact support.</span>
+                </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold uppercase mb-2">
+              {/* Phone Number Section */}
+              <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
+                <label className="block text-sm font-bold uppercase mb-3 text-gray-700 tracking-wide">
                   Phone Number
                 </label>
-                <input
-                  type="tel"
-                  value={editForm.phone}
-                  onChange={(e) => {
-                    let digits = e.target.value.replace(/\D/g, ""); // numbers only
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                    </svg>
+                  </div>
+                  <input
+                    type="tel"
+                    value={editForm.phone}
+                    onChange={(e) => {
+                      const input = e.target.value;
 
-                    // Remove 63 or 0 if user types them
-                    if (digits.startsWith("63")) digits = digits.slice(2);
-                    if (digits.startsWith("0")) digits = digits.slice(1);
+                      // Extract only digits
+                      let digits = input.replace(/\D/g, "");
 
-                    // Only 10 digits for PH mobile
-                    digits = digits.slice(0, 10);
+                      // Handle different input scenarios
+                      if (digits.startsWith("63")) {
+                        digits = digits.slice(2); // Remove country code if user types it
+                      } else if (digits.startsWith("0")) {
+                        digits = digits.slice(1); // Remove leading 0 if user types it
+                      }
 
-                    // Must start with 9
-                    if (digits.length > 0 && digits[0] !== "9") return;
+                      // Limit to 10 digits (PH mobile number length)
+                      digits = digits.slice(0, 10);
 
-                    setEditForm({ ...editForm, phone: `+63 ${digits}` });
-                  }}
-                  placeholder="+63 9XXXXXXXXX"
-                  inputMode="numeric"
-                  pattern="^\+63 9\d{9}$"
-                  title="Enter a valid PH mobile number (e.g. +63 9123456789)"
-                  className="w-full rounded-md bg-gray-100 border border-gray-300 p-2"
-                />
+                      // Validate first digit must be 9 for PH mobile
+                      if (digits.length > 0 && digits[0] !== "9") {
+                        return; // Don't update if first digit is not 9
+                      }
 
-                <p className="text-xs text-gray-600 mt-1">
-                  {profile?.phone ? `Current: ${profile.phone}` : "Not set"}
+                      // Format with country code (no space to match backend validation)
+                      const formatted = digits ? `+63${digits}` : "";
+                      setEditForm({ ...editForm, phone: formatted });
+                    }}
+                    placeholder="+63 9XXXXXXXXX"
+                    inputMode="numeric"
+                    className="w-full rounded-lg bg-white border-2 border-gray-300 p-3 pl-12 focus:border-[#7a5d47] focus:ring-2 focus:ring-[#7a5d47]/20 outline-none transition-all font-medium"
+                  />
+                </div>
+                <p className="text-xs text-gray-600 mt-2 font-medium">
+                  {profile?.phone ? (
+                    <>Current: <span className="text-[#7a5d47]">{profile.phone}</span></>
+                  ) : (
+                    <span className="text-gray-400">Not set</span>
+                  )}
                 </p>
+                <div className="flex items-start gap-2 text-xs text-blue-800 bg-blue-50 border border-blue-200 rounded-lg p-3 mt-3">
+                  <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                  </svg>
+                  <span>Enter your Philippine mobile number starting with 9 (e.g., 9123456789)</span>
+                </div>
               </div>
 
               <div className="border-t border-gray-300 pt-6">
@@ -3594,184 +3652,6 @@ export default function Profile() {
                         <p className="text-xs text-green-600 flex items-center gap-1">
                           <span>✓</span> Passwords match
                         </p>
-                      ) : role === 0 ? (
-                        /* CLIENT DASHBOARD ANALYTICS */
-                        <>
-                          <div className="flex justify-between items-center px-4 py-3 border-b border-gray-200 flex-shrink-0">
-                            <h2 className="text-base sm:text-lg font-bold text-gray-900 flex items-center gap-2">
-                              <svg className="w-5 h-5 text-[#7a5d47]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                              </svg>
-                              My Dashboard
-                            </h2>
-                            {loadingClientAnalytics && (
-                              <div className="w-4 h-4 border-2 border-[#7a5d47] border-t-transparent rounded-full animate-spin"></div>
-                            )}
-                          </div>
-
-                          <div className="flex-1 overflow-y-auto p-4">
-                            {loadingClientAnalytics ? (
-                              <div className="flex items-center justify-center h-full">
-                                <div className="text-center">
-                                  <div className="w-12 h-12 border-4 border-[#e8ddae] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                                  <p className="text-gray-600">Loading dashboard...</p>
-                                </div>
-                              </div>
-                            ) : clientAnalytics ? (
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                {/* Total Bookings */}
-                                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200 shadow-sm hover:shadow-md transition-shadow">
-                                  <div className="flex items-center justify-between mb-2">
-                                    <h3 className="text-sm font-semibold text-blue-900">Total Bookings</h3>
-                                    <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                                    </svg>
-                                  </div>
-                                  <p className="text-3xl font-bold text-blue-700">{clientAnalytics.total_bookings}</p>
-                                  <p className="text-xs text-blue-600 mt-1">All-time bookings</p>
-                                </div>
-
-                                {/* Upcoming Bookings */}
-                                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 border border-green-200 shadow-sm hover:shadow-md transition-shadow">
-                                  <div className="flex items-center justify-between mb-2">
-                                    <h3 className="text-sm font-semibold text-green-900">Upcoming</h3>
-                                    <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                    </svg>
-                                  </div>
-                                  <p className="text-3xl font-bold text-green-700">{clientAnalytics.upcoming_bookings}</p>
-                                  <p className="text-xs text-green-600 mt-1">Pending & Confirmed</p>
-                                </div>
-
-                                {/* Completed Bookings */}
-                                <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4 border border-purple-200 shadow-sm hover:shadow-md transition-shadow">
-                                  <div className="flex items-center justify-between mb-2">
-                                    <h3 className="text-sm font-semibold text-purple-900">Completed</h3>
-                                    <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                  </div>
-                                  <p className="text-3xl font-bold text-purple-700">{clientAnalytics.completed_bookings}</p>
-                                  <p className="text-xs text-purple-600 mt-1">Successfully delivered</p>
-                                </div>
-
-                                {/* Cancelled Bookings */}
-                                <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl p-4 border border-red-200 shadow-sm hover:shadow-md transition-shadow">
-                                  <div className="flex items-center justify-between mb-2">
-                                    <h3 className="text-sm font-semibold text-red-900">Cancelled</h3>
-                                    <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                  </div>
-                                  <p className="text-3xl font-bold text-red-700">{clientAnalytics.cancelled_bookings}</p>
-                                  <p className="text-xs text-red-600 mt-1">Did not proceed</p>
-                                </div>
-
-                                {/* Recent Activity */}
-                                {clientRecentBookings.length > 0 && (
-                                  <div className="col-span-1 sm:col-span-2 mt-4">
-                                    <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                                      <svg className="w-5 h-5 text-[#7a5d47]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                      </svg>
-                                      Recent Booking Activity
-                                    </h3>
-                                    <div className="space-y-2">
-                                      {clientRecentBookings.slice(0, 5).map((booking, idx) => (
-                                        <div key={idx} className="bg-white rounded-lg p-3 border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-                                          <div className="flex justify-between items-start">
-                                            <div className="flex-1">
-                                              <p className="font-semibold text-gray-900 text-sm">{booking.service_name || 'N/A'}</p>
-                                              <p className="text-xs text-gray-600 mt-1">
-                                                {new Date(booking.EventDate || booking.start_date).toLocaleDateString()}
-                                              </p>
-                                            </div>
-                                            <span className={`text-xs px-2 py-1 rounded-full font-medium ${booking.BookingStatus === 'Confirmed' ? 'bg-green-100 text-green-700' :
-                                              booking.BookingStatus === 'Pending' ? 'bg-yellow-100 text-yellow-700' :
-                                                booking.BookingStatus === 'Completed' ? 'bg-blue-100 text-blue-700' :
-                                                  booking.BookingStatus === 'Cancelled' ? 'bg-red-100 text-red-700' :
-                                                    'bg-gray-100 text-gray-700'
-                                              }`}>
-                                              {booking.BookingStatus}
-                                            </span>
-                                          </div>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            ) : (
-                              <div className="flex items-center justify-center h-full">
-                                <div className="text-center">
-                                  <svg className="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                                  </svg>
-                                  <p className="text-gray-600">No dashboard data available</p>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </>
-                      ) : role === 2 ? (
-                        /* ADMIN DASHBOARD ANALYTICS */
-                        <>
-                          <div className="flex justify-between items-center px-4 py-3 border-b border-gray-200 flex-shrink-0">
-                            <h2 className="text-base sm:text-lg font-bold text-gray-900 flex items-center gap-2">
-                              <svg className="w-5 h-5 text-[#7a5d47]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                              </svg>
-                              Admin Dashboard
-                            </h2>
-                            {loadingAdminAnalytics && (
-                              <div className="w-4 h-4 border-2 border-[#7a5d47] border-t-transparent rounded-full animate-spin"></div>
-                            )}
-                          </div>
-
-                          <div className="flex-1 overflow-y-auto p-4">
-                            {loadingAdminAnalytics ? (
-                              <div className="flex items-center justify-center h-full">
-                                <div className="text-center">
-                                  <div className="w-12 h-12 border-4 border-[#e8ddae] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                                  <p className="text-gray-600">Loading dashboard...</p>
-                                </div>
-                              </div>
-                            ) : adminAnalytics ? (
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200 shadow-sm hover:shadow-md transition-shadow">
-                                  <div className="flex items-center justify-between mb-2">
-                                    <h3 className="text-sm font-semibold text-blue-900">Total Users</h3>
-                                    <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                                    </svg>
-                                  </div>
-                                  <p className="text-3xl font-bold text-blue-700">{adminAnalytics.total_users}</p>
-                                  <p className="text-xs text-blue-600 mt-1">All registered users</p>
-                                </div>
-
-                                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 border border-green-200 shadow-sm hover:shadow-md transition-shadow">
-                                  <div className="flex items-center justify-between mb-2">
-                                    <h3 className="text-sm font-semibold text-green-900">Event Service Providers</h3>
-                                    <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                                    </svg>
-                                  </div>
-                                  <p className="text-3xl font-bold text-green-700">{adminAnalytics.total_providers}</p>
-                                  <p className="text-xs text-green-600 mt-1">Active service providers</p>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="flex items-center justify-center h-full">
-                                <div className="text-center">
-                                  <svg className="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                                  </svg>
-                                  <p className="text-gray-600">No dashboard data available</p>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </>
                       ) : (
                         <p className="text-xs text-red-600 flex items-center gap-1">
                           <span>✗</span> Passwords do not match
@@ -3790,14 +3670,14 @@ export default function Profile() {
                 <button
                   type="button"
                   onClick={() => setShowEditModal(false)}
-                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-2 rounded-lg"
+                  className="flex-1 px-6 py-3 border border-gray-300 rounded-lg bg-white text-gray-700 font-semibold hover:bg-gray-50 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={savingChanges}
-                  className="flex-1 bg-[#7a5d47] text-white py-2 rounded-lg hover:opacity-90 disabled:opacity-50"
+                  className="flex-1 px-6 py-3 bg-blue-500 text-white rounded-lg font-semibold hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   {savingChanges ? "Saving..." : "Save Changes"}
                 </button>
@@ -4118,6 +3998,9 @@ export default function Profile() {
           </div>
         </div>
       )}
+
+      {/* Confirmation Modal */}
+      <ConfirmModal />
     </>
   );
 }

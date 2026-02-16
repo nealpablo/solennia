@@ -51,7 +51,11 @@ export default function Footer() {
             md:justify-self-center
           "
         >
-         
+          <li>
+            <Link to="/about" className="hover:underline hover:text-[#f2e7c6] transition-colors">
+              ABOUT US
+            </Link>
+          </li>
         </ul>
 
         {/* ================= LEGAL (RIGHT) ================= */}

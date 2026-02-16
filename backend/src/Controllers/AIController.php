@@ -396,7 +396,13 @@ class AIController
 3. **MANDATORY**: If the user message contains ANY new or updated booking details (Date, Time, Location, Guests, Budget), you MUST call extract_booking_info FIRST to save this data, even if you plan to call other functions (like search or check). Never skip this step.
 4. Don't interrogate - have a natural conversation
 5. Acknowledge what you learned before asking next question
-6. When suggesting vendors, ONLY use the verify suppliers returned by the search_vendors function. NEVER invent or hallucinate vendors not in the system.
+6. **CRITICAL - VENDOR RECOMMENDATIONS**:
+   - You can ONLY recommend vendors/venues that are returned by the search_vendors function
+   - NEVER suggest, mention, or recommend ANY vendor or venue that is not in the search results
+   - NEVER hallucinate or make up vendor names, even if they are well-known
+   - NEVER suggest external venues or suppliers not in the Solennia database
+   - If search returns no results, tell the user \"I couldn't find any matches in our system\" and suggest adjusting criteria
+   - DO NOT say things like \"You could also try [external venue]\" - ONLY use Solennia database results
 7. Use emojis sparingly (🎉 for celebrations, 📸 for photography)
 8. **CRITICAL DATE HANDLING**: 
    - Current date is {$currentDate}
@@ -420,10 +426,19 @@ class AIController
 
 **WHEN TO USE FUNCTIONS**:
 - extract_booking_info: Call this IMMEDIATELY when user provides ANY event details OR when they pick a vendor/venue. Use the venue_id or vendor_id from the search results.
-- search_vendors: **CRITICAL** - ONLY call this if:
-  * User has explicitly mentioned wanting a specific type of vendor/venue
-  * For SUPPLIERS: User has provided Date AND Location
-  * For VENUES: User has provided or you can ask for just the Date (location is the venue's address)
+- search_vendors: **CRITICAL** - Call this when:
+  * User asks for recommendations
+  * **EXTREMELY IMPORTANT - LIMIT PARAMETER**:
+    - When user asks for ALL options without filters, DO NOT include the limit parameter AT ALL
+    - When user asks for ALL options, DO NOT include budget_max or location parameters
+    - **FOR VENUE TYPES (e.g. Churches, Gardens, Hotels)**:
+       - Use category=\"Venue\"
+       - Use the venue type (e.g. \"Church\") as the \"keyword\" parameter
+       - Example: to find all churches, call search_vendors with category=\"Venue\" and keyword=\"Church\"
+    - Only include limit, budget_max, location, or keyword when user EXPLICITLY specifies filters
+  * When user provides filters (budget, location, keyword), include them in the search - this will return up to 10 filtered results
+  * For SUPPLIERS: Ideally user has provided Date AND Location (but you can search without if they just want to browse)
+  * For VENUES: User should provide Date (location is the venue's address)
   * NEVER call search_vendors just because user mentioned a venue name - ASK for date first!
 - check_availability: **CRITICAL** - ONLY call this if:
   1. User has EXPLICITLY provided a date in the conversation
@@ -433,12 +448,15 @@ class AIController
 - create_booking: Call ONLY after user explicitly confirms ALL details.
 
 **RULES**:
-- ONLY recommend vendors/venues from search_vendors function results
+- **ABSOLUTE RULE**: ONLY recommend vendors/venues from search_vendors function results
+- **NEVER** mention or suggest vendors/venues that are not in the Solennia database
+- **NEVER** say things like \"you could also check out [external venue]\" or \"popular options include [external vendor]\"
+- If a user asks about a specific venue/vendor not in the database, say: \"I can only help you book through venues and suppliers in the Solennia system. Let me search what we have available for you!\"
 - **CRITICAL**: Use the numeric ID (venue_id or vendor_id) exactly as returned by search_vendors. NEVER use placeholder IDs like 1.
 - When category is Venue, search returns venues - use venue_id for check_availability and create_booking
 - When category is not Venue, use vendor_id for suppliers
 - NEVER make up vendor or venue names
-- If no results match, suggest adjusting criteria
+- If no results match, suggest adjusting criteria (budget, location, date) - DO NOT suggest external options
 - Always check availability before confirming booking
 - Keep responses under 150 words unless showing options
 - **FOR VENUES**: Skip asking about location - the venue's address is the event location
@@ -448,7 +466,7 @@ class AIController
 - Empathetic and helpful tone
 - Celebrate milestones ('Congratulations on your event!')
 
-Remember: You're having a CONVERSATION, not conducting an interview!";
+Remember: You're having a CONVERSATION, not conducting an interview! And you can ONLY work with vendors and venues in the Solennia database - NEVER suggest external options!";
 
         if ($stage === 'vendor_search') {
             $basePrompt .= "\n\n**RIGHT NOW**: Search for vendors and present options attractively.";
@@ -489,7 +507,7 @@ Remember: You're having a CONVERSATION, not conducting an interview!";
             ],
             [
                 'name' => 'search_vendors',
-                'description' => 'Search for vendors matching criteria',
+                'description' => 'Search for vendors/venues matching criteria. Returns ALL matching results when no filters (budget, location, keyword) are specified. Returns up to 10 when filters are applied.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
@@ -497,10 +515,10 @@ Remember: You're having a CONVERSATION, not conducting an interview!";
                             'type' => 'string',
                             'enum' => ['Photography & Videography', 'Catering', 'Venue', 'Coordination & Hosting', 'Decoration', 'Entertainment', 'Others']
                         ],
-                        'keyword' => ['type' => 'string', 'description' => 'Specific vendor name or keyword'],
+                        'keyword' => ['type' => 'string', 'description' => 'Specific vendor name, venue type (e.g. Church, Garden), or keyword'],
                         'budget_max' => ['type' => 'number'],
                         'location' => ['type' => 'string'],
-                        'limit' => ['type' => 'integer', 'default' => 3]
+                        'limit' => ['type' => 'integer', 'description' => 'Optional: Override default limit. Leave empty to show all when no filters, or 10 when filters applied.']
                     ],
                     'required' => []
                 ]
@@ -581,11 +599,15 @@ Remember: You're having a CONVERSATION, not conducting an interview!";
         $query = DB::table('event_service_provider')
             ->where('ApplicationStatus', 'Approved');
 
-        if (!empty($criteria['keyword'])) {
-            $query->where('BusinessName', 'LIKE', '%' . $criteria['keyword'] . '%');
-        }
-        elseif (!empty($criteria['category'])) {
+        if (!empty($criteria['category'])) {
             $query->where('Category', $criteria['category']);
+        }
+
+        if (!empty($criteria['keyword'])) {
+            $query->where(function ($q) use ($criteria) {
+                $q->where('BusinessName', 'LIKE', '%' . $criteria['keyword'] . '%')
+                    ->orWhere('Description', 'LIKE', '%' . $criteria['keyword'] . '%');
+            });
         }
 
         if (!empty($criteria['location']) && empty($criteria['keyword'])) {
@@ -595,7 +617,9 @@ Remember: You're having a CONVERSATION, not conducting an interview!";
             });
         }
 
-        $limit = $criteria['limit'] ?? 3;
+        // Smart limit: Show ALL if no filters, limit to 10 if filters applied
+        $hasFilters = !empty($criteria['location']) || !empty($criteria['budget_max']) || !empty($criteria['keyword']);
+        $limit = $hasFilters ? ($criteria['limit'] ?? 10) : 100; // 100 = effectively "all"
         $query->limit($limit);
 
         $vendors = $query->select(
@@ -626,7 +650,8 @@ Remember: You're having a CONVERSATION, not conducting an interview!";
         if (!empty($criteria['keyword'])) {
             $query->where(function ($q) use ($criteria) {
                 $q->where('venue_name', 'LIKE', '%' . $criteria['keyword'] . '%')
-                    ->orWhere('description', 'LIKE', '%' . $criteria['keyword'] . '%');
+                    ->orWhere('description', 'LIKE', '%' . $criteria['keyword'] . '%')
+                    ->orWhere('venue_subcategory', 'LIKE', '%' . $criteria['keyword'] . '%');
             });
         }
 
@@ -634,7 +659,9 @@ Remember: You're having a CONVERSATION, not conducting an interview!";
             $query->where('address', 'LIKE', '%' . $criteria['location'] . '%');
         }
 
-        $limit = $criteria['limit'] ?? 3;
+        // Smart limit: Show ALL if no filters, limit to 10 if filters applied
+        $hasFilters = !empty($criteria['location']) || !empty($criteria['budget_max']) || !empty($criteria['keyword']);
+        $limit = $hasFilters ? ($criteria['limit'] ?? 10) : 100; // 100 = effectively "all"
         $query->limit($limit);
 
         $venues = $query->select(
@@ -771,7 +798,7 @@ Remember: You're having a CONVERSATION, not conducting an interview!";
                 $vendorId = $vendor->ID;
             }
 
-            $notes = "🤖 AI Conversational Booking\n\n";
+            $notes = "AI Booking\n\n";
             if (!empty($bookingData['guests'])) {
                 $notes .= "Expected Guests: {$bookingData['guests']}\n";
             }
@@ -815,7 +842,7 @@ Remember: You're having a CONVERSATION, not conducting an interview!";
             $this->sendNotification(
                 $vendor->UserID,
                 'booking_request',
-                '🤖 New AI Booking Request',
+                'New AI Booking Request',
                 $notificationMessage
             );
 
@@ -866,7 +893,7 @@ Remember: You're having a CONVERSATION, not conducting an interview!";
 
             error_log("CREATE_VENUE_BOOKING: Date={$startDate}");
 
-            $notes = "🤖 AI Conversational Booking\n\n";
+            $notes = "AI Booking\n\n";
             if (!empty($bookingData['guests'])) {
                 $notes .= "Expected Guests: {$bookingData['guests']}\n";
             }
@@ -979,7 +1006,7 @@ Remember: You're having a CONVERSATION, not conducting an interview!";
                 $this->sendNotification(
                     $venue->user_id,
                     'venue_booking_request',
-                    '🤖 New AI Venue Booking Request',
+                    'New AI Venue Booking Request',
                     "{$clientName} requested to book {$venue->venue_name} for {$eventType} via AI assistant"
                 );
             }

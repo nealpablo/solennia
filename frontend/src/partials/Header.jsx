@@ -160,7 +160,6 @@ export default function Header() {
         <ul className="hidden md:flex items-center gap-6 text-sm font-medium">
           <li><Link to="/venue" className="hover:underline">VENUE</Link></li>
           <li><Link to="/vendors" className="hover:underline">SUPPLIERS</Link></li>
-          <li><Link to="/about" className="hover:underline">ABOUT US</Link></li>
           <li><Link to="/ai-booking" className="hover:underline">AI ASSISTANT</Link></li>
         </ul>
 
@@ -330,15 +329,7 @@ export default function Header() {
                   </Link>
                 </li>
 
-                <li>
-                  <Link
-                    to="/about"
-                    onClick={closeMobileMenu}
-                    className="block px-4 py-3 rounded-lg hover:bg-[#e8ddae] transition-colors"
-                  >
-                    ABOUT US
-                  </Link>
-                </li>
+
 
                 <div className="my-4 border-t border-gray-300" />
 

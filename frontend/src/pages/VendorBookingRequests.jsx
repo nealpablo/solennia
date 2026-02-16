@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "../utils/toast";
+import { useConfirmModal } from "../hooks/useConfirmModal";
 import BookingDetailsModal from "../components/BookingDetailsModal";
 
 const API =
@@ -12,6 +13,7 @@ const API =
 
 export default function VendorBookingRequests() {
   const navigate = useNavigate();
+  const { confirm, ConfirmModal } = useConfirmModal();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
@@ -164,7 +166,7 @@ export default function VendorBookingRequests() {
    * This allows the client to leave feedback
    */
   const handleComplete = async (bookingId) => {
-    if (!confirm("Mark this booking as completed? The client will be able to leave feedback.")) {
+    const confirmed = await confirm({ title: "Mark this booking as completed?", message: "The client will be able to leave feedback." }); if (!confirmed) {
       return;
     }
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import toast from "../utils/toast";
+import { useConfirmModal } from "../hooks/useConfirmModal";
 
 const API =
   import.meta.env.VITE_API_BASE ||
@@ -9,6 +10,7 @@ const API =
 
 export default function ManageListings() {
   const navigate = useNavigate();
+  const { confirm, ConfirmModal } = useConfirmModal();
   const [searchParams] = useSearchParams();
   const token = localStorage.getItem("solennia_token");
 
@@ -370,7 +372,7 @@ export default function ManageListings() {
   // ===================================================
 
   const deleteListing = async (id) => {
-    if (!confirm('Delete this listing? This cannot be undone.')) return;
+    const confirmed = await confirm({ title: 'Delete this listing?', message: 'This action cannot be undone.' }); if (!confirmed) return;
     try {
       if (isVenue) {
         const res = await fetch(`${API}/venue/listings/${id}`, {
@@ -909,6 +911,8 @@ export default function ManageListings() {
           </form>
         )}
       </div>
+      <ConfirmModal />
+
     </div>
   );
 }

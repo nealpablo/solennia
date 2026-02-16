@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "../utils/toast";
 import FeedbackModal from "../components/FeedbackModal";
+import { useConfirmModal } from "../hooks/useConfirmModal";
 
 const API =
   import.meta.env.VITE_API_BASE ||
@@ -12,6 +13,7 @@ const API =
 
 export default function MyBookings() {
   const navigate = useNavigate();
+  const { confirm, ConfirmModal } = useConfirmModal();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
@@ -55,7 +57,7 @@ export default function MyBookings() {
   // Extract event time from booking notes for venue bookings
   const extractEventTimeFromNotes = (notes) => {
     if (!notes) return null;
-    
+
     // Look for pattern like "Event Time: 12:45" or "Event Time:\n12:45"
     const timeMatch = notes.match(/Event Time:\s*(\d{1,2}:\d{2})/);
     if (timeMatch && timeMatch[1]) {
@@ -73,7 +75,7 @@ export default function MyBookings() {
         return noteTime;
       }
     }
-    
+
     // Otherwise use the time from EventDate
     const displayDate = booking.has_pending_reschedule && booking.original_date
       ? booking.original_date
@@ -129,7 +131,12 @@ export default function MyBookings() {
   };
 
   const handleCancel = async (bookingId, isVenueBooking = false) => {
-    if (!confirm("Cancel this booking?")) return;
+    const confirmed = await confirm({
+      title: "Cancel this booking?",
+      message: "Are you sure you want to cancel this booking? This action cannot be undone."
+    });
+
+    if (!confirmed) return;
 
     setProcessing(true);
     try {
@@ -283,7 +290,7 @@ export default function MyBookings() {
     <div style={styles.container}>
       <div style={styles.header}>
         <h1 style={styles.title}>My Bookings</h1>
-        <button onClick={() => navigate("/vendors")} style={styles.newBookingButton}>
+        <button onClick={() => navigate("/vendors")} className="px-6 py-3 bg-amber-800 text-white rounded-lg font-semibold hover:bg-amber-900 transition-colors">
           + New Booking
         </button>
       </div>
@@ -293,10 +300,10 @@ export default function MyBookings() {
           <button
             key={f}
             onClick={() => setFilter(f)}
-            style={{
-              ...styles.filterButton,
-              ...(filter === f ? styles.filterButtonActive : {})
-            }}
+            className={`px-5 py-2 rounded-full text-sm font-medium transition-colors ${filter === f
+              ? 'bg-amber-700 text-white border border-amber-700'
+              : 'bg-amber-50 text-gray-800 border border-amber-200 hover:bg-amber-100'
+              }`}
           >
             {f === "all" ? "All" : f}
           </button>
@@ -312,7 +319,7 @@ export default function MyBookings() {
           <p style={styles.emptyText}>
             {filter === "all" ? "You haven't made any bookings yet." : `No ${filter.toLowerCase()} bookings found.`}
           </p>
-          <button onClick={() => navigate("/vendors")} style={styles.browseButton}>
+          <button onClick={() => navigate("/vendors")} className="px-8 py-3 bg-amber-800 text-white rounded-lg font-semibold hover:bg-amber-900 transition-colors">
             Browse Suppliers
           </button>
         </div>
@@ -557,7 +564,7 @@ export default function MyBookings() {
                     <button
                       onClick={() => openRescheduleModal(booking)}
                       disabled={processing}
-                      style={styles.rescheduleButton}
+                      className="flex-1 min-w-[150px] px-6 py-3 bg-blue-500 text-white rounded-lg text-sm font-semibold hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
                       📅 Reschedule
                     </button>
@@ -567,7 +574,7 @@ export default function MyBookings() {
                     <button
                       onClick={() => openFeedbackModal(booking)}
                       disabled={processing}
-                      style={styles.feedbackButton}
+                      className="flex-1 min-w-[150px] px-6 py-3 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
                       ⭐ Leave Review
                     </button>
@@ -577,7 +584,7 @@ export default function MyBookings() {
                     <button
                       onClick={() => handleCancel(booking.ID, booking.isVenueBooking)}
                       disabled={processing}
-                      style={styles.cancelButton}
+                      className="flex-1 min-w-[150px] px-6 py-3 border border-red-600 bg-white text-red-600 rounded-lg text-sm font-semibold hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
                       {processing ? 'Processing...' : '❌ Cancel Booking'}
                     </button>
@@ -670,14 +677,14 @@ export default function MyBookings() {
                       setRescheduleBooking(null);
                     }}
                     disabled={processing}
-                    style={styles.modalCancelButton}
+                    className="flex-1 px-6 py-3 border border-gray-300 rounded-lg bg-white text-gray-700 font-semibold hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={processing}
-                    style={styles.modalSubmitButton}
+                    className="flex-1 px-6 py-3 bg-blue-500 text-white rounded-lg font-semibold hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     {processing ? 'Processing...' : '✓ Request Reschedule'}
                   </button>
@@ -697,6 +704,9 @@ export default function MyBookings() {
           onSubmitSuccess={handleFeedbackSuccess}
         />
       )}
+
+      {/* Confirmation Modal */}
+      <ConfirmModal />
     </div>
   );
 }

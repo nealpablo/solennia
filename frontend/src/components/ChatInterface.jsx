@@ -30,13 +30,13 @@ export default function ChatInterface({ messages, onSendMessage, isProcessing })
           >
             <div
               className={`max-w-[75%] rounded-lg p-3 ${msg.role === 'user'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-800'
+                ? 'bg-amber-800 text-white'
+                : 'bg-amber-50 text-gray-800 border border-amber-200'
                 }`}
             >
               {msg.role === 'assistant' && (
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="font-semibold text-sm">Solennia AI</span>
+                  <span className="font-semibold text-sm text-amber-900">Solennia AI</span>
                 </div>
               )}
 
@@ -55,14 +55,14 @@ export default function ChatInterface({ messages, onSendMessage, isProcessing })
 
         {isProcessing && (
           <div className="flex justify-start">
-            <div className="bg-gray-100 rounded-lg p-3">
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
               <div className="flex items-center gap-2">
                 <div className="flex space-x-1">
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                  <div className="w-2 h-2 bg-amber-600 rounded-full animate-bounce"></div>
+                  <div className="w-2 h-2 bg-amber-600 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                  <div className="w-2 h-2 bg-amber-600 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                 </div>
-                <span className="text-sm text-gray-600">AI is thinking...</span>
+                <span className="text-sm text-amber-900">AI is thinking...</span>
               </div>
             </div>
           </div>
@@ -85,7 +85,7 @@ export default function ChatInterface({ messages, onSendMessage, isProcessing })
             placeholder="Tell me about your event..."
             disabled={isProcessing}
             rows={1}
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 resize-none min-h-[44px] max-h-32"
+            className="flex-1 px-4 py-2 border border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-600 disabled:bg-gray-100 resize-none min-h-[44px] max-h-32"
             style={{ height: 'auto', minHeight: '44px' }}
             onInput={(e) => {
               e.target.style.height = 'auto';
@@ -95,7 +95,7 @@ export default function ChatInterface({ messages, onSendMessage, isProcessing })
           <button
             type="submit"
             disabled={!inputValue.trim() || isProcessing}
-            className="px-6 py-2 h-[44px] bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="px-6 py-2 h-[44px] bg-amber-800 text-white rounded-lg hover:bg-amber-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-semibold"
           >
             Send
           </button>
@@ -124,13 +124,13 @@ function VendorCard({ vendor }) {
   };
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg p-3 hover:shadow-md transition-shadow">
+    <div className="bg-white border border-amber-200 rounded-lg p-3 hover:shadow-lg hover:border-amber-400 transition-all">
       <div className="flex justify-between items-start mb-2">
         <div>
           <h4 className="font-semibold text-gray-900">{vendor.BusinessName}</h4>
           <span className="text-xs text-gray-500">{vendor.Category}</span>
         </div>
-        <span className="text-sm font-bold text-blue-600 ml-2 text-right">
+        <span className="text-sm font-bold text-amber-800 ml-2 text-right">
           {formatPrice(vendor.Pricing)}
         </span>
       </div>
