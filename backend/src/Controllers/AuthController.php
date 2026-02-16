@@ -15,9 +15,6 @@ class AuthController
     public function __construct()
     {
         $this->secret = $_ENV['JWT_SECRET'] ?? getenv('JWT_SECRET') ?: 'solennia_super_secret_key_2025';
-
-        $keyUsed = substr($this->secret, 0, 5) . '...';
-        error_log("AUTH_CONTROLLER_INIT: Initialized with secret starting with: " . $keyUsed);
     }
 
     /* =========================================================
