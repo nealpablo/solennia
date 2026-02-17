@@ -1326,6 +1326,69 @@ export default function Profile() {
       let updatedFields = {};
       let passwordChanged = false;
 
+      // Detect if any changes were made
+      const usernameChanged = editForm.username !== (profile.username || "");
+      const phoneChanged = editForm.phone !== (profile.phone || "");
+      const passwordChanging = editForm.newPassword.trim().length > 0;
+      const hasAnyChanges = usernameChanged || phoneChanged || passwordChanging;
+
+      if (!hasAnyChanges) {
+        toast.info("No changes to save");
+        setSavingChanges(false);
+        return;
+      }
+
+      // Require current password for any profile changes
+      if (!editForm.currentPassword.trim()) {
+        throw new Error("Current password is required to save changes");
+      }
+
+      // Verify current password via Firebase reauthentication
+      const user = auth.currentUser;
+      if (!user) {
+        throw new Error("Firebase authentication session expired. Please log out and log in again.");
+      }
+
+      const userEmail = user.email || profile?.email;
+      if (!userEmail) {
+        throw new Error("Cannot verify account email. Please contact support.");
+      }
+
+      try {
+        const credential = EmailAuthProvider.credential(
+          userEmail,
+          editForm.currentPassword
+        );
+        await reauthenticateWithCredential(user, credential);
+      } catch (firebaseError) {
+        console.error("Password verification error:", firebaseError);
+        if (firebaseError.code === 'auth/invalid-credential' || firebaseError.code === 'auth/wrong-password') {
+          throw new Error("Current password is incorrect. Please try again.");
+        } else if (firebaseError.code === 'auth/requires-recent-login') {
+          throw new Error("For security, please log out and log back in before making changes.");
+        } else {
+          throw new Error("Password verification failed. Please try again.");
+        }
+      }
+
+      // Update username if changed
+      if (editForm.username !== (profile.username || "")) {
+        const usernameRes = await fetch(`${API}/user/update-username`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ username: editForm.username }),
+        });
+
+        const usernameData = await usernameRes.json();
+        if (!usernameRes.ok) throw new Error(usernameData.message || "Failed to update username");
+
+        updatedFields.username = editForm.username;
+
+      }
+
       if (editForm.phone !== (profile.phone || "")) {
         const phoneRes = await fetch(`${API}/user/update-phone`, {
           method: "POST",
@@ -1340,14 +1403,10 @@ export default function Profile() {
         if (!phoneRes.ok) throw new Error(phoneData.message || "Failed to update phone");
 
         updatedFields.phone = editForm.phone;
-        toast.success("Phone number updated!");
+
       }
 
       if (editForm.newPassword.trim()) {
-        if (!editForm.currentPassword.trim()) {
-          throw new Error("Current password is required to change password");
-        }
-
         // Validate password requirements: 8+ chars with letters, numbers & symbols
         const password = editForm.newPassword;
         if (password.length < 8) {
@@ -1371,47 +1430,18 @@ export default function Profile() {
           throw new Error("New passwords do not match");
         }
 
-        const user = auth.currentUser;
-        if (!user) {
-          throw new Error("Firebase authentication session expired. Please log out and log in again.");
-        }
+        // Password already verified via reauthentication above
+        await updatePassword(user, editForm.newPassword);
 
-        const userEmail = user.email || profile?.email;
-        if (!userEmail) {
-          throw new Error("Cannot verify account email. Please contact support.");
-        }
+        passwordChanged = true;
 
-        try {
-          const credential = EmailAuthProvider.credential(
-            userEmail,
-            editForm.currentPassword
-          );
 
-          await reauthenticateWithCredential(user, credential);
-          await updatePassword(user, editForm.newPassword);
-
-          passwordChanged = true;
-          toast.success("Password changed successfully!");
-
-          setEditForm(prev => ({
-            ...prev,
-            currentPassword: "",
-            newPassword: "",
-            confirmPassword: "",
-          }));
-        } catch (firebaseError) {
-          console.error("Firebase password change error:", firebaseError);
-
-          if (firebaseError.code === 'auth/invalid-credential' || firebaseError.code === 'auth/wrong-password') {
-            throw new Error("Current password is incorrect. Please try again.");
-          } else if (firebaseError.code === 'auth/weak-password') {
-            throw new Error("New password is too weak. Please use a stronger password.");
-          } else if (firebaseError.code === 'auth/requires-recent-login') {
-            throw new Error("For security, please log out and log back in before changing your password.");
-          } else {
-            throw new Error(firebaseError.message || "Failed to change password. Please try again.");
-          }
-        }
+        setEditForm(prev => ({
+          ...prev,
+          currentPassword: "",
+          newPassword: "",
+          confirmPassword: "",
+        }));
       }
 
       if (Object.keys(updatedFields).length > 0) {
@@ -1429,18 +1459,15 @@ export default function Profile() {
         window.dispatchEvent(new Event("profileUpdated"));
       }
 
-      if (!passwordChanged && Object.keys(updatedFields).length === 0) {
-        toast.info("No changes to save");
-      } else if (Object.keys(updatedFields).length > 0 || passwordChanged) {
-        toast.success("Profile updated successfully!");
-        setTimeout(() => setShowEditModal(false), 1000);
-      }
+      toast.success("Profile updated");
+      setTimeout(() => setShowEditModal(false), 1000);
 
     } catch (err) {
       console.error("Profile update error:", err);
       toast.error(err.message || "Failed to update profile");
     } finally {
       setSavingChanges(false);
+      setEditForm(prev => ({ ...prev, currentPassword: "", newPassword: "", confirmPassword: "" }));
     }
   }
 
@@ -1561,21 +1588,232 @@ export default function Profile() {
                   </button>
                 </div>
 
-                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3">{name}</h1>
+                {/* Profile Info - Premium Card */}
+                <div className="mb-6 w-full max-w-xs">
+                  <div style={{
+                    background: 'linear-gradient(135deg, rgba(255,255,255,0.85) 0%, rgba(253,250,245,0.92) 100%)',
+                    border: '1px solid #e8ddae',
+                    borderRadius: '16px',
+                    padding: '1.25rem 1.5rem',
+                    boxShadow: '0 4px 24px rgba(122,93,71,0.08), 0 1.5px 6px rgba(122,93,71,0.04)',
+                    backdropFilter: 'blur(8px)',
+                  }}>
+                    {/* Full Name Row */}
+                    {name && name !== "Guest" && (
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.75rem',
+                        padding: '0.65rem 0',
+                        transition: 'background 0.2s',
+                        borderRadius: '8px',
+                      }}>
+                        <div style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '10px',
+                          background: 'linear-gradient(135deg, #5d4436 0%, #7a5d47 100%)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                          boxShadow: '0 2px 8px rgba(93,68,54,0.2)',
+                        }}>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
+                          </svg>
+                        </div>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <p style={{
+                            fontSize: '0.65rem',
+                            fontWeight: 600,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.08em',
+                            color: '#9a8b7a',
+                            marginBottom: '2px',
+                            fontFamily: "'Cinzel', serif",
+                          }}>Full Name</p>
+                          <p style={{
+                            fontSize: '0.9rem',
+                            fontWeight: 500,
+                            color: '#3b2f25',
+                            fontFamily: "'Libre Baskerville', serif",
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}>{name}</p>
+                        </div>
+                      </div>
+                    )}
 
-                {/* Profile Info - Ultra Minimalist */}
-                <div className="mb-6 space-y-1">
-                  {profile?.username && (
-                    <p className="text-sm text-gray-600">@{profile.username}</p>
-                  )}
+                    {name && name !== "Guest" && profile?.username && (
+                      <div style={{
+                        height: '1px',
+                        background: 'linear-gradient(90deg, transparent, #e8ddae, transparent)',
+                        margin: '0.15rem 0',
+                      }} />
+                    )}
 
-                  {profile?.email && (
-                    <p className="text-sm text-gray-600">{profile.email}</p>
-                  )}
+                    {profile?.username && (
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.75rem',
+                        padding: '0.65rem 0',
+                        transition: 'background 0.2s',
+                        borderRadius: '8px',
+                      }}>
+                        <div style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '10px',
+                          background: 'linear-gradient(135deg, #7a5d47 0%, #9a7b63 100%)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                          boxShadow: '0 2px 8px rgba(122,93,71,0.18)',
+                        }}>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                            <circle cx="12" cy="7" r="4" />
+                          </svg>
+                        </div>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <p style={{
+                            fontSize: '0.65rem',
+                            fontWeight: 600,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.08em',
+                            color: '#9a8b7a',
+                            marginBottom: '2px',
+                            fontFamily: "'Cinzel', serif",
+                          }}>Username</p>
+                          <p style={{
+                            fontSize: '0.9rem',
+                            fontWeight: 500,
+                            color: '#3b2f25',
+                            fontFamily: "'Libre Baskerville', serif",
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}>@{profile.username}</p>
+                        </div>
+                      </div>
+                    )}
 
-                  {profile?.phone && (
-                    <p className="text-sm text-gray-600">{profile.phone}</p>
-                  )}
+                    {profile?.username && profile?.email && (
+                      <div style={{
+                        height: '1px',
+                        background: 'linear-gradient(90deg, transparent, #e8ddae, transparent)',
+                        margin: '0.15rem 0',
+                      }} />
+                    )}
+
+                    {profile?.email && (
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.75rem',
+                        padding: '0.65rem 0',
+                        transition: 'background 0.2s',
+                        borderRadius: '8px',
+                      }}>
+                        <div style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '10px',
+                          background: 'linear-gradient(135deg, #c9bda4 0%, #e8ddae 100%)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                          boxShadow: '0 2px 8px rgba(201,189,164,0.25)',
+                        }}>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5d4a38" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="2" y="4" width="20" height="16" rx="2" />
+                            <path d="M22 7l-10 6L2 7" />
+                          </svg>
+                        </div>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <p style={{
+                            fontSize: '0.65rem',
+                            fontWeight: 600,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.08em',
+                            color: '#9a8b7a',
+                            marginBottom: '2px',
+                            fontFamily: "'Cinzel', serif",
+                          }}>Email</p>
+                          <p style={{
+                            fontSize: '0.9rem',
+                            fontWeight: 500,
+                            color: '#3b2f25',
+                            fontFamily: "'Libre Baskerville', serif",
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}>{profile.email}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {profile?.email && profile?.phone && (
+                      <div style={{
+                        height: '1px',
+                        background: 'linear-gradient(90deg, transparent, #e8ddae, transparent)',
+                        margin: '0.15rem 0',
+                      }} />
+                    )}
+
+                    {profile?.phone && (
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.75rem',
+                        padding: '0.65rem 0',
+                        transition: 'background 0.2s',
+                        borderRadius: '8px',
+                      }}>
+                        <div style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '10px',
+                          background: 'linear-gradient(135deg, #e8ddae 0%, #f6f0e8 100%)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                          boxShadow: '0 2px 8px rgba(232,221,174,0.3)',
+                          border: '1px solid #d9d0c3',
+                        }}>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7a5d47" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                          </svg>
+                        </div>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <p style={{
+                            fontSize: '0.65rem',
+                            fontWeight: 600,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.08em',
+                            color: '#9a8b7a',
+                            marginBottom: '2px',
+                            fontFamily: "'Cinzel', serif",
+                          }}>Phone</p>
+                          <p style={{
+                            fontSize: '0.9rem',
+                            fontWeight: 500,
+                            color: '#3b2f25',
+                            fontFamily: "'Libre Baskerville', serif",
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}>{profile.phone}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="space-y-3 w-full max-w-xs">
@@ -2468,7 +2706,7 @@ export default function Profile() {
 
                             <div className="bg-white rounded-xl p-3 border border-[#c9bda4] shadow-sm hover:shadow-md hover:border-[#7a5d47] transition-all">
                               <div className="flex items-center justify-between mb-1">
-                                <h3 className="text-xs font-semibold text-[#5b4636] uppercase tracking-wide">Vendors</h3>
+                                <h3 className="text-xs font-semibold text-[#5b4636] uppercase tracking-wide">Suppliers</h3>
                                 <svg className="w-5 h-5 text-[#7a5d47]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                                 </svg>
@@ -3629,7 +3867,10 @@ export default function Profile() {
                 <p className="text-sm text-white/80 mt-1">Update your personal information</p>
               </div>
               <button
-                onClick={() => setShowEditModal(false)}
+                onClick={() => {
+                  setShowEditModal(false);
+                  setEditForm(prev => ({ ...prev, currentPassword: "", newPassword: "", confirmPassword: "" }));
+                }}
                 className="text-white hover:text-gray-200 text-3xl font-light transition-colors"
                 aria-label="Close"
               >
@@ -3638,35 +3879,56 @@ export default function Profile() {
             </div>
 
             <form onSubmit={saveProfileChanges} className="p-8 space-y-8 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 100px)' }}>
+              {/* Current Password Verification - Required for all changes */}
+              <div className="bg-amber-50 rounded-xl p-6 border border-amber-200">
+                <label className="block text-sm font-bold uppercase mb-3 text-amber-900 tracking-wide">
+                  Current Password <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <svg className="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                  </div>
+                  <input
+                    type={showCurrentPassword ? "text" : "password"}
+                    value={editForm.currentPassword}
+                    onChange={(e) => setEditForm({ ...editForm, currentPassword: e.target.value })}
+                    placeholder="Enter your current password to save changes"
+                    required
+                    className="w-full rounded-lg bg-white border-2 border-amber-300 p-3 pl-12 pr-12 focus:border-[#7a5d47] focus:ring-2 focus:ring-[#7a5d47]/20 outline-none transition-all font-medium"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                  >
+                    {showCurrentPassword ? "👁️" : "👁️\u200D🗨️"}
+                  </button>
+                </div>
+                <p className="text-xs text-amber-800 mt-2 font-medium">
+                  Your current password is required to verify your identity before saving any changes.
+                </p>
+              </div>
+
               {/* Username Section */}
               <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
                 <label className="block text-sm font-bold uppercase mb-3 text-gray-700 tracking-wide">
                   Username
                 </label>
-                <div className="flex gap-3">
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                  </div>
                   <input
                     type="text"
                     value={editForm.username}
-                    readOnly
-                    disabled
-                    className="flex-1 rounded-lg bg-gray-200 border border-gray-300 p-3 cursor-not-allowed text-gray-600 font-medium"
+                    onChange={(e) => setEditForm({ ...editForm, username: e.target.value })}
+                    placeholder="Enter username"
+                    className="w-full rounded-lg bg-white border-2 border-gray-300 p-3 pl-12 focus:border-[#7a5d47] focus:ring-2 focus:ring-[#7a5d47]/20 outline-none transition-all font-medium"
                   />
-                  <button
-                    type="button"
-                    onClick={requestUsernameChange}
-                    className="bg-[#7a5d47] text-white px-6 py-3 rounded-lg text-sm font-semibold hover:bg-[#654a38] transition-colors whitespace-nowrap shadow-md"
-                  >
-                    Request Change
-                  </button>
-                </div>
-                <p className="text-xs text-gray-600 mt-2 font-medium">
-                  Current: <span className="text-[#7a5d47]">@{profile?.username || "Not set"}</span>
-                </p>
-                <div className="flex items-start gap-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3 mt-3">
-                  <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                  </svg>
-                  <span>Username changes require admin approval. Click "Request Change" to contact support.</span>
                 </div>
               </div>
 
@@ -3731,28 +3993,6 @@ export default function Profile() {
 
               <div className="border-t border-gray-300 pt-6">
                 <h3 className="text-base font-semibold mb-4">Change Password</h3>
-
-                <div className="mb-4">
-                  <label className="block text-sm font-semibold uppercase mb-2">
-                    Current Password
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showCurrentPassword ? "text" : "password"}
-                      value={editForm.currentPassword}
-                      onChange={(e) => setEditForm({ ...editForm, currentPassword: e.target.value })}
-                      placeholder="Enter current password"
-                      className="w-full rounded-md bg-gray-100 border border-gray-300 p-2 pr-10"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-600"
-                    >
-                      {showCurrentPassword ? "👁️" : "👁️‍🗨️"}
-                    </button>
-                  </div>
-                </div>
 
                 <div className="mb-4">
                   <label className="block text-sm font-semibold uppercase mb-2">
@@ -3838,7 +4078,7 @@ export default function Profile() {
                 </div>
 
                 <p className="text-xs text-gray-600 bg-yellow-50 border border-yellow-200 rounded p-2">
-                  ⚠️ Leave password fields empty if you don't want to change your password
+                  ⚠️ Leave the new password fields empty if you only want to update your username or phone number
                 </p>
               </div>
 
@@ -3853,7 +4093,7 @@ export default function Profile() {
                 <button
                   type="submit"
                   disabled={savingChanges}
-                  className="flex-1 px-6 py-3 bg-blue-500 text-white rounded-lg font-semibold hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="flex-1 px-6 py-3 bg-[#7a5d47] text-white rounded-lg font-semibold hover:bg-[#5d4436] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   {savingChanges ? "Saving..." : "Save Changes"}
                 </button>

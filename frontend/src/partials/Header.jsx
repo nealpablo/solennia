@@ -160,7 +160,7 @@ export default function Header() {
         <ul className="hidden md:flex items-center gap-6 text-sm font-medium">
           <li><Link to="/venue" className="hover:underline">VENUE</Link></li>
           <li><Link to="/vendors" className="hover:underline">SUPPLIERS</Link></li>
-          <li><Link to="/ai-booking" className="hover:underline">AI ASSISTANT</Link></li>
+          <li><Link to="/ai-booking" className="hover:underline">SOLENNIA AI</Link></li>
         </ul>
 
         {/* RIGHT SIDE - Desktop */}

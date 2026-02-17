@@ -164,148 +164,76 @@ return function (App $app) {
      * GET PUBLIC VENDORS LIST
      * =========================================================== */
     $app->get('/api/vendors/public', function (Request $req, Response $res) use ($json) {
-        try {
-            $vendors = [];
+    try {
+        $vendors = DB::table('vendor_listings as vl')
+            ->join('credential as c', 'vl.user_id', '=', 'c.id')
+            ->where('vl.status', 'Active')
+            ->select(
+                'vl.id',
+                'c.id as UserID',
+                'vl.business_name as BusinessName',
+                'vl.service_category as Category',
+                'vl.description as Description',
+                'vl.description as bio',
+                'vl.logo as avatar',
+                'vl.logo as business_logo_url',
+                'vl.hero_image as HeroImageUrl',
+                'vl.gallery',
+                'vl.address as BusinessAddress',
+                'vl.region',
+                'vl.city',
+                DB::raw('0 as verification_score'),
+                'vl.pricing as Pricing',
+                'c.firebase_uid',
+                'c.firebase_uid as user_firebase_uid',
+                'c.first_name',
+                'c.last_name',
+                'c.email',
+                'c.username',
+                'c.avatar as user_avatar',
+                'c.role',
+                'vl.created_at'
+            )
+            ->orderByDesc('vl.created_at')
+            ->get()
+            ->map(function ($v) {
+                $v->source = 'vendor_listings';
+                $v->unique_key = 'user_' . $v->UserID . '_vl_' . $v->id;
 
-            // 1. Get Active Vendor Listings (New System)
-            $newListings = DB::table('vendor_listings as vl')
-                ->join('credential as c', 'vl.user_id', '=', 'c.id')
-                ->where('vl.status', 'Active')
-                ->select(
-                    'vl.id',
-                    'c.id as UserID',
-                    'vl.business_name as BusinessName',
-                    'vl.service_category as Category',
-                    'vl.description as Description',
-                    'vl.description as bio',
-                    'vl.logo as avatar',
-                    'vl.logo as business_logo_url',
-                    'vl.hero_image as HeroImageUrl',
-                    'vl.gallery',
-                    'vl.address as BusinessAddress',
-                    'vl.region',
-                    'vl.city',
-                    DB::raw('0 as verification_score'),
-                    'vl.pricing as Pricing',
-                    'c.firebase_uid',
-                    'c.firebase_uid as user_firebase_uid',
-                    'c.first_name',
-                    'c.last_name',
-                    'c.email',
-                    'c.username',
-                    'c.avatar as user_avatar',
-                    'c.role',
-                    'vl.created_at'
-                )
-                ->get()
-                ->map(function($v) {
-                    $v->source = 'vendor_listings';
-                    // Parse gallery safely
-                    if (isset($v->gallery)) {
-                        $v->gallery = is_string($v->gallery) ? json_decode($v->gallery, true) ?: [] : $v->gallery;
-                    }
-                    return $v;
-                });
-
-            // 2. Get Approved Event Service Providers (Legacy System)
-            $legacyListings = DB::table('event_service_provider as esp')
-                ->join('credential as c', 'esp.UserID', '=', 'c.id')
-                ->where('esp.ApplicationStatus', 'Approved')
-                ->select(
-                    'esp.ID as id', // Use ESP ID as listing ID equivalent
-                    'c.id as UserID',
-                    'esp.BusinessName',
-                    'esp.Category',
-                    'esp.Description',
-                    'esp.bio',
-                    'esp.avatar',
-                    'esp.business_logo_url',
-                    'esp.HeroImageUrl',
-                    'esp.gallery',
-                    'esp.BusinessAddress',
-                    'esp.region',
-                    'esp.city',
-                    'esp.verification_score',
-                    'esp.Pricing',
-                    'c.firebase_uid',
-                    'c.firebase_uid as user_firebase_uid',
-                    'c.first_name',
-                    'c.last_name',
-                    'c.email',
-                    'c.username',
-                    'c.avatar as user_avatar',
-                    'c.role',
-                    'esp.DateApproved as created_at'
-                )
-                ->get()
-                ->map(function($v) {
-                    $v->source = 'event_service_provider';
-                     // Parse gallery safely
-                     if (isset($v->gallery)) {
-                        $v->gallery = is_string($v->gallery) ? json_decode($v->gallery, true) ?: [] : $v->gallery;
-                    }
-                    return $v;
-                });
-
-            // 3. Merge and Deduplicate
-            // If a user has both, prefer vendor_listings (new system).
-            $merged = [];
-            $seenUsers = [];
-
-            // Add new listings first
-            foreach ($newListings as $item) {
-                // Ensure BusinessName is set
-                if (empty($item->BusinessName)) {
-                    $item->BusinessName = trim(($item->first_name ?? '') . ' ' . ($item->last_name ?? '')) ?: ($item->username ?? 'Vendor');
-                }
-                // Ensure Avatar
-                if (empty($item->avatar)) {
-                    $item->avatar = $item->user_avatar;
-                }
-                
-                $item->unique_key = 'user_' . $item->UserID . '_vl_' . $item->id;
-                $merged[] = $item;
-                $seenUsers[$item->UserID] = true;
-            }
-
-            // Add legacy listings if user not already added
-            foreach ($legacyListings as $item) {
-                 if (isset($seenUsers[$item->UserID])) {
-                     continue; // Skip legacy if new listing exists
-                 }
-
-                // Ensure BusinessName is set
-                if (empty($item->BusinessName)) {
-                    $item->BusinessName = trim(($item->first_name ?? '') . ' ' . ($item->last_name ?? '')) ?: ($item->username ?? 'Vendor');
-                }
-                // Ensure Avatar
-                if (empty($item->avatar)) {
-                    $item->avatar = $item->user_avatar;
+                // Parse gallery
+                if (isset($v->gallery)) {
+                    $v->gallery = is_string($v->gallery)
+                        ? json_decode($v->gallery, true) ?: []
+                        : $v->gallery;
                 }
 
-                $item->unique_key = 'user_' . $item->UserID . '_esp_' . $item->id;
-                $merged[] = $item;
-            }
+                // Fallback avatar
+                if (empty($v->avatar)) {
+                    $v->avatar = $v->user_avatar;
+                }
 
-            // Sort by created_at desc
-            usort($merged, function($a, $b) {
-                $t1 = strtotime($a->created_at ?? 'now');
-                $t2 = strtotime($b->created_at ?? 'now');
-                return $t2 - $t1;
+                // Fallback business name
+                if (empty($v->BusinessName)) {
+                    $v->BusinessName = trim(($v->first_name ?? '') . ' ' . ($v->last_name ?? ''))
+                        ?: ($v->username ?? 'Vendor');
+                }
+
+                return $v;
             });
 
-            return $json($res, [
-                'success' => true,
-                'vendors' => $merged
-            ]);
-        } catch (\Throwable $e) {
-            error_log('GET_VENDORS_ERROR: ' . $e->getMessage());
-            return $json($res, [
-                'success' => false,
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    });
+        return $json($res, [
+            'success' => true,
+            'vendors' => $vendors
+        ]);
+
+    } catch (\Throwable $e) {
+        error_log('GET_VENDORS_ERROR: ' . $e->getMessage());
+        return $json($res, [
+            'success' => false,
+            'error' => $e->getMessage()
+        ], 500);
+    }
+});
 
     /* ===========================================================
      * GET PUBLIC VENDOR DETAILS

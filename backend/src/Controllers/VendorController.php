@@ -63,7 +63,8 @@ class VendorController
             return $this->json($response, true, "Regions retrieved successfully", 200, [
                 'regions' => $regions
             ]);
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             error_log("GET_REGIONS_ERROR: " . $e->getMessage());
             return $this->json($response, false, "Failed to fetch regions", 500);
         }
@@ -91,7 +92,8 @@ class VendorController
                 'cities' => $cities,
                 'region_code' => $regionCode
             ]);
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             error_log("GET_CITIES_ERROR: " . $e->getMessage());
             return $this->json($response, false, "Failed to fetch cities", 500);
         }
@@ -215,7 +217,8 @@ class VendorController
                             "timeout" => self::UPLOAD_TIMEOUT
                         ]);
                         $logoUrl = $upload['secure_url'];
-                    } catch (\Exception $e) {
+                    }
+                    catch (\Exception $e) {
                         error_log("LOGO_UPLOAD_ERROR: " . $e->getMessage());
                     }
                 }
@@ -236,7 +239,8 @@ class VendorController
                             "timeout" => self::UPLOAD_TIMEOUT
                         ]);
                         $heroUrl = $upload['secure_url'];
-                    } catch (\Exception $e) {
+                    }
+                    catch (\Exception $e) {
                         error_log("HERO_UPLOAD_ERROR: " . $e->getMessage());
                     }
                 }
@@ -258,7 +262,7 @@ class VendorController
                     'ApplicationStatus' => 'Approved',
                     'DateApplied' => $application->created_at,
                     'DateApproved' => date('Y-m-d H:i:s'),
-                    
+
                     // NEW ENHANCED FIELDS
                     'contact_number' => $application->contact_number,
                     'region' => $application->region,
@@ -330,12 +334,14 @@ class VendorController
                     ]
                 ]);
 
-            } catch (\Exception $e) {
+            }
+            catch (\Exception $e) {
                 DB::rollBack();
                 throw $e;
             }
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             error_log("CREATE_VENDOR_PROFILE_ERROR: " . $e->getMessage());
             return $this->json($response, false, "Failed to create profile: " . $e->getMessage(), 500);
         }
@@ -355,34 +361,34 @@ class VendorController
 
         $result = DB::table('vendor_application as va')
             ->leftJoin('event_service_provider as esp', function ($join) {
-                $join->on('va.user_id', '=', 'esp.UserID')
-                    ->where('esp.ApplicationStatus', '=', 'Approved');
-            })
+            $join->on('va.user_id', '=', 'esp.UserID')
+                ->where('esp.ApplicationStatus', '=', 'Approved');
+        })
             ->where('va.user_id', $userId)
             ->orderBy('va.created_at', 'desc')
             ->select(
-                'va.status as application_status',
-                'va.category',
-                'va.region',
-                'va.city',
-                'esp.Category',
-                'esp.BusinessName',
-                'esp.bio',
-                'esp.services',
-                'esp.avatar',
-                'esp.HeroImageUrl',
-                'esp.verification_score',
-                'esp.application_step',
-                'esp.UserID as profile_exists',
-                'esp.base_price',
-                'esp.budget_tier',
-                'esp.service_category',
-                'esp.ai_description',
-                'esp.price_range',
-                'esp.service_areas',
-                'esp.package_price',
-                'esp.service_type_tag'
-            )
+            'va.status as application_status',
+            'va.category',
+            'va.region',
+            'va.city',
+            'esp.Category',
+            'esp.BusinessName',
+            'esp.bio',
+            'esp.services',
+            'esp.avatar',
+            'esp.HeroImageUrl',
+            'esp.verification_score',
+            'esp.application_step',
+            'esp.UserID as profile_exists',
+            'esp.base_price',
+            'esp.budget_tier',
+            'esp.service_category',
+            'esp.ai_description',
+            'esp.price_range',
+            'esp.service_areas',
+            'esp.package_price',
+            'esp.service_type_tag'
+        )
             ->first();
 
         if (!$result) {
@@ -440,7 +446,7 @@ class VendorController
             return $this->json($response, false, "Unauthorized", 401);
         }
 
-        $userId = (int) $u->mysql_id;
+        $userId = (int)$u->mysql_id;
 
         $vendor = DB::table('event_service_provider')
             ->where('UserID', $userId)
@@ -455,18 +461,28 @@ class VendorController
         if (!empty($vendor->gallery)) {
             $decoded = json_decode($vendor->gallery, true);
             $gallery = is_array($decoded) ? $decoded : [];
-        } else {
+        }
+        else {
             // Try legacy / alternate fields that may contain gallery images
             $possible = [$vendor->past_event_photos ?? null, $vendor->sample_photos ?? null, $vendor->portfolio ?? null, $vendor->portfolio_photos ?? null];
             foreach ($possible as $p) {
-                if (empty($p)) continue;
+                if (empty($p))
+                    continue;
                 if (is_string($p)) {
                     $try = json_decode($p, true);
-                    if (is_array($try) && !empty($try)) { $gallery = $try; break; }
+                    if (is_array($try) && !empty($try)) {
+                        $gallery = $try;
+                        break;
+                    }
                     $parts = array_filter(array_map('trim', explode(',', $p)));
-                    if (!empty($parts)) { $gallery = $parts; break; }
-                } elseif (is_array($p) && !empty($p)) {
-                    $gallery = $p; break;
+                    if (!empty($parts)) {
+                        $gallery = $parts;
+                        break;
+                    }
+                }
+                elseif (is_array($p) && !empty($p)) {
+                    $gallery = $p;
+                    break;
                 }
             }
         }
@@ -489,7 +505,7 @@ class VendorController
         return $this->json($response, true, "Dashboard loaded", 200, [
             'vendor' => $vendorData,
             'gallery' => $gallery,
-            'insights' => [ 'labels' => [], 'datasets' => [] ],
+            'insights' => ['labels' => [], 'datasets' => []],
         ]);
     }
 
@@ -499,7 +515,11 @@ class VendorController
      * so /api/vendor/public/{id} works for all vendor types.
      * Accepts optional listingId parameter to fetch specific listing when vendor has multiple.
      * =========================================================== */
-    public function getPublicVendorData(Request $request, Response $response, $args)
+    /* ===========================================================
+     * GET PUBLIC VENDOR DATA
+     * Only queries vendor_listings table.
+     * Accepts optional listingId parameter to fetch a specific listing.
+     * =========================================================== */public function getPublicVendorData(Request $request, Response $response, $args)
     {
         $userId = $args['id'] ?? $args['userId'] ?? null;
         $listingId = $request->getQueryParams()['listingId'] ?? null;
@@ -508,237 +528,86 @@ class VendorController
             return $this->json($response, false, "User ID required", 400);
         }
 
-        $userId = (int) $userId;
+        $userId = (int)$userId;
 
         try {
-            // If listingId is provided, try to fetch that specific listing first
+            // If a specific listingId is requested, fetch that exact listing
             if ($listingId) {
-                $listingId = (int) $listingId;
-                
-                // Check if it's a vendor_listings entry
+                $listingId = (int)$listingId;
+
                 $vendorListing = DB::table('vendor_listings')
                     ->where('id', $listingId)
                     ->where('user_id', $userId)
                     ->where('status', 'Active')
                     ->first();
 
-                if ($vendorListing) {
-                    $gallery = [];
-                    if (!empty($vendorListing->gallery)) {
-                        $decoded = json_decode($vendorListing->gallery, true);
-                        $gallery = is_array($decoded) ? $decoded : [];
-                    }
-
-                    $firebaseUid = DB::table('credential')
-                        ->where('id', $userId)
-                        ->value('firebase_uid');
-
-                    $vendorData = [
-                        'id' => $vendorListing->user_id,
-                        'listing_id' => $vendorListing->id,
-                        'business_name' => $vendorListing->business_name,
-                        'category' => $vendorListing->service_category,
-                        'description' => $vendorListing->description ?? '',
-                        'pricing' => $vendorListing->pricing ?? '',
-                        'bio' => $vendorListing->description ?? '',
-                        'services' => null,
-                        'service_areas' => $vendorListing->address ?? null,
-                        'avatar' => $vendorListing->logo ?? null,
-                        'HeroImageUrl' => $vendorListing->hero_image ?? null,
-                        'gallery' => $gallery,
-                        'status' => 'Approved',
-                        'verification_score' => 0,
-                        'region' => $vendorListing->region ?? null,
-                        'city' => $vendorListing->city ?? null,
-                        'facebook_page' => null,
-                        'instagram_page' => null,
-                        'source' => 'vendor_listings',
-                        'firebase_uid' => $firebaseUid,
-                    ];
-
-                    return $this->json($response, true, "Vendor retrieved", 200, [
-                        'vendor' => $vendorData
-                    ]);
+                if (!$vendorListing) {
+                    return $this->json($response, false, "Vendor listing not found", 404);
                 }
-            }
-
-            // First check vendor_listings (new listings from ManageListings)
-            // If listingId not provided, get the most recent one
-            $vendorListingQuery = DB::table('vendor_listings')
-                ->where('user_id', $userId)
-                ->where('status', 'Active');
-            
-            // If no specific listingId, order by most recent
-            if (!$listingId) {
-                $vendorListingQuery->orderByDesc('created_at');
-            }
-            
-            $vendorListing = $vendorListingQuery->first();
-
-            if ($vendorListing) {
-                $gallery = [];
-                if (!empty($vendorListing->gallery)) {
-                    $decoded = json_decode($vendorListing->gallery, true);
-                    $gallery = is_array($decoded) ? $decoded : [];
-                }
-
-                $firebaseUid = DB::table('credential')
-                    ->where('id', $userId)
-                    ->value('firebase_uid');
-
-                $vendorData = [
-                    'id' => $vendorListing->user_id,
-                    'listing_id' => $vendorListing->id,
-                    'business_name' => $vendorListing->business_name,
-                    'category' => $vendorListing->service_category,
-                    'description' => $vendorListing->description ?? '',
-                    'pricing' => $vendorListing->pricing ?? '',
-                    'bio' => $vendorListing->description ?? '',
-                    'services' => null,
-                    'service_areas' => $vendorListing->address ?? null,
-                    'avatar' => $vendorListing->logo ?? null,
-                    'HeroImageUrl' => $vendorListing->hero_image ?? null,
-                    'gallery' => $gallery,
-                    'status' => 'Approved',
-                    'verification_score' => 0,
-                    'region' => $vendorListing->region ?? null,
-                    'city' => $vendorListing->city ?? null,
-                    'facebook_page' => null,
-                    'instagram_page' => null,
-                    'source' => 'vendor_listings',
-                    'firebase_uid' => $firebaseUid,
-                ];
 
                 return $this->json($response, true, "Vendor retrieved", 200, [
-                    'vendor' => $vendorData
+                    'vendor' => $this->formatVendorListing($vendorListing, $userId)
                 ]);
             }
 
-            // Fallback: check event_service_provider (legacy data)
-            $vendor = DB::table('event_service_provider')
-                ->where('UserID', $userId)
-                ->where('ApplicationStatus', 'Approved')
-                ->first();
-
-            if ($vendor) {
-                // Parse gallery (with fallbacks)
-                $gallery = [];
-                if (!empty($vendor->gallery)) {
-                    $decoded = json_decode($vendor->gallery, true);
-                    $gallery = is_array($decoded) ? $decoded : [];
-                } else {
-                    $possible = [$vendor->past_event_photos ?? null, $vendor->sample_photos ?? null, $vendor->portfolio ?? null, $vendor->portfolio_photos ?? null];
-                    foreach ($possible as $p) {
-                        if (empty($p)) continue;
-                        if (is_string($p)) {
-                            $try = json_decode($p, true);
-                            if (is_array($try) && !empty($try)) { $gallery = $try; break; }
-                            $parts = array_filter(array_map('trim', explode(',', $p)));
-                            if (!empty($parts)) { $gallery = $parts; break; }
-                        } elseif (is_array($p) && !empty($p)) {
-                            $gallery = $p; break;
-                        }
-                    }
-                }
-
-                $firebaseUid = DB::table('credential')
-                    ->where('id', $userId)
-                    ->value('firebase_uid');
-
-                $vendorData = [
-                    'id' => $vendor->UserID,
-                    'business_name' => $vendor->BusinessName,
-                    'category' => $vendor->Category,
-                    'description' => $vendor->Description,
-                    'pricing' => $vendor->Pricing,
-                    'bio' => $vendor->bio,
-                    'services' => $vendor->services,
-                    'service_areas' => $vendor->service_areas,
-                    'avatar' => $vendor->avatar,
-                    'HeroImageUrl' => $vendor->HeroImageUrl,
-                    'gallery' => $gallery,
-                    'status' => $vendor->ApplicationStatus,
-                    'verification_score' => $vendor->verification_score ?? 0,
-                    'region' => $vendor->region ?? null,
-                    'city' => $vendor->city ?? null,
-                    'facebook_page' => $vendor->facebook_page ?? null,
-                    'instagram_page' => $vendor->instagram_page ?? null,
-                    'source' => 'event_service_provider',
-                    'firebase_uid' => $firebaseUid,
-                ];
-
-                return $this->json($response, true, "Vendor retrieved", 200, [
-                    'vendor' => $vendorData
-                ]);
-            }
-
-            // Fallback: user may be a venue owner (venue_listings) with no esp row
-            $venue = DB::table('venue_listings')
+            // No specific listing — return the most recent active listing
+            $vendorListing = DB::table('vendor_listings')
                 ->where('user_id', $userId)
                 ->where('status', 'Active')
-                ->orderBy('id')
+                ->orderByDesc('created_at')
                 ->first();
 
-            if ($venue) {
-                $gallery = [];
-                if (!empty($venue->gallery)) {
-                    $decoded = json_decode($venue->gallery, true);
-                    $gallery = is_array($decoded) ? $decoded : [];
-                } else {
-                    $possible = [$venue->past_event_photos ?? null, $venue->sample_photos ?? null, $venue->portfolio ?? null, $venue->portfolio_photos ?? null];
-                    foreach ($possible as $p) {
-                        if (empty($p)) continue;
-                        if (is_string($p)) {
-                            $try = json_decode($p, true);
-                            if (is_array($try) && !empty($try)) { $gallery = $try; break; }
-                            $parts = array_filter(array_map('trim', explode(',', $p)));
-                            if (!empty($parts)) { $gallery = $parts; break; }
-                        } elseif (is_array($p) && !empty($p)) {
-                            $gallery = $p; break;
-                        }
-                    }
-                }
-
-                $firebaseUid = DB::table('credential')
-                    ->where('id', $userId)
-                    ->value('firebase_uid');
-
-                $vendorData = [
-                    'id' => (int) $venue->user_id,
-                    'business_name' => $venue->venue_name,
-                    'category' => 'Venue',
-                    'description' => $venue->description ?? '',
-                    'pricing' => $venue->pricing ?? '',
-                    'bio' => $venue->description ?? '',
-                    'services' => null,
-                    'service_areas' => $venue->address ?? null,
-                    'avatar' => $venue->portfolio ?? $venue->HeroImageUrl ?? null,
-                    'HeroImageUrl' => $venue->HeroImageUrl ?? $venue->portfolio ?? null,
-                    'gallery' => $gallery,
-                    'status' => 'Approved',
-                    'verification_score' => 0,
-                    'region' => null,
-                    'city' => null,
-                    'facebook_page' => null,
-                    'instagram_page' => null,
-                    'source' => 'venue_listings',
-                    'venue_id' => (int) $venue->id,
-                    'firebase_uid' => $firebaseUid,
-                ];
-
-                return $this->json($response, true, "Vendor retrieved", 200, [
-                    'vendor' => $vendorData
-                ]);
+            if (!$vendorListing) {
+                return $this->json($response, false, "Vendor not found", 404);
             }
 
-            return $this->json($response, false, "Vendor not found", 404);
+            return $this->json($response, true, "Vendor retrieved", 200, [
+                'vendor' => $this->formatVendorListing($vendorListing, $userId)
+            ]);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             error_log('VENDOR_PUBLIC_ERROR: ' . $e->getMessage());
             return $this->json($response, false, "Failed to load vendor", 500);
         }
     }
+    /* ===========================================================
+     * PRIVATE HELPER: Format a vendor_listings row for API response
+     * =========================================================== */private function formatVendorListing(object $vendorListing, int $userId): array
+    {
+        $gallery = [];
+        if (!empty($vendorListing->gallery)) {
+            $decoded = json_decode($vendorListing->gallery, true);
+            $gallery = is_array($decoded) ? $decoded : [];
+        }
 
+        $firebaseUid = DB::table('credential')
+            ->where('id', $userId)
+            ->value('firebase_uid');
+
+        return [
+            'id' => $vendorListing->user_id,
+            'listing_id' => $vendorListing->id,
+            'business_name' => $vendorListing->business_name,
+            'category' => $vendorListing->service_category,
+            'description' => $vendorListing->description ?? '',
+            'pricing' => $vendorListing->pricing ?? '',
+            'bio' => $vendorListing->description ?? '',
+            'services' => $vendorListing->services ?? null,
+            'service_areas' => $vendorListing->address ?? null,
+            'avatar' => $vendorListing->logo ?? null,
+            'HeroImageUrl' => $vendorListing->hero_image ?? null,
+            'gallery' => $gallery,
+            'status' => 'Approved',
+            'verification_score' => 0,
+            'region' => $vendorListing->region ?? null,
+            'city' => $vendorListing->city ?? null,
+            'facebook_page' => null,
+            'instagram_page' => null,
+            'source' => 'vendor_listings',
+            'firebase_uid' => $firebaseUid,
+        ];
+    }
     /* ===========================================================
      * GET PUBLIC VENDOR BOOKINGS (for profile calendar)
      * Returns minimal booking info (date, status) for a vendor/user.
@@ -746,7 +615,7 @@ class VendorController
      * =========================================================== */
     public function getPublicVendorBookings(Request $request, Response $response, $args)
     {
-        $userId = isset($args['userId']) ? (int) $args['userId'] : (isset($args['id']) ? (int) $args['id'] : null);
+        $userId = isset($args['userId']) ? (int)$args['userId'] : (isset($args['id']) ? (int)$args['id'] : null);
 
         if (!$userId) {
             return $this->json($response, false, "User ID required", 400);
@@ -771,13 +640,14 @@ class VendorController
             $query->where(function ($q) use ($esp, $venueIds) {
                 if ($esp) {
                     $q->orWhere(function ($q2) use ($esp) {
-                        $q2->where('EventServiceProviderID', $esp)->whereNull('venue_id');
+                                $q2->where('EventServiceProviderID', $esp)->whereNull('venue_id');
+                            }
+                            );
+                        }
+                        if (!empty($venueIds)) {
+                            $q->orWhereIn('venue_id', $venueIds);
+                        }
                     });
-                }
-                if (!empty($venueIds)) {
-                    $q->orWhereIn('venue_id', $venueIds);
-                }
-            });
 
             $rows = $query->orderBy('EventDate', 'asc')->get();
 
@@ -793,7 +663,7 @@ class VendorController
             foreach ($rows as $row) {
                 $eventDate = $row->start_date ?? $row->EventDate;
                 $bookings[] = [
-                    'id' => (int) $row->ID,
+                    'id' => (int)$row->ID,
                     'event_date' => $eventDate ? (is_string($eventDate) ? $eventDate : date('Y-m-d H:i:s', strtotime($eventDate))) : null,
                     'status' => $statusMap[$row->BookingStatus] ?? strtolower($row->BookingStatus ?? ''),
                 ];
@@ -802,7 +672,8 @@ class VendorController
             return $this->json($response, true, "Bookings retrieved", 200, [
                 'bookings' => $bookings
             ]);
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             error_log('VENDOR_PUBLIC_BOOKINGS_ERROR: ' . $e->getMessage());
             return $this->json($response, false, "Failed to load bookings", 500);
         }
@@ -841,15 +712,16 @@ class VendorController
             DB::table('event_service_provider')
                 ->where('UserID', $userId)
                 ->update([
-                    'avatar' => $upload['secure_url'],
-                    'business_logo_url' => $upload['secure_url']
-                ]);
+                'avatar' => $upload['secure_url'],
+                'business_logo_url' => $upload['secure_url']
+            ]);
 
             return $this->json($response, true, "Logo updated", 200, [
                 'url' => $upload['secure_url']
             ]);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             error_log("UPDATE_LOGO_ERROR: " . $e->getMessage());
             return $this->json($response, false, "Failed to update logo", 500);
         }
@@ -893,7 +765,8 @@ class VendorController
                 'url' => $upload['secure_url']
             ]);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             error_log("UPDATE_HERO_ERROR: " . $e->getMessage());
             return $this->json($response, false, "Failed to update hero", 500);
         }
@@ -915,14 +788,20 @@ class VendorController
 
             $updateData = [];
 
-            if (isset($data['bio'])) $updateData['bio'] = $data['bio'];
-            if (isset($data['services'])) $updateData['services'] = $data['services'];
-            if (isset($data['service_areas'])) $updateData['service_areas'] = $data['service_areas'];
-            if (isset($data['description'])) $updateData['Description'] = $data['description'];
-            if (isset($data['pricing'])) $updateData['Pricing'] = $data['pricing'];
+            if (isset($data['bio']))
+                $updateData['bio'] = $data['bio'];
+            if (isset($data['services']))
+                $updateData['services'] = $data['services'];
+            if (isset($data['service_areas']))
+                $updateData['service_areas'] = $data['service_areas'];
+            if (isset($data['description']))
+                $updateData['Description'] = $data['description'];
+            if (isset($data['pricing']))
+                $updateData['Pricing'] = $data['pricing'];
 
             // Image fields - Map frontend names to database columns
-            if (isset($data['hero_image'])) $updateData['HeroImageUrl'] = $data['hero_image'];
+            if (isset($data['hero_image']))
+                $updateData['HeroImageUrl'] = $data['hero_image'];
             if (isset($data['icon_url'])) {
                 $updateData['avatar'] = $data['icon_url'];
                 $updateData['business_logo_url'] = $data['icon_url'];
@@ -934,25 +813,41 @@ class VendorController
             }
 
             // Address & location fields
-            if (array_key_exists('region', $data)) $updateData['region'] = $data['region'];
-            if (array_key_exists('city', $data)) $updateData['city'] = $data['city'];
-            if (array_key_exists('specific_address', $data)) $updateData['BusinessAddress'] = $data['specific_address'];
+            if (array_key_exists('region', $data))
+                $updateData['region'] = $data['region'];
+            if (array_key_exists('city', $data))
+                $updateData['city'] = $data['city'];
+            if (array_key_exists('specific_address', $data))
+                $updateData['BusinessAddress'] = $data['specific_address'];
             // AI-optimized structured listing fields
-            if (array_key_exists('event_type', $data)) $updateData['service_type_tag'] = $data['event_type'];
-            if (array_key_exists('service_category', $data)) $updateData['service_category'] = $data['service_category'];
-            if (array_key_exists('budget_range', $data)) $updateData['budget_tier'] = $data['budget_range'];
-            if (array_key_exists('base_price', $data)) $updateData['base_price'] = $data['base_price'];
-            if (array_key_exists('package_price', $data)) $updateData['package_price'] = $data['package_price'];
-            if (array_key_exists('ai_description', $data)) $updateData['ai_description'] = $data['ai_description'];
-            
+            if (array_key_exists('event_type', $data))
+                $updateData['service_type_tag'] = $data['event_type'];
+            if (array_key_exists('service_category', $data))
+                $updateData['service_category'] = $data['service_category'];
+            if (array_key_exists('budget_range', $data))
+                $updateData['budget_tier'] = $data['budget_range'];
+            if (array_key_exists('base_price', $data))
+                $updateData['base_price'] = $data['base_price'];
+            if (array_key_exists('package_price', $data))
+                $updateData['package_price'] = $data['package_price'];
+            if (array_key_exists('ai_description', $data))
+                $updateData['ai_description'] = $data['ai_description'];
+
             // AI / Search Optimization Fields
-            if (isset($data['base_price'])) $updateData['base_price'] = $data['base_price'];
-            if (isset($data['price_range'])) $updateData['price_range'] = $data['price_range'];
-            if (isset($data['package_price'])) $updateData['package_price'] = $data['package_price'];
-            if (isset($data['budget_tier'])) $updateData['budget_tier'] = $data['budget_tier'];
-            if (isset($data['service_category'])) $updateData['service_category'] = $data['service_category'];
-            if (isset($data['service_type_tag'])) $updateData['service_type_tag'] = $data['service_type_tag'];
-            if (isset($data['ai_description'])) $updateData['ai_description'] = $data['ai_description'];
+            if (isset($data['base_price']))
+                $updateData['base_price'] = $data['base_price'];
+            if (isset($data['price_range']))
+                $updateData['price_range'] = $data['price_range'];
+            if (isset($data['package_price']))
+                $updateData['package_price'] = $data['package_price'];
+            if (isset($data['budget_tier']))
+                $updateData['budget_tier'] = $data['budget_tier'];
+            if (isset($data['service_category']))
+                $updateData['service_category'] = $data['service_category'];
+            if (isset($data['service_type_tag']))
+                $updateData['service_type_tag'] = $data['service_type_tag'];
+            if (isset($data['ai_description']))
+                $updateData['ai_description'] = $data['ai_description'];
 
             if (empty($updateData)) {
                 return $this->json($response, false, "No data to update", 400);
@@ -981,7 +876,8 @@ class VendorController
                 DB::table('event_service_provider')
                     ->where('UserID', $userId)
                     ->update($filtered);
-            } else {
+            }
+            else {
                 // Ensure UserID is set for new insert
                 $baseInsert = ['UserID' => $userId, 'ApplicationStatus' => 'Approved', 'DateApproved' => date('Y-m-d H:i:s')];
                 // Only merge fields that exist in the table
@@ -991,7 +887,8 @@ class VendorController
 
             return $this->json($response, true, "Vendor info updated", 200);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             error_log("UPDATE_VENDOR_INFO_ERROR: " . $e->getMessage());
             // Return error message in development to aid debugging
             return $this->json($response, false, "Failed to update info: " . $e->getMessage(), 500);
@@ -1021,7 +918,8 @@ class VendorController
 
             foreach ($galleryFiles as $file) {
                 if ($file->getError() === UPLOAD_ERR_OK) {
-                    if ($file->getSize() > self::MAX_FILE_SIZE) continue;
+                    if ($file->getSize() > self::MAX_FILE_SIZE)
+                        continue;
 
                     try {
                         $tmpPath = $file->getStream()->getMetadata('uri');
@@ -1031,7 +929,8 @@ class VendorController
                             "timeout" => self::UPLOAD_TIMEOUT
                         ]);
                         $uploadedUrls[] = $upload['secure_url'];
-                    } catch (\Exception $e) {
+                    }
+                    catch (\Exception $e) {
                         error_log("GALLERY_UPLOAD_ERROR: " . $e->getMessage());
                     }
                 }
@@ -1066,7 +965,8 @@ class VendorController
                 'urls' => $uploadedUrls
             ]);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             error_log("UPLOAD_GALLERY_ERROR: " . $e->getMessage());
             return $this->json($response, false, "Failed to upload gallery", 500);
         }
@@ -1118,69 +1018,69 @@ class VendorController
                 // Count bookings by status
                 $bookingQuery = DB::table('booking')
                     ->where(function ($q) use ($espId, $venueIds) {
-                        if ($espId) {
-                            $q->orWhere('EventServiceProviderID', $espId);
-                        }
-                        if (!empty($venueIds)) {
-                            $q->orWhereIn('venue_id', $venueIds);
-                        }
-                    });
+                    if ($espId) {
+                        $q->orWhere('EventServiceProviderID', $espId);
+                    }
+                    if (!empty($venueIds)) {
+                        $q->orWhereIn('venue_id', $venueIds);
+                    }
+                });
 
                 $analytics['total_bookings'] = $bookingQuery->count();
 
                 // Upcoming bookings: Pending or Confirmed with future date
                 $analytics['upcoming_bookings'] = DB::table('booking')
                     ->where(function ($q) use ($espId, $venueIds) {
-                        if ($espId) {
-                            $q->orWhere('EventServiceProviderID', $espId);
-                        }
-                        if (!empty($venueIds)) {
-                            $q->orWhereIn('venue_id', $venueIds);
-                        }
-                    })
+                    if ($espId) {
+                        $q->orWhere('EventServiceProviderID', $espId);
+                    }
+                    if (!empty($venueIds)) {
+                        $q->orWhereIn('venue_id', $venueIds);
+                    }
+                })
                     ->whereIn('BookingStatus', ['Pending', 'Confirmed'])
                     ->where(function ($q) {
-                        $q->where('EventDate', '>=', date('Y-m-d'))
-                          ->orWhere('start_date', '>=', date('Y-m-d'));
-                    })
+                    $q->where('EventDate', '>=', date('Y-m-d'))
+                        ->orWhere('start_date', '>=', date('Y-m-d'));
+                })
                     ->count();
 
                 // Completed bookings
                 $analytics['completed_bookings'] = DB::table('booking')
                     ->where(function ($q) use ($espId, $venueIds) {
-                        if ($espId) {
-                            $q->orWhere('EventServiceProviderID', $espId);
-                        }
-                        if (!empty($venueIds)) {
-                            $q->orWhereIn('venue_id', $venueIds);
-                        }
-                    })
+                    if ($espId) {
+                        $q->orWhere('EventServiceProviderID', $espId);
+                    }
+                    if (!empty($venueIds)) {
+                        $q->orWhereIn('venue_id', $venueIds);
+                    }
+                })
                     ->where('BookingStatus', 'Completed')
                     ->count();
 
                 // Cancelled bookings
                 $analytics['cancelled_bookings'] = DB::table('booking')
                     ->where(function ($q) use ($espId, $venueIds) {
-                        if ($espId) {
-                            $q->orWhere('EventServiceProviderID', $espId);
-                        }
-                        if (!empty($venueIds)) {
-                            $q->orWhereIn('venue_id', $venueIds);
-                        }
-                    })
+                    if ($espId) {
+                        $q->orWhere('EventServiceProviderID', $espId);
+                    }
+                    if (!empty($venueIds)) {
+                        $q->orWhereIn('venue_id', $venueIds);
+                    }
+                })
                     ->where('BookingStatus', 'Cancelled')
                     ->count();
 
                 // Rejected bookings
                 $analytics['rejected_bookings'] = DB::table('booking')
                     ->where(function ($q) use ($espId, $venueIds) {
-                        if ($espId) {
-                            $q->orWhere('EventServiceProviderID', $espId);
-                        }
-                        if (!empty($venueIds)) {
-                            $q->orWhereIn('venue_id', $venueIds);
-                        }
-                    })
+                    if ($espId) {
+                        $q->orWhere('EventServiceProviderID', $espId);
+                    }
+                    if (!empty($venueIds)) {
+                        $q->orWhereIn('venue_id', $venueIds);
+                    }
+                })
                     ->where('BookingStatus', 'Rejected')
                     ->count();
 
@@ -1188,13 +1088,13 @@ class VendorController
                 $feedbackQuery = DB::table('booking_feedback as bf')
                     ->join('booking as b', 'bf.BookingID', '=', 'b.ID')
                     ->where(function ($q) use ($espId, $venueIds) {
-                        if ($espId) {
-                            $q->orWhere('b.EventServiceProviderID', $espId);
-                        }
-                        if (!empty($venueIds)) {
-                            $q->orWhereIn('b.venue_id', $venueIds);
-                        }
-                    });
+                    if ($espId) {
+                        $q->orWhere('b.EventServiceProviderID', $espId);
+                    }
+                    if (!empty($venueIds)) {
+                        $q->orWhereIn('b.venue_id', $venueIds);
+                    }
+                });
 
                 $analytics['total_reviews'] = $feedbackQuery->count();
 
@@ -1207,9 +1107,9 @@ class VendorController
                 DB::table('event_service_provider')
                     ->where('ID', $espId)
                     ->update([
-                        'AverageRating' => $analytics['average_rating'],
-                        'TotalReviews' => $analytics['total_reviews']
-                    ]);
+                    'AverageRating' => $analytics['average_rating'],
+                    'TotalReviews' => $analytics['total_reviews']
+                ]);
             }
 
             // Weekly / Monthly / Last 4 Weeks metrics (for BookingAnalyticsChart)
@@ -1230,17 +1130,17 @@ class VendorController
                 $analytics['bookings_this_week'] = DB::table('booking')
                     ->where($scopeFilter)
                     ->where(function ($q) use ($weekAgo) {
-                        $q->where('CreatedAt', '>=', $weekAgo)
-                          ->orWhere('EventDate', '>=', $weekAgo);
-                    })
+                    $q->where('CreatedAt', '>=', $weekAgo)
+                        ->orWhere('EventDate', '>=', $weekAgo);
+                })
                     ->count();
 
                 $analytics['bookings_this_month'] = DB::table('booking')
                     ->where($scopeFilter)
                     ->where(function ($q) use ($monthAgo) {
-                        $q->where('CreatedAt', '>=', $monthAgo)
-                          ->orWhere('EventDate', '>=', $monthAgo);
-                    })
+                    $q->where('CreatedAt', '>=', $monthAgo)
+                        ->orWhere('EventDate', '>=', $monthAgo);
+                })
                     ->count();
 
                 // Last 4 weeks breakdown
@@ -1251,13 +1151,15 @@ class VendorController
                     $last4Weeks[] = DB::table('booking')
                         ->where($scopeFilter)
                         ->where(function ($q) use ($weekStart, $weekEnd) {
-                            $q->where(function ($q2) use ($weekStart, $weekEnd) {
+                        $q->where(function ($q2) use ($weekStart, $weekEnd) {
                                 $q2->where('CreatedAt', '>=', $weekStart)
-                                   ->where('CreatedAt', '<', $weekEnd);
-                            })->orWhere(function ($q2) use ($weekStart, $weekEnd) {
+                                    ->where('CreatedAt', '<', $weekEnd);
+                            }
+                            )->orWhere(function ($q2) use ($weekStart, $weekEnd) {
                                 $q2->where('EventDate', '>=', $weekStart)
-                                   ->where('EventDate', '<', $weekEnd);
-                            });
+                                    ->where('EventDate', '<', $weekEnd);
+                            }
+                            );
                         })
                         ->count();
                 }
@@ -1271,23 +1173,23 @@ class VendorController
                     ->where($scopeFilter)
                     ->leftJoin('credential', 'booking.UserID', '=', 'credential.id')
                     ->select(
-                        'booking.ID', 
-                        'booking.EventDate', 
-                        'booking.BookingStatus', 
-                        'booking.CreatedAt',
-                        'booking.TotalAmount',
-                        'booking.ServiceName',
-                        'credential.first_name', 
-                        'credential.last_name', 
-                        'credential.username'
-                    )
+                    'booking.ID',
+                    'booking.EventDate',
+                    'booking.BookingStatus',
+                    'booking.CreatedAt',
+                    'booking.TotalAmount',
+                    'booking.ServiceName',
+                    'credential.first_name',
+                    'credential.last_name',
+                    'credential.username'
+                )
                     ->orderBy('booking.CreatedAt', 'DESC')
                     ->limit(5)
                     ->get()
                     ->map(function ($b) {
-                        $b->client_name = trim(($b->first_name ?? '') . ' ' . ($b->last_name ?? '')) ?: ($b->username ?? 'Client');
-                        return $b;
-                    });
+                    $b->client_name = trim(($b->first_name ?? '') . ' ' . ($b->last_name ?? '')) ?: ($b->username ?? 'Client');
+                    return $b;
+                });
             }
 
             return $this->json($response, true, "Analytics retrieved", 200, [
@@ -1295,7 +1197,8 @@ class VendorController
                 'recent_bookings' => $recentBookings
             ]);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             error_log("GET_ANALYTICS_ERROR: " . $e->getMessage());
             return $this->json($response, false, "Failed to load analytics", 500);
         }
@@ -1320,66 +1223,66 @@ class VendorController
                 ->orderByDesc('created_at')
                 ->get()
                 ->map(function ($v) {
-                    if (isset($v->gallery)) {
-                        $v->gallery = json_decode($v->gallery, true) ?: [];
-                    }
-                    return $v;
-                });
+                if (isset($v->gallery)) {
+                    $v->gallery = json_decode($v->gallery, true) ?: [];
+                }
+                return $v;
+            });
 
             // If no listings exist, check if user has an existing profile in event_service_provider
             // and migrate it to vendor_listings
-            if ($listings->isEmpty()) {
-                $existingProfile = DB::table('event_service_provider')
-                    ->where('UserID', $user->mysql_id)
-                    ->first();
-
-                if ($existingProfile && $existingProfile->ApplicationStatus === 'Approved') {
-                    // Migrate the existing profile to vendor_listings
-                    $gallery = [];
-                    if (!empty($existingProfile->gallery)) {
-                        $gallery = is_string($existingProfile->gallery) 
-                            ? json_decode($existingProfile->gallery, true) ?: []
-                            : $existingProfile->gallery;
-                    }
-
-                    $insertData = [
-                        'user_id' => $user->mysql_id,
-                        'business_name' => $existingProfile->BusinessName ?? 'My Business',
-                        'address' => $existingProfile->BusinessAddress ?? $existingProfile->service_areas ?? '',
-                        'region' => $existingProfile->region ?? null,
-                        'city' => $existingProfile->city ?? null,
-                        'specific_address' => $existingProfile->BusinessAddress ?? null,
-                        'service_category' => $existingProfile->Category ?? $existingProfile->service_category ?? null,
-                        'services' => $existingProfile->services ?? null,
-                        'pricing' => $existingProfile->Pricing ?? null,
-                        'description' => $existingProfile->Description ?? $existingProfile->bio ?? null,
-                        'hero_image' => $existingProfile->HeroImageUrl ?? null,
-                        'logo' => $existingProfile->business_logo_url ?? $existingProfile->avatar ?? null,
-                        'gallery' => json_encode($gallery),
-                        'event_type' => $existingProfile->service_type_tag ?? null,
-                        'budget_range' => $existingProfile->budget_tier ?? null,
-                        'base_price' => $existingProfile->base_price ?? null,
-                        'package_price' => $existingProfile->package_price ?? null,
-                        'ai_description' => $existingProfile->ai_description ?? null,
-                        'status' => 'Active',
-                        'created_at' => date('Y-m-d H:i:s'),
-                        'updated_at' => date('Y-m-d H:i:s')
-                    ];
-
-                    $newId = DB::table('vendor_listings')->insertGetId($insertData);
-
-                    // Fetch the newly created listing
-                    $listings = DB::table('vendor_listings')
-                        ->where('id', $newId)
-                        ->get()
-                        ->map(function ($v) {
-                            if (isset($v->gallery)) {
-                                $v->gallery = json_decode($v->gallery, true) ?: [];
-                            }
-                            return $v;
-                        });
-                }
-            }
+            // If no listings exist, check if user has an existing profile in event_service_provider
+            // and migrate it to vendor_listings
+            /* MIBRATION DISABLED: User wants to manage listings manually
+             if ($listings->isEmpty()) {
+             $existingProfile = DB::table('event_service_provider')
+             ->where('UserID', $user->mysql_id)
+             ->first();
+             if ($existingProfile && $existingProfile->ApplicationStatus === 'Approved') {
+             // Migrate the existing profile to vendor_listings
+             $gallery = [];
+             if (!empty($existingProfile->gallery)) {
+             $gallery = is_string($existingProfile->gallery) 
+             ? json_decode($existingProfile->gallery, true) ?: []
+             : $existingProfile->gallery;
+             }
+             $insertData = [
+             'user_id' => $user->mysql_id,
+             'business_name' => $existingProfile->BusinessName ?? 'My Business',
+             'address' => $existingProfile->BusinessAddress ?? $existingProfile->service_areas ?? '',
+             'region' => $existingProfile->region ?? null,
+             'city' => $existingProfile->city ?? null,
+             'specific_address' => $existingProfile->BusinessAddress ?? null,
+             'service_category' => $existingProfile->Category ?? $existingProfile->service_category ?? null,
+             'services' => $existingProfile->services ?? null,
+             'pricing' => $existingProfile->Pricing ?? null,
+             'description' => $existingProfile->Description ?? $existingProfile->bio ?? null,
+             'hero_image' => $existingProfile->HeroImageUrl ?? null,
+             'logo' => $existingProfile->business_logo_url ?? $existingProfile->avatar ?? null,
+             'gallery' => json_encode($gallery),
+             'event_type' => $existingProfile->service_type_tag ?? null,
+             'budget_range' => $existingProfile->budget_tier ?? null,
+             'base_price' => $existingProfile->base_price ?? null,
+             'package_price' => $existingProfile->package_price ?? null,
+             'ai_description' => $existingProfile->ai_description ?? null,
+             'status' => 'Active',
+             'created_at' => date('Y-m-d H:i:s'),
+             'updated_at' => date('Y-m-d H:i:s')
+             ];
+             $newId = DB::table('vendor_listings')->insertGetId($insertData);
+             // Fetch the newly created listing
+             $listings = DB::table('vendor_listings')
+             ->where('id', $newId)
+             ->get()
+             ->map(function ($v) {
+             if (isset($v->gallery)) {
+             $v->gallery = json_decode($v->gallery, true) ?: [];
+             }
+             return $v;
+             });
+             }
+             }
+             */
 
             return $this->json($response, true, "Listings retrieved", 200, [
                 'vendors' => $listings,

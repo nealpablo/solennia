@@ -156,7 +156,7 @@ export default function ConversationalBooking() {
             Booking Assistant
           </h1>
           <p style={pageStyles.subtitle}>
-            Find and book vendors and venues through the Solennia platform
+            Find and book suppliers and venues through the Solennia platform
           </p>
         </div>
 

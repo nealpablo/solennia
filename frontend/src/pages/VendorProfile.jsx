@@ -13,6 +13,7 @@ const API =
 export default function VendorProfile() {
   const [params] = useSearchParams();
   const vendorId = params.get("id");
+  const listingId = params.get("listingId");
   const navigate = useNavigate();
 
   const [vendor, setVendor] = useState(null);
@@ -63,7 +64,8 @@ export default function VendorProfile() {
     async function loadVendor() {
       try {
         setLoading(true);
-        const res = await fetch(`${API}/vendor/public/${vendorId}`);
+        const listingParam = listingId ? `?listingId=${listingId}` : '';
+        const res = await fetch(`${API}/vendor/public/${vendorId}${listingParam}`);
         const json = await res.json();
 
         if (!res.ok || !json.vendor) throw new Error("Vendor not found");
@@ -524,7 +526,7 @@ export default function VendorProfile() {
           {/* Tabs */}
           <div className="border-b border-gray-300 mb-6">
             <div className="flex gap-6">
-              {["overview", "services", "portfolio", "availability", "review"].map((tab) => (
+              {["overview", "services", "media", "availability", "review"].map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
@@ -579,7 +581,7 @@ export default function VendorProfile() {
             </div>
           )}
 
-          {activeTab === "portfolio" && (
+          {activeTab === "media" && (
             <div>
               <h3 className="text-lg font-semibold mb-4">Gallery</h3>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">

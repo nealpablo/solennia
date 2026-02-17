@@ -167,7 +167,7 @@ export default function Vendors() {
           {/* Vendor Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             {visibleVendors.map((vendor) => (
-              <VendorCard key={vendor.unique_key || vendor.ID || vendor.UserID} vendor={vendor} navigate={navigate} />
+              <VendorCard key={vendor.unique_key} vendor={vendor} navigate={navigate} />
             ))}
           </div>
 
@@ -262,7 +262,7 @@ function VendorCard({ vendor, navigate }) {
       return;
     }
 
-    const vendorUserId = vendor.UserID || vendor.ID;
+    const vendorUserId = vendor.UserID;
     navigate('/create-booking', {
       state: {
         vendorUserId,
@@ -290,7 +290,7 @@ function VendorCard({ vendor, navigate }) {
 
   return (
     <Link
-      to={`/vendor-profile?id=${encodeURIComponent(vendor.UserID || vendor.ID)}&listingId=${encodeURIComponent(vendor.id)}`}
+      to={`/vendor-profile?id=${encodeURIComponent(vendor.UserID)}&listingId=${encodeURIComponent(vendor.id)}`}
       className="group bg-white rounded-lg overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col h-full"
     >
       {/* Image Container - Match Venue styling */}
@@ -396,7 +396,7 @@ function VendorCard({ vendor, navigate }) {
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              window.location.href = `/vendor-profile?id=${encodeURIComponent(vendor.UserID || vendor.ID)}&listingId=${encodeURIComponent(vendor.id)}`;
+              window.location.href = `/vendor-profile?id=${encodeURIComponent(vendor.UserID)}&listingId=${encodeURIComponent(vendor.id)}`;
             }}
             className="flex-1 px-3 py-2 bg-[#7a5d47] hover:bg-[#654a38] text-white text-sm font-medium rounded-lg transition-colors"
           >

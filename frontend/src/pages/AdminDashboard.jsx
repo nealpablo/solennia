@@ -156,7 +156,7 @@ export default function AdminDashboard() {
                     </svg>
                   </div>
                   <p className="text-3xl font-bold text-[#7a5d47]">{analytics.total_approved_providers}</p>
-                  <p className="text-xs text-gray-600 mt-1">Active vendors/venues</p>
+                  <p className="text-xs text-gray-600 mt-1">Active suppliers/venues</p>
                 </div>
               </div>
             </div>

@@ -58,12 +58,16 @@ export default function ChatInterface({ messages, onSendMessage, isProcessing })
               flexDirection: 'column',
               alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start',
               gap: '10px',
+              maxWidth: '100%',
+              minWidth: 0,
             }}
           >
             <div
               style={{
                 ...styles.messageRow,
                 justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                maxWidth: '100%',
+                minWidth: 0,
               }}
             >
               {msg.role === 'assistant' && (
@@ -71,11 +75,14 @@ export default function ChatInterface({ messages, onSendMessage, isProcessing })
               )}
 
               <div
-                style={
-                  msg.role === 'user'
+                style={{
+                  ...(msg.role === 'user'
                     ? styles.userBubble
-                    : styles.assistantBubble
-                }
+                    : styles.assistantBubble),
+                  ...(msg.role === 'assistant' && msg.vendors && msg.vendors.length > 0
+                    ? { maxWidth: 'calc(100% - 42px)' }
+                    : {}),
+                }}
               >
                 {msg.role === 'assistant' && (
                   <div style={styles.bubbleLabel}>Solennia Assistant</div>
@@ -173,18 +180,39 @@ function VendorCard({ vendor }) {
     if (!isNaN(num) && String(num) === String(price).trim()) {
       return '₱' + num.toLocaleString();
     }
-    return price.toString();
+    const str = price.toString();
+    return str.length > 60 ? str.substring(0, 60) + '...' : str;
   };
 
   return (
-    <div style={styles.vendorCard}>
+    <div
+      style={styles.vendorCard}
+      onClick={() => {
+        const userId = vendor.UserID || vendor.user_id;
+        const listingId = vendor.source === 'vendor_listings' ? vendor.ID : null;
+        if (userId) {
+          const url = listingId
+            ? `/vendor-profile?id=${userId}&listingId=${listingId}`
+            : `/vendor-profile?id=${userId}`;
+          window.open(url, '_blank');
+        }
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.boxShadow = '0 4px 12px rgba(122, 93, 71, 0.15)';
+        e.currentTarget.style.borderColor = '#7A5D47';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.boxShadow = '0 1px 4px rgba(122, 93, 71, 0.04)';
+        e.currentTarget.style.borderColor = '#E8DCC8';
+      }}
+    >
       <div style={styles.vendorCardHeader}>
-        <div>
+        <div style={{ minWidth: 0, flex: 1 }}>
           <h4 style={styles.vendorName}>{vendor.BusinessName}</h4>
           <span style={styles.vendorCategory}>{vendor.Category}</span>
         </div>
-        <span style={styles.vendorPrice}>{formatPrice(vendor.Pricing)}</span>
       </div>
+      <span style={styles.vendorPrice}>{formatPrice(vendor.Pricing)}</span>
       {vendor.Description && (
         <p style={styles.vendorDesc}>
           {vendor.Description.length > 100 ? vendor.Description.substring(0, 100) + '...' : vendor.Description}
@@ -285,11 +313,13 @@ const styles = {
   messageArea: {
     flex: 1,
     overflowY: 'auto',
+    overflowX: 'hidden',
     padding: '20px',
     display: 'flex',
     flexDirection: 'column',
     gap: '16px',
     background: '#FFFAF3',
+    minWidth: 0,
   },
   messageRow: {
     display: 'flex',
@@ -322,6 +352,8 @@ const styles = {
     fontSize: '14px',
     lineHeight: '1.6',
     boxShadow: '0 1px 4px rgba(122, 93, 71, 0.06)',
+    minWidth: 0,
+    overflow: 'hidden',
   },
   userBubble: {
     maxWidth: '75%',
@@ -334,7 +366,7 @@ const styles = {
     lineHeight: '1.6',
     boxShadow: '0 2px 8px rgba(122, 93, 71, 0.15)',
     wordBreak: 'normal',
-    overflowWrap: 'anywhere',
+    overflowWrap: 'break-word',
   },
   bubbleLabel: {
     fontSize: '11px',
@@ -348,7 +380,7 @@ const styles = {
     margin: 0,
     whiteSpace: 'pre-wrap',
     wordBreak: 'normal',
-    overflowWrap: 'anywhere',
+    overflowWrap: 'break-word',
   },
   thinkingContainer: {
     display: 'flex',
@@ -415,30 +447,33 @@ const styles = {
   },
   vendorGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
-    gap: '12px',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+    gap: '10px',
     paddingLeft: '42px',
+    width: 'calc(100% - 42px)',
+    boxSizing: 'border-box',
+    alignItems: 'start',
   },
   vendorCard: {
     background: '#FFFFFF',
     border: '1px solid #E8DCC8',
     borderRadius: '10px',
-    padding: '14px',
+    padding: '12px',
     transition: 'box-shadow 0.2s, border-color 0.2s',
-    cursor: 'default',
+    cursor: 'pointer',
     boxShadow: '0 1px 4px rgba(122, 93, 71, 0.04)',
+    overflow: 'hidden',
+    minWidth: 0,
   },
   vendorCardHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: '8px',
+    marginBottom: '6px',
   },
   vendorName: {
-    fontSize: '14px',
+    fontSize: '13px',
     fontWeight: '700',
     color: '#3D2E1F',
     margin: 0,
+    wordBreak: 'break-word',
   },
   vendorCategory: {
     fontSize: '11px',
@@ -448,12 +483,12 @@ const styles = {
     fontWeight: '500',
   },
   vendorPrice: {
-    fontSize: '13px',
+    fontSize: '12px',
     fontWeight: '700',
     color: '#7A5D47',
-    textAlign: 'right',
-    whiteSpace: 'nowrap',
-    marginLeft: '8px',
+    display: 'block',
+    marginBottom: '6px',
+    wordBreak: 'break-word',
   },
   vendorDesc: {
     fontSize: '12px',
