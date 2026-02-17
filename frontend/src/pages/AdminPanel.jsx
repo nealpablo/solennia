@@ -464,16 +464,6 @@ export default function AdminPanel() {
                       onClick={(e) => { e.stopPropagation(); previewDocument(selectedApp.portfolio || selectedApp.sample_photos, "Profile Photo / Logo"); }}
                       className="cursor-pointer group"
                     >
-                      <div className="relative h-24 bg-gray-100 rounded border overflow-hidden">
-                        <img
-                          src={selectedApp.portfolio || selectedApp.sample_photos}
-                          alt="Profile/Logo"
-                          className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
-                        />
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-transparent transition-colors">
-                          <span className="text-xs font-semibold text-white drop-shadow-md">Profile / Logo</span>
-                        </div>
-                      </div>
                     </div>
                   )}
                   {selectedApp.gov_id && (

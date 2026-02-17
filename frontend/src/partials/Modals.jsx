@@ -2438,7 +2438,7 @@ export default function Modals() {
         onClick={(e) => e.target === e.currentTarget && closeAllVendorModals()}
       >
         <div
-          className="bg-[#f6f0e8] w-full max-w-2xl rounded-2xl shadow-xl overflow-y-auto max-h-[80vh]"
+          className="bg-[#f6f0e8] w-full max-w-4xl rounded-2xl shadow-xl overflow-y-auto max-h-[80vh]"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex justify-between items-center p-6 border-b border-gray-300 bg-[#e8ddae]">
@@ -2524,7 +2524,7 @@ export default function Modals() {
         onClick={(e) => e.target === e.currentTarget && closeAllVendorModals()}
       >
         <div
-          className="bg-[#f6f0e8] w-full max-w-2xl rounded-2xl shadow-xl overflow-y-auto max-h-[80vh]"
+          className="bg-[#f6f0e8] w-full max-w-4xl rounded-2xl shadow-xl overflow-y-auto max-h-[80vh]"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex justify-between items-center p-6 border-b border-gray-300 bg-[#e8ddae]">
@@ -2539,41 +2539,62 @@ export default function Modals() {
           </div>
 
           <form onSubmit={handleVendorStep1} className="p-6 space-y-5">
-            <div>
-              <label className="block text-sm font-semibold uppercase">
-                Business Name <span className="text-red-600">*</span>
-              </label>
-              <input
-                name="business_name"
-                required
-                className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div>
+                <label className="block text-sm font-semibold uppercase">
+                  Business Name <span className="text-red-600">*</span>
+                </label>
+                <input
+                  name="business_name"
+                  required
+                  className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold uppercase">
+                  Full Name <span className="text-red-600">*</span>
+                </label>
+                <input
+                  name="full_name"
+                  required
+                  placeholder="Your full legal name"
+                  className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
+                />
+              </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-semibold uppercase">
-                Full Name <span className="text-red-600">*</span>
-              </label>
-              <input
-                name="full_name"
-                required
-                placeholder="Your full legal name"
-                className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
-              />
-            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div>
+                <label className="block text-sm font-semibold uppercase">
+                  Contact Email <span className="text-red-600">*</span>
+                </label>
+                <input
+                  type="email"
+                  name="contact_email"
+                  required
+                  pattern="[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
+                  title="Email must end with .com"
+                  className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
+                />
+              </div>
 
-            <div>
-              <label className="block text-sm font-semibold uppercase">
-                Contact Email <span className="text-red-600">*</span>
-              </label>
-              <input
-                type="email"
-                name="contact_email"
-                required
-                pattern="[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
-                title="Email must end with .com"
-                className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
-              />
+              <div>
+                <label className="block text-sm font-semibold uppercase">
+                  Contact Number <span className="text-red-600">*</span>
+                </label>
+                <input
+                  name="contact_number"
+                  type="tel"
+                  required
+                  placeholder="09XXXXXXXXX"
+                  pattern="(09|\+639)\d{9}"
+                  className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Format: 09XXXXXXXXX
+                </p>
+              </div>
             </div>
 
             <div>
@@ -2608,73 +2629,57 @@ export default function Modals() {
               />
             </div>
 
-            {/* === NEW: CONTACT NUMBER FIELD === */}
-            <div>
-              <label className="block text-sm font-semibold uppercase">
-                Contact Number <span className="text-red-600">*</span>
-              </label>
-              <input
-                name="contact_number"
-                type="tel"
-                required
-                placeholder="09XXXXXXXXX"
-                pattern="(09|\+639)\d{9}"
-                className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Philippine mobile number format: 09XXXXXXXXX
-              </p>
-            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {/* === NEW: REGION DROPDOWN === */}
+              <div>
+                <label className="block text-sm font-semibold uppercase">
+                  Region <span className="text-red-600">*</span>
+                </label>
+                <select
+                  name="region"
+                  required
+                  onChange={(e) => {
+                    const regionCode = e.target.value;
+                    setSelectedRegion(regionCode);
+                    if (regionCode) {
+                      fetchCities(regionCode);
+                    }
+                  }}
+                  className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
+                >
+                  <option value="">Select Region</option>
+                  {regions.map((region) => (
+                    <option key={region.region_code} value={region.region_code}>
+                      {region.region_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-            {/* === NEW: REGION DROPDOWN === */}
-            <div>
-              <label className="block text-sm font-semibold uppercase">
-                Region <span className="text-red-600">*</span>
-              </label>
-              <select
-                name="region"
-                required
-                onChange={(e) => {
-                  const regionCode = e.target.value;
-                  setSelectedRegion(regionCode);
-                  if (regionCode) {
-                    fetchCities(regionCode);
-                  }
-                }}
-                className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
-              >
-                <option value="">Select Region</option>
-                {regions.map((region) => (
-                  <option key={region.region_code} value={region.region_code}>
-                    {region.region_name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* === NEW: CITY DROPDOWN (filtered by region) === */}
-            <div>
-              <label className="block text-sm font-semibold uppercase">
-                City <span className="text-red-600">*</span>
-              </label>
-              <select
-                name="city"
-                required
-                disabled={!selectedRegion}
-                className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
-              >
-                <option value="">Select City</option>
-                {cities.map((city) => (
-                  <option key={city.city_code} value={city.city_name}>
-                    {city.city_name}
-                  </option>
-                ))}
-              </select>
-              {!selectedRegion && (
-                <p className="text-xs text-gray-500 mt-1">
-                  Please select a region first
-                </p>
-              )}
+              {/* === NEW: CITY DROPDOWN (filtered by region) === */}
+              <div>
+                <label className="block text-sm font-semibold uppercase">
+                  City <span className="text-red-600">*</span>
+                </label>
+                <select
+                  name="city"
+                  required
+                  disabled={!selectedRegion}
+                  className="mt-1 w-full rounded-md bg-gray-100 border border-gray-300 p-2"
+                >
+                  <option value="">Select City</option>
+                  {cities.map((city) => (
+                    <option key={city.city_code} value={city.city_name}>
+                      {city.city_name}
+                    </option>
+                  ))}
+                </select>
+                {!selectedRegion && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Please select a region first
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* Venue-specific details (type, capacity, etc.) are set in Manage Listings after approval */}
@@ -2789,7 +2794,7 @@ export default function Modals() {
         onClick={(e) => e.target === e.currentTarget && closeAllVendorModals()}
       >
         <div
-          className="bg-[#f6f0e8] w-full max-w-2xl rounded-2xl shadow-xl overflow-y-auto max-h-[80vh]"
+          className="bg-[#f6f0e8] w-full max-w-4xl rounded-2xl shadow-xl overflow-y-auto max-h-[80vh]"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex justify-between items-center p-6 border-b border-gray-300 bg-[#e8ddae]">
@@ -2948,14 +2953,14 @@ export default function Modals() {
                 </p>
               )}
               <p className="text-xs text-gray-500 mt-1">
-                Hold your ID next to your face. Increases verification score by +20 points
+                Hold your ID next to your face.
               </p>
             </div>
 
             {/* === NEW: SOCIAL MEDIA LINKS === */}
             <div className="border-t border-gray-300 pt-4 mt-4">
               <h3 className="text-sm font-semibold uppercase text-[#7a5d47] mb-3">
-                Social Media Links (Optional - Increases Verification Score)
+                Social Media Links (Optional)
               </h3>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2970,7 +2975,7 @@ export default function Modals() {
                     onChange={(e) => setVendorForm({ ...vendorForm, facebook_page: e.target.value })}
                     className="w-full rounded-md bg-gray-100 border border-gray-300 p-2 text-sm"
                   />
-                  <p className="text-xs text-gray-500 mt-1">+10 verification points</p>
+                  <p className="text-xs text-gray-500 mt-1">Help clients find you online</p>
                 </div>
 
                 <div>
@@ -2984,7 +2989,7 @@ export default function Modals() {
                     onChange={(e) => setVendorForm({ ...vendorForm, instagram_page: e.target.value })}
                     className="w-full rounded-md bg-gray-100 border border-gray-300 p-2 text-sm"
                   />
-                  <p className="text-xs text-gray-500 mt-1">+10 verification points</p>
+                  <p className="text-xs text-gray-500 mt-1">Help clients find you online</p>
                 </div>
               </div>
             </div>
@@ -3012,7 +3017,7 @@ export default function Modals() {
                   </p>
                 )}
                 <p className="text-xs text-gray-500 mt-1">
-                  Upload samples of your work. +15 verification points
+                  Upload samples of your work.
                 </p>
               </div>
 
@@ -3040,33 +3045,7 @@ export default function Modals() {
               )}
             </div>
 
-            {/* === NEW: VERIFICATION SCORE PREVIEW === */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
-              <h4 className="font-semibold text-blue-900 mb-2">📊 Verification Score Preview</h4>
-              <p className="text-sm text-blue-800 mb-2">
-                Your estimated verification score based on documents provided:
-              </p>
-              <ul className="text-sm text-blue-800 space-y-1">
-                <li>✓ Government ID: +30 points (Required)</li>
-                {selectedFiles.selfie_with_id && <li>✓ Selfie with ID: +20 points</li>}
-                {selectedFiles.sample_photos && <li>✓ Sample Photos: +15 points</li>}
-                {vendorForm.facebook_page && <li>✓ Facebook Page: +10 points</li>}
-                {vendorForm.instagram_page && <li>✓ Instagram Page: +10 points</li>}
-              </ul>
-              <p className="text-sm font-semibold text-blue-900 mt-2">
-                Estimated Score: {
-                  30 +
-                  (selectedFiles.selfie_with_id ? 20 : 0) +
-                  (selectedFiles.sample_photos ? 15 : 0) +
-                  (vendorForm.facebook_page ? 10 : 0) +
-                  (vendorForm.instagram_page ? 10 : 0) +
-                  15
-                }/100 points
-              </p>
-              <p className="text-xs text-gray-600 mt-1">
-                Higher scores rank better in search results!
-              </p>
-            </div>
+
 
             {/* Submit Button with Loading State */}
 
