@@ -459,13 +459,7 @@ export default function AdminPanel() {
               <div className="space-y-3">
                 <h3 className="text-sm font-bold uppercase text-gray-500 border-b pb-1">Documents & Media</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {(selectedApp.portfolio || selectedApp.sample_photos) && (
-                    <div
-                      onClick={(e) => { e.stopPropagation(); previewDocument(selectedApp.portfolio || selectedApp.sample_photos, "Profile Photo / Logo"); }}
-                      className="cursor-pointer group"
-                    >
-                    </div>
-                  )}
+
                   {selectedApp.gov_id && (
                     <div onClick={(e) => { e.stopPropagation(); previewDocument(selectedApp.gov_id, "Government ID"); }} className="cursor-pointer group">
                       <div className="relative h-24 bg-gray-100 rounded border overflow-hidden">
@@ -995,7 +989,7 @@ export default function AdminPanel() {
                 <img
                   src={lightbox.url}
                   alt={lightbox.title}
-                  className="max-w-full max-h-[70vh] object-contain rounded shadow-lg"
+                  className="max-w-full max-h-[90vh] object-contain rounded shadow-lg"
                   onError={(e) => {
                     e.target.style.display = 'none';
                     e.target.parentNode.innerHTML = '<div class="text-center p-8"><p class="text-gray-500 text-lg">Unable to load image</p><a href="' + lightbox.url + '" target="_blank" rel="noopener noreferrer" class="mt-3 inline-block px-4 py-2 bg-[#7a5d47] text-white rounded-lg text-sm hover:bg-[#5d4636]">Open URL Directly</a></div>';
