@@ -1096,7 +1096,8 @@ class VendorController
                     }
                 });
 
-                $analytics['total_reviews'] = $feedbackQuery->count();
+                $countQuery = clone $feedbackQuery;
+                $analytics['total_reviews'] = $countQuery->count();
 
                 $avgRating = $feedbackQuery->avg('bf.Rating');
                 $analytics['average_rating'] = $avgRating ? round($avgRating, 2) : 0;

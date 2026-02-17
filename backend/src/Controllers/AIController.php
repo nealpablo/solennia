@@ -1329,7 +1329,8 @@ CRITICAL: Use exact numeric IDs from the PREVIOUSLY SHOWN VENDOR ID REFERENCE bl
                 'BookingStatus' => 'Pending',
                 'BookingDate' => date('Y-m-d H:i:s'),
                 'CreatedAt' => date('Y-m-d H:i:s'),
-                'CreatedBy' => $userId
+                'CreatedBy' => $userId,
+                'vendor_listing_id' => $listing->id
             ]);
 
             $client = DB::table('credential')->where('id', $userId)->first();

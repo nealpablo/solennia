@@ -365,8 +365,8 @@ export default function VendorBookingRequests() {
                         </>
                       ) : (
                         <>
-                          <span style={styles.labelText}>Vendor: </span>
-                          {booking.ServiceName}
+                          <span style={styles.labelText}>Service: </span>
+                          {booking.display_listing_name || booking.listing_business_name || booking.ServiceName}
                         </>
                       )}
                     </h3>

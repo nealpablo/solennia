@@ -61,6 +61,9 @@ class BookingController
                 }
             }
 
+            // Capture vendor_listing_id (specific listing being booked)
+            $vendorListingId = !empty($data['vendor_listing_id']) ? (int)$data['vendor_listing_id'] : null;
+
             $eventDate = $data['event_date'];
             if (strtotime($eventDate) <= time()) {
                 return $this->json($res, [
@@ -131,11 +134,19 @@ class BookingController
             }
 
             // Check for existing booking conflict
-            $existingBooking = DB::table('booking')
-                ->where('EventServiceProviderID', $eventServiceProvider->ID)
+            // If a specific listing is being booked, check conflicts per listing; otherwise per ESP
+            $conflictQuery = DB::table('booking')
                 ->where('EventDate', $eventDate)
-                ->whereNotIn('BookingStatus', ['Cancelled', 'Rejected'])
-                ->first();
+                ->whereNotIn('BookingStatus', ['Cancelled', 'Rejected']);
+
+            if ($vendorListingId) {
+                $conflictQuery->where('vendor_listing_id', $vendorListingId);
+            } else {
+                $conflictQuery->where('EventServiceProviderID', $eventServiceProvider->ID)
+                              ->whereNull('vendor_listing_id');
+            }
+
+            $existingBooking = $conflictQuery->first();
 
             if ($existingBooking) {
                 $formattedDate = date('F j, Y \a\t g:i A', strtotime($eventDate));
@@ -148,10 +159,23 @@ class BookingController
                 ], 409);
             }
 
+            // If a specific listing is provided, use that listing's business name as ServiceName
+            $serviceNameToStore = $data['service_name'];
+            if ($vendorListingId) {
+                $specificListing = DB::table('vendor_listings')
+                    ->where('id', $vendorListingId)
+                    ->where('user_id', $vendorUserId)
+                    ->first();
+                if ($specificListing) {
+                    $serviceNameToStore = $specificListing->business_name;
+                }
+            }
+
             $bookingId = DB::table('booking')->insertGetId([
                 'UserID' => $userId,
                 'EventServiceProviderID' => $eventServiceProvider->ID,
-                'ServiceName' => $data['service_name'],
+                'vendor_listing_id' => $vendorListingId,
+                'ServiceName' => $serviceNameToStore,
                 'EventDate' => $eventDate,
                 'EventLocation' => $data['event_location'],
                 'EventType' => $data['event_type'] ?? null,
@@ -229,6 +253,7 @@ class BookingController
                     ->where('br_pending.Status', '=', 'Pending');
             })
                 ->where('b.UserID', $userId)
+                ->whereNull('b.venue_id') // Exclude venue bookings — served by /venue-bookings/user
                 ->orderBy('b.CreatedAt', 'DESC');
 
             if ($status) {
@@ -323,13 +348,17 @@ class BookingController
                     'br_pending.RequestedAt as reschedule_requested_at',
                     DB::raw("'supplier' as booking_type"),
                     DB::raw('NULL as venue_name'),
-                    DB::raw('NULL as venue_address')
+                    DB::raw('NULL as venue_address'),
+                    'vl.business_name as listing_business_name',
+                    'vl.service_category as listing_category',
+                    'vl.id as listing_id'
                 ])
                     ->leftJoin('credential as c', 'b.UserID', '=', 'c.id')
                     ->leftJoin('booking_reschedule as br_pending', function ($join) {
                     $join->on('b.ID', '=', 'br_pending.BookingID')
                         ->where('br_pending.Status', '=', 'Pending');
                 })
+                    ->leftJoin('vendor_listings as vl', 'b.vendor_listing_id', '=', 'vl.id')
                     ->where('b.EventServiceProviderID', $vendorProfile->ID)
                     ->whereNull('b.venue_id') // Exclude venue bookings
                     ->orderBy('b.CreatedAt', 'DESC');
@@ -343,6 +372,13 @@ class BookingController
                 foreach ($supplierBookings as $booking) {
                     $booking->client_name = trim(($booking->first_name ?? '') . ' ' . ($booking->last_name ?? ''));
                     $booking->has_pending_reschedule = !empty($booking->reschedule_id);
+
+                    // Use the specific listing's business name if available
+                    if (!empty($booking->listing_business_name)) {
+                        $booking->display_listing_name = $booking->listing_business_name;
+                    } else {
+                        $booking->display_listing_name = $booking->ServiceName;
+                    }
 
                     // ⭐ Add complete reschedule history
                     $booking->reschedule_history = DB::table('booking_reschedule')
