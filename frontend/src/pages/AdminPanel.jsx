@@ -989,7 +989,7 @@ export default function AdminPanel() {
                 <img
                   src={lightbox.url}
                   alt={lightbox.title}
-                  className="w-full h-full object-contain rounded shadow-lg"
+                  className="max-w-full max-h-full object-contain rounded shadow-lg"
                   onError={(e) => {
                     e.target.style.display = 'none';
                     e.target.parentNode.innerHTML = '<div class="text-center p-8"><p class="text-gray-500 text-lg">Unable to load image</p><a href="' + lightbox.url + '" target="_blank" rel="noopener noreferrer" class="mt-3 inline-block px-4 py-2 bg-[#7a5d47] text-white rounded-lg text-sm hover:bg-[#5d4636]">Open URL Directly</a></div>';
