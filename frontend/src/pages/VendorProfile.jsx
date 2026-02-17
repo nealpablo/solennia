@@ -383,52 +383,23 @@ export default function VendorProfile() {
         Back to Suppliers
       </button>
 
-      {/* Image Gallery */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-        {/* Main Image */}
-        <div className="h-96 rounded-lg overflow-hidden">
-          <img
-            src={gallery[selectedImage] || displayHero}
-            alt={displayName}
-            className="w-full h-full object-cover"
-            onError={(e) => {
-              e.target.src = displayHero;
-            }}
-          />
-        </div>
-
-        {/* Thumbnail Grid */}
-        <div className="grid grid-cols-2 gap-4">
-          {gallery.slice(0, 4).map((img, idx) => (
-            <div
-              key={idx}
-              className={`h-[11.5rem] rounded-lg overflow-hidden cursor-pointer border-2 transition-all ${selectedImage === idx ? 'border-[#7a5d47]' : 'border-transparent hover:border-gray-300'
-                }`}
-              onClick={() => setSelectedImage(idx)}
-            >
-              <img
-                src={img}
-                alt={`${displayName} ${idx + 1}`}
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  e.target.src = "/images/placeholder.svg";
-                }}
-              />
-            </div>
-          ))}
-        </div>
+      {/* Hero Banner */}
+      <div className="relative h-64 md:h-80 w-full rounded-xl overflow-hidden mb-6 shadow-md">
+        <img
+          src={displayHero}
+          alt="Cover"
+          className="w-full h-full object-cover"
+          onError={(e) => {
+            e.target.src = "/images/default-hero.jpg";
+          }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-60"></div>
       </div>
 
-      {/* Image Counter */}
-      {gallery.length > 1 && (
-        <div className="text-center text-sm text-gray-600 mb-4">
-          Image {selectedImage + 1} of {gallery.length}
-        </div>
-      )}
-
-      {/* Profile Avatar - Facebook Style */}
-      <div className="relative -mt-24 mb-6 px-4">
-        <div className="w-40 h-40 rounded-full border-4 border-white bg-white shadow-lg overflow-hidden">
+      {/* Profile Avatar & Header Info */}
+      <div className="relative px-6 -mt-20 mb-8 flex flex-col md:flex-row items-end gap-6">
+        {/* Avatar */}
+        <div className="w-40 h-40 rounded-full border-4 border-white bg-white shadow-lg overflow-hidden flex-shrink-0 z-10 relative">
           <img
             src={displayLogo}
             alt={`${displayName} profile`}
@@ -438,31 +409,46 @@ export default function VendorProfile() {
             }}
           />
         </div>
+
+        {/* Header Info (Moved up to align with avatar bottom) */}
+        <div className="flex-1 pb-2 text-white md:text-gray-800 z-10 md:static relative">
+          {/* This part needs to be handled carefully. 
+                 The original header was further down. 
+                 If we want "Facebook style", the name sits next to avatar, 
+                 but if background is white below hero, text should be black.
+                 If overlapping hero, text white.
+                 
+                 Let's stick to the plan:
+                 Hero -> Avatar overlaps -> Info below or next to it.
+              */}
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 px-4">
         {/* Main Content */}
         <div className="lg:col-span-2">
-          {/* Header */}
-          <div className="mb-6">
-            <div className="flex items-center gap-2 mb-3">
+          {/* Header Info - Re-positioned */}
+          <div className="mb-8">
+            <div className="flex flex-wrap items-center gap-3 mb-2">
               <h1 className="text-3xl font-bold text-gray-800">{displayName}</h1>
               {displayCategory && (
-                <span className="px-3 py-1 bg-[#e8ddae] text-sm font-medium rounded-full">
+                <span className="px-3 py-1 bg-[#e8ddae] text-sm font-medium rounded-full text-[#5d4436]">
                   {displayCategory}
                 </span>
               )}
             </div>
 
             {displayAddress && (
-              <div className="flex items-center gap-1 text-gray-600">
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <div className="flex items-center gap-1 text-gray-600 mb-4">
+                <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                   <path strokeWidth="2" d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
                   <circle cx="12" cy="10" r="3" strokeWidth="2" />
                 </svg>
-                {displayAddress}
+                <span>{displayAddress}</span>
               </div>
             )}
+
+            {/* Action Buttons (Chat/Book) - Good place to add them if they were separate */}
           </div>
 
           {/* Tabs */}

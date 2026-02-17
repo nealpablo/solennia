@@ -331,52 +331,23 @@ export default function VenueDetail() {
         Back to Venues
       </button>
 
-      {/*  Image Gallery with Multiple Images */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-        {/* Main Image */}
-        <div className="h-96 rounded-lg overflow-hidden">
-          <img
-            src={venue.images[selectedImage] || venue.images[0]}
-            alt={venue.name}
-            className="w-full h-full object-cover"
-            onError={(e) => {
-              e.target.src = "/images/placeholder.svg";
-            }}
-          />
-        </div>
-
-        {/* Thumbnail Grid */}
-        <div className="grid grid-cols-2 gap-4">
-          {venue.images.slice(0, 4).map((img, idx) => (
-            <div
-              key={idx}
-              className={`h-[11.5rem] rounded-lg overflow-hidden cursor-pointer border-2 transition-all ${selectedImage === idx ? 'border-[#7a5d47]' : 'border-transparent hover:border-gray-300'
-                }`}
-              onClick={() => setSelectedImage(idx)}
-            >
-              <img
-                src={img}
-                alt={`${venue.name} ${idx + 1}`}
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  e.target.src = "/images/placeholder.svg";
-                }}
-              />
-            </div>
-          ))}
-        </div>
+      {/* Hero Banner */}
+      <div className="relative h-64 md:h-80 w-full rounded-xl overflow-hidden mb-6 shadow-md">
+        <img
+          src={venue.images[0] || "/images/placeholder.svg"}
+          alt={venue.name}
+          className="w-full h-full object-cover"
+          onError={(e) => {
+            e.target.src = "/images/placeholder.svg";
+          }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-60"></div>
       </div>
 
-      {/* Image Counter */}
-      {venue.images.length > 1 && (
-        <div className="text-center text-sm text-gray-600 mb-4">
-          Image {selectedImage + 1} of {venue.images.length}
-        </div>
-      )}
-
-      {/* Profile Avatar - Facebook Style */}
-      <div className="relative -mt-24 mb-6 px-4">
-        <div className="w-40 h-40 rounded-full border-4 border-white bg-white shadow-lg overflow-hidden">
+      {/* Profile Avatar & Header Info */}
+      <div className="relative px-6 -mt-20 mb-8 flex flex-col md:flex-row items-end gap-6">
+        {/* Avatar */}
+        <div className="w-40 h-40 rounded-full border-4 border-white bg-white shadow-lg overflow-hidden flex-shrink-0 z-10 relative">
           <img
             src={venue.images[0] || "/images/placeholder.svg"}
             alt={`${venue.name} profile`}
@@ -388,15 +359,15 @@ export default function VenueDetail() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 px-4">
         {/* Main Content */}
         <div className="lg:col-span-2">
           {/* Header */}
-          <div className="mb-6">
-            <div className="flex items-center gap-2 mb-3">
+          <div className="mb-8">
+            <div className="flex flex-wrap items-center gap-3 mb-2">
               <h1 className="text-3xl font-bold text-gray-800">{venue.name}</h1>
               {venue.venue_type && (
-                <span className="px-3 py-1 bg-[#e8ddae] text-sm font-medium rounded-full">
+                <span className="px-3 py-1 bg-[#e8ddae] text-sm font-medium rounded-full text-[#5d4436]">
                   {venue.venue_type}
                 </span>
               )}
@@ -408,17 +379,17 @@ export default function VenueDetail() {
               </p>
             )}
 
-            <div className="space-y-2">
-              <div className="flex items-center gap-4 text-gray-600 flex-wrap">
-                <span className="flex items-center gap-1">
-                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <div className="space-y-3 mt-4">
+              <div className="flex items-center gap-6 text-gray-600 flex-wrap">
+                <span className="flex items-center gap-1.5">
+                  <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                     <path strokeWidth="2" d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
                     <circle cx="12" cy="10" r="3" strokeWidth="2" />
                   </svg>
                   {venue.location}
                 </span>
-                <span className="flex items-center gap-1">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <span className="flex items-center gap-1.5">
+                  <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                   </svg>
                   Capacity: {venue.capacity} guests
@@ -426,18 +397,18 @@ export default function VenueDetail() {
               </div>
 
               {(venue.operating_hours || venue.parking) && (
-                <div className="flex items-center gap-4 text-sm text-gray-600 flex-wrap mt-2">
+                <div className="flex items-center gap-6 text-sm text-gray-600 flex-wrap border-t border-gray-100 pt-3">
                   {venue.operating_hours && (
-                    <span className="flex items-center gap-1">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <span className="flex items-center gap-1.5">
+                      <svg className="w-4 h-4 text-[#7a5d47]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                       {venue.operating_hours}
                     </span>
                   )}
                   {venue.parking && (
-                    <span className="flex items-center gap-1">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <span className="flex items-center gap-1.5">
+                      <svg className="w-4 h-4 text-[#7a5d47]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
                       </svg>
                       {venue.parking}
