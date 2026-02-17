@@ -66,8 +66,7 @@ class AIController
                 'response' => $result['response']
             ]);
 
-        }
-        catch (\Exception $e) {
+        } catch (\Exception $e) {
             error_log("AI Chat Error: " . $e->getMessage());
             return $this->jsonResponse($response, [
                 'success' => false,
@@ -154,6 +153,7 @@ class AIController
             $aiResponse = '';
             $extractedInfo = [];
             $suggestedVendors = $previousSuggestedVendors; // carry forward
+            $currentRecommendations = []; // 
             $bookingCreated = false;
             $bookingId = null;
             $newStage = $stage;
@@ -196,6 +196,17 @@ class AIController
 
                 switch ($functionName) {
                     case 'extract_booking_info':
+                        // FIX: Normalise guest count BEFORE merging (handles "40 people", "forty guests", etc.)
+                        if (isset($arguments['guests'])) {
+                            $arguments['guests'] = $this->normalizeGuestCount($arguments['guests'], $message);
+                        } elseif (empty($currentData['guests'])) {
+                            // Try to extract guests directly from message when AI didn't include it
+                            $parsedGuests = $this->parseGuestsFromMessage($message);
+                            if ($parsedGuests !== null) {
+                                $arguments['guests'] = $parsedGuests;
+                            }
+                        }
+
                         // FIX #1: Before merging, resolve vendor_name / venue_name to a real DB id
                         // using the already-displayed suggestedVendors list as the authoritative source.
                         $arguments = $this->resolveVendorIdFromName($arguments, $suggestedVendors);
@@ -219,8 +230,8 @@ class AIController
 
                         if ($autoDate && ($autoVendorId || $autoVenueId)) {
                             $autoAvailability = $autoVenueId
-                                ? $this->checkVenueAvailabilityForDate((int)$autoVenueId, $autoDate)
-                                : $this->checkVendorAvailabilityForDate((int)$autoVendorId, $autoDate);
+                                ? $this->checkVenueAvailabilityForDate((int) $autoVenueId, $autoDate)
+                                : $this->checkVendorAvailabilityForDate((int) $autoVendorId, $autoDate);
 
                             $functionResult['availability_auto_check'] = $autoAvailability;
                             $functionResult['availability_note'] = $autoAvailability['available']
@@ -243,11 +254,18 @@ class AIController
                             $systemPrompt = $this->getConversationalBookingPrompt($currentData, $newStage, $suggestedVendors);
                         }
 
-                        $suggestedVendors = $this->searchVendorsForBooking($arguments);
+                        $newVendors = $this->searchVendorsForBooking($arguments);
+
+                        // Merge with existing suggestedVendors — never lose previously shown IDs
+                        $suggestedVendors = $this->mergeVendorLists($suggestedVendors, $newVendors);
+
+                        // Capture unique results for THIS turn only (for UI display)
+                        $currentRecommendations = $this->mergeVendorLists($currentRecommendations, $newVendors);
+
                         $functionResult = [
                             'status' => 'success',
-                            'vendors' => $suggestedVendors,
-                            'count' => count($suggestedVendors)
+                            'vendors' => $newVendors,
+                            'count' => count($newVendors)
                         ];
                         break;
 
@@ -262,28 +280,28 @@ class AIController
 
                         // FIX #2: Validate IDs against suggestedVendors before trusting them
                         if ($venueId) {
-                            $venueId = $this->validateVendorIdInResults((int)$venueId, $suggestedVendors, 'venue')
+                            $venueId = $this->validateVendorIdInResults((int) $venueId, $suggestedVendors, 'venue')
                                 ?? ($currentData['venue_id'] ?? null);
                         }
                         if ($vendorId) {
-                            $vendorId = $this->validateVendorIdInResults((int)$vendorId, $suggestedVendors, 'supplier')
+                            $vendorId = $this->validateVendorIdInResults((int) $vendorId, $suggestedVendors, 'supplier')
                                 ?? ($currentData['vendor_id'] ?? null);
                         }
 
                         if ($venueId) {
-                            $extractedInfo['venue_id'] = (int)$venueId;
-                            $currentData['venue_id'] = (int)$venueId;
+                            $extractedInfo['venue_id'] = (int) $venueId;
+                            $currentData['venue_id'] = (int) $venueId;
                         }
                         if ($vendorId) {
-                            $extractedInfo['vendor_id'] = (int)$vendorId;
-                            $currentData['vendor_id'] = (int)$vendorId;
+                            $extractedInfo['vendor_id'] = (int) $vendorId;
+                            $currentData['vendor_id'] = (int) $vendorId;
                         }
 
                         $systemPrompt = $this->getConversationalBookingPrompt($currentData, $newStage, $suggestedVendors);
 
                         $availability = $venueId
-                            ? $this->checkVenueAvailabilityForDate((int)$venueId, $arguments['date'])
-                            : ($vendorId ? $this->checkVendorAvailabilityForDate((int)$vendorId, $arguments['date']) : ['available' => false, 'reason' => 'No vendor_id or venue_id provided']);
+                            ? $this->checkVenueAvailabilityForDate((int) $venueId, $arguments['date'])
+                            : ($vendorId ? $this->checkVendorAvailabilityForDate((int) $vendorId, $arguments['date']) : ['available' => false, 'reason' => 'No vendor_id or venue_id provided']);
 
                         $extractedInfo['availability_checked'] = $availability;
                         $functionResult = ['status' => 'success', 'availability' => $availability];
@@ -304,9 +322,9 @@ class AIController
 
                         // FIX #2: Hard-validate IDs against suggestedVendors before booking.
                         if ($venueId) {
-                            $validatedVenueId = $this->validateVendorIdInResults((int)$venueId, $suggestedVendors, 'venue');
+                            $validatedVenueId = $this->validateVendorIdInResults((int) $venueId, $suggestedVendors, 'venue');
                             if (!$validatedVenueId) {
-                                $validatedVenueId = !empty($currentData['venue_id']) ? (int)$currentData['venue_id'] : null;
+                                $validatedVenueId = !empty($currentData['venue_id']) ? (int) $currentData['venue_id'] : null;
                                 if ($validatedVenueId) {
                                     error_log("CREATE_BOOKING: AI passed unvalidated venue_id={$venueId}, falling back to currentData venue_id={$validatedVenueId}");
                                 } else {
@@ -322,9 +340,9 @@ class AIController
                         }
 
                         if ($vendorId) {
-                            $validatedVendorId = $this->validateVendorIdInResults((int)$vendorId, $suggestedVendors, 'supplier');
+                            $validatedVendorId = $this->validateVendorIdInResults((int) $vendorId, $suggestedVendors, 'supplier');
                             if (!$validatedVendorId) {
-                                $validatedVendorId = !empty($currentData['vendor_id']) ? (int)$currentData['vendor_id'] : null;
+                                $validatedVendorId = !empty($currentData['vendor_id']) ? (int) $currentData['vendor_id'] : null;
                                 if ($validatedVendorId) {
                                     error_log("CREATE_BOOKING: AI passed unvalidated vendor_id={$vendorId}, falling back to currentData vendor_id={$validatedVendorId}");
                                 } else {
@@ -341,17 +359,17 @@ class AIController
 
                         // If still no vendor/venue ID, check currentData one more time
                         if (!$venueId && !$vendorId) {
-                            $venueId = !empty($currentData['venue_id']) ? (int)$currentData['venue_id'] : null;
-                            $vendorId = !empty($currentData['vendor_id']) ? (int)$currentData['vendor_id'] : null;
+                            $venueId = !empty($currentData['venue_id']) ? (int) $currentData['venue_id'] : null;
+                            $vendorId = !empty($currentData['vendor_id']) ? (int) $currentData['vendor_id'] : null;
                         }
 
                         if ($venueId) {
-                            $extractedInfo['venue_id'] = (int)$venueId;
-                            $currentData['venue_id'] = (int)$venueId;
+                            $extractedInfo['venue_id'] = (int) $venueId;
+                            $currentData['venue_id'] = (int) $venueId;
                         }
                         if ($vendorId) {
-                            $extractedInfo['vendor_id'] = (int)$vendorId;
-                            $currentData['vendor_id'] = (int)$vendorId;
+                            $extractedInfo['vendor_id'] = (int) $vendorId;
+                            $currentData['vendor_id'] = (int) $vendorId;
                         }
 
                         $isVenueBooking = !empty($venueId);
@@ -377,18 +395,17 @@ class AIController
                                 'status' => 'error',
                                 'message' => 'Cannot create booking. Missing information: ' . implode(', ', $missingFields) . '. Please ask user for these details.'
                             ];
-                        }
-                        else {
+                        } else {
                             $bookingData = array_merge($currentData, $extractedInfo);
 
                             if ($venueId)
-                                $bookingData['venue_id'] = (int)$venueId;
+                                $bookingData['venue_id'] = (int) $venueId;
                             if ($vendorId)
-                                $bookingData['vendor_id'] = (int)$vendorId;
+                                $bookingData['vendor_id'] = (int) $vendorId;
 
                             $bookingId = $venueId
-                                ? $this->createVenueBookingFromConversation($bookingData, (int)$venueId, $userId)
-                                : ($vendorId ? $this->createBookingFromConversation($bookingData, (int)$vendorId, $userId) : null);
+                                ? $this->createVenueBookingFromConversation($bookingData, (int) $venueId, $userId)
+                                : ($vendorId ? $this->createBookingFromConversation($bookingData, (int) $vendorId, $userId) : null);
 
                             if ($bookingId) {
                                 $bookingCreated = true;
@@ -398,8 +415,7 @@ class AIController
                                     'booking_id' => $bookingId,
                                     'message' => 'Booking created successfully'
                                 ];
-                            }
-                            else {
+                            } else {
                                 $functionResult = [
                                     'status' => 'error',
                                     'message' => 'Failed to create booking in database.'
@@ -453,12 +469,12 @@ class AIController
                 'extractedInfo' => $extractedInfo,
                 'stage' => $newStage,
                 'suggestedVendors' => $suggestedVendors,
+                'currentRecommendations' => $currentRecommendations, // For UI display only
                 'bookingCreated' => $bookingCreated,
                 'bookingId' => $bookingId
             ]);
 
-        }
-        catch (\Throwable $e) {
+        } catch (\Throwable $e) {
             error_log("Conversational Booking Error: " . $e->getMessage());
             error_log("Stack trace: " . $e->getTraceAsString());
             return $this->jsonResponse($response, [
@@ -466,6 +482,138 @@ class AIController
                 'error' => 'Failed to process booking conversation'
             ], 500);
         }
+    }
+
+    // =========================================================================
+    // GUEST COUNT HELPERS
+    // =========================================================================
+
+    /**
+     * FIX: Convert written-out numbers and "X people/guests/pax" phrases to integers.
+     * Examples: "40 people" → 40, "forty guests" → 40, "around 50 pax" → 50
+     */
+    private function normalizeGuestCount($raw, string $originalMessage = ''): int
+    {
+        // Already a clean integer
+        if (is_int($raw))
+            return $raw;
+
+        // If it's a numeric string, just cast it
+        if (is_numeric($raw))
+            return (int) $raw;
+
+        // Try to parse from the AI-supplied string value first, then from the raw message
+        $sources = [strval($raw), $originalMessage];
+        foreach ($sources as $text) {
+            $parsed = $this->parseGuestsFromMessage($text);
+            if ($parsed !== null)
+                return $parsed;
+        }
+
+        // Last resort: strip non-digits
+        $digits = preg_replace('/\D/', '', strval($raw));
+        return $digits !== '' ? (int) $digits : 0;
+    }
+
+    /**
+     * Scan free text for guest counts: "40 people", "forty guests", "around 50", etc.
+     * Returns the integer or null if nothing found.
+     */
+    private function parseGuestsFromMessage(string $message): ?int
+    {
+        $message = strtolower(trim($message));
+
+        // Written-out English numbers map (extend as needed)
+        $wordNumbers = [
+            'zero' => 0,
+            'one' => 1,
+            'two' => 2,
+            'three' => 3,
+            'four' => 4,
+            'five' => 5,
+            'six' => 6,
+            'seven' => 7,
+            'eight' => 8,
+            'nine' => 9,
+            'ten' => 10,
+            'eleven' => 11,
+            'twelve' => 12,
+            'thirteen' => 13,
+            'fourteen' => 14,
+            'fifteen' => 15,
+            'sixteen' => 16,
+            'seventeen' => 17,
+            'eighteen' => 18,
+            'nineteen' => 19,
+            'twenty' => 20,
+            'thirty' => 30,
+            'forty' => 40,
+            'fifty' => 50,
+            'sixty' => 60,
+            'seventy' => 70,
+            'eighty' => 80,
+            'ninety' => 90,
+            'hundred' => 100,
+            'thousand' => 1000,
+        ];
+
+        // 1. Digit followed by guests/people/pax/attendees/persons
+        if (preg_match('/(\d+)\s*(?:guests?|people|pax|attendees?|persons?|heads?)/i', $message, $m)) {
+            return (int) $m[1];
+        }
+
+        // 2. "around/about/roughly/approximately X" or "X guests/people/pax"
+        if (preg_match('/(?:around|about|roughly|approximately|~)?\s*(\d+)/i', $message, $m)) {
+            // Make sure there's a contextual guest word nearby
+            $pos = strpos($message, $m[0]);
+            $window = substr($message, max(0, $pos - 20), strlen($m[0]) + 40);
+            if (preg_match('/guests?|people|pax|attendees?|persons?|heads?/i', $window)) {
+                return (int) $m[1];
+            }
+        }
+
+        // 3. Written-out number followed by guests/people/pax
+        $pattern = implode('|', array_keys($wordNumbers));
+        if (preg_match('/(' . $pattern . ')\s*(?:guests?|people|pax|attendees?|persons?|heads?)/i', $message, $m)) {
+            $word = strtolower($m[1]);
+            return $wordNumbers[$word] ?? null;
+        }
+
+        // 4. Compound numbers like "forty five" → 45
+        if (preg_match('/(' . $pattern . ')\s+(' . $pattern . ')\s*(?:guests?|people|pax|attendees?|persons?|heads?)/i', $message, $m)) {
+            $a = $wordNumbers[strtolower($m[1])] ?? 0;
+            $b = $wordNumbers[strtolower($m[2])] ?? 0;
+            if ($a && $b)
+                return $a + $b;
+        }
+
+        return null;
+    }
+
+    // =========================================================================
+    // VENDOR LIST HELPERS
+    // =========================================================================
+
+    /**
+     * Merge two vendor lists without duplicating entries.
+     * Uses a composite key of type + numeric ID.
+     */
+    private function mergeVendorLists(array $existing, array $incoming): array
+    {
+        $seen = [];
+        $result = [];
+
+        foreach (array_merge($existing, $incoming) as $v) {
+            $type = $v['type'] ?? 'supplier';
+            $id = (int) ($v['vendor_id'] ?? $v['venue_id'] ?? $v['ID'] ?? $v['id'] ?? 0);
+            $key = $type . '_' . $id;
+            if ($id && !isset($seen[$key])) {
+                $seen[$key] = true;
+                $result[] = $v;
+            }
+        }
+
+        return $result;
     }
 
     /**
@@ -484,7 +632,7 @@ class AIController
                 $candidateName = strtolower(trim($v['business_name'] ?? $v['BusinessName'] ?? ''));
                 if ($candidateName === $nameToFind || str_contains($candidateName, $nameToFind) || str_contains($nameToFind, $candidateName)) {
                     if (!empty($v['vendor_id'])) {
-                        $arguments['vendor_id'] = (int)$v['vendor_id'];
+                        $arguments['vendor_id'] = (int) $v['vendor_id'];
                         error_log("RESOLVE_VENDOR: Matched '{$arguments['vendor_name']}' → vendor_id={$arguments['vendor_id']} from suggestedVendors");
                         break;
                     }
@@ -500,7 +648,7 @@ class AIController
                     ->first();
 
                 if ($listing) {
-                    $arguments['vendor_id'] = (int)$listing->id;
+                    $arguments['vendor_id'] = (int) $listing->id;
                     error_log("RESOLVE_VENDOR: DB exact match '{$arguments['vendor_name']}' → vendor_id={$arguments['vendor_id']}");
                 } else {
                     error_log("RESOLVE_VENDOR: Could not resolve vendor_name='{$arguments['vendor_name']}' to any ID — name not in suggestedVendors or DB");
@@ -514,11 +662,12 @@ class AIController
 
             // 1. Check suggestedVendors first
             foreach ($suggestedVendors as $v) {
-                if (($v['type'] ?? '') !== 'venue') continue;
+                if (($v['type'] ?? '') !== 'venue')
+                    continue;
                 $candidateName = strtolower(trim($v['venue_name'] ?? $v['BusinessName'] ?? ''));
                 if ($candidateName === $nameToFind || str_contains($candidateName, $nameToFind) || str_contains($nameToFind, $candidateName)) {
                     if (!empty($v['venue_id'])) {
-                        $arguments['venue_id'] = (int)$v['venue_id'];
+                        $arguments['venue_id'] = (int) $v['venue_id'];
                         error_log("RESOLVE_VENUE: Matched '{$arguments['venue_name']}' → venue_id={$arguments['venue_id']} from suggestedVendors");
                         break;
                     }
@@ -534,7 +683,7 @@ class AIController
                     ->first();
 
                 if ($venue) {
-                    $arguments['venue_id'] = (int)$venue->id;
+                    $arguments['venue_id'] = (int) $venue->id;
                     error_log("RESOLVE_VENUE: DB exact match '{$arguments['venue_name']}' → venue_id={$arguments['venue_id']}");
                 } else {
                     error_log("RESOLVE_VENUE: Could not resolve venue_name='{$arguments['venue_name']}' to any ID");
@@ -558,12 +707,12 @@ class AIController
 
         foreach ($suggestedVendors as $v) {
             if ($type === 'venue') {
-                $candidateId = (int)($v['venue_id'] ?? $v['ID'] ?? $v['id'] ?? 0);
+                $candidateId = (int) ($v['venue_id'] ?? $v['ID'] ?? $v['id'] ?? 0);
                 if ($candidateId === $id && ($v['type'] ?? '') === 'venue') {
                     return $id;
                 }
             } else {
-                $candidateId = (int)($v['vendor_id'] ?? $v['ID'] ?? $v['id'] ?? 0);
+                $candidateId = (int) ($v['vendor_id'] ?? $v['ID'] ?? $v['id'] ?? 0);
                 if ($candidateId === $id && ($v['type'] ?? '') === 'supplier') {
                     return $id;
                 }
@@ -593,10 +742,10 @@ class AIController
                 $name = $v['business_name'] ?? $v['BusinessName'] ?? $v['venue_name'] ?? 'Unknown';
                 $type = $v['type'] ?? 'supplier';
                 if ($type === 'venue') {
-                    $id = (int)($v['venue_id'] ?? $v['ID'] ?? $v['id'] ?? 0);
+                    $id = (int) ($v['venue_id'] ?? $v['ID'] ?? $v['id'] ?? 0);
                     $vendorIdBlock .= "  venue_id={$id}  name=\"{$name}\"  type=venue\n";
                 } else {
-                    $id = (int)($v['vendor_id'] ?? $v['ID'] ?? $v['id'] ?? 0);
+                    $id = (int) ($v['vendor_id'] ?? $v['ID'] ?? $v['id'] ?? 0);
                     $vendorIdBlock .= "  vendor_id={$id}  name=\"{$name}\"  type=supplier\n";
                 }
             }
@@ -685,7 +834,20 @@ ABSOLUTE RULES - NEVER BREAK THESE:
      Also recognize full month names: january, february, march, april, may, june, july, august, september, october, november, december.
    - NEVER call extract_booking_info with a date before {$currentDate}. Reject it in your response instead.
 
-5. HUMAN-LIKE BOOKING LOGIC:
+5. GUEST COUNT PARSING - READ CAREFULLY:
+   - Users often describe guest counts in natural language. You MUST parse these correctly.
+   - ALWAYS extract the numeric value from phrases like:
+     '40 people' → guests: 40
+     'forty guests' → guests: 40
+     'around 50 pax' → guests: 50
+     'about 100 attendees' → guests: 100
+     '30 persons' → guests: 30
+     'roughly 200 heads' → guests: 200
+   - NEVER leave guests empty or set it to null when the user has clearly stated a count.
+   - NEVER store the phrase as-is (e.g. do not store '40 people' as the guests value).
+   - Always pass an INTEGER to the guests field of extract_booking_info.
+
+6. HUMAN-LIKE BOOKING LOGIC:
    - Ask questions one at a time, not all at once.
    - If user provides multiple details at once, acknowledge all of them.
    - NEVER assume or infer the event type. ALWAYS ask the user what type of event they are planning.
@@ -695,7 +857,7 @@ ABSOLUTE RULES - NEVER BREAK THESE:
    - Before calling create_booking, explicitly summarize:
      'To confirm: you want to book [Vendor] for [Event Type] on [Date] at [Time]. Shall I proceed?'
 
-6. RESPONSE STYLE:
+7. RESPONSE STYLE:
    - Professional, concise, and direct.
    - Use Philippine Peso (P) for pricing.
    - Keep responses under 150 words unless presenting vendor options.
@@ -803,21 +965,15 @@ CRITICAL: Use exact numeric IDs from the PREVIOUSLY SHOWN VENDOR ID REFERENCE bl
 
         if ($stage === 'recommendation') {
             $basePrompt .= "\n\nCURRENT TASK: You have presented recommendations. Ask the user if they would like to proceed with booking one of the options, or if they need different recommendations.";
-        }
-        elseif ($stage === 'vendor_search') {
+        } elseif ($stage === 'vendor_search') {
             $basePrompt .= "\n\nCURRENT TASK: Search for vendors and present options to the user. After presenting, ask if they want to proceed with booking.";
-        }
-        elseif ($stage === 'confirmation') {
+        } elseif ($stage === 'confirmation') {
             $basePrompt .= "\n\nCURRENT TASK: Confirm all booking details with the user before proceeding. Remember: location is only required for supplier bookings, not venue bookings.";
         }
 
         return $basePrompt;
     }
 
-    /**
-     * RESTORED: getBookingFunctions() — this method was accidentally missing from the
-     * previous version, causing a fatal PHP error on every single request.
-     */
     private function getBookingFunctions(): array
     {
         $tomorrowDate = date('Y-m-d', strtotime('+1 day'));
@@ -826,7 +982,7 @@ CRITICAL: Use exact numeric IDs from the PREVIOUSLY SHOWN VENDOR ID REFERENCE bl
         return [
             [
                 'name' => 'extract_booking_info',
-                'description' => 'Extract event details from user message. When user selects a vendor by name, you MUST include the vendor_id or venue_id from the PREVIOUSLY SHOWN VENDOR ID REFERENCE in the system prompt.',
+                'description' => 'Extract event details from user message. When user selects a vendor by name, you MUST include the vendor_id or venue_id from the PREVIOUSLY SHOWN VENDOR ID REFERENCE in the system prompt. For guest counts, ALWAYS pass an integer — parse "40 people", "forty guests", "around 50 pax" etc. into their numeric equivalent.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
@@ -835,7 +991,7 @@ CRITICAL: Use exact numeric IDs from the PREVIOUSLY SHOWN VENDOR ID REFERENCE bl
                         'time' => ['type' => 'string', 'description' => 'Event start time (e.g. 2:00 PM)'],
                         'location' => ['type' => 'string'],
                         'budget' => ['type' => 'number'],
-                        'guests' => ['type' => 'integer'],
+                        'guests' => ['type' => 'integer', 'description' => 'Number of guests as an INTEGER. Parse natural language: "40 people"→40, "forty guests"→40, "around 50 pax"→50, "100 attendees"→100. NEVER store a string here. NEVER leave null when user stated a count.'],
                         'venue_id' => ['type' => 'integer', 'description' => 'Venue ID chosen by user. MUST come from the PREVIOUSLY SHOWN VENDOR ID REFERENCE or live search results. NEVER invent.'],
                         'venue_name' => ['type' => 'string', 'description' => 'Name of the venue chosen by user'],
                         'vendor_id' => ['type' => 'integer', 'description' => 'Supplier ID chosen by user. MUST come from the PREVIOUSLY SHOWN VENDOR ID REFERENCE or live search results. NEVER invent.'],
@@ -914,12 +1070,18 @@ CRITICAL: Use exact numeric IDs from the PREVIOUSLY SHOWN VENDOR ID REFERENCE bl
                     }
                 }
 
+                // FIX: Ensure guests is always stored as an integer
+                if ($key === 'guests') {
+                    $value = (int) $value;
+                    if ($value <= 0)
+                        continue;
+                }
+
                 if ($key === 'preferences' && isset($merged['preferences'])) {
                     $merged['preferences'] = array_unique(
                         array_merge($merged['preferences'], $value)
                     );
-                }
-                else {
+                } else {
                     $merged[$key] = $value;
                 }
             }
@@ -967,18 +1129,30 @@ CRITICAL: Use exact numeric IDs from the PREVIOUSLY SHOWN VENDOR ID REFERENCE bl
         }
 
         $months = [
-            'jan' => 1, 'january' => 1,
-            'feb' => 2, 'february' => 2,
-            'mar' => 3, 'march' => 3,
-            'apr' => 4, 'april' => 4,
+            'jan' => 1,
+            'january' => 1,
+            'feb' => 2,
+            'february' => 2,
+            'mar' => 3,
+            'march' => 3,
+            'apr' => 4,
+            'april' => 4,
             'may' => 5,
-            'jun' => 6, 'june' => 6,
-            'jul' => 7, 'july' => 7,
-            'aug' => 8, 'august' => 8,
-            'sep' => 9, 'sept' => 9, 'september' => 9,
-            'oct' => 10, 'october' => 10,
-            'nov' => 11, 'november' => 11,
-            'dec' => 12, 'december' => 12,
+            'jun' => 6,
+            'june' => 6,
+            'jul' => 7,
+            'july' => 7,
+            'aug' => 8,
+            'august' => 8,
+            'sep' => 9,
+            'sept' => 9,
+            'september' => 9,
+            'oct' => 10,
+            'october' => 10,
+            'nov' => 11,
+            'november' => 11,
+            'dec' => 12,
+            'december' => 12,
         ];
 
         $parts = preg_split('/[\s,\/\-]+/', strtolower($dateStr));
@@ -989,16 +1163,13 @@ CRITICAL: Use exact numeric IDs from the PREVIOUSLY SHOWN VENDOR ID REFERENCE bl
         foreach ($parts as $part) {
             if (isset($months[$part])) {
                 $month = $months[$part];
-            }
-            elseif (is_numeric($part)) {
-                $num = (int)$part;
+            } elseif (is_numeric($part)) {
+                $num = (int) $part;
                 if ($num > 31) {
                     $year = $num;
-                }
-                elseif ($day === null) {
+                } elseif ($day === null) {
                     $day = $num;
-                }
-                else {
+                } else {
                     $year = $num;
                 }
             }
@@ -1006,9 +1177,9 @@ CRITICAL: Use exact numeric IDs from the PREVIOUSLY SHOWN VENDOR ID REFERENCE bl
 
         if ($month && $day) {
             if (!$year) {
-                $year = (int)date('Y');
-                $currentMonth = (int)date('n');
-                $currentDay = (int)date('j');
+                $year = (int) date('Y');
+                $currentMonth = (int) date('n');
+                $currentDay = (int) date('j');
                 if ($month < $currentMonth || ($month === $currentMonth && $day < $currentDay)) {
                     $year++;
                 }
@@ -1077,8 +1248,8 @@ CRITICAL: Use exact numeric IDs from the PREVIOUSLY SHOWN VENDOR ID REFERENCE bl
 
         $result = json_decode(json_encode($vendors), true);
         foreach ($result as &$v) {
-            $v['ID'] = (int)$v['id'];
-            $v['vendor_id'] = (int)$v['id'];
+            $v['ID'] = (int) $v['id'];
+            $v['vendor_id'] = (int) $v['id'];
             $v['BusinessName'] = $v['business_name'];
             $v['Category'] = $v['service_category'] ?? 'Others';
             $v['Pricing'] = $v['pricing'];
@@ -1130,8 +1301,8 @@ CRITICAL: Use exact numeric IDs from the PREVIOUSLY SHOWN VENDOR ID REFERENCE bl
         $result = json_decode(json_encode($venues), true);
         foreach ($result as &$v) {
             $v['type'] = 'venue';
-            $v['ID'] = (int)$v['id'];
-            $v['venue_id'] = (int)$v['id'];
+            $v['ID'] = (int) $v['id'];
+            $v['venue_id'] = (int) $v['id'];
             $v['BusinessName'] = $v['venue_name'];
             $v['Pricing'] = $v['pricing'];
             $v['BusinessAddress'] = $v['address'];
@@ -1159,8 +1330,7 @@ CRITICAL: Use exact numeric IDs from the PREVIOUSLY SHOWN VENDOR ID REFERENCE bl
                 ->where('UserID', $listing->user_id)
                 ->where('ApplicationStatus', 'Approved')
                 ->value('ID');
-        }
-        else {
+        } else {
             return ['available' => false, 'reason' => 'Vendor not found in the system'];
         }
 
@@ -1273,8 +1443,6 @@ CRITICAL: Use exact numeric IDs from the PREVIOUSLY SHOWN VENDOR ID REFERENCE bl
     private function createBookingFromConversation(array $bookingData, int $vendorId, int $userId): ?int
     {
         try {
-            // Only look up by exact ID — the LIKE name fallback is removed entirely
-            // because it is the primary cause of booking the wrong vendor.
             $listing = DB::table('vendor_listings')
                 ->where('id', $vendorId)
                 ->where('status', 'Active')
@@ -1348,8 +1516,7 @@ CRITICAL: Use exact numeric IDs from the PREVIOUSLY SHOWN VENDOR ID REFERENCE bl
 
             return $bookingId;
 
-        }
-        catch (\Exception $e) {
+        } catch (\Exception $e) {
             error_log("Create Booking From Conversation Error: " . $e->getMessage());
             return null;
         }
@@ -1361,7 +1528,6 @@ CRITICAL: Use exact numeric IDs from the PREVIOUSLY SHOWN VENDOR ID REFERENCE bl
             error_log("CREATE_VENUE_BOOKING: Starting for venue_id={$venueId}, user_id={$userId}");
             error_log("CREATE_VENUE_BOOKING: bookingData=" . json_encode($bookingData));
 
-            // Only look up by exact ID — the LIKE name fallback is removed
             $venue = DB::table('venue_listings')
                 ->where('id', $venueId)
                 ->where('status', 'Active')
@@ -1422,19 +1588,17 @@ CRITICAL: Use exact numeric IDs from the PREVIOUSLY SHOWN VENDOR ID REFERENCE bl
                 $meridiem = strtoupper($timeParts[1] ?? 'AM');
 
                 list($hour, $minute) = explode(':', $time);
-                $hour = (int)$hour;
-                $minute = (int)$minute;
+                $hour = (int) $hour;
+                $minute = (int) $minute;
 
                 if ($meridiem === 'PM' && $hour < 12) {
                     $hour += 12;
-                }
-                elseif ($meridiem === 'AM' && $hour === 12) {
+                } elseif ($meridiem === 'AM' && $hour === 12) {
                     $hour = 0;
                 }
 
                 $eventTime24 = sprintf('%02d:%02d:00', $hour, $minute);
-            }
-            else {
+            } else {
                 $eventTime24 = (strpos($eventTime, ':') !== false) ? $eventTime . ':00' : $eventTime;
             }
 
@@ -1461,7 +1625,7 @@ CRITICAL: Use exact numeric IDs from the PREVIOUSLY SHOWN VENDOR ID REFERENCE bl
                 'end_date' => $endDate,
                 'EventLocation' => $venue->address ?? '',
                 'EventType' => $bookingData['event_type'] ?? null,
-                'guest_count' => (int)($bookingData['guests'] ?? 0),
+                'guest_count' => (int) ($bookingData['guests'] ?? 0),
                 'PackageSelected' => 'AI Conversational Booking',
                 'AdditionalNotes' => $notes,
                 'TotalAmount' => 0,
@@ -1488,18 +1652,15 @@ CRITICAL: Use exact numeric IDs from the PREVIOUSLY SHOWN VENDOR ID REFERENCE bl
 
             return $bookingId;
 
-        }
-        catch (\Exception $e) {
+        } catch (\Exception $e) {
             error_log("Create Venue Booking From Conversation Error: " . $e->getMessage());
             return null;
         }
     }
 
-    /**
-     * ========================================
-     * HELPER METHODS
-     * ========================================
-     */
+    // =========================================================================
+    // HELPER METHODS
+    // =========================================================================
 
     private function checkRateLimit(int $userId): bool
     {
@@ -1521,8 +1682,7 @@ CRITICAL: Use exact numeric IDs from the PREVIOUSLY SHOWN VENDOR ID REFERENCE bl
                 $data[$userKey] = array_filter($data[$userKey], function ($timestamp) use ($now, $timeWindow) {
                     return ($now - $timestamp) < $timeWindow;
                 });
-            }
-            else {
+            } else {
                 $data[$userKey] = [];
             }
 
@@ -1532,8 +1692,7 @@ CRITICAL: Use exact numeric IDs from the PREVIOUSLY SHOWN VENDOR ID REFERENCE bl
 
             return true;
 
-        }
-        catch (\Exception $e) {
+        } catch (\Exception $e) {
             error_log("Rate limit check error: " . $e->getMessage());
             return true;
         }
@@ -1558,8 +1717,7 @@ CRITICAL: Use exact numeric IDs from the PREVIOUSLY SHOWN VENDOR ID REFERENCE bl
             $data[$userKey][] = time();
             file_put_contents($cacheFile, json_encode($data));
 
-        }
-        catch (\Exception $e) {
+        } catch (\Exception $e) {
             error_log("Failed to record request: " . $e->getMessage());
         }
     }
@@ -1575,8 +1733,7 @@ CRITICAL: Use exact numeric IDs from the PREVIOUSLY SHOWN VENDOR ID REFERENCE bl
                 'read' => false,
                 'created_at' => date('Y-m-d H:i:s')
             ]);
-        }
-        catch (\Throwable $e) {
+        } catch (\Throwable $e) {
             error_log("Notification Error: " . $e->getMessage());
         }
     }
@@ -1616,36 +1773,22 @@ CRITICAL: Use exact numeric IDs from the PREVIOUSLY SHOWN VENDOR ID REFERENCE bl
         return in_array(strtolower(trim($message)), $allowed);
     }
 
-    /**
-     * FIXED: isGibberish now only catches truly meaningless input.
-     * Real words like 'test', 'hi', 'yes', 'birthday', 'wedding' pass through normally.
-     *
-     * Rules:
-     *  1. Blank / single-character strings → gibberish
-     *  2. Single character repeated 5+ times (aaaaaaa) → gibberish
-     *  3. 8+ chars with zero vowels (zxcvbnm) → gibberish
-     *  4. Repeating 2-char pattern 4+ times (awawaw) → gibberish
-     */
     private function isGibberish(string $message): bool
     {
         $message = trim($message);
 
-        // Blank or single character
         if (strlen($message) <= 1) {
             return true;
         }
 
-        // Single character repeated 5+ times: 'aaaaaaa', '!!!!!'
         if (preg_match('/^(.)\1{4,}$/', $message)) {
             return true;
         }
 
-        // 8+ chars with no vowels at all: 'zxcvbnmqwrty'
         if (strlen($message) >= 8 && !preg_match('/[aeiouAEIOU]/', $message)) {
             return true;
         }
 
-        // Repeating 2-char pattern 4+ times: 'awawaw', 'lololo'
         if (preg_match('/^(.{2})\1{3,}$/', $message)) {
             return true;
         }

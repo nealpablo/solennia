@@ -2,15 +2,21 @@ import { useState, useRef, useEffect } from 'react';
 
 export default function ChatInterface({ messages, onSendMessage, isProcessing }) {
   const [inputValue, setInputValue] = useState('');
-  const messagesEndRef = useRef(null);
+  const messageContainerRef = useRef(null);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messageContainerRef.current) {
+      const { scrollHeight, clientHeight } = messageContainerRef.current;
+      messageContainerRef.current.scrollTo({
+        top: scrollHeight - clientHeight,
+        behavior: 'smooth'
+      });
+    }
   };
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, isProcessing]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -40,7 +46,10 @@ export default function ChatInterface({ messages, onSendMessage, isProcessing })
       </div>
 
       {/* Messages */}
-      <div style={styles.messageArea}>
+      <div
+        ref={messageContainerRef}
+        style={styles.messageArea}
+      >
         {messages.map((msg, index) => (
           <div
             key={index}
@@ -68,11 +77,11 @@ export default function ChatInterface({ messages, onSendMessage, isProcessing })
                   msg.role === 'user'
                     ? styles.userBubble
                     : {
-                        ...styles.assistantBubble,
-                        ...(msg.vendors && msg.vendors.length > 0
-                          ? { maxWidth: 'calc(100% - 42px)' }
-                          : {}),
-                      }
+                      ...styles.assistantBubble,
+                      ...(msg.vendors && msg.vendors.length > 0
+                        ? { maxWidth: 'calc(100% - 42px)' }
+                        : {}),
+                    }
                 }
               >
                 {msg.role === 'assistant' && (
@@ -85,8 +94,8 @@ export default function ChatInterface({ messages, onSendMessage, isProcessing })
             {/* Vendor cards */}
             {msg.vendors && msg.vendors.length > 0 && (
               <div style={styles.vendorGrid}>
-                {msg.vendors.map((vendor) => (
-                  <VendorCard key={vendor.ID} vendor={vendor} />
+                {msg.vendors.map((vendor, vi) => (
+                  <VendorCard key={`${vendor.ID ?? vendor.id ?? vi}`} vendor={vendor} />
                 ))}
               </div>
             )}
@@ -108,8 +117,6 @@ export default function ChatInterface({ messages, onSendMessage, isProcessing })
             </div>
           </div>
         )}
-
-        <div ref={messagesEndRef} />
       </div>
 
       {/* Input */}
@@ -164,6 +171,10 @@ export default function ChatInterface({ messages, onSendMessage, isProcessing })
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// FIX: VendorCard now handles both venue and supplier profile URLs correctly.
+// Venues use venue_id and open /venue-profile; suppliers use vendor_id / user_id.
+// ─────────────────────────────────────────────────────────────────────────────
 function VendorCard({ vendor }) {
   const formatPrice = (price) => {
     if (!price) return 'Contact for pricing';
@@ -175,19 +186,35 @@ function VendorCard({ vendor }) {
     return str.length > 60 ? str.substring(0, 60) + '...' : str;
   };
 
+  const handleClick = () => {
+    const isVenue = vendor.type === 'venue';
+
+    if (isVenue) {
+      // Venue: use the venue listing id, not user_id
+      const venueId = vendor.venue_id ?? vendor.ID ?? vendor.id;
+      if (venueId) {
+        window.open(`/venue/${venueId}`, '_blank');
+      }
+    } else {
+      // Supplier: use user_id for the profile, plus optional listing id
+      const userId = vendor.UserID ?? vendor.user_id;
+      const listingId = vendor.vendor_id ?? vendor.ID ?? vendor.id;
+      if (userId) {
+        const url = listingId
+          ? `/vendor-profile?id=${userId}&listingId=${listingId}`
+          : `/vendor-profile?id=${userId}`;
+        window.open(url, '_blank');
+      } else if (listingId) {
+        // Fallback: open by listing id alone
+        window.open(`/vendor-profile?listingId=${listingId}`, '_blank');
+      }
+    }
+  };
+
   return (
     <div
       style={styles.vendorCard}
-      onClick={() => {
-        const userId = vendor.UserID || vendor.user_id;
-        const listingId = vendor.source === 'vendor_listings' ? vendor.ID : null;
-        if (userId) {
-          const url = listingId
-            ? `/vendor-profile?id=${userId}&listingId=${listingId}`
-            : `/vendor-profile?id=${userId}`;
-          window.open(url, '_blank');
-        }
-      }}
+      onClick={handleClick}
       onMouseEnter={(e) => {
         e.currentTarget.style.boxShadow = '0 4px 12px rgba(122, 93, 71, 0.15)';
         e.currentTarget.style.borderColor = '#7A5D47';
@@ -199,16 +226,18 @@ function VendorCard({ vendor }) {
     >
       <div style={styles.vendorCardHeader}>
         <div style={{ minWidth: 0, flex: 1 }}>
-          <h4 style={styles.vendorName}>{vendor.BusinessName}</h4>
-          <span style={styles.vendorCategory}>{vendor.Category}</span>
+          <h4 style={styles.vendorName}>{vendor.BusinessName ?? vendor.business_name ?? vendor.venue_name}</h4>
+          <span style={styles.vendorCategory}>
+            {vendor.type === 'venue' ? 'Venue' : (vendor.Category ?? vendor.service_category ?? 'Supplier')}
+          </span>
         </div>
       </div>
-      <span style={styles.vendorPrice}>{formatPrice(vendor.Pricing)}</span>
-      {vendor.Description && (
+      <span style={styles.vendorPrice}>{formatPrice(vendor.Pricing ?? vendor.pricing)}</span>
+      {(vendor.Description ?? vendor.description) && (
         <p style={styles.vendorDesc}>
-          {vendor.Description.length > 100
-            ? vendor.Description.substring(0, 100) + '...'
-            : vendor.Description}
+          {(vendor.Description ?? vendor.description).length > 100
+            ? (vendor.Description ?? vendor.description).substring(0, 100) + '...'
+            : (vendor.Description ?? vendor.description)}
         </p>
       )}
       <div style={styles.vendorFooter}>
@@ -218,8 +247,8 @@ function VendorCard({ vendor }) {
         {vendor.TotalReviews > 0 && (
           <span style={styles.vendorReviews}>({vendor.TotalReviews} reviews)</span>
         )}
-        {vendor.BusinessAddress && (
-          <span style={styles.vendorLocation}>{vendor.BusinessAddress}</span>
+        {(vendor.BusinessAddress ?? vendor.address) && (
+          <span style={styles.vendorLocation}>{vendor.BusinessAddress ?? vendor.address}</span>
         )}
       </div>
     </div>
@@ -316,7 +345,6 @@ const styles = {
     alignItems: 'flex-start',
     gap: '10px',
     animation: 'solennia-fade-in 0.3s ease-out',
-    // KEY FIX: let the row shrink naturally so the bubble sizes to content
     minWidth: 0,
   },
   assistantAvatar: {
@@ -335,7 +363,6 @@ const styles = {
     marginTop: '2px',
   },
   assistantBubble: {
-    // Grows up to 75% of the row but never forces a fixed width
     maxWidth: '75%',
     background: '#FFFFFF',
     border: '1px solid #E8DCC8',
@@ -350,12 +377,8 @@ const styles = {
     overflowWrap: 'break-word',
   },
   userBubble: {
-    // FIX: use inline-block so the bubble is exactly as wide as its content,
-    // never narrower. Combined with white-space: pre-wrap this stops single
-    // short words from wrapping onto a second line.
     display: 'inline-block',
     maxWidth: '75%',
-    // Remove hard minWidth — let content dictate width naturally
     background: 'linear-gradient(135deg, #7A5D47 0%, #6B4F3C 100%)',
     borderRadius: '16px 4px 16px 16px',
     padding: '12px 16px',
@@ -363,11 +386,9 @@ const styles = {
     fontSize: '14px',
     lineHeight: '1.6',
     boxShadow: '0 2px 8px rgba(122, 93, 71, 0.15)',
-    // KEY FIX: keep words together; only wrap when the bubble truly can't fit
     wordBreak: 'normal',
     overflowWrap: 'break-word',
     whiteSpace: 'pre-wrap',
-    // Prevent the bubble from being squeezed by a flex parent
     flexShrink: 0,
   },
   bubbleLabel: {

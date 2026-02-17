@@ -10,34 +10,106 @@ const API = import.meta.env.VITE_API_BASE ||
     ? "https://solennia.up.railway.app/api"
     : "/api");
 
+const STORAGE_KEY = 'solennia_chat_history';
+const DATA_KEY = 'solennia_chat_data';
+const STAGE_KEY = 'solennia_chat_stage';
+const VENDORS_KEY = 'solennia_chat_vendors';
+
+const DEFAULT_WELCOME = {
+  role: 'assistant',
+  content: "Welcome to the Solennia Booking Assistant.\n\nI can help you find and book event vendors and venues registered on the Solennia platform.\n\nWhat type of event are you planning?"
+};
+
+const DEFAULT_DATA = {
+  event_type: null,
+  date: null,
+  time: null,
+  location: null,
+  budget: null,
+  guests: null,
+  venue_id: null,
+  vendor_id: null,
+  preferences: []
+};
+
+function loadSaved(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+const getCurrentUserId = () => {
+  try {
+    const profile = JSON.parse(localStorage.getItem('solennia_profile'));
+    return profile?.id;
+  } catch {
+    return null;
+  }
+};
+
 export default function ConversationalBooking() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const hasProcessedInitial = useRef(false);
 
-  const [messages, setMessages] = useState([
-    {
-      role: 'assistant',
-      content: "Welcome to the Solennia Booking Assistant.\n\nI can help you find and book event vendors and venues registered on the Solennia platform.\n\nWhat type of event are you planning?"
-    }
-  ]);
+  // Get current user ID to scope localStorage keys
+  const userId = getCurrentUserId();
+  const userSuffix = userId ? `_${userId}` : '';
 
-  const [extractedData, setExtractedData] = useState({
-    event_type: null,
-    date: null,
-    time: null,
-    location: null,
-    budget: null,
-    guests: null,
-    venue_id: null,
-    vendor_id: null,
-    preferences: []
-  });
+  const storageKey = `${STORAGE_KEY}${userSuffix}`;
+  const dataKey = `${DATA_KEY}${userSuffix}`;
+  const stageKey = `${STAGE_KEY}${userSuffix}`;
+  const vendorsKey = `${VENDORS_KEY}${userSuffix}`;
 
-  const [bookingStage, setBookingStage] = useState('discovery');
+  // ── Hydrate from localStorage ────────────────────────────────────────────
+  const [messages, setMessages] = useState(() =>
+    loadSaved(storageKey, [DEFAULT_WELCOME])
+  );
+  const [extractedData, setExtractedData] = useState(() =>
+    loadSaved(dataKey, DEFAULT_DATA)
+  );
+  const [bookingStage, setBookingStage] = useState(() =>
+    loadSaved(stageKey, 'discovery')
+  );
+  // FIX: persist suggestedVendors across turns so backend can validate IDs
+  const [suggestedVendors, setSuggestedVendors] = useState(() =>
+    loadSaved(vendorsKey, [])
+  );
+
   const [isProcessing, setIsProcessing] = useState(false);
   const [bookingCreated, setBookingCreated] = useState(false);
+
+  // ── Persist to localStorage whenever state changes ───────────────────────
+  useEffect(() => {
+    try { localStorage.setItem(storageKey, JSON.stringify(messages)); } catch { }
+  }, [messages, storageKey]);
+  useEffect(() => {
+    try { localStorage.setItem(dataKey, JSON.stringify(extractedData)); } catch { }
+  }, [extractedData, dataKey]);
+  useEffect(() => {
+    try { localStorage.setItem(stageKey, JSON.stringify(bookingStage)); } catch { }
+  }, [bookingStage, stageKey]);
+  useEffect(() => {
+    try { localStorage.setItem(vendorsKey, JSON.stringify(suggestedVendors)); } catch { }
+  }, [suggestedVendors, vendorsKey]);
+
+  // ── Clear chat ───────────────────────────────────────────────────────────
+  const handleClearChat = () => {
+    setMessages([DEFAULT_WELCOME]);
+    setExtractedData(DEFAULT_DATA);
+    setBookingStage('discovery');
+    setSuggestedVendors([]);
+    try {
+      localStorage.removeItem(storageKey);
+      localStorage.removeItem(dataKey);
+      localStorage.removeItem(stageKey);
+      localStorage.removeItem(vendorsKey);
+    } catch { }
+  };
 
   useEffect(() => {
     const token = localStorage.getItem('solennia_token');
@@ -47,7 +119,6 @@ export default function ConversationalBooking() {
       return;
     }
 
-    // Handle initial message from URL or SessionStorage (post-login)
     if (!hasProcessedInitial.current) {
       const urlMsg = searchParams.get('ai_message');
       const sessionMsg = sessionStorage.getItem("pending_ai_query");
@@ -55,33 +126,24 @@ export default function ConversationalBooking() {
 
       if (messageToProcess) {
         hasProcessedInitial.current = true;
-
         if (sessionMsg) sessionStorage.removeItem("pending_ai_query");
-
-        setTimeout(() => {
-          handleSendMessage(messageToProcess);
-        }, 500);
+        setTimeout(() => handleSendMessage(messageToProcess), 500);
       }
     }
 
-    // Handle context from venue/vendor pages
     if (location.state?.initialMessage) {
       if (location.state.venueContext) {
         const venue = location.state.venueContext;
-        setMessages([
-          {
-            role: 'assistant',
-            content: `I see you are interested in booking ${venue.venueName}.\n\nI will help you complete this booking. What type of event are you planning?`
-          }
-        ]);
+        setMessages([{
+          role: 'assistant',
+          content: `I see you are interested in booking ${venue.venueName}.\n\nI will help you complete this booking. What type of event are you planning?`
+        }]);
       } else if (location.state.vendorContext) {
         const vendor = location.state.vendorContext;
-        setMessages([
-          {
-            role: 'assistant',
-            content: `I see you are interested in booking ${vendor.vendorName} for ${vendor.category}.\n\nI will help you complete this booking. Tell me about your event.`
-          }
-        ]);
+        setMessages([{
+          role: 'assistant',
+          content: `I see you are interested in booking ${vendor.vendorName} for ${vendor.category}.\n\nI will help you complete this booking. Tell me about your event.`
+        }]);
       }
     }
   }, [navigate]);
@@ -93,6 +155,12 @@ export default function ConversationalBooking() {
     try {
       const token = localStorage.getItem('solennia_token');
 
+      // Build conversation history (exclude the welcome message's vendors to keep payload lean)
+      const historyForApi = messages.slice(1).map(m => ({
+        role: m.role,
+        content: m.content
+      }));
+
       const response = await fetch(`${API}/ai/conversational-booking`, {
         method: 'POST',
         headers: {
@@ -103,7 +171,9 @@ export default function ConversationalBooking() {
           message: userMessage,
           currentData: extractedData,
           stage: bookingStage,
-          history: messages.slice(1)
+          history: historyForApi,
+          // FIX: send persisted vendor list so backend can resolve IDs across turns
+          suggestedVendors: suggestedVendors
         })
       });
 
@@ -121,17 +191,31 @@ export default function ConversationalBooking() {
         setBookingStage(data.stage);
       }
 
+      // FIX: merge new vendors with existing ones so IDs are never lost between turns
+      if (data.suggestedVendors && data.suggestedVendors.length > 0) {
+        setSuggestedVendors(prev => {
+          const existingIds = new Set(prev.map(v => `${v.type ?? 'supplier'}_${v.vendor_id ?? v.venue_id ?? v.id}`));
+          const incoming = data.suggestedVendors.filter(v => {
+            const key = `${v.type ?? 'supplier'}_${v.vendor_id ?? v.venue_id ?? v.id}`;
+            return !existingIds.has(key);
+          });
+          return [...prev, ...incoming];
+        });
+      }
+
       setMessages(prev => [
         ...prev,
         {
           role: 'assistant',
           content: data.aiResponse,
-          vendors: data.suggestedVendors || []
+          vendors: data.currentRecommendations || []
         }
       ]);
 
       if (data.bookingCreated && data.bookingId) {
         setBookingCreated(true);
+        // Clear persisted chat after a successful booking
+        handleClearChat();
         toast.success('Booking created successfully.');
         setTimeout(() => navigate('/my-bookings'), 3000);
       }
@@ -152,12 +236,27 @@ export default function ConversationalBooking() {
     <div style={pageStyles.page}>
       <div style={pageStyles.wrapper}>
         <div style={pageStyles.headerSection}>
-          <h1 style={pageStyles.title}>
-            Lenni
-          </h1>
-          <p style={pageStyles.subtitle}>
-            Hi, I'm Lenni, your AI booking assistant. How can I help you plan your event?
-          </p>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+            <div>
+              <h1 style={pageStyles.title}>Lenni</h1>
+              <p style={pageStyles.subtitle}>
+                Hi, I'm Lenni, your AI booking assistant. How can I help you plan your event?
+              </p>
+            </div>
+            {/* Clear chat button */}
+            <button
+              onClick={handleClearChat}
+              disabled={isProcessing}
+              style={pageStyles.clearBtn}
+              title="Start a new conversation"
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                <polyline points="1 4 1 10 7 10" />
+                <path d="M3.51 15a9 9 0 1 0 .49-3.88" />
+              </svg>
+              Clear
+            </button>
+          </div>
         </div>
 
         <div style={pageStyles.grid}>
@@ -183,9 +282,7 @@ export default function ConversationalBooking() {
                   <polyline points="14 24 21 31 34 18" />
                 </svg>
               </div>
-              <h2 style={pageStyles.successTitle}>
-                Booking Created
-              </h2>
+              <h2 style={pageStyles.successTitle}>Booking Created</h2>
               <p style={pageStyles.successText}>
                 Your booking request has been submitted. Redirecting to your bookings...
               </p>
@@ -226,12 +323,27 @@ const pageStyles = {
     margin: 0,
     letterSpacing: '0.2px',
   },
+  clearBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '8px 16px',
+    background: '#FFFFFF',
+    border: '1.5px solid #D4C5A9',
+    borderRadius: '8px',
+    color: '#7A5D47',
+    fontSize: '13px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    transition: 'all 0.2s',
+    letterSpacing: '0.2px',
+  },
   grid: {
     display: 'grid',
     gridTemplateColumns: '2fr 1fr',
     gap: '24px',
     alignItems: 'stretch',
-    height: 'calc(100vh - 160px)',
+    height: 'calc(100vh - 180px)',
   },
   chatColumn: {
     height: '100%',
@@ -264,9 +376,7 @@ const pageStyles = {
     boxShadow: '0 20px 60px rgba(0,0,0,0.15)',
     border: '1px solid #E8DCC8',
   },
-  successIcon: {
-    marginBottom: '16px',
-  },
+  successIcon: { marginBottom: '16px' },
   successTitle: {
     fontSize: '22px',
     fontWeight: '700',
