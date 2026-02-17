@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "../utils/toast";
+import AdminAnalyticsChart from "../components/AdminAnalyticsChart";
 import BookingAnalyticsChart from "../components/BookingAnalyticsChart";
 
 const API =
@@ -251,9 +252,7 @@ export default function AdminDashboard() {
                   <p className="text-xs text-gray-600 mt-0.5">Declined</p>
                 </div>
               </div>
-              <div className="bg-white rounded-xl p-4 border border-[#c9bda4]">
-                <BookingAnalyticsChart analytics={chartAnalytics} title="Bookings by status (system-wide)" />
-              </div>
+              <AdminAnalyticsChart analytics={analytics} />
             </div>
 
             {/* Review Statistics */}

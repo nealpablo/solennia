@@ -45,7 +45,7 @@ export default function AdminAnalyticsChart({ analytics }) {
         const venues = analytics.total_venues || 0;
         const clients = analytics.total_clients || (analytics.total_users || 0) - vendors;
 
-        const labels = ["Clients", "Vendors", "Venues"];
+        const labels = ["Clients", "Suppliers", "Venues"];
         const data = [clients > 0 ? clients : 0, vendors, venues];
 
         const ctx = canvasRef.current.getContext("2d");
@@ -156,7 +156,7 @@ export default function AdminAnalyticsChart({ analytics }) {
         <div className="bg-white rounded-xl p-6 border border-[#c9bda4] h-full shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
                 <h3 className="text-sm font-semibold text-[#5b4636] uppercase tracking-wide">Platform Overview</h3>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-4">
                     <button
                         type="button"
                         onClick={handleDownloadPNG}
