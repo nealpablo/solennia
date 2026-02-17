@@ -83,8 +83,8 @@ class VendorAvailabilityController
         if ($eventServiceProvider) {
             $bookingQuery = DB::table('booking')
                 ->where('EventServiceProviderID', $eventServiceProvider->ID)
-                ->where('venue_id', null) // Only vendor bookings (not venue bookings)
-                ->whereNotIn('BookingStatus', ['Cancelled', 'Rejected']);
+                ->whereNull('venue_id') // Only vendor bookings (not venue bookings)
+                ->where('BookingStatus', 'Confirmed');
             
             if ($year && $month) {
                 $startDate = sprintf('%04d-%02d-01', $year, $month);
@@ -474,8 +474,8 @@ class VendorAvailabilityController
         // Check if there's a booking for this date
         return DB::table('booking')
             ->where('EventServiceProviderID', $eventServiceProvider->ID)
-            ->where('venue_id', null) // Only vendor bookings (not venue bookings)
-            ->whereNotIn('BookingStatus', ['Cancelled', 'Rejected'])
+            ->whereNull('venue_id') // Only vendor bookings (not venue bookings)
+            ->where('BookingStatus', 'Confirmed')
             ->where(function($query) use ($date) {
                 $query->where('EventDate', $date)
                       ->orWhere(function($q) use ($date) {

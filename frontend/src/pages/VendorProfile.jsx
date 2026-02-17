@@ -28,7 +28,6 @@ export default function VendorProfile() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [availability, setAvailability] = useState([]);
   const [loadingAvailability, setLoadingAvailability] = useState(false);
-  const [vendorBookings, setVendorBookings] = useState([]); // Bookings for calendar display
 
   // Review states
   const [reviews, setReviews] = useState([]);
@@ -88,56 +87,8 @@ export default function VendorProfile() {
   useEffect(() => {
     if (!vendorId) return;
     loadAvailability();
-    loadVendorBookings();
     loadReviews();
   }, [vendorId, currentMonth]);
-
-  const loadAvailability = async () => {
-    try {
-      setLoadingAvailability(true);
-      const year = currentMonth.getFullYear();
-      const month = currentMonth.getMonth() + 1;
-
-      const res = await fetch(`${API}/vendor/availability/${vendorId}?year=${year}&month=${month}`);
-      const json = await res.json();
-
-      if (json.success) {
-        setAvailability(json.availability || []);
-      }
-    } catch (err) {
-      console.error("Failed to load availability:", err);
-    } finally {
-      setLoadingAvailability(false);
-    }
-  };
-
-  const loadVendorBookings = async () => {
-    try {
-      const year = currentMonth.getFullYear();
-      const month = currentMonth.getMonth();
-
-      // Fetch vendor bookings publicly - this includes all venue bookings for this vendor
-      const res = await fetch(`${API}/vendor/${vendorId}/bookings`);
-      const json = await res.json();
-
-      if (json.success && json.bookings) {
-        // Filter bookings for current month
-        const monthBookings = json.bookings.filter(booking => {
-          const bookingDate = new Date(booking.event_date);
-          return bookingDate.getFullYear() === year &&
-            bookingDate.getMonth() === month &&
-            (booking.status === 'confirmed' || booking.status === 'pending');
-        });
-
-        setVendorBookings(monthBookings);
-      } else {
-        setVendorBookings([]);
-      }
-    } catch (err) {
-      console.error("Failed to load vendor bookings:", err);
-      setVendorBookings([]); // Set empty on error
-    }
-  };
 
   /* =========================
      LOAD REVIEWS
@@ -178,36 +129,33 @@ export default function VendorProfile() {
     return { daysInMonth, startingDayOfWeek, year, month };
   };
 
+  const loadAvailability = async () => {
+    try {
+      setLoadingAvailability(true);
+      const year = currentMonth.getFullYear();
+      const month = currentMonth.getMonth() + 1;
+
+      const res = await fetch(`${API}/vendor/availability/${vendorId}?year=${year}&month=${month}`);
+      const json = await res.json();
+
+      if (json.success) {
+        setAvailability(json.availability || []);
+      }
+    } catch (err) {
+      console.error("Failed to load availability:", err);
+    } finally {
+      setLoadingAvailability(false);
+    }
+  };
+
   const getAvailabilityForDate = (date) => {
     const dateStr = formatDateToLocal(date);
-    const manualAvail = availability.filter(a => a.date === dateStr);
-    const bookingsOnDate = vendorBookings.filter(b => {
-      const d = b.event_date || b.EventDate;
-      return d && d.startsWith(dateStr);
-    });
-
-    if (bookingsOnDate.length > 0) {
-      return [
-        ...manualAvail,
-        ...bookingsOnDate.map(b => ({
-          id: `booking-${b.ID || b.id}`,
-          date: dateStr,
-          is_available: false,
-          notes: `Booked: ${b.ServiceName || 'Event'}`,
-          source: 'booking'
-        }))
-      ];
-    }
-    return manualAvail;
+    return availability.filter(a => a.date === dateStr);
   };
 
   const hasBookingOnDate = (date) => {
     const dateStr = formatDateToLocal(date);
-    // Check if the date has a booking from the separate bookings state
-    return vendorBookings.some(b => {
-      const d = b.event_date || b.EventDate;
-      return d && d.startsWith(dateStr);
-    });
+    return availability.some(a => a.date && a.date.startsWith(dateStr) && !a.is_available && a.source === 'booking');
   };
 
   const isDateAvailable = (date) => {
@@ -220,9 +168,7 @@ export default function VendorProfile() {
 
   const isDateBooked = (date) => {
     const dateStr = formatDateToLocal(date);
-    // Check availability (manual) OR separate bookings
-    const isManualUnavailable = availability.some(a => a.date && a.date.startsWith(dateStr) && !a.is_available);
-    return isManualUnavailable || hasBookingOnDate(date);
+    return availability.some(a => a.date && a.date.startsWith(dateStr) && !a.is_available);
   };
 
   /* =========================
@@ -232,18 +178,10 @@ export default function VendorProfile() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const manualUpcoming = availability.filter(a => new Date(a.date) >= today && !a.is_available);
-    const bookingsUpcoming = vendorBookings.map(b => ({
-      id: `booking-${b.ID || b.id}`,
-      date: (b.event_date || b.EventDate || '').split('T')[0],
-      is_available: false,
-      notes: `Booked: ${b.ServiceName || 'Event'}`,
-      source: 'booking'
-    })).filter(a => new Date(a.date) >= today);
-
-    return [...manualUpcoming, ...bookingsUpcoming]
+    return availability
+      .filter(a => new Date(a.date) >= today && !a.is_available)
       .sort((a, b) => new Date(a.date) - new Date(b.date))
-      .slice(0, 5); // Show next 5 entries
+      .slice(0, 5);
   };
 
   /* =========================

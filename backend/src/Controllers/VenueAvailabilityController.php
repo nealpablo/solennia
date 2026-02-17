@@ -57,7 +57,7 @@ class VenueAvailabilityController
         // 2. Fetch bookings for this venue (treat as unavailable)
         $bookingQuery = DB::table('booking')
             ->where('venue_id', $venueId)
-            ->whereNotIn('BookingStatus', ['Cancelled', 'Rejected']);
+            ->where('BookingStatus', 'Confirmed');
 
         if ($year && $month) {
             $startDate = sprintf('%04d-%02d-01', $year, $month);
@@ -300,7 +300,7 @@ class VenueAvailabilityController
     {
         return DB::table('booking')
             ->where('venue_id', $venueId)
-            ->whereNotIn('BookingStatus', ['Cancelled', 'Rejected'])
+            ->where('BookingStatus', 'Confirmed')
             ->where('start_date', '<=', $date)
             ->where('end_date', '>=', $date)
             ->exists();
