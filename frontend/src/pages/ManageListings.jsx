@@ -8,6 +8,32 @@ const API =
   import.meta.env.VITE_API_URL ||
   (import.meta.env.PROD ? "https://solennia.up.railway.app/api" : "/api");
 
+const VENUE_OTHER_CATEGORIES = [
+  "Hotel",
+  "Restaurant",
+  "Beach / Island",
+  "Pavilion / Hall",
+  "Museum / Gallery",
+  "Rooftop / Lounge",
+  "Club / Bar",
+  "Historical Site",
+  "Golf Course / Country Club"
+];
+
+const VENDOR_OTHER_CATEGORIES = [
+  "Makeup Artist",
+  "Hair Stylist",
+  "Event Planner / Coordinator",
+  "Host / Emcee",
+  "Lights & Sounds",
+  "Bridal Car",
+  "Gown / Attire",
+  "Souvenirs / Favors",
+  "Invitations / Stationery",
+  "Officiant / Priest",
+  "Fireworks / Special Effects"
+];
+
 export default function ManageListings() {
   const navigate = useNavigate();
   const { confirm, ConfirmModal } = useConfirmModal();
@@ -868,12 +894,18 @@ export default function ManageListings() {
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Specify Venue Type <Req /></label>
                     <input
                       type="text"
-                      placeholder="e.g. Museum, Art Gallery, Rooftop"
+                      list="venue-type-options"
+                      placeholder="e.g. Museum, Type or select..."
                       className={`w-full p-3 border rounded-lg shadow-sm focus:ring-2 focus:ring-[#7a5d47] ${!form.other_category_type?.trim() ? 'border-red-300' : 'border-gray-300'}`}
                       value={form.other_category_type || ''}
                       onChange={(e) => setForm(f => ({ ...f, other_category_type: e.target.value }))}
                       required
                     />
+                    <datalist id="venue-type-options">
+                      {VENUE_OTHER_CATEGORIES.map((cat) => (
+                        <option key={cat} value={cat} />
+                      ))}
+                    </datalist>
                   </div>
                 )}
 
@@ -942,12 +974,18 @@ export default function ManageListings() {
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Specify Service Type <Req /></label>
                     <input
                       type="text"
-                      placeholder="e.g. Makeup Artist, Event Planner, Host"
+                      list="service-type-options"
+                      placeholder="e.g. Makeup Artist, Type or select..."
                       className={`w-full p-3 border rounded-lg shadow-sm focus:ring-2 focus:ring-[#7a5d47] ${!form.other_category_type?.trim() ? 'border-red-300' : 'border-gray-300'}`}
                       value={form.other_category_type || ''}
                       onChange={(e) => setForm(f => ({ ...f, other_category_type: e.target.value }))}
                       required
                     />
+                    <datalist id="service-type-options">
+                      {VENDOR_OTHER_CATEGORIES.map((cat) => (
+                        <option key={cat} value={cat} />
+                      ))}
+                    </datalist>
                   </div>
                 )}
 

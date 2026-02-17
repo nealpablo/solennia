@@ -153,10 +153,10 @@ export default function ConversationalBooking() {
       <div style={pageStyles.wrapper}>
         <div style={pageStyles.headerSection}>
           <h1 style={pageStyles.title}>
-            Poison13
+            Lenni
           </h1>
           <p style={pageStyles.subtitle}>
-            Find and book suppliers and venues through the Solennia platform
+            Hi, I'm Lenni, your AI booking assistant. How can I help you plan your event?
           </p>
         </div>
 
