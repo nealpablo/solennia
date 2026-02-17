@@ -422,8 +422,8 @@ export default function VenueDetail() {
           {/* Tabs */}
           <div className="border-b border-gray-300 mb-6">
             <div className="flex gap-6">
-              {/* ⭐ MODIFIED - Added "review" to tabs array */}
-              {["overview", "packages", "amenities", "availability", "review"].map((tab) => (
+              {/* ⭐ MODIFIED - Added "review" and "media" to tabs array */}
+              {["overview", "packages", "amenities", "media", "availability", "review"].map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
@@ -491,6 +491,33 @@ export default function VenueDetail() {
               ) : (
                 <p className="text-gray-600">Contact venue for amenities information.</p>
               )}
+            </div>
+          )}
+
+          {activeTab === "media" && (
+            <div>
+              <h3 className="text-lg font-semibold mb-4">Gallery</h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {venue.images.length === 0 ? (
+                  <p className="col-span-full text-gray-600">No gallery images available</p>
+                ) : (
+                  venue.images.map((img, i) => (
+                    <div key={i} className="h-48 rounded-lg overflow-hidden cursor-pointer">
+                      <img
+                        src={img}
+                        onClick={() => setSelectedImage(i)}
+                        alt={`Gallery image ${i + 1}`}
+                        className="w-full h-full object-cover hover:scale-110 transition-transform duration-300"
+                        onError={(e) => {
+                          e.target.src = "/images/placeholder.svg";
+                          e.target.style.cursor = "default";
+                          e.target.onclick = null;
+                        }}
+                      />
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           )}
 
