@@ -955,7 +955,7 @@ export default function AdminPanel() {
           onClick={closeLightbox}
         >
           <div
-            className="relative bg-white rounded-xl w-full max-w-7xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col"
+            className="relative bg-white rounded-xl w-auto max-w-7xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between p-4 border-b bg-[#fcf9ee]">
@@ -989,7 +989,7 @@ export default function AdminPanel() {
                 <img
                   src={lightbox.url}
                   alt={lightbox.title}
-                  className="max-w-full max-h-[85vh] w-auto h-auto object-contain rounded shadow-lg"
+                  className="max-w-full max-h-[75vh] w-auto h-auto object-contain rounded shadow-lg"
                   onError={(e) => {
                     e.target.style.display = 'none';
                     e.target.parentNode.innerHTML = '<div class="text-center p-8"><p class="text-gray-500 text-lg">Unable to load image</p><a href="' + lightbox.url + '" target="_blank" rel="noopener noreferrer" class="mt-3 inline-block px-4 py-2 bg-[#7a5d47] text-white rounded-lg text-sm hover:bg-[#5d4636]">Open URL Directly</a></div>';
