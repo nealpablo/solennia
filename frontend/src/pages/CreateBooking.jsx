@@ -14,7 +14,7 @@ export default function CreateBooking() {
   const location = useLocation();
 
   // Get vendor info passed from VendorProfile
-  const { vendorUserId, vendorName, serviceName } = location.state || {};
+  const { vendorUserId, vendorName, serviceName, listingId } = location.state || {};
 
   const [loading, setLoading] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
@@ -489,7 +489,8 @@ export default function CreateBooking() {
           event_type: eventData.event_type,
           package_selected: eventData.package_selected || null,
           additional_notes: combinedNotes,
-          total_amount: eventData.budget_amount ? parseFloat(eventData.budget_amount) : null
+          total_amount: eventData.budget_amount ? parseFloat(eventData.budget_amount) : null,
+          vendor_listing_id: listingId || null
         })
       });
 

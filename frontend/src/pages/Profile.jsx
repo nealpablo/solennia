@@ -770,22 +770,22 @@ export default function Profile() {
   };
 
   /* ================= HELPERS: 7-DAY CANCELLATION CUTOFF ================= */
-const isWithin7Days = (eventDate) => {
-  if (!eventDate) return false;
-  const now = new Date();
-  const event = new Date(eventDate);
-  const diffMs = event - now;
-  const diffDays = diffMs / (1000 * 60 * 60 * 24);
-  return diffDays >= 0 && diffDays < 7;
-};
+  const isWithin7Days = (eventDate) => {
+    if (!eventDate) return false;
+    const now = new Date();
+    const event = new Date(eventDate);
+    const diffMs = event - now;
+    const diffDays = diffMs / (1000 * 60 * 60 * 24);
+    return diffDays >= 0 && diffDays < 7;
+  };
 
-const getDaysUntilEvent = (eventDate) => {
-  if (!eventDate) return null;
-  const now = new Date();
-  const event = new Date(eventDate);
-  const diffMs = event - now;
-  return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-};
+  const getDaysUntilEvent = (eventDate) => {
+    if (!eventDate) return null;
+    const now = new Date();
+    const event = new Date(eventDate);
+    const diffMs = event - now;
+    return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+  };
 
   /* ================= LOAD ANALYTICS ================= */
   const loadAnalytics = async (isBackground = false) => {
@@ -827,11 +827,13 @@ const getDaysUntilEvent = (eventDate) => {
       const supplierData = Array.isArray(supplierRaw?.bookings) ? supplierRaw : { bookings: supplierRaw?.data?.bookings ?? [] };
       const venueData = Array.isArray(venueRaw?.bookings) ? venueRaw : { bookings: venueRaw?.data?.bookings ?? [] };
 
-      const supplierBookings = (supplierData.bookings || []).map(b => ({
-        ...b,
-        booking_type: 'supplier',
-        service_name: b.ServiceName || b.vendor_name
-      }));
+      const supplierBookings = (supplierData.bookings || [])
+        .filter(b => !b.venue_id) // Exclude venue bookings — prevents duplicates with venue endpoint
+        .map(b => ({
+          ...b,
+          booking_type: 'supplier',
+          service_name: b.ServiceName || b.vendor_name
+        }));
 
       const venueBookings = (venueData.bookings || []).map(b => ({
         ...b,
@@ -1111,51 +1113,50 @@ const getDaysUntilEvent = (eventDate) => {
 
   /* ================= CANCEL BOOKING (CLIENT) ================= */
   const cancelBooking = async (bookingId, eventDate = null, bookingStatus = null) => {
-  // Block cancellation for Confirmed bookings within 7 days of the event
-  if (bookingStatus === 'Confirmed' && eventDate && isWithin7Days(eventDate)) {
-    const daysLeft = getDaysUntilEvent(eventDate);
-    toast.error(
-      `Cancellation not allowed. Your event is ${
-        daysLeft === 0 ? 'today' : `in ${daysLeft} day${daysLeft === 1 ? '' : 's'}`
-      }. Cancellations must be made at least 7 days before the event.`,
-      { duration: 6000 }
-    );
-    return;
-  }
-
-  const confirmed = await confirm({
-    title: 'Cancel this booking?',
-    message: 'This action cannot be undone.',
-    confirmText: 'Cancel Booking',
-    confirmVariant: 'danger'
-  });
-  if (!confirmed) return;
-
-  setProcessingBooking(true);
-  try {
-    const res = await fetch(`${API}/bookings/${bookingId}/cancel`, {
-      method: 'PATCH',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    const data = await res.json();
-
-    if (data.success) {
-      toast.success('Booking cancelled', { duration: 5000 });
-      loadBookings();
-      setSelectedBooking(null);
-    } else {
-      toast.error(data.error || 'Failed to cancel booking');
+    // Block cancellation for Confirmed bookings within 7 days of the event
+    if (bookingStatus === 'Confirmed' && eventDate && isWithin7Days(eventDate)) {
+      const daysLeft = getDaysUntilEvent(eventDate);
+      toast.error(
+        `Cancellation not allowed. Your event is ${daysLeft === 0 ? 'today' : `in ${daysLeft} day${daysLeft === 1 ? '' : 's'}`
+        }. Cancellations must be made at least 7 days before the event.`,
+        { duration: 6000 }
+      );
+      return;
     }
-  } catch (err) {
-    console.error('Cancel booking error:', err);
-    toast.error('Failed to cancel booking');
-  } finally {
-    setProcessingBooking(false);
-  }
-};
+
+    const confirmed = await confirm({
+      title: 'Cancel this booking?',
+      message: 'This action cannot be undone.',
+      confirmText: 'Cancel Booking',
+      confirmVariant: 'danger'
+    });
+    if (!confirmed) return;
+
+    setProcessingBooking(true);
+    try {
+      const res = await fetch(`${API}/bookings/${bookingId}/cancel`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        toast.success('Booking cancelled', { duration: 5000 });
+        loadBookings();
+        setSelectedBooking(null);
+      } else {
+        toast.error(data.error || 'Failed to cancel booking');
+      }
+    } catch (err) {
+      console.error('Cancel booking error:', err);
+      toast.error('Failed to cancel booking');
+    } finally {
+      setProcessingBooking(false);
+    }
+  };
 
   /* ================= OPEN FEEDBACK MODAL (CLIENT) ================= */
   const openFeedbackModal = (booking) => {
@@ -2957,35 +2958,35 @@ const getDaysUntilEvent = (eventDate) => {
 
                             <div className="flex gap-1.5 mt-3 flex-wrap">
                               {role === 0 && booking.BookingStatus === 'Pending' && !pendingData.hasPending && (
-  <button
-    onClick={() => cancelBooking(booking.ID, booking.EventDate, booking.BookingStatus)}
-    disabled={processingBooking}
-    className="px-3 py-1.5 bg-[#c9bda4] text-[#3b2f25] rounded-md hover:bg-[#b8ab95] disabled:opacity-50 text-xs font-semibold transition-colors"
-  >
-    Cancel
-  </button>
-)}
+                                <button
+                                  onClick={() => cancelBooking(booking.ID, booking.EventDate, booking.BookingStatus)}
+                                  disabled={processingBooking}
+                                  className="px-3 py-1.5 bg-[#c9bda4] text-[#3b2f25] rounded-md hover:bg-[#b8ab95] disabled:opacity-50 text-xs font-semibold transition-colors"
+                                >
+                                  Cancel
+                                </button>
+                              )}
 
-{/* Cancel for Confirmed bookings — only if event is more than 7 days away */}
-{role === 0 && booking.BookingStatus === 'Confirmed' && !isWithin7Days(booking.EventDate) && (
-  <button
-    onClick={() => cancelBooking(booking.ID, booking.EventDate, booking.BookingStatus)}
-    disabled={processingBooking}
-    className="px-3 py-1.5 bg-red-100 text-red-700 border border-red-300 rounded-md hover:bg-red-200 disabled:opacity-50 text-xs font-semibold transition-colors"
-  >
-    Cancel
-  </button>
-)}
+                              {/* Cancel for Confirmed bookings — only if event is more than 7 days away */}
+                              {role === 0 && booking.BookingStatus === 'Confirmed' && !isWithin7Days(booking.EventDate) && (
+                                <button
+                                  onClick={() => cancelBooking(booking.ID, booking.EventDate, booking.BookingStatus)}
+                                  disabled={processingBooking}
+                                  className="px-3 py-1.5 bg-red-100 text-red-700 border border-red-300 rounded-md hover:bg-red-200 disabled:opacity-50 text-xs font-semibold transition-colors"
+                                >
+                                  Cancel
+                                </button>
+                              )}
 
-{/* Locked notice for Confirmed bookings within 7 days */}
-{role === 0 && booking.BookingStatus === 'Confirmed' && isWithin7Days(booking.EventDate) && (
-  <span className="px-3 py-1.5 bg-orange-50 text-orange-700 border border-orange-200 rounded-md text-xs font-semibold flex items-center gap-1">
-    🔒 {(() => {
-      const d = getDaysUntilEvent(booking.EventDate);
-      return d === 0 ? 'Event is today' : `${d}d until event — no cancellation`;
-    })()}
-  </span>
-)}
+                              {/* Locked notice for Confirmed bookings within 7 days */}
+                              {role === 0 && booking.BookingStatus === 'Confirmed' && isWithin7Days(booking.EventDate) && (
+                                <span className="px-3 py-1.5 bg-orange-50 text-orange-700 border border-orange-200 rounded-md text-xs font-semibold flex items-center gap-1">
+                                  🔒 {(() => {
+                                    const d = getDaysUntilEvent(booking.EventDate);
+                                    return d === 0 ? 'Event is today' : `${d}d until event — no cancellation`;
+                                  })()}
+                                </span>
+                              )}
 
                               {canReschedule && (
                                 <button
@@ -3361,25 +3362,25 @@ const getDaysUntilEvent = (eventDate) => {
               {selectedBooking.BookingStatus === 'Pending' && (
                 <div className="flex gap-2 mt-6 pt-6 border-t">
                   {role === 0 && !getPendingRescheduleData(selectedBooking).hasPending && (
-  <>
-    {selectedBooking.BookingStatus === 'Confirmed' && isWithin7Days(selectedBooking.EventDate) ? (
-      <div className="flex-1 bg-orange-50 border border-orange-200 rounded-lg px-4 py-3 text-sm text-orange-700 font-semibold text-center">
-        🔒 Cancellation not available — event is {(() => {
-          const d = getDaysUntilEvent(selectedBooking.EventDate);
-          return d === 0 ? 'today' : `in ${d} day${d === 1 ? '' : 's'}`;
-        })()} (7-day cutoff applies)
-      </div>
-    ) : (
-      <button
-        onClick={() => cancelBooking(selectedBooking.ID, selectedBooking.EventDate, selectedBooking.BookingStatus)}
-        disabled={processingBooking}
-        className="flex-1 bg-red-500 text-white px-6 py-3 rounded-lg hover:bg-red-600 disabled:opacity-50 font-semibold"
-      >
-        Cancel
-      </button>
-    )}
-  </>
-)}
+                    <>
+                      {selectedBooking.BookingStatus === 'Confirmed' && isWithin7Days(selectedBooking.EventDate) ? (
+                        <div className="flex-1 bg-orange-50 border border-orange-200 rounded-lg px-4 py-3 text-sm text-orange-700 font-semibold text-center">
+                          🔒 Cancellation not available — event is {(() => {
+                            const d = getDaysUntilEvent(selectedBooking.EventDate);
+                            return d === 0 ? 'today' : `in ${d} day${d === 1 ? '' : 's'}`;
+                          })()} (7-day cutoff applies)
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => cancelBooking(selectedBooking.ID, selectedBooking.EventDate, selectedBooking.BookingStatus)}
+                          disabled={processingBooking}
+                          className="flex-1 bg-red-500 text-white px-6 py-3 rounded-lg hover:bg-red-600 disabled:opacity-50 font-semibold"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </>
+                  )}
 
                   {role === 1 && (
                     <>

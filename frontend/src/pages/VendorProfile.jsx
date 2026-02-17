@@ -310,7 +310,8 @@ export default function VendorProfile() {
       state: {
         vendorUserId: vendorUserId,
         vendorName: vendor.business_name || vendor.BusinessName,
-        serviceName: vendor.category || vendor.Category
+        serviceName: vendor.category || vendor.Category,
+        listingId: vendor.listing_id || listingId || null
       }
     });
   }

@@ -267,7 +267,8 @@ function VendorCard({ vendor, navigate }) {
       state: {
         vendorUserId,
         vendorName: vendor.BusinessName,
-        serviceName: vendor.BusinessName
+        serviceName: vendor.BusinessName,
+        listingId: vendor.id || null
       }
     });
   };
