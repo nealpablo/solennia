@@ -24,6 +24,11 @@ export default function ManageListings() {
   const [editingId, setEditingId] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
 
+  // FIX: Separate raw string state for the amenities text input.
+  // This lets the user type commas freely without the field fighting them.
+  // We only parse it into an array on blur or on save.
+  const [amenitiesRaw, setAmenitiesRaw] = useState("");
+
   const [form, setForm] = useState({
     venue_name: "",
     region: "",
@@ -67,18 +72,42 @@ export default function ManageListings() {
     return payload.exp * 1000 < Date.now();
   }
 
+  // Strip stray JSON brackets and quotes from a single string value
+  function cleanItem(s) {
+    return String(s).trim().replace(/^["']|["']$/g, '');
+  }
+
   function ensureArray(val) {
     if (!val) return [];
-    if (Array.isArray(val)) return val;
+    if (Array.isArray(val)) return val.map(cleanItem).filter(Boolean);
     if (typeof val === 'string') {
-      if (val.trim() === '') return [];
-      try {
-        const parsed = JSON.parse(val);
-        if (Array.isArray(parsed)) return parsed;
-      } catch (e) { }
-      return val.split(',').map(s => s.trim()).filter(Boolean);
+      const trimmed = val.trim();
+      if (trimmed === '') return [];
+      // Handle JSON array strings like ["tarub","tite","dede"]
+      if (trimmed.startsWith('[')) {
+        try {
+          const parsed = JSON.parse(trimmed);
+          if (Array.isArray(parsed)) return parsed.map(cleanItem).filter(Boolean);
+        } catch (e) { }
+      }
+      // Plain comma-separated — strip stray brackets/quotes
+      return trimmed
+        .replace(/^\[|\]$/g, '')
+        .split(',')
+        .map(cleanItem)
+        .filter(Boolean);
     }
     return [];
+  }
+
+  function capitalizeWords(str) {
+    return String(str).toLowerCase().replace(/(^|[\s-])\w/g, c => c.toUpperCase());
+  }
+
+  // Parse raw amenities string into a clean, capitalized array
+  function parseAmenities(raw) {
+    if (!raw) return [];
+    return ensureArray(raw).map(capitalizeWords);
   }
 
   // ===================================================
@@ -92,18 +121,14 @@ export default function ManageListings() {
       return;
     }
 
-    // Detect listing type from URL query parameter
     const hasVenue = searchParams.has('venue');
     const hasVendor = searchParams.has('vendor');
 
     if (hasVenue) {
       setListingType('venue');
-      console.log('Listing type: venue (from URL ?venue)');
     } else if (hasVendor) {
       setListingType('vendor');
-      console.log('Listing type: vendor (from URL ?vendor)');
     } else {
-      // Fallback: Check user's actual category from backend
       (async () => {
         try {
           const r = await fetch(`${API}/vendor/status`, { headers: { Authorization: `Bearer ${token}` } });
@@ -114,7 +139,6 @@ export default function ManageListings() {
           const j = await r.json();
           const cat = (j?.category || "").toLowerCase();
           setListingType(cat === "venue" ? "venue" : "vendor");
-          console.log(`Listing type: ${cat === "venue" ? "venue" : "vendor"} (from API)`);
         } catch (e) {
           console.error('Error detecting listing type:', e);
           toast.error("Failed to load listing type");
@@ -133,7 +157,6 @@ export default function ManageListings() {
     if (!token || !listingType) return;
     try {
       if (isVenue) {
-        // VENUE: Load from venue_listings table (supports multiple listings)
         const res = await fetch(`${API}/venue/my-listings`, { headers: { Authorization: `Bearer ${token}` } });
         const json = await res.json();
         if (res.ok && json.success && Array.isArray(json.venues)) {
@@ -142,7 +165,6 @@ export default function ManageListings() {
           setListings([]);
         }
       } else {
-        // VENDOR: Load from vendor_listings table (supports multiple listings)
         const res = await fetch(`${API}/vendor/my-listings`, { headers: { Authorization: `Bearer ${token}` } });
         const json = await res.json();
         if (res.ok && json.success && Array.isArray(json.vendors)) {
@@ -251,6 +273,10 @@ export default function ManageListings() {
     setEditingId(item.id);
 
     if (isVenue) {
+      const amenitiesArr = ensureArray(item.amenities || item.venue_amenities).map(capitalizeWords);
+      // Sync raw string so the input field shows the existing amenities (capitalized)
+      setAmenitiesRaw(amenitiesArr.join(', '));
+
       setForm({
         venue_name: item.venue_name || item.name || "",
         region: item.region || "",
@@ -260,7 +286,7 @@ export default function ManageListings() {
         venue_capacity: item.venue_capacity || "",
         pricing: item.pricing || "",
         description: item.description || "",
-        amenities: ensureArray(item.amenities || item.venue_amenities),
+        amenities: amenitiesArr,
         hero_image: item.HeroImageUrl || item.hero_image || "",
         icon_url: item.portfolio || item.logo || item.icon_url || "",
         header_image: item.header_image || "",
@@ -278,6 +304,7 @@ export default function ManageListings() {
         fetchCities(item.region);
       }
     } else {
+      setAmenitiesRaw("");
       setForm({
         venue_name: item.venue_name || item.business_name || "",
         region: item.region || "",
@@ -311,6 +338,7 @@ export default function ManageListings() {
   const cancelEdit = () => {
     setIsEditing(false);
     setEditingId(null);
+    setAmenitiesRaw("");
     setForm({
       venue_name: "",
       region: "",
@@ -340,6 +368,7 @@ export default function ManageListings() {
   const startNew = () => {
     setIsEditing(true);
     setEditingId(null);
+    setAmenitiesRaw("");
     setForm({
       venue_name: "",
       region: "",
@@ -372,7 +401,8 @@ export default function ManageListings() {
   // ===================================================
 
   const deleteListing = async (id) => {
-    const confirmed = await confirm({ title: 'Delete this listing?', message: 'This action cannot be undone.' }); if (!confirmed) return;
+    const confirmed = await confirm({ title: 'Delete this listing?', message: 'This action cannot be undone.' });
+    if (!confirmed) return;
     try {
       if (isVenue) {
         const res = await fetch(`${API}/venue/listings/${id}`, {
@@ -387,7 +417,6 @@ export default function ManageListings() {
           toast.error(json.message || json.error || 'Failed to delete');
         }
       } else {
-        // Vendor: Delete from vendor_listings table
         const res = await fetch(`${API}/vendor/listings/${id}`, {
           method: 'DELETE',
           headers: { Authorization: `Bearer ${token}` }
@@ -406,29 +435,90 @@ export default function ManageListings() {
   };
 
   // ===================================================
+  // VALIDATION
+  // ===================================================
+
+  const validateForm = () => {
+    if (!form.venue_name.trim()) {
+      toast.error(isVenue ? "Venue name is required" : "Business name is required");
+      return false;
+    }
+    if (!form.region) {
+      toast.error("Region is required");
+      return false;
+    }
+    if (!form.city) {
+      toast.error("City is required");
+      return false;
+    }
+    if (!form.specific_address.trim()) {
+      toast.error("Specific address is required");
+      return false;
+    }
+    if (isVenue && !form.venue_subcategory) {
+      toast.error("Venue category is required");
+      return false;
+    }
+    if (!isVenue && !form.service_category) {
+      toast.error("Service category is required");
+      return false;
+    }
+    if (isVenue) {
+      if (!form.venue_capacity.trim()) {
+        toast.error("Maximum capacity is required");
+        return false;
+      }
+      // FIX: parse amenitiesRaw at validation time to get the final array
+      const parsed = parseAmenities(amenitiesRaw);
+      if (parsed.length === 0) {
+        toast.error("At least one amenity is required");
+        return false;
+      }
+    }
+    if (!isVenue && !form.services.trim()) {
+      toast.error("Services offered is required");
+      return false;
+    }
+    if (!form.description.trim()) {
+      toast.error("Description is required");
+      return false;
+    }
+    if (!form.pricing.trim()) {
+      toast.error("Pricing is required");
+      return false;
+    }
+    if (!form.hero_image) {
+      toast.error("Hero image is required — please upload one");
+      return false;
+    }
+    if (!form.icon_url) {
+      toast.error("Logo / icon image is required — please upload one");
+      return false;
+    }
+    if (ensureArray(form.gallery).length === 0) {
+      toast.error("At least one gallery image is required — please upload one");
+      return false;
+    }
+    return true;
+  };
+
+  // ===================================================
   // SAVE LISTING
   // ===================================================
 
   const save = async (e) => {
     e.preventDefault();
 
-    if (!form.venue_name.trim()) {
-      return toast.error(isVenue ? "Venue name is required" : "Business name is required");
-    }
+    // FIX: flush amenitiesRaw → form.amenities before validation/save
+    const parsedAmenities = parseAmenities(amenitiesRaw);
+    setForm(f => ({ ...f, amenities: parsedAmenities }));
 
-    // Validate required category fields
-    if (isVenue && !form.venue_subcategory) {
-      return toast.error("Venue category is required");
-    }
-    if (!isVenue && !form.service_category) {
-      return toast.error("Service category is required");
-    }
+    if (!validateForm()) return;
 
     setSaving(true);
 
     try {
       if (isVenue) {
-        // === VENUE: Create or Update in venue_listings ===
         const address = [form.specific_address, form.city, form.region].filter(Boolean).join(", ") || form.venue_name;
 
         const payload = {
@@ -441,7 +531,8 @@ export default function ManageListings() {
           venue_capacity: form.venue_capacity || null,
           pricing: form.pricing || null,
           description: form.description || null,
-          amenities: ensureArray(form.amenities),
+          // Use parsedAmenities directly — form.amenities may not have updated yet (setState is async)
+          amenities: parsedAmenities,
           hero_image: form.hero_image || null,
           logo: form.icon_url || null,
           gallery: ensureArray(form.gallery),
@@ -471,7 +562,6 @@ export default function ManageListings() {
           toast.error(json.message || json.error || "Failed to save venue listing");
         }
       } else {
-        // === VENDOR: Create or Update in vendor_listings ===
         const address = [form.specific_address, form.city, form.region].filter(Boolean).join(", ") || form.venue_name;
 
         const payload = {
@@ -533,19 +623,21 @@ export default function ManageListings() {
     );
   }
 
+  const Req = () => <span className="text-red-600">*</span>;
+  const MissingBadge = ({ show }) =>
+    show ? <span className="ml-2 text-xs text-red-500 font-medium">(Required)</span> : null;
+
+  // Compute parsed amenities for validation display (doesn't affect typing)
+  const parsedAmenitiesForDisplay = parseAmenities(amenitiesRaw);
+
   return (
     <div className="max-w-4xl mx-auto px-6 mt-12 mb-12">
       <div className="bg-white rounded-xl shadow-lg p-8">
         {/* HEADER */}
         <header className="mb-6 pb-4 border-b border-gray-200">
           <div className="flex items-start justify-between mb-2">
-            <h2 className="text-3xl font-serif text-[#5b4636]">
-              {isVenue ? "Manage Service" : "Manage Service"}
-            </h2>
-            <span className={`px-3 py-1 rounded-full text-sm font-medium ${isVenue
-              ? 'bg-blue-100 text-blue-800'
-              : 'bg-green-100 text-green-800'
-              }`}>
+            <h2 className="text-3xl font-serif text-[#5b4636]">Manage Service</h2>
+            <span className={`px-3 py-1 rounded-full text-sm font-medium ${isVenue ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}`}>
               {isVenue ? 'Venue' : 'Supplier'}
             </span>
           </div>
@@ -659,15 +751,20 @@ export default function ManageListings() {
               </p>
             </div>
 
+            <div className="flex items-center gap-2 text-xs text-gray-500 -mt-2">
+              <span className="text-red-500 font-bold">*</span>
+              <span>All fields are required</span>
+            </div>
+
             {/* BASIC INFO */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
-                {isVenue ? "Venue Name" : "Business Name"} <span className="text-red-600">*</span>
+                {isVenue ? "Venue Name" : "Business Name"} <Req />
               </label>
               <input
                 type="text"
                 placeholder={isVenue ? "Enter venue name" : "Enter business name"}
-                className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-[#7a5d47] focus:border-[#7a5d47]"
+                className={`w-full p-3 border rounded-lg shadow-sm focus:ring-2 focus:ring-[#7a5d47] focus:border-[#7a5d47] ${!form.venue_name.trim() ? 'border-red-300' : 'border-gray-300'}`}
                 value={form.venue_name}
                 onChange={(e) => setForm(f => ({ ...f, venue_name: e.target.value }))}
                 required
@@ -677,11 +774,12 @@ export default function ManageListings() {
             {/* LOCATION */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Region</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Region <Req /></label>
                 <select
-                  className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-[#7a5d47]"
+                  className={`w-full p-3 border rounded-lg shadow-sm focus:ring-2 focus:ring-[#7a5d47] ${!form.region ? 'border-red-300' : 'border-gray-300'}`}
                   value={form.region}
                   onChange={(e) => onRegionChange(e.target.value)}
+                  required
                 >
                   <option value="">Select region</option>
                   {regions.map(r => <option key={r.region_code} value={r.region_code}>{r.region_name}</option>)}
@@ -689,12 +787,13 @@ export default function ManageListings() {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">City</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">City <Req /></label>
                 <select
-                  className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-[#7a5d47]"
+                  className={`w-full p-3 border rounded-lg shadow-sm focus:ring-2 focus:ring-[#7a5d47] ${!form.city ? 'border-red-300' : 'border-gray-300'}`}
                   value={form.city}
                   onChange={(e) => setForm(f => ({ ...f, city: e.target.value }))}
                   disabled={!listingRegion}
+                  required
                 >
                   <option value="">Select city</option>
                   {cities.map(c => <option key={c.city_code} value={c.city_name}>{c.city_name}</option>)}
@@ -703,13 +802,14 @@ export default function ManageListings() {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Specific Address</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Specific Address <Req /></label>
               <input
                 type="text"
                 placeholder="Street, building, barangay"
-                className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-[#7a5d47]"
+                className={`w-full p-3 border rounded-lg shadow-sm focus:ring-2 focus:ring-[#7a5d47] ${!form.specific_address.trim() ? 'border-red-300' : 'border-gray-300'}`}
                 value={form.specific_address}
                 onChange={(e) => setForm(f => ({ ...f, specific_address: e.target.value }))}
+                required
               />
             </div>
 
@@ -718,9 +818,9 @@ export default function ManageListings() {
               <>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Venue Category <span className="text-red-600">*</span></label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Venue Category <Req /></label>
                     <select
-                      className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-[#7a5d47]"
+                      className={`w-full p-3 border rounded-lg shadow-sm focus:ring-2 focus:ring-[#7a5d47] ${!form.venue_subcategory ? 'border-red-300' : 'border-gray-300'}`}
                       value={form.venue_subcategory}
                       onChange={(e) => setForm(f => ({ ...f, venue_subcategory: e.target.value }))}
                       required
@@ -736,26 +836,53 @@ export default function ManageListings() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Maximum Capacity</label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Maximum Capacity <Req /></label>
                     <input
                       type="text"
                       placeholder="e.g. 200 guests"
-                      className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-[#7a5d47]"
+                      className={`w-full p-3 border rounded-lg shadow-sm focus:ring-2 focus:ring-[#7a5d47] ${!form.venue_capacity.trim() ? 'border-red-300' : 'border-gray-300'}`}
                       value={form.venue_capacity}
                       onChange={(e) => setForm(f => ({ ...f, venue_capacity: e.target.value }))}
+                      required
                     />
                   </div>
                 </div>
 
+                {/* FIX: Amenities field now uses amenitiesRaw (plain string) for the input value.
+                    onChange updates only the raw string — no splitting while typing.
+                    onBlur trims whitespace for a clean display but still doesn't force a split.
+                    The actual array is parsed only at validation/save time. */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Amenities (comma-separated)</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Amenities (comma-separated) <Req />
+                  </label>
                   <input
                     type="text"
                     placeholder="e.g. Parking, Air conditioning, Sound system"
-                    className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-[#7a5d47]"
-                    value={Array.isArray(form.amenities) ? form.amenities.join(', ') : form.amenities}
-                    onChange={(e) => setForm(f => ({ ...f, amenities: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }))}
+                    className={`w-full p-3 border rounded-lg shadow-sm focus:ring-2 focus:ring-[#7a5d47] ${parsedAmenitiesForDisplay.length === 0 ? 'border-red-300' : 'border-gray-300'}`}
+                    value={amenitiesRaw}
+                    onChange={(e) => setAmenitiesRaw(e.target.value)}
+                    onBlur={(e) => {
+                      // On blur: tidy up trailing/leading whitespace around commas for display,
+                      // but keep the full comma-separated string intact so user can keep editing
+                      const tidied = e.target.value
+                        .split(',')
+                        .map(s => s.trim())
+                        .join(', ');
+                      setAmenitiesRaw(tidied);
+                    }}
+                    required
                   />
+                  {parsedAmenitiesForDisplay.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {parsedAmenitiesForDisplay.map((a, i) => (
+                        <span key={i} className="text-xs bg-[#f0e8dc] text-[#5b4636] px-2 py-0.5 rounded-full border border-[#d4c5a9]">
+                          {a}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <p className="text-xs text-gray-400 mt-1">Type your amenities separated by commas. Tags will preview above.</p>
                 </div>
               </>
             )}
@@ -764,9 +891,9 @@ export default function ManageListings() {
             {!isVenue && (
               <>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Service Category <span className="text-red-600">*</span></label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Service Category <Req /></label>
                   <select
-                    className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-[#7a5d47]"
+                    className={`w-full p-3 border rounded-lg shadow-sm focus:ring-2 focus:ring-[#7a5d47] ${!form.service_category ? 'border-red-300' : 'border-gray-300'}`}
                     value={form.service_category}
                     onChange={(e) => setForm(f => ({ ...f, service_category: e.target.value }))}
                     required
@@ -781,13 +908,14 @@ export default function ManageListings() {
                   <p className="text-xs text-gray-500 mt-1">Appears on Suppliers page filter</p>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Services Offered</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Services Offered <Req /></label>
                   <textarea
                     placeholder="Describe your services..."
-                    className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-[#7a5d47]"
+                    className={`w-full p-3 border rounded-lg shadow-sm focus:ring-2 focus:ring-[#7a5d47] ${!form.services.trim() ? 'border-red-300' : 'border-gray-300'}`}
                     rows="4"
                     value={form.services}
                     onChange={(e) => setForm(f => ({ ...f, services: e.target.value }))}
+                    required
                   />
                 </div>
               </>
@@ -795,37 +923,51 @@ export default function ManageListings() {
 
             {/* COMMON FIELDS */}
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Description</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Description <Req /></label>
               <textarea
                 placeholder={isVenue ? "Describe your venue..." : "Describe your business..."}
-                className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-[#7a5d47]"
+                className={`w-full p-3 border rounded-lg shadow-sm focus:ring-2 focus:ring-[#7a5d47] ${!form.description.trim() ? 'border-red-300' : 'border-gray-300'}`}
                 rows="4"
                 value={form.description}
                 onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))}
+                required
               />
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Pricing</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Pricing <Req /></label>
               <textarea
                 placeholder="e.g. ₱10,000 - ₱50,000 or list your packages"
-                className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-[#7a5d47]"
+                className={`w-full p-3 border rounded-lg shadow-sm focus:ring-2 focus:ring-[#7a5d47] ${!form.pricing.trim() ? 'border-red-300' : 'border-gray-300'}`}
                 rows="3"
                 value={form.pricing}
                 onChange={(e) => setForm(f => ({ ...f, pricing: e.target.value }))}
+                required
               />
             </div>
 
             {/* IMAGE UPLOADS */}
             <div className="border-t border-gray-200 pt-6 mt-6">
-              <h4 className="text-lg font-semibold text-[#7a5d47] mb-4">Media & Images</h4>
+              <h4 className="text-lg font-semibold text-[#7a5d47] mb-1">Media & Images</h4>
+              <p className="text-xs text-gray-500 mb-4">All three image fields are required before saving.</p>
 
               <div className="space-y-4">
                 {/* Hero Image */}
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Hero Image</label>
+                <div className={`p-4 rounded-lg border-2 ${!form.hero_image ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-transparent'}`}>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Hero Image <Req />
+                    <MissingBadge show={!form.hero_image} />
+                  </label>
                   {form.hero_image && (
-                    <img src={form.hero_image} alt="Hero" className="w-full h-48 object-cover rounded-lg mb-2" />
+                    <div className="relative mb-2 inline-block">
+                      <img src={form.hero_image} alt="Hero" className="w-full h-48 object-cover rounded-lg" />
+                      <button
+                        type="button"
+                        onClick={() => setForm(f => ({ ...f, hero_image: '' }))}
+                        className="absolute top-2 right-2 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-700"
+                        title="Remove image"
+                      >✕</button>
+                    </div>
                   )}
                   <input
                     type="file"
@@ -836,17 +978,28 @@ export default function ManageListings() {
                   />
                   <label
                     htmlFor="hero-upload"
-                    className="inline-block px-4 py-2 bg-white border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
+                    className={`inline-block px-4 py-2 border rounded-lg cursor-pointer transition-colors ${!form.hero_image ? 'bg-red-100 border-red-300 text-red-700 hover:bg-red-200' : 'bg-white border-gray-300 hover:bg-gray-50'}`}
                   >
-                    {uploading ? "Uploading..." : "Upload Hero Image"}
+                    {uploading ? "Uploading..." : (form.hero_image ? "Replace Hero Image" : "Upload Hero Image")}
                   </label>
                 </div>
 
                 {/* Logo/Icon */}
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Logo / Icon</label>
+                <div className={`p-4 rounded-lg border-2 ${!form.icon_url ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-transparent'}`}>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Logo / Icon <Req />
+                    <MissingBadge show={!form.icon_url} />
+                  </label>
                   {form.icon_url && (
-                    <img src={form.icon_url} alt="Logo" className="w-24 h-24 object-cover rounded-lg mb-2" />
+                    <div className="relative mb-2 inline-block">
+                      <img src={form.icon_url} alt="Logo" className="w-24 h-24 object-cover rounded-lg" />
+                      <button
+                        type="button"
+                        onClick={() => setForm(f => ({ ...f, icon_url: '' }))}
+                        className="absolute top-1 right-1 bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-700"
+                        title="Remove image"
+                      >✕</button>
+                    </div>
                   )}
                   <input
                     type="file"
@@ -857,19 +1010,31 @@ export default function ManageListings() {
                   />
                   <label
                     htmlFor="logo-upload"
-                    className="inline-block px-4 py-2 bg-white border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
+                    className={`inline-block px-4 py-2 border rounded-lg cursor-pointer transition-colors ${!form.icon_url ? 'bg-red-100 border-red-300 text-red-700 hover:bg-red-200' : 'bg-white border-gray-300 hover:bg-gray-50'}`}
                   >
-                    {uploading ? "Uploading..." : "Upload Logo"}
+                    {uploading ? "Uploading..." : (form.icon_url ? "Replace Logo" : "Upload Logo")}
                   </label>
                 </div>
 
                 {/* Gallery */}
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Gallery Images</label>
+                <div className={`p-4 rounded-lg border-2 ${ensureArray(form.gallery).length === 0 ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-transparent'}`}>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Gallery Images <Req />
+                    <MissingBadge show={ensureArray(form.gallery).length === 0} />
+                  </label>
+                  <p className="text-xs text-gray-500 mb-2">At least one gallery image is required.</p>
                   {ensureArray(form.gallery).length > 0 && (
                     <div className="grid grid-cols-4 gap-2 mb-2">
                       {ensureArray(form.gallery).map((url, idx) => (
-                        <img key={idx} src={url} alt={`Gallery ${idx + 1}`} className="w-full h-24 object-cover rounded-lg" />
+                        <div key={idx} className="relative">
+                          <img src={url} alt={`Gallery ${idx + 1}`} className="w-full h-24 object-cover rounded-lg" />
+                          <button
+                            type="button"
+                            onClick={() => setForm(f => ({ ...f, gallery: ensureArray(f.gallery).filter((_, i) => i !== idx) }))}
+                            className="absolute top-1 right-1 bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-700"
+                            title="Remove"
+                          >✕</button>
+                        </div>
                       ))}
                     </div>
                   )}
@@ -883,7 +1048,7 @@ export default function ManageListings() {
                   />
                   <label
                     htmlFor="gallery-upload"
-                    className="inline-block px-4 py-2 bg-white border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
+                    className={`inline-block px-4 py-2 border rounded-lg cursor-pointer transition-colors ${ensureArray(form.gallery).length === 0 ? 'bg-red-100 border-red-300 text-red-700 hover:bg-red-200' : 'bg-white border-gray-300 hover:bg-gray-50'}`}
                   >
                     {uploading ? "Uploading..." : "Add Gallery Images"}
                   </label>
@@ -912,7 +1077,6 @@ export default function ManageListings() {
         )}
       </div>
       <ConfirmModal />
-
     </div>
   );
 }

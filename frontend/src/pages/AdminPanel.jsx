@@ -31,9 +31,9 @@ export default function AdminPanel() {
   const [apps, setApps] = useState([]);
   const [users, setUsers] = useState([]);
   const [feedbacks, setFeedbacks] = useState([]);
-  const [reports, setReports] = useState([]); // NEW: Reports state
+  const [reports, setReports] = useState([]);
   const [activeTab, setActiveTab] = useState("vendors");
-  const [reportModal, setReportModal] = useState({ show: false, report: null, status: "", notes: "" }); // NEW: Report modal state
+  const [reportModal, setReportModal] = useState({ show: false, report: null, status: "", notes: "" });
 
   const [lightbox, setLightbox] = useState({ show: false, url: "", title: "", isPdf: false });
   const [confirm, setConfirm] = useState({
@@ -57,7 +57,6 @@ export default function AdminPanel() {
       return;
     }
 
-    // Improved PDF detection: Cloudinary raw uploads or explicit .pdf extension
     const urlLower = url.toLowerCase();
     const isPdf = urlLower.includes(".pdf") || url.includes("/raw/upload/") || urlLower.includes("pdf");
     setLightbox({ show: true, url, title, isPdf });
@@ -202,7 +201,6 @@ export default function AdminPanel() {
         toast.error(err.message);
       }
     } else {
-      // Show rejection reason modal
       setRejectModal({
         show: true,
         appId: id,
@@ -283,11 +281,11 @@ export default function AdminPanel() {
         .admin-panel table { width: 100%; border-collapse: collapse; }
         .admin-panel th, .admin-panel td { padding: 0.75rem; text-align: left; border-bottom: 1px solid #e5e5e5; vertical-align: middle; }
         .admin-panel th { background: #e8ddae; color: #1c1b1a; font-weight: 600; }
-        .admin-panel button { border: 2px solid transparent; padding: 0.4rem 0.8rem; border-radius: 0.5rem; cursor: pointer; font-weight: 600; transition: all 0.2s ease; }
-        .admin-panel button.approve-btn { background: #7a5d47; color: #fff; border: 2px solid #5a4333; }
-        .admin-panel button.approve-btn:hover { background: #6a503d; border-color: #4a3323; }
-        .admin-panel button.deny-btn { background: #e63946; color: #fff; border: 2px solid #d62828; }
-        .admin-panel button.deny-btn:hover { background: #d62828; border-color: #c1121f; }
+        .admin-panel button { border: 2px solid transparent; padding: 0.4rem 0.8rem; border-radius: 0.5rem; cursor: pointer; font-weight: 600; transition: all 0.2s ease; width: fit-content; white-space: nowrap; }
+        .admin-panel button.approve-btn, button.approve-btn { background: #7a5d47; color: #fff; border: 2px solid #5a4333; }
+        .admin-panel button.approve-btn:hover, button.approve-btn:hover { background: #6a503d; border-color: #4a3323; }
+        .admin-panel button.deny-btn, button.deny-btn { background: #e63946; color: #fff; border: 2px solid #d62828; }
+        .admin-panel button.deny-btn:hover, button.deny-btn:hover { background: #d62828; border-color: #c1121f; }
         .lb-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center; z-index: 9999; padding: 1rem; }
         .lb-content { background: #fff; border-radius: 12px; overflow: hidden; width: 650px; height: 800px; max-width: 95vw; max-height: 90vh; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); display: flex; flex-direction: column; position: relative; }
         .lb-header { display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.25rem; background: #fcf9ee; border-bottom: 2px solid #e8ddae; z-index: 10; }
@@ -310,8 +308,6 @@ export default function AdminPanel() {
         .badge { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; margin-left: 0.5rem; }
         .badge.pending { background: #fef3c7; color: #92400e; }
       `}</style>
-
-
 
       {confirm.show && (
         <div className="confirm-backdrop">
@@ -353,7 +349,6 @@ export default function AdminPanel() {
                 className="deny-btn"
                 onClick={async () => {
                   const success = await rejectModal.onSubmit(rejectModal.reason);
-                  // Modal will close on success
                 }}
               >
                 Send Rejection
@@ -369,7 +364,7 @@ export default function AdminPanel() {
         </div>
       )}
 
-      {/* === NEW: VENDOR DETAILS MODAL === */}
+      {/* === VENDOR/VENUE DETAILS MODAL === */}
       {selectedApp && (
         <div className="fixed inset-0 bg-black/80 z-[9999] flex items-center justify-center p-4 overflow-y-auto" onClick={() => setSelectedApp(null)}>
           <div className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
@@ -460,57 +455,10 @@ export default function AdminPanel() {
                 </div>
               </div>
 
-
-              {/* Venue Info (Conditional) */}
-              {selectedApp.category === "Venue" && (
-                <div className="space-y-3">
-                  <h3 className="text-sm font-bold uppercase text-gray-500 border-b pb-1">Venue Details</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="block text-gray-500 mb-1">Venue Type:</span>
-                      <p className="font-medium">{selectedApp.venue_subcategory || "General"}</p>
-                    </div>
-                    <div>
-                      <span className="block text-gray-500 mb-1">Capacity:</span>
-                      <p className="font-medium">{selectedApp.venue_capacity || "Not specified"}</p>
-                    </div>
-                    <div className="md:col-span-2">
-                      <span className="block text-gray-500 mb-1">Amenities:</span>
-                      <div className="flex flex-wrap gap-2">
-                        {(() => {
-                          const am = selectedApp.venue_amenities;
-                          let list = [];
-                          try {
-                            list = typeof am === "string" ? JSON.parse(am) : (Array.isArray(am) ? am : []);
-                          } catch (e) { list = []; }
-
-                          return list.length > 0 ? (
-                            list.map((item, i) => (
-                              <span key={i} className="bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs border border-blue-100">
-                                {item}
-                              </span>
-                            ))
-                          ) : <span className="text-gray-400 italic">No amenities listed</span>;
-                        })()}
-                      </div>
-                    </div>
-                    <div className="md:col-span-2">
-                      <span className="block text-gray-500 mb-1">Operating Hours:</span>
-                      <p className="bg-gray-50 p-2 rounded border whitespace-pre-wrap">{selectedApp.venue_operating_hours || "Not specified"}</p>
-                    </div>
-                    <div className="md:col-span-2">
-                      <span className="block text-gray-500 mb-1">Parking Info:</span>
-                      <p className="bg-gray-50 p-2 rounded border whitespace-pre-wrap">{selectedApp.venue_parking || "Not specified"}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
               {/* Documents & Photos */}
               <div className="space-y-3">
                 <h3 className="text-sm font-bold uppercase text-gray-500 border-b pb-1">Documents & Media</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {/* Profile Photo / Logo */}
                   {(selectedApp.portfolio || selectedApp.sample_photos) && (
                     <div
                       onClick={(e) => { e.stopPropagation(); previewDocument(selectedApp.portfolio || selectedApp.sample_photos, "Profile Photo / Logo"); }}
@@ -558,8 +506,6 @@ export default function AdminPanel() {
                       </div>
                     </div>
                   )}
-
-                  {/* New Docs */}
                   {selectedApp.selfie_with_id && (
                     <div onClick={(e) => { e.stopPropagation(); previewDocument(selectedApp.selfie_with_id, "Selfie with ID"); }} className="cursor-pointer group">
                       <div className="relative h-24 bg-gray-100 rounded border overflow-hidden">
@@ -594,13 +540,15 @@ export default function AdminPanel() {
             {/* Footer Actions */}
             <div className="p-4 bg-gray-50 border-t flex justify-end gap-3 sticky bottom-0">
               <button
-                className="px-4 py-2 rounded-lg border border-gray-300 font-medium hover:bg-gray-100 transition-colors"
+                style={{ padding: '0.5rem 1rem', borderRadius: '0.5rem', border: '1px solid #d1d5db', fontWeight: 600, cursor: 'pointer', background: '#fff', transition: 'background 0.2s' }}
                 onClick={() => setSelectedApp(null)}
               >
                 Close
               </button>
               <button
-                className="deny-btn px-4 py-2"
+                style={{ padding: '0.5rem 1rem', borderRadius: '0.5rem', border: '2px solid #d62828', fontWeight: 600, cursor: 'pointer', background: '#e63946', color: '#fff', transition: 'background 0.2s' }}
+                onMouseEnter={e => e.currentTarget.style.background = '#d62828'}
+                onMouseLeave={e => e.currentTarget.style.background = '#e63946'}
                 onClick={() => {
                   handleDecision(selectedApp.id, "deny");
                   setSelectedApp(null);
@@ -609,7 +557,9 @@ export default function AdminPanel() {
                 Reject Application
               </button>
               <button
-                className="approve-btn px-6 py-2"
+                style={{ padding: '0.5rem 1.5rem', borderRadius: '0.5rem', border: '2px solid #5a4333', fontWeight: 600, cursor: 'pointer', background: '#7a5d47', color: '#fff', transition: 'background 0.2s' }}
+                onMouseEnter={e => e.currentTarget.style.background = '#6a503d'}
+                onMouseLeave={e => e.currentTarget.style.background = '#7a5d47'}
                 onClick={() => {
                   handleDecision(selectedApp.id, "approve");
                   setSelectedApp(null);
@@ -622,7 +572,7 @@ export default function AdminPanel() {
         </div>
       )}
 
-      {/* Report detail modal: view full details, update status, admin notes, optional suspend */}
+      {/* Report detail modal */}
       {reportModal.show && reportModal.report && (
         <div className="fixed inset-0 bg-black/80 z-[9999] flex items-center justify-center p-4 overflow-y-auto" onClick={() => setReportModal({ show: false, report: null, status: "", notes: "" })}>
           <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-xl" onClick={e => e.stopPropagation()}>
@@ -781,7 +731,7 @@ export default function AdminPanel() {
                           <td style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.description}</td>
                           <td style={{ maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.pricing}</td>
                           <td>
-                            <button className="bg-[#7a5d47] text-white hover:bg-[#5d4636] border border-[#7a5d47]" style={{ padding: '0.5rem 1rem', borderRadius: '6px', fontWeight: 500, cursor: 'pointer' }} onClick={() => setSelectedApp(a)}>
+                            <button className="approve-btn" style={{ whiteSpace: 'nowrap' }} onClick={() => setSelectedApp(a)}>
                               View Details
                             </button>
                           </td>
@@ -838,7 +788,7 @@ export default function AdminPanel() {
                           <td>{a.venue_capacity || "-"}</td>
                           <td style={{ maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.pricing}</td>
                           <td>
-                            <button className="bg-[#7a5d47] text-white hover:bg-[#5d4636] border border-[#7a5d47]" style={{ padding: '0.5rem 1rem', borderRadius: '6px', fontWeight: 500, cursor: 'pointer' }} onClick={() => setSelectedApp(a)}>
+                            <button className="approve-btn" style={{ whiteSpace: 'nowrap' }} onClick={() => setSelectedApp(a)}>
                               View Details
                             </button>
                           </td>
@@ -943,7 +893,6 @@ export default function AdminPanel() {
                           {r.ServiceName ? `${r.ServiceName}${r.EventDate ? " " + new Date(r.EventDate).toLocaleDateString() : ""}` : r.BookingID ? `#${r.BookingID}` : "—"}
                         </td>
                         <td className="capitalize">{(r.ReportReason || "").replace(/_/g, " ")}</td>
-
                         <td>
                           <span className={`px-2 py-1 rounded text-xs font-semibold
                             ${r.Status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
@@ -955,7 +904,7 @@ export default function AdminPanel() {
                         </td>
                         <td>
                           <button
-                            className="bg-[#7a5d47] text-white hover:bg-[#5d4636] !border-[#7a5d47] text-xs px-2 py-1"
+                            className="approve-btn text-xs px-2 py-1"
                             onClick={() => setReportModal({
                               show: true,
                               report: r,
@@ -1007,7 +956,7 @@ export default function AdminPanel() {
             </div>
           </>
         )}
-      </main >
+      </main>
 
       <style>{`
         @keyframes spin {
@@ -1025,7 +974,6 @@ export default function AdminPanel() {
             className="relative bg-white rounded-xl w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Lightbox Header */}
             <div className="flex items-center justify-between p-4 border-b bg-[#fcf9ee]">
               <h3 className="text-lg font-bold text-[#7a5d47]">{lightbox.title}</h3>
               <div className="flex items-center gap-2">
@@ -1045,7 +993,6 @@ export default function AdminPanel() {
                 </button>
               </div>
             </div>
-            {/* Lightbox Content */}
             <div className="flex-1 overflow-auto flex items-center justify-center bg-gray-50 p-4" style={{ minHeight: '400px' }}>
               {lightbox.isPdf ? (
                 <iframe

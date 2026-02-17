@@ -1,14 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
 
-const sIcon = (
-  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" />
-    <path d="M8 14s1.5 2 4 2 4-2 4-2" />
-    <circle cx="9" cy="9" r="1" fill="currentColor" />
-    <circle cx="15" cy="9" r="1" fill="currentColor" />
-  </svg>
-);
-
 export default function ChatInterface({ messages, onSendMessage, isProcessing }) {
   const [inputValue, setInputValue] = useState('');
   const messagesEndRef = useRef(null);
@@ -58,16 +49,14 @@ export default function ChatInterface({ messages, onSendMessage, isProcessing })
               flexDirection: 'column',
               alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start',
               gap: '10px',
-              maxWidth: '100%',
-              minWidth: 0,
+              width: '100%',
             }}
           >
             <div
               style={{
                 ...styles.messageRow,
                 justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
-                maxWidth: '100%',
-                minWidth: 0,
+                width: '100%',
               }}
             >
               {msg.role === 'assistant' && (
@@ -75,14 +64,16 @@ export default function ChatInterface({ messages, onSendMessage, isProcessing })
               )}
 
               <div
-                style={{
-                  ...(msg.role === 'user'
+                style={
+                  msg.role === 'user'
                     ? styles.userBubble
-                    : styles.assistantBubble),
-                  ...(msg.role === 'assistant' && msg.vendors && msg.vendors.length > 0
-                    ? { maxWidth: 'calc(100% - 42px)' }
-                    : {}),
-                }}
+                    : {
+                        ...styles.assistantBubble,
+                        ...(msg.vendors && msg.vendors.length > 0
+                          ? { maxWidth: 'calc(100% - 42px)' }
+                          : {}),
+                      }
+                }
               >
                 {msg.role === 'assistant' && (
                   <div style={styles.bubbleLabel}>Solennia Assistant</div>
@@ -91,7 +82,7 @@ export default function ChatInterface({ messages, onSendMessage, isProcessing })
               </div>
             </div>
 
-            {/* Vendor cards - rendered inline with the message that contains them */}
+            {/* Vendor cards */}
             {msg.vendors && msg.vendors.length > 0 && (
               <div style={styles.vendorGrid}>
                 {msg.vendors.map((vendor) => (
@@ -215,14 +206,14 @@ function VendorCard({ vendor }) {
       <span style={styles.vendorPrice}>{formatPrice(vendor.Pricing)}</span>
       {vendor.Description && (
         <p style={styles.vendorDesc}>
-          {vendor.Description.length > 100 ? vendor.Description.substring(0, 100) + '...' : vendor.Description}
+          {vendor.Description.length > 100
+            ? vendor.Description.substring(0, 100) + '...'
+            : vendor.Description}
         </p>
       )}
       <div style={styles.vendorFooter}>
         {vendor.AverageRating && vendor.AverageRating > 0 && (
-          <span style={styles.vendorRating}>
-            {vendor.AverageRating}/5.0
-          </span>
+          <span style={styles.vendorRating}>{vendor.AverageRating}/5.0</span>
         )}
         {vendor.TotalReviews > 0 && (
           <span style={styles.vendorReviews}>({vendor.TotalReviews} reviews)</span>
@@ -319,13 +310,14 @@ const styles = {
     flexDirection: 'column',
     gap: '16px',
     background: '#FFFAF3',
-    minWidth: 0,
   },
   messageRow: {
     display: 'flex',
     alignItems: 'flex-start',
     gap: '10px',
     animation: 'solennia-fade-in 0.3s ease-out',
+    // KEY FIX: let the row shrink naturally so the bubble sizes to content
+    minWidth: 0,
   },
   assistantAvatar: {
     width: '32px',
@@ -343,6 +335,7 @@ const styles = {
     marginTop: '2px',
   },
   assistantBubble: {
+    // Grows up to 75% of the row but never forces a fixed width
     maxWidth: '75%',
     background: '#FFFFFF',
     border: '1px solid #E8DCC8',
@@ -353,11 +346,16 @@ const styles = {
     lineHeight: '1.6',
     boxShadow: '0 1px 4px rgba(122, 93, 71, 0.06)',
     minWidth: 0,
-    overflow: 'hidden',
+    wordBreak: 'break-word',
+    overflowWrap: 'break-word',
   },
   userBubble: {
+    // FIX: use inline-block so the bubble is exactly as wide as its content,
+    // never narrower. Combined with white-space: pre-wrap this stops single
+    // short words from wrapping onto a second line.
+    display: 'inline-block',
     maxWidth: '75%',
-    minWidth: '60px',
+    // Remove hard minWidth — let content dictate width naturally
     background: 'linear-gradient(135deg, #7A5D47 0%, #6B4F3C 100%)',
     borderRadius: '16px 4px 16px 16px',
     padding: '12px 16px',
@@ -365,8 +363,12 @@ const styles = {
     fontSize: '14px',
     lineHeight: '1.6',
     boxShadow: '0 2px 8px rgba(122, 93, 71, 0.15)',
+    // KEY FIX: keep words together; only wrap when the bubble truly can't fit
     wordBreak: 'normal',
     overflowWrap: 'break-word',
+    whiteSpace: 'pre-wrap',
+    // Prevent the bubble from being squeezed by a flex parent
+    flexShrink: 0,
   },
   bubbleLabel: {
     fontSize: '11px',

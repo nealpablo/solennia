@@ -113,11 +113,11 @@ class AIController
             $loopCount = 0;
             $maxLoops = 5;
             $aiResponse = '';
-            $extractedInfo = []; // Initialize here to be available outside the loop
-            $suggestedVendors = []; // Initialize here
-            $bookingCreated = false; // Initialize here
-            $bookingId = null; // Initialize here
-            $newStage = $stage; // Initialize here
+            $extractedInfo = [];
+            $suggestedVendors = [];
+            $bookingCreated = false;
+            $bookingId = null;
+            $newStage = $stage;
 
             // Initial AI call
             $result = $this->openAI->chatWithFunctions(
@@ -150,7 +150,6 @@ class AIController
                 if ($arguments === null && json_last_error() !== JSON_ERROR_NONE) {
                     error_log("OpenAI Function Call JSON Error: " . json_last_error_msg());
                     error_log("Raw Arguments: " . $result['function_call']['arguments']);
-                    // Attempt to sanitize or skip, but for now break to avoid crash
                     break;
                 }
 
@@ -159,12 +158,9 @@ class AIController
                 switch ($functionName) {
                     case 'extract_booking_info':
                         $extractedInfo = $this->processExtractedInfo($arguments, $currentData);
-                        // Update current data so subsequent steps have latest info
                         $currentData = $extractedInfo;
                         $newStage = $this->determineBookingStage($extractedInfo);
 
-                        // ⚠️ CRITICAL: Regenerate System Prompt with updated data
-                        // This ensures the AI sees the NEW date/location immediately in the next turn
                         $systemPrompt = $this->getConversationalBookingPrompt($currentData, $newStage);
 
                         $functionResult = [
@@ -173,8 +169,7 @@ class AIController
                             'stage' => $newStage
                         ];
 
-                        // AUTO-CHECK AVAILABILITY: If we now have both a date and a vendor/venue ID,
-                        // proactively check availability so the AI can inform the user immediately.
+                        // AUTO-CHECK AVAILABILITY
                         $autoDate = $currentData['date'] ?? null;
                         $autoVendorId = $currentData['vendor_id'] ?? null;
                         $autoVenueId = $currentData['venue_id'] ?? null;
@@ -193,7 +188,6 @@ class AIController
                         break;
 
                     case 'search_vendors':
-                        // SAFETY NET: Capturing data used in search
                         $implicitInfo = [];
                         if (!empty($arguments['location']))
                             $implicitInfo['location'] = $arguments['location'];
@@ -203,7 +197,6 @@ class AIController
                         if (!empty($implicitInfo)) {
                             $extractedInfo = array_merge($extractedInfo, $implicitInfo);
                             $currentData = array_merge($currentData, $implicitInfo);
-                            // Update prompt so AI knows we captured this
                             $systemPrompt = $this->getConversationalBookingPrompt($currentData, $newStage);
                         }
 
@@ -224,7 +217,6 @@ class AIController
                         $venueId = $arguments['venue_id'] ?? null;
                         $vendorId = $arguments['vendor_id'] ?? null;
 
-                        // PERSIST ID: If AI passed an ID, remember it in the state
                         if ($venueId) {
                             $extractedInfo['venue_id'] = (int)$venueId;
                             $currentData['venue_id'] = (int)$venueId;
@@ -234,7 +226,6 @@ class AIController
                             $currentData['vendor_id'] = (int)$vendorId;
                         }
 
-                        // Regenerate system prompt with updated ID/date
                         $systemPrompt = $this->getConversationalBookingPrompt($currentData, $newStage);
 
                         $availability = $venueId
@@ -246,11 +237,9 @@ class AIController
                         break;
 
                     case 'create_booking':
-                        // Get venue_id or vendor_id to determine booking type
                         $venueId = $arguments['venue_id'] ?? null;
                         $vendorId = $arguments['vendor_id'] ?? null;
 
-                        // PERSIST ID: If AI passed an ID, remember it in the state
                         if ($venueId) {
                             $extractedInfo['venue_id'] = (int)$venueId;
                             $currentData['venue_id'] = (int)$venueId;
@@ -262,13 +251,11 @@ class AIController
 
                         $isVenueBooking = !empty($venueId);
 
-                        // Validation: Ensure we have required fields
                         $missingFields = [];
                         if (empty($currentData['date']))
                             $missingFields[] = 'Date';
                         if (empty($currentData['time']))
                             $missingFields[] = 'Time';
-                        // Location only required for supplier bookings, not venues
                         if (!$isVenueBooking && empty($currentData['location']))
                             $missingFields[] = 'Location';
                         if (empty($currentData['event_type']))
@@ -285,10 +272,8 @@ class AIController
                             ];
                         }
                         else if ($arguments['confirmed']) {
-                            // Merge everything we have
                             $bookingData = array_merge($currentData, $extractedInfo);
 
-                            // Ensure the specific ID from arguments is in the booking data
                             if ($venueId)
                                 $bookingData['venue_id'] = (int)$venueId;
                             if ($vendorId)
@@ -320,14 +305,10 @@ class AIController
                         break;
                 }
 
-                // Prepare history for next turn
-                // If this is the first loop, we need to add the user message to history
-                // (Subsequent loops operate on the accumulated history)
                 if ($loopCount === 0) {
                     $history[] = ['role' => 'user', 'content' => $message];
                 }
 
-                // Add assistant's function call
                 $history[] = [
                     'role' => 'assistant',
                     'content' => null,
@@ -337,16 +318,14 @@ class AIController
                     ]
                 ];
 
-                // Add function result
                 $history[] = [
                     'role' => 'function',
                     'name' => $functionName,
                     'content' => json_encode($functionResult)
                 ];
 
-                // Get next response from AI
                 $result = $this->openAI->chatWithFunctions(
-                    '', // Empty message as we're continuing conversation
+                    '',
                     $history,
                     $systemPrompt,
                     $functions
@@ -358,6 +337,12 @@ class AIController
             if ($userId) {
                 $this->recordRequest($userId);
             }
+
+            // FIX #3: Normalize line breaks in AI response so frontend renders them correctly
+            // Replace literal \n sequences and normalize multiple blank lines
+            $aiResponse = str_replace('\n', "\n", $aiResponse);
+            $aiResponse = preg_replace("/\n{3,}/", "\n\n", $aiResponse);
+            $aiResponse = trim($aiResponse);
 
             return $this->jsonResponse($response, [
                 'success' => true,
@@ -384,11 +369,13 @@ class AIController
     {
         $extractedDataJson = json_encode($currentData, JSON_PRETTY_PRINT);
         $currentDate = date('Y-m-d');
+        $tomorrowDate = date('Y-m-d', strtotime('+1 day'));
         $currentYear = date('Y');
 
         $basePrompt = "You are the Solennia Booking Assistant. Your SOLE purpose is to help users find, recommend, and book event vendors and venues registered on the Solennia platform.
 
 CURRENT DATE: {$currentDate}
+TOMORROW'S DATE: {$tomorrowDate}
 CURRENT YEAR: {$currentYear}
 
 CURRENT BOOKING DATA:
@@ -405,7 +392,27 @@ STAGES:
 
 ABSOLUTE RULES - NEVER BREAK THESE:
 
-1. PURPOSE: You ONLY handle booking and vendor/venue recommendation. If user asks anything unrelated (general questions, coding, homework, trivia, opinions, etc.), respond: 'I can only assist with finding vendors and making bookings on Solennia. What event are you planning?'
+1. PURPOSE & INPUT VALIDATION:
+   A. You ONLY handle booking and vendor/venue recommendation. If user asks anything unrelated (general questions, coding, homework, trivia, opinions, etc.), respond: 'I can only assist with finding vendors and making bookings on Solennia. What event are you planning?'
+
+   B. GIBBERISH / MEANINGLESS INPUT DETECTION - CRITICAL:
+      - Before doing ANYTHING with a user message, check if it contains meaningful content.
+      - A message is GIBBERISH if it consists of random repeated characters, keyboard mashing, or nonsense strings (e.g. 'awdawdawdaw', 'asdfasdf', 'qwerty123', 'aaaaaaa', 'zxcvzxcv').
+      - HOW TO DETECT: If the message has NO recognizable words, dates, numbers with context, event types, vendor names, or booking-related intent - it is gibberish.
+      - IF GIBBERISH: Do NOT call extract_booking_info. Do NOT update booking data. Do NOT infer any event type, date, or booking detail. Simply respond: 'I did not understand that. Could you please describe what event you are planning?'
+      - NEVER extract event_type, date, time, budget, guests, location, vendor_id, or venue_id from a gibberish message.
+      - Examples of gibberish: 'awdawdawdawdaw', 'sdfgsdfg', 'aaaaabbbbb', 'qqqqqq', repeated keyboard patterns.
+      - Examples of valid input: 'birthday', 'tomorrow', 'wedding next month', 'I need a photographer', '50 guests', 'budget 30000'.
+
+   C. KEYWORD ALIASES - treat these words as requests to search for vendors:
+      - 'supplier', 'suppliers', 'vendor', 'vendors' with no specific category = call search_vendors with NO category filter to return ALL types
+      - 'all suppliers', 'all vendors', 'available suppliers', 'show all', 'list all', 'send all' = call search_vendors with NO category filter
+      - 'photographer', 'photography', 'videographer' = category: 'Photography & Videography'
+      - 'caterer', 'catering', 'food' = category: 'Catering'
+      - 'venue', 'venues', 'hall', 'church', 'garden', 'hotel' = category: 'Venue'
+      - 'coordinator', 'coordination', 'host', 'emcee' = category: 'Coordination & Hosting'
+      - 'decorator', 'decoration', 'flowers', 'florist' = category: 'Decoration'
+      - 'entertainment', 'band', 'singer', 'dj' = category: 'Entertainment'
 
 2. NO EMOJIS: Do not use any emojis whatsoever. Not a single one.
 
@@ -415,15 +422,21 @@ ABSOLUTE RULES - NEVER BREAK THESE:
    - NEVER say 'You could also try...' or 'Popular options include...' unless those vendors came from search_vendors results.
    - If no vendors match, say: 'No matching vendors were found in the Solennia system for that criteria. You may want to adjust your budget, location, or category.'
 
-4. DATE VALIDATION:
-   - Today is {$currentDate}. NEVER accept a past date.
+4. DATE VALIDATION - READ CAREFULLY:
+   - Today is {$currentDate}. Tomorrow is {$tomorrowDate}.
+   - VALID future dates include: 'tomorrow', 'next week', 'next month', specific future dates, etc.
+   - 'Tomorrow' means {$tomorrowDate} which IS a valid future date. NEVER reject 'tomorrow'.
+   - ONLY reject dates that are strictly BEFORE {$currentDate} (i.e., yesterday or earlier).
+   - If user says 'tomorrow', extract date as {$tomorrowDate}.
+   - If user says 'next [weekday]', calculate the next occurrence of that weekday.
+   - If user says 'next week', use 7 days from today: {$tomorrowDate} onwards.
    - If user gives a date before {$currentDate}, respond: 'That date has already passed. Please provide a future date.'
    - If user provides month/day without year, use {$currentYear}. If that month is already past, use next year.
    - MONTH ABBREVIATIONS: Users may type abbreviated month names. You MUST recognize these and convert to YYYY-MM-DD:
      jan=01, feb=02, mar=03, apr=04, may=05, jun=06, jul=07, aug=08, sep=09, oct=10, nov=11, dec=12.
      Examples: 'feb 20 2027' = 2027-02-20, 'jan 5' = {$currentYear}-01-05 (or next year if Jan already passed), 'march 15 2027' = 2027-03-15.
      Also recognize full month names: january, february, march, april, may, june, july, august, september, october, november, december.
-   - NEVER call extract_booking_info with a past date. Reject it in your response instead.
+   - NEVER call extract_booking_info with a date before {$currentDate}. Reject it in your response instead.
 
 5. HUMAN-LIKE BOOKING LOGIC:
    - Ask questions one at a time, not all at once.
@@ -439,10 +452,11 @@ ABSOLUTE RULES - NEVER BREAK THESE:
    - Use Philippine Peso (P) for pricing.
    - Keep responses under 150 words unless presenting vendor options.
    - No unnecessary filler or pleasantries. Be helpful but efficient.
+   - Write in plain prose. Do NOT use numbered lists when asking one question. Only use numbered lists when presenting multiple vendor options.
 
 INFORMATION TO GATHER (in order):
 1. Event type (ALWAYS ask the user - NEVER infer from vendor data)
-2. Event date (must be {$currentDate} or later, format YYYY-MM-DD)
+2. Event date (must be {$currentDate} or later, format YYYY-MM-DD; 'tomorrow' = {$tomorrowDate})
 3. Event time
 4. Location - ONLY ask for location if booking a SUPPLIER (photographer, caterer, coordinator, etc.). ACCEPT ANY location description provided by the user (e.g. city, area, landmark). Do NOT be strict or ask for a specific address. If the user mentions a city (e.g. 'Mandaluyong'), accept it immediately. Do NOT ask for location when booking a VENUE because the client goes to the venue.
 5. Budget
@@ -450,10 +464,11 @@ INFORMATION TO GATHER (in order):
 7. Vendor/venue selection (from search results only)
 
 FUNCTION USAGE:
-- extract_booking_info: Call IMMEDIATELY when user provides ANY booking detail. NEVER skip this. Always validate dates are not in the past before extracting.
-- search_vendors: Call ONLY when user is asking to find or browse vendors/venues OR when they first mention a vendor by name and you need to look it up.
-  - CRITICAL: If 'vendor_id' or 'venue_id' is ALREADY present in CURRENT BOOKING DATA, do NOT call search_vendors. Do NOT recommend other vendors. Focus ONLY on completing the booking for the selected ID.
-  - NEVER call search_vendors just because the user provided a date, time, budget, or event type. Those should only trigger extract_booking_info.
+- extract_booking_info: Call IMMEDIATELY when user provides ANY booking detail. NEVER skip this. Always validate dates are not before {$currentDate} before extracting.
+- search_vendors: Call when user asks to find/browse vendors or says ANY of: 'supplier', 'suppliers', 'vendor', 'vendors', 'show all', 'list all', 'send all', 'available suppliers', 'available vendors', OR mentions a specific vendor/category name.
+  - When user says 'supplier(s)' or 'vendor(s)' with NO category specified, call search_vendors with NO category parameter - this returns ALL types.
+  - CRITICAL: If 'vendor_id' or 'venue_id' is ALREADY present in CURRENT BOOKING DATA, do NOT call search_vendors. Focus ONLY on completing the booking for the selected ID.
+  - NEVER call search_vendors just because the user provided a date, time, budget, or event type alone. Those should only trigger extract_booking_info.
   - For venue types (Churches, Gardens, Hotels): use category='Venue' and keyword for the type.
 - check_availability: Call this IMMEDIATELY and AUTOMATICALLY whenever BOTH of these conditions are true: (1) a vendor_id or venue_id exists in currentData AND (2) a date exists in currentData. Do not wait for the user to ask you to check. Do not skip this step. If the vendor is unavailable on the requested date, inform the user and ask for an alternative date.
 - create_booking: ONLY after user explicitly confirms ALL details.
@@ -553,6 +568,9 @@ CRITICAL: Use exact numeric IDs from search_vendors results. NEVER use placehold
 
     private function getBookingFunctions(): array
     {
+        $tomorrowDate = date('Y-m-d', strtotime('+1 day'));
+        $currentDate = date('Y-m-d');
+
         return [
             [
                 'name' => 'extract_booking_info',
@@ -561,7 +579,7 @@ CRITICAL: Use exact numeric IDs from search_vendors results. NEVER use placehold
                     'type' => 'object',
                     'properties' => [
                         'event_type' => ['type' => 'string', 'description' => 'Explicitly stated event type only. Do NOT guess.'],
-                        'date' => ['type' => 'string', 'description' => 'Event date in YYYY-MM-DD format. Must be a future date. Parse common formats: "feb 20 2027" = "2027-02-20", "january 5" = current or next year. Recognize month abbreviations (jan, feb, mar, apr, may, jun, jul, aug, sep, oct, nov, dec) and full month names.'],
+                        'date' => ['type' => 'string', 'description' => "Event date in YYYY-MM-DD format. Must be {$currentDate} or later. IMPORTANT: 'tomorrow' = {$tomorrowDate} which IS a valid future date. 'Next week' = 7+ days from today. Parse common formats: 'feb 20 2027' = '2027-02-20', 'january 5' = current or next year. Recognize month abbreviations (jan, feb, mar, apr, may, jun, jul, aug, sep, oct, nov, dec) and full month names. NEVER reject 'tomorrow' or any future date."],
                         'time' => ['type' => 'string', 'description' => 'Event start time (e.g. 2:00 PM)'],
                         'location' => ['type' => 'string'],
                         'budget' => ['type' => 'number'],
@@ -580,7 +598,7 @@ CRITICAL: Use exact numeric IDs from search_vendors results. NEVER use placehold
             ],
             [
                 'name' => 'search_vendors',
-                'description' => 'Search for vendors/venues matching criteria. Returns ALL matching results when no filters (budget, location, keyword) are specified. Returns up to 10 when filters are applied.',
+                'description' => 'Search for vendors/venues. Results come ONLY from vendor_listings and venue_listings tables. TRIGGER when user says: supplier, suppliers, vendor, vendors, available suppliers, show all, list all, or any category keyword. When user says supplier(s) or vendor(s) with NO specific category, call with NO category parameter to return ALL types. Returns ALL results when no filters; up to 10 when filters applied.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
@@ -602,8 +620,8 @@ CRITICAL: Use exact numeric IDs from search_vendors results. NEVER use placehold
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
-                        'vendor_id' => ['type' => 'integer', 'description' => 'Supplier ID from search results'],
-                        'venue_id' => ['type' => 'integer', 'description' => 'Venue ID from search results (use when booking a venue)'],
+                        'vendor_id' => ['type' => 'integer', 'description' => 'Supplier ID from vendor_listings search results'],
+                        'venue_id' => ['type' => 'integer', 'description' => 'Venue ID from venue_listings search results (use when booking a venue)'],
                         'date' => ['type' => 'string']
                     ],
                     'required' => ['date']
@@ -611,12 +629,12 @@ CRITICAL: Use exact numeric IDs from search_vendors results. NEVER use placehold
             ],
             [
                 'name' => 'create_booking',
-                'description' => 'Create booking when user confirms all details. Use vendor_id for suppliers, venue_id for venues.',
+                'description' => 'Create booking when user confirms all details. Use vendor_id for suppliers from vendor_listings, venue_id for venues from venue_listings.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
-                        'vendor_id' => ['type' => 'integer', 'description' => 'Supplier ID from search results. DO NOT GUESS.'],
-                        'venue_id' => ['type' => 'integer', 'description' => 'Venue ID from search results. DO NOT GUESS.'],
+                        'vendor_id' => ['type' => 'integer', 'description' => 'Supplier ID from vendor_listings search results. DO NOT GUESS.'],
+                        'venue_id' => ['type' => 'integer', 'description' => 'Venue ID from venue_listings search results. DO NOT GUESS.'],
                         'confirmed' => ['type' => 'boolean', 'description' => 'User explicitly said yes/confirmed']
                     ],
                     'required' => ['confirmed']
@@ -631,17 +649,19 @@ CRITICAL: Use exact numeric IDs from search_vendors results. NEVER use placehold
 
         foreach ($newInfo as $key => $value) {
             if ($value !== null && $value !== '') {
-                // SERVER-SIDE DATE VALIDATION: Normalize and reject past dates
                 if ($key === 'date') {
+                    // FIX #1: normalizeDate now handles 'tomorrow', 'next week', etc.
                     $value = $this->normalizeDate($value);
                     if (!$value) {
                         error_log("REJECTED UNPARSEABLE DATE from AI");
                         continue;
                     }
+                    // Only reject dates strictly before TODAY (yesterday and earlier)
+                    // 'Tomorrow' and all future dates are valid
                     $today = date('Y-m-d');
                     if ($value < $today) {
                         error_log("REJECTED PAST DATE: {$value} (today is {$today})");
-                        continue; // Skip this value - do not store past dates
+                        continue;
                     }
                 }
 
@@ -660,8 +680,9 @@ CRITICAL: Use exact numeric IDs from search_vendors results. NEVER use placehold
     }
 
     /**
-     * Normalize date strings that may use month names/abbreviations into YYYY-MM-DD format.
-     * Handles: "feb 20 2027", "february 20 2027", "2027-02-20", "20 feb 2027", etc.
+     * FIX #1: Normalize date strings into YYYY-MM-DD format.
+     * Now properly handles: 'tomorrow', 'next week', 'next [weekday]',
+     * 'feb 20 2027', 'february 20 2027', '2027-02-20', '20 feb 2027', etc.
      */
     private function normalizeDate(string $dateStr): ?string
     {
@@ -670,6 +691,33 @@ CRITICAL: Use exact numeric IDs from search_vendors results. NEVER use placehold
         // Already in YYYY-MM-DD format
         if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateStr)) {
             return $dateStr;
+        }
+
+        $lower = strtolower($dateStr);
+
+        // Handle relative terms FIRST before strtotime (more reliable)
+        if ($lower === 'tomorrow') {
+            return date('Y-m-d', strtotime('+1 day'));
+        }
+
+        if ($lower === 'today') {
+            return date('Y-m-d');
+        }
+
+        if (in_array($lower, ['next week', 'the following week'])) {
+            return date('Y-m-d', strtotime('+7 days'));
+        }
+
+        if ($lower === 'next month') {
+            return date('Y-m-d', strtotime('+1 month'));
+        }
+
+        // Handle 'next [weekday]' e.g. 'next friday', 'next saturday'
+        if (preg_match('/^next\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)$/i', $lower)) {
+            $timestamp = strtotime($dateStr);
+            if ($timestamp !== false) {
+                return date('Y-m-d', $timestamp);
+            }
         }
 
         // Try PHP's strtotime which handles most natural date formats
@@ -720,7 +768,6 @@ CRITICAL: Use exact numeric IDs from search_vendors results. NEVER use placehold
         if ($month && $day) {
             if (!$year) {
                 $year = (int)date('Y');
-                // If the month has already passed this year, use next year
                 $currentMonth = (int)date('n');
                 $currentDay = (int)date('j');
                 if ($month < $currentMonth || ($month === $currentMonth && $day < $currentDay)) {
@@ -739,9 +786,7 @@ CRITICAL: Use exact numeric IDs from search_vendors results. NEVER use placehold
             && !empty($data['date'])
             && !empty($data['time']);
 
-        // Vendor search stage: basics + (location OR venue_id)
         if ($hasBasics && (!empty($data['location']) || !empty($data['venue_id']))) {
-            // Confirmation stage: basics + (venue_id OR vendor_id)
             if (!empty($data['venue_id']) || !empty($data['vendor_id'])) {
                 return 'confirmation';
             }
@@ -751,64 +796,26 @@ CRITICAL: Use exact numeric IDs from search_vendors results. NEVER use placehold
         return 'discovery';
     }
 
+    /**
+     * FIX #2: searchVendorsForBooking now queries ONLY vendor_listings and venue_listings.
+     * The legacy event_service_provider table is completely removed from search results.
+     */
     private function searchVendorsForBooking(array $criteria): array
     {
         if (strtolower($criteria['category'] ?? '') === 'venue') {
             return $this->searchVenuesForBooking($criteria);
         }
 
-        // ── Search 1: Legacy table (event_service_provider) ──
-        $query1 = DB::table('event_service_provider')
-            ->where('ApplicationStatus', 'Approved');
-
-        if (!empty($criteria['category'])) {
-            $query1->where('Category', $criteria['category']);
-        }
-
-        if (!empty($criteria['keyword'])) {
-            $query1->where(function ($q) use ($criteria) {
-                $q->where('BusinessName', 'LIKE', '%' . $criteria['keyword'] . '%')
-                    ->orWhere('Description', 'LIKE', '%' . $criteria['keyword'] . '%');
-            });
-        }
-
-        if (!empty($criteria['location']) && empty($criteria['keyword'])) {
-            $query1->where(function ($q) use ($criteria) {
-                $q->where('BusinessAddress', 'LIKE', '%' . $criteria['location'] . '%')
-                    ->orWhere('service_areas', 'LIKE', '%' . $criteria['location'] . '%');
-            });
-        }
-
-        $legacyVendors = $query1->select(
-            'ID',
-            'BusinessName',
-            'Category',
-            'Pricing',
-            'Description',
-            'BusinessAddress',
-            'AverageRating',
-            'TotalReviews',
-            'UserID'
-        )->get()->toArray();
-
-        $legacyResult = json_decode(json_encode($legacyVendors), true);
-        foreach ($legacyResult as &$v) {
-            $v['type'] = 'supplier';
-            $v['vendor_id'] = $v['ID'];
-            $v['source'] = 'legacy';
-        }
-        unset($v);
-
-        // ── Search 2: New table (vendor_listings) ──
-        $query2 = DB::table('vendor_listings')
+        // ONLY query vendor_listings (legacy event_service_provider is excluded)
+        $query = DB::table('vendor_listings')
             ->where('status', 'Active');
 
         if (!empty($criteria['category'])) {
-            $query2->where('service_category', $criteria['category']);
+            $query->where('service_category', $criteria['category']);
         }
 
         if (!empty($criteria['keyword'])) {
-            $query2->where(function ($q) use ($criteria) {
+            $query->where(function ($q) use ($criteria) {
                 $q->where('business_name', 'LIKE', '%' . $criteria['keyword'] . '%')
                     ->orWhere('description', 'LIKE', '%' . $criteria['keyword'] . '%')
                     ->orWhere('services', 'LIKE', '%' . $criteria['keyword'] . '%');
@@ -816,12 +823,16 @@ CRITICAL: Use exact numeric IDs from search_vendors results. NEVER use placehold
         }
 
         if (!empty($criteria['location']) && empty($criteria['keyword'])) {
-            $query2->where(function ($q) use ($criteria) {
+            $query->where(function ($q) use ($criteria) {
                 $q->where('address', 'LIKE', '%' . $criteria['location'] . '%');
             });
         }
 
-        $newVendors = $query2->select(
+        // Smart limit: Show ALL if no filters, limit to 10 if filters applied
+        $hasFilters = !empty($criteria['location']) || !empty($criteria['budget_max']) || !empty($criteria['keyword']);
+        $limit = $hasFilters ? ($criteria['limit'] ?? 10) : 100;
+
+        $vendors = $query->select(
             'id',
             'business_name',
             'service_category',
@@ -829,11 +840,10 @@ CRITICAL: Use exact numeric IDs from search_vendors results. NEVER use placehold
             'description',
             'address',
             'user_id'
-        )->get()->toArray();
+        )->limit($limit)->get()->toArray();
 
-        $newResult = json_decode(json_encode($newVendors), true);
-        foreach ($newResult as &$v) {
-            // Map to consistent column names for the frontend
+        $result = json_decode(json_encode($vendors), true);
+        foreach ($result as &$v) {
             $v['ID'] = (int)$v['id'];
             $v['vendor_id'] = (int)$v['id'];
             $v['BusinessName'] = $v['business_name'];
@@ -849,29 +859,7 @@ CRITICAL: Use exact numeric IDs from search_vendors results. NEVER use placehold
         }
         unset($v);
 
-        // ── Merge and deduplicate (by UserID) ──
-        $merged = [];
-        $seenUserIds = [];
-
-        // Prefer vendor_listings entries (newer) over legacy
-        foreach ($newResult as $v) {
-            $uid = $v['UserID'] ?? null;
-            if ($uid)
-                $seenUserIds[$uid] = true;
-            $merged[] = $v;
-        }
-        foreach ($legacyResult as $v) {
-            $uid = $v['UserID'] ?? null;
-            if ($uid && isset($seenUserIds[$uid]))
-                continue; // Skip duplicate
-            $merged[] = $v;
-        }
-
-        // Smart limit: Show ALL if no filters, limit to 10 if filters applied
-        $hasFilters = !empty($criteria['location']) || !empty($criteria['budget_max']) || !empty($criteria['keyword']);
-        $limit = $hasFilters ? ($criteria['limit'] ?? 10) : 100;
-
-        return array_slice($merged, 0, $limit);
+        return $result;
     }
 
     private function searchVenuesForBooking(array $criteria): array
@@ -891,9 +879,8 @@ CRITICAL: Use exact numeric IDs from search_vendors results. NEVER use placehold
             $query->where('address', 'LIKE', '%' . $criteria['location'] . '%');
         }
 
-        // Smart limit: Show ALL if no filters, limit to 10 if filters applied
         $hasFilters = !empty($criteria['location']) || !empty($criteria['budget_max']) || !empty($criteria['keyword']);
-        $limit = $hasFilters ? ($criteria['limit'] ?? 10) : 100; // 100 = effectively "all"
+        $limit = $hasFilters ? ($criteria['limit'] ?? 10) : 100;
         $query->limit($limit);
 
         $venues = $query->select(
@@ -910,13 +897,15 @@ CRITICAL: Use exact numeric IDs from search_vendors results. NEVER use placehold
         $result = json_decode(json_encode($venues), true);
         foreach ($result as &$v) {
             $v['type'] = 'venue';
-            $v['ID'] = (int)$v['id']; // Match frontend Capital ID
+            $v['ID'] = (int)$v['id'];
             $v['venue_id'] = (int)$v['id'];
             $v['BusinessName'] = $v['venue_name'];
             $v['Pricing'] = $v['pricing'];
             $v['BusinessAddress'] = $v['address'];
             $v['Category'] = 'Venue';
         }
+        unset($v);
+
         return $result;
     }
 
@@ -925,8 +914,7 @@ CRITICAL: Use exact numeric IDs from search_vendors results. NEVER use placehold
         $vendorUserId = null;
         $espId = null;
 
-        // Check vendor_listings FIRST (since AI search prioritizes new listings,
-        // the vendorId is most likely a vendor_listings.id)
+        // FIX #2: Check vendor_listings ONLY (no fallback to event_service_provider for search)
         $listing = DB::table('vendor_listings')
             ->where('id', $vendorId)
             ->where('status', 'Active')
@@ -935,28 +923,19 @@ CRITICAL: Use exact numeric IDs from search_vendors results. NEVER use placehold
         if ($listing) {
             $vendorUserId = $listing->user_id;
 
-            // Find ESP ID for this user (if they also have a legacy entry)
+            // Still check event_service_provider for existing bookings via ESP ID linkage
+            // (booking table uses EventServiceProviderID which may reference legacy IDs)
             $espId = DB::table('event_service_provider')
                 ->where('UserID', $listing->user_id)
                 ->where('ApplicationStatus', 'Approved')
                 ->value('ID');
         }
         else {
-            // Fallback: check legacy event_service_provider table
-            $vendor = DB::table('event_service_provider')
-                ->where('ID', $vendorId)
-                ->first();
-
-            if ($vendor) {
-                $vendorUserId = $vendor->UserID;
-                $espId = $vendor->ID;
-            }
-            else {
-                return ['available' => false, 'reason' => 'Vendor not found'];
-            }
+            // The vendor_id does not exist in vendor_listings - vendor not found
+            return ['available' => false, 'reason' => 'Vendor not found in the system'];
         }
 
-        // Check 1: Existing bookings using ESP ID
+        // Check 1: Existing bookings using ESP ID (booking table integrity)
         if ($espId) {
             $existingBooking = DB::table('booking')
                 ->where('EventServiceProviderID', $espId)
@@ -965,8 +944,7 @@ CRITICAL: Use exact numeric IDs from search_vendors results. NEVER use placehold
                     ->orWhere(function ($q2) use ($date) {
                     $q2->where('start_date', '<=', $date)
                         ->where('end_date', '>=', $date);
-                }
-                );
+                });
             })
                 ->whereNotIn('BookingStatus', ['Cancelled', 'Rejected'])
                 ->first();
@@ -1022,8 +1000,7 @@ CRITICAL: Use exact numeric IDs from search_vendors results. NEVER use placehold
                 ->orWhereRaw('DATE(EventDate) = ?', [$date])
                 ->orWhere(function ($q2) use ($date) {
                 $q2->where('start_date', '<=', $date)->where('end_date', '>=', $date);
-            }
-            );
+            });
         })
             ->whereNotIn('BookingStatus', ['Cancelled', 'Rejected'])
             ->exists();
@@ -1032,7 +1009,7 @@ CRITICAL: Use exact numeric IDs from search_vendors results. NEVER use placehold
             return ['available' => false, 'reason' => 'Already booked on this date'];
         }
 
-        // Check 2: Venue availability table (venue-specific calendar)
+        // Check 2: Venue availability table
         $unavailable = DB::table('venue_availability')
             ->where('venue_id', $venueId)
             ->where('date', $date)
@@ -1050,8 +1027,7 @@ CRITICAL: Use exact numeric IDs from search_vendors results. NEVER use placehold
             ];
         }
 
-        // Check 3: Also check vendor_availability for the venue owner
-        // (venue owners use the same calendar system as vendors)
+        // Check 3: Venue owner's vendor_availability calendar
         if ($venue->user_id) {
             $vendorUnavailable = DB::table('vendor_availability')
                 ->where('vendor_user_id', $venue->user_id)
@@ -1073,73 +1049,44 @@ CRITICAL: Use exact numeric IDs from search_vendors results. NEVER use placehold
     private function createBookingFromConversation(array $bookingData, int $vendorId, int $userId): ?int
     {
         try {
-            $vendor = DB::table('event_service_provider')
-                ->where('ID', $vendorId)
-                ->first();
-
             $businessName = null;
             $espId = null;
             $vendorUserId = null;
             $pricing = 0;
 
-            if ($vendor) {
-                // Found in legacy table
-                $businessName = $vendor->BusinessName;
-                $espId = $vendor->ID;
-                $vendorUserId = $vendor->UserID;
-                $pricing = floatval($vendor->Pricing ?? 0);
-            }
-            else {
-                // Try vendor_listings table
+            // FIX #2: Only look up from vendor_listings
+            $listing = DB::table('vendor_listings')
+                ->where('id', $vendorId)
+                ->where('status', 'Active')
+                ->first();
+
+            if (!$listing && !empty($bookingData['vendor_name'])) {
+                // Fallback: search by name in vendor_listings only
                 $listing = DB::table('vendor_listings')
-                    ->where('id', $vendorId)
+                    ->where('business_name', 'LIKE', '%' . $bookingData['vendor_name'] . '%')
                     ->where('status', 'Active')
                     ->first();
-
-                if (!$listing) {
-                    // Final fallback: search by name
-                    if (!empty($bookingData['vendor_name'])) {
-                        $listing = DB::table('vendor_listings')
-                            ->where('business_name', 'LIKE', '%' . $bookingData['vendor_name'] . '%')
-                            ->where('status', 'Active')
-                            ->first();
-                    }
-                    if (!$listing) {
-                        // Also try legacy by name
-                        $vendor = DB::table('event_service_provider')
-                            ->where('BusinessName', 'LIKE', '%' . ($bookingData['vendor_name'] ?? '') . '%')
-                            ->where('ApplicationStatus', 'Approved')
-                            ->first();
-                        if (!$vendor)
-                            return null;
-
-                        $businessName = $vendor->BusinessName;
-                        $espId = $vendor->ID;
-                        $vendorUserId = $vendor->UserID;
-                        $pricing = floatval($vendor->Pricing ?? 0);
-                    }
-                }
-
-                if ($listing && !$businessName) {
-                    $businessName = $listing->business_name;
-                    $vendorUserId = $listing->user_id;
-                    $pricing = floatval($listing->pricing ?? 0);
-
-                    // Find ESP ID for this user
-                    $espId = DB::table('event_service_provider')
-                        ->where('UserID', $listing->user_id)
-                        ->where('ApplicationStatus', 'Approved')
-                        ->value('ID');
-
-                    // If no ESP exists, use the vendor_listings id as a reference
-                    if (!$espId) {
-                        $espId = $listing->id;
-                    }
-                }
             }
 
-            if (!$businessName || !$espId)
+            if (!$listing) {
+                error_log("CREATE_BOOKING: Vendor not found in vendor_listings. vendor_id={$vendorId}");
                 return null;
+            }
+
+            $businessName = $listing->business_name;
+            $vendorUserId = $listing->user_id;
+            $pricing = floatval($listing->pricing ?? 0);
+
+            // Find ESP ID for booking table linkage (booking table requires EventServiceProviderID)
+            $espId = DB::table('event_service_provider')
+                ->where('UserID', $listing->user_id)
+                ->where('ApplicationStatus', 'Approved')
+                ->value('ID');
+
+            // If no ESP exists, use the vendor_listings id as a reference
+            if (!$espId) {
+                $espId = $listing->id;
+            }
 
             $notes = "AI Booking\n\n";
             if (!empty($bookingData['guests'])) {
@@ -1177,16 +1124,14 @@ CRITICAL: Use exact numeric IDs from search_vendors results. NEVER use placehold
 
             $client = DB::table('credential')->where('id', $userId)->first();
             $clientName = trim(($client->first_name ?? '') . ' ' . ($client->last_name ?? ''));
-
             $eventType = $bookingData['event_type'] ?? 'an event';
-            $notificationMessage = "{$clientName} created a booking via AI assistant for {$eventType}";
 
             if ($vendorUserId) {
                 $this->sendNotification(
                     $vendorUserId,
                     'booking_request',
                     'New AI Booking Request',
-                    $notificationMessage
+                    "{$clientName} created a booking via AI assistant for {$eventType}"
                 );
             }
 
@@ -1211,7 +1156,6 @@ CRITICAL: Use exact numeric IDs from search_vendors results. NEVER use placehold
                 ->first();
 
             if (!$venue) {
-                // Fallback: If ID is invalid (like placeholder 1) but we have a name
                 if (!empty($bookingData['venue_name'])) {
                     $venue = DB::table('venue_listings')
                         ->where('venue_name', 'LIKE', '%' . $bookingData['venue_name'] . '%')
@@ -1220,7 +1164,7 @@ CRITICAL: Use exact numeric IDs from search_vendors results. NEVER use placehold
                 }
 
                 if (!$venue) {
-                    error_log("CREATE_VENUE_BOOKING: ERROR - Venue not found or not active. venue_id={$venueId}, name=" . ($bookingData['venue_name'] ?? 'null'));
+                    error_log("CREATE_VENUE_BOOKING: ERROR - Venue not found. venue_id={$venueId}");
                     return null;
                 }
                 $venueId = $venue->id;
@@ -1230,12 +1174,10 @@ CRITICAL: Use exact numeric IDs from search_vendors results. NEVER use placehold
 
             $startDate = $bookingData['date'] ?? null;
             if (!$startDate) {
-                error_log("CREATE_VENUE_BOOKING: ERROR - No date provided in bookingData");
+                error_log("CREATE_VENUE_BOOKING: ERROR - No date provided");
                 return null;
             }
             $endDate = $startDate;
-
-            error_log("CREATE_VENUE_BOOKING: Date={$startDate}");
 
             $notes = "AI Booking\n\n";
             if (!empty($bookingData['guests'])) {
@@ -1261,8 +1203,7 @@ CRITICAL: Use exact numeric IDs from search_vendors results. NEVER use placehold
                     ->orWhereBetween('end_date', [$startDate, $endDate])
                     ->orWhere(function ($q2) use ($startDate, $endDate) {
                     $q2->where('start_date', '<=', $startDate)->where('end_date', '>=', $endDate);
-                }
-                );
+                });
             })
                 ->whereNotIn('BookingStatus', ['Cancelled', 'Rejected'])
                 ->first();
@@ -1272,14 +1213,9 @@ CRITICAL: Use exact numeric IDs from search_vendors results. NEVER use placehold
                 return null;
             }
 
-            error_log("CREATE_VENUE_BOOKING: No conflicts, proceeding to insert");
-
-            // Format EventDate as DATETIME (required by booking table)
             $eventTime = $bookingData['time'] ?? '00:00';
 
-            // Convert time to 24-hour format if needed (e.g., "3:30 PM" -> "15:30:00")
             if (stripos($eventTime, 'PM') !== false || stripos($eventTime, 'AM') !== false) {
-                // Parse 12-hour format (e.g., "3:30 PM")
                 $timeParts = preg_split('/\s+/', $eventTime);
                 $time = $timeParts[0];
                 $meridiem = strtoupper($timeParts[1] ?? 'AM');
@@ -1288,7 +1224,6 @@ CRITICAL: Use exact numeric IDs from search_vendors results. NEVER use placehold
                 $hour = (int)$hour;
                 $minute = (int)$minute;
 
-                // Convert to 24-hour
                 if ($meridiem === 'PM' && $hour < 12) {
                     $hour += 12;
                 }
@@ -1299,20 +1234,16 @@ CRITICAL: Use exact numeric IDs from search_vendors results. NEVER use placehold
                 $eventTime24 = sprintf('%02d:%02d:00', $hour, $minute);
             }
             else {
-                // Already in 24-hour format or just HH:MM
                 $eventTime24 = (strpos($eventTime, ':') !== false) ? $eventTime . ':00' : $eventTime;
             }
 
             $eventDateTime = $startDate . ' ' . $eventTime24;
 
-            // CRITICAL: Get proper EventServiceProviderID (must exist in event_service_provider table)
-            // Venue owners are linked via their mysql user id
             $eventServiceProviderId = DB::table('event_service_provider')
                 ->where('UserID', $venue->user_id)
                 ->where('ApplicationStatus', 'Approved')
                 ->value('ID');
 
-            // Fallback: If venue owner doesn't have an ESP account, use a placeholder
             if (!$eventServiceProviderId) {
                 $eventServiceProviderId = DB::table('event_service_provider')
                     ->where('ApplicationStatus', 'Approved')
@@ -1324,7 +1255,7 @@ CRITICAL: Use exact numeric IDs from search_vendors results. NEVER use placehold
                 'venue_id' => $venueId,
                 'EventServiceProviderID' => $eventServiceProviderId,
                 'ServiceName' => $venue->venue_name,
-                'EventDate' => $eventDateTime, // FIXED: Use DATETIME format
+                'EventDate' => $eventDateTime,
                 'start_date' => $startDate,
                 'end_date' => $endDate,
                 'EventLocation' => $venue->address ?? '',
@@ -1339,11 +1270,10 @@ CRITICAL: Use exact numeric IDs from search_vendors results. NEVER use placehold
                 'CreatedBy' => $userId
             ]);
 
-            error_log("CREATE_VENUE_BOOKING: SUCCESS - Booking created with ID={$bookingId}");
+            error_log("CREATE_VENUE_BOOKING: SUCCESS - Booking ID={$bookingId}");
 
             $client = DB::table('credential')->where('id', $userId)->first();
             $clientName = trim(($client->first_name ?? '') . ' ' . ($client->last_name ?? ''));
-
             $eventType = $bookingData['event_type'] ?? 'an event';
 
             if ($venue->user_id) {

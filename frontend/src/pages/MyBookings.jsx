@@ -27,7 +27,7 @@ export default function MyBookings() {
     new_time: "14:00"
   });
 
-  // Feedback modal state (NEW)
+  // Feedback modal state
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [feedbackBooking, setFeedbackBooking] = useState(null);
 
@@ -57,31 +57,46 @@ export default function MyBookings() {
   // Extract event time from booking notes for venue bookings
   const extractEventTimeFromNotes = (notes) => {
     if (!notes) return null;
-
-    // Look for pattern like "Event Time: 12:45" or "Event Time:\n12:45"
     const timeMatch = notes.match(/Event Time:\s*(\d{1,2}:\d{2})/);
     if (timeMatch && timeMatch[1]) {
-      return timeMatch[1]; // Returns just the time like "12:45"
+      return timeMatch[1];
     }
     return null;
   };
 
   // Get display time - either from notes (venue bookings) or from EventDate
   const getDisplayTime = (booking) => {
-    // For venue bookings, try to extract time from notes first
     if (booking.isVenueBooking || booking.booking_type === 'venue' || booking.venue_id) {
       const noteTime = extractEventTimeFromNotes(booking.AdditionalNotes);
       if (noteTime) {
         return noteTime;
       }
     }
-
-    // Otherwise use the time from EventDate
     const displayDate = booking.has_pending_reschedule && booking.original_date
       ? booking.original_date
       : booking.EventDate;
     const formatted = formatDateTime(displayDate);
     return formatted.time;
+  };
+
+  // Check if the event is within 7 days from now
+  const isWithin7Days = (eventDate) => {
+    if (!eventDate) return false;
+    const now = new Date();
+    const event = new Date(eventDate);
+    const diffMs = event - now;
+    const diffDays = diffMs / (1000 * 60 * 60 * 24);
+    return diffDays >= 0 && diffDays < 7;
+  };
+
+  // Get days until event (for display)
+  const getDaysUntilEvent = (eventDate) => {
+    if (!eventDate) return null;
+    const now = new Date();
+    const event = new Date(eventDate);
+    const diffMs = event - now;
+    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    return diffDays;
   };
 
   const loadBookings = async () => {
@@ -240,7 +255,6 @@ export default function MyBookings() {
     }
   };
 
-  // NEW: Feedback modal handlers
   const openFeedbackModal = (booking) => {
     setFeedbackBooking(booking);
     setShowFeedbackModal(true);
@@ -327,16 +341,29 @@ export default function MyBookings() {
         <div style={styles.bookingsList}>
           {filteredBookings.map((booking) => {
             const statusColors = getStatusStyle(booking.BookingStatus);
-            const canCancel = booking.BookingStatus === "Pending" && !booking.has_pending_reschedule;
+
+            const eventDate = booking.has_pending_reschedule && booking.original_date
+              ? booking.original_date
+              : booking.EventDate;
+
+            const withinCutoff = isWithin7Days(eventDate);
+            const daysUntil = getDaysUntilEvent(eventDate);
+
+            // Pending: can always cancel (if no pending reschedule)
+            const canCancelPending = booking.BookingStatus === "Pending" && !booking.has_pending_reschedule;
+            // Confirmed: can cancel ONLY if event is more than 7 days away
+            const canCancelConfirmed = booking.BookingStatus === "Confirmed" && !withinCutoff;
+            const canCancel = canCancelPending || canCancelConfirmed;
+
             const canReschedule = booking.BookingStatus === "Confirmed" && !booking.has_pending_reschedule;
-            const canLeaveFeedback = booking.BookingStatus === "Completed"; // NEW
+            const canLeaveFeedback = booking.BookingStatus === "Completed";
 
             // Determine display date
             const displayDate = booking.has_pending_reschedule && booking.original_date
               ? booking.original_date
               : booking.EventDate;
             const display = formatDateTime(displayDate);
-            const displayTime = getDisplayTime(booking); // Get correct time (from notes for venue bookings)
+            const displayTime = getDisplayTime(booking);
 
             // Get reschedule history
             const rescheduleHistory = booking.reschedule_history || [];
@@ -558,6 +585,21 @@ export default function MyBookings() {
                   </div>
                 )}
 
+                {/* Cancellation locked notice for confirmed bookings within 7 days */}
+                {booking.BookingStatus === "Confirmed" && withinCutoff && daysUntil !== null && daysUntil >= 0 && (
+                  <div style={styles.cancellationLockedBanner}>
+                    <span style={{ fontSize: '1.1rem' }}>🔒</span>
+                    <div>
+                      <p style={styles.cancellationLockedTitle}>Cancellation no longer available</p>
+                      <p style={styles.cancellationLockedText}>
+                        This booking cannot be cancelled because the event is{" "}
+                        <strong>{daysUntil === 0 ? "today" : `in ${daysUntil} day${daysUntil === 1 ? "" : "s"}`}</strong>.
+                        Cancellations must be made at least 7 days before the event.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {/* Action Buttons */}
                 <div style={styles.cardActions}>
                   {canReschedule && (
@@ -695,7 +737,7 @@ export default function MyBookings() {
         </div>
       )}
 
-      {/* Feedback Modal (NEW - appears only ONCE) */}
+      {/* Feedback Modal */}
       {showFeedbackModal && feedbackBooking && (
         <FeedbackModal
           booking={feedbackBooking}
@@ -753,36 +795,11 @@ const styles = {
     color: "#1c1b1a",
     margin: 0
   },
-  newBookingButton: {
-    padding: "0.75rem 1.5rem",
-    background: "#8B4513",
-    color: "white",
-    border: "none",
-    borderRadius: "8px",
-    fontSize: "1rem",
-    fontWeight: "600",
-    cursor: "pointer"
-  },
   filterContainer: {
     display: "flex",
     gap: "0.75rem",
     marginBottom: "2rem",
     flexWrap: "wrap"
-  },
-  filterButton: {
-    padding: "0.5rem 1.25rem",
-    border: "1px solid #c9bda4",
-    borderRadius: "9999px",
-    background: "#f6f0e8",
-    color: "#1c1b1a",
-    fontSize: "0.875rem",
-    fontWeight: "500",
-    cursor: "pointer"
-  },
-  filterButtonActive: {
-    background: "#7a5d47",
-    color: "#fff",
-    borderColor: "#7a5d47"
   },
   emptyState: {
     textAlign: "center",
@@ -803,16 +820,6 @@ const styles = {
   emptyText: {
     fontSize: "1rem",
     marginBottom: "1.5rem"
-  },
-  browseButton: {
-    padding: "0.75rem 2rem",
-    background: "#8B4513",
-    color: "white",
-    border: "none",
-    borderRadius: "8px",
-    fontSize: "1rem",
-    fontWeight: "600",
-    cursor: "pointer"
   },
   bookingsList: {
     display: "grid",
@@ -992,6 +999,28 @@ const styles = {
     lineHeight: "1.7",
     fontSize: "0.925rem"
   },
+  cancellationLockedBanner: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: "0.75rem",
+    marginTop: "1rem",
+    padding: "0.875rem 1rem",
+    backgroundColor: "#fff7ed",
+    border: "1px solid #fed7aa",
+    borderRadius: "8px"
+  },
+  cancellationLockedTitle: {
+    fontSize: "0.875rem",
+    fontWeight: "700",
+    color: "#9a3412",
+    margin: "0 0 0.2rem 0"
+  },
+  cancellationLockedText: {
+    fontSize: "0.825rem",
+    color: "#c2410c",
+    margin: 0,
+    lineHeight: "1.5"
+  },
   cardActions: {
     display: "flex",
     gap: "0.75rem",
@@ -999,42 +1028,6 @@ const styles = {
     paddingTop: "1.5rem",
     borderTop: "1px solid #e5e5e5",
     flexWrap: "wrap"
-  },
-  rescheduleButton: {
-    flex: "1",
-    minWidth: "150px",
-    padding: "0.75rem 1.5rem",
-    background: "#3b82f6",
-    color: "white",
-    border: "none",
-    borderRadius: "8px",
-    fontSize: "0.9rem",
-    fontWeight: "600",
-    cursor: "pointer"
-  },
-  feedbackButton: {
-    flex: "1",
-    minWidth: "150px",
-    padding: "0.75rem 1.5rem",
-    background: "#16a34a",
-    color: "white",
-    border: "none",
-    borderRadius: "8px",
-    fontSize: "0.9rem",
-    fontWeight: "600",
-    cursor: "pointer"
-  },
-  cancelButton: {
-    flex: "1",
-    minWidth: "150px",
-    padding: "0.75rem 1.5rem",
-    border: "1px solid #dc2626",
-    borderRadius: "8px",
-    background: "#fff",
-    color: "#dc2626",
-    fontSize: "0.9rem",
-    fontWeight: "600",
-    cursor: "pointer"
   },
   cardFooter: {
     marginTop: "1rem",
@@ -1163,26 +1156,5 @@ const styles = {
   modalActions: {
     display: "flex",
     gap: "0.75rem"
-  },
-  modalCancelButton: {
-    flex: "1",
-    padding: "0.75rem",
-    border: "1px solid #e5e5e5",
-    borderRadius: "8px",
-    background: "#fff",
-    fontSize: "0.9rem",
-    fontWeight: "600",
-    cursor: "pointer"
-  },
-  modalSubmitButton: {
-    flex: "1",
-    padding: "0.75rem",
-    background: "#3b82f6",
-    color: "white",
-    border: "none",
-    borderRadius: "8px",
-    fontSize: "0.9rem",
-    fontWeight: "600",
-    cursor: "pointer"
   }
 };
