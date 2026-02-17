@@ -634,7 +634,7 @@ class VendorController
                 ->toArray();
 
             $query = DB::table('booking')
-                ->select('ID', 'EventDate', 'start_date', 'end_date', 'BookingStatus', 'venue_id')
+                ->select('ID', 'EventDate', 'start_date', 'end_date', 'BookingStatus', 'venue_id', 'ServiceName')
                 ->whereIn('BookingStatus', ['Pending', 'Confirmed', 'Completed']);
 
             $query->where(function ($q) use ($esp, $venueIds) {
@@ -666,6 +666,7 @@ class VendorController
                     'id' => (int)$row->ID,
                     'event_date' => $eventDate ? (is_string($eventDate) ? $eventDate : date('Y-m-d H:i:s', strtotime($eventDate))) : null,
                     'status' => $statusMap[$row->BookingStatus] ?? strtolower($row->BookingStatus ?? ''),
+                    'service_name' => $row->ServiceName ?? null,
                 ];
             }
 
@@ -1348,6 +1349,7 @@ class VendorController
                 'city' => $data['city'] ?? null,
                 'specific_address' => $data['specific_address'] ?? null,
                 'service_category' => $data['service_category'] ?? null,
+                'other_category_type' => $data['other_category_type'] ?? null,
                 'services' => $data['services'] ?? null,
                 'pricing' => $data['pricing'] ?? null,
                 'description' => $data['description'] ?? null,
@@ -1434,6 +1436,7 @@ class VendorController
                 'city' => $data['city'] ?? $existing->city,
                 'specific_address' => $data['specific_address'] ?? $existing->specific_address,
                 'service_category' => $data['service_category'] ?? $existing->service_category,
+                'other_category_type' => $data['other_category_type'] ?? $existing->other_category_type,
                 'services' => $data['services'] ?? $existing->services,
                 'pricing' => $data['pricing'] ?? $existing->pricing,
                 'description' => $data['description'] ?? $existing->description,

@@ -125,6 +125,7 @@ class VenueController
                 'city' => $data['city'] ?? null,
                 'specific_address' => $data['specific_address'] ?? null,
                 'venue_subcategory' => $data['venue_subcategory'] ?? 'Other',
+                'other_category_type' => $data['other_category_type'] ?? null,
                 'venue_capacity' => $data['venue_capacity'] ?? null,
                 'pricing' => $data['pricing'] ?? null,
                 'description' => $data['description'] ?? '',
@@ -220,6 +221,10 @@ class VenueController
             // CRITICAL: Category update - must be exact match
             if (isset($data['venue_subcategory'])) {
                 $updateData['venue_subcategory'] = $data['venue_subcategory'];
+            }
+
+            if (isset($data['other_category_type'])) {
+                $updateData['other_category_type'] = $data['other_category_type'];
             }
 
             if (isset($data['venue_capacity'])) {

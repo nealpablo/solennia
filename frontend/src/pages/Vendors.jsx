@@ -249,7 +249,7 @@ function VendorCard({ vendor, navigate }) {
       return;
     }
 
-    navigate(`/chat?to=${encodeURIComponent(firebaseUid)}`);
+    navigate(`/chat?to=${encodeURIComponent(firebaseUid)}&name=${encodeURIComponent(vendor.BusinessName)}`);
   };
 
   const handleBookNow = (e) => {

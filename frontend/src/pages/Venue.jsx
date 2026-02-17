@@ -286,7 +286,8 @@ function VenueCard({ venue, navigate }) {
       return;
     }
 
-    navigate(`/chat?to=${encodeURIComponent(firebaseUid)}`);
+    const name = venue.venue_name || venue.business_name || "Venue";
+    navigate(`/chat?to=${encodeURIComponent(firebaseUid)}&name=${encodeURIComponent(name)}`);
   };
 
   //  Get image from logo field or portfolio

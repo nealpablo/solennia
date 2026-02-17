@@ -323,6 +323,7 @@ export default function Chat() {
 
   useEffect(() => {
     const toUid = searchParams.get('to');
+    const nameOverride = searchParams.get('name');
 
     if (toUid && !hasAutoOpened.current && meUid.current && !loading) {
       hasAutoOpened.current = true;
@@ -330,15 +331,22 @@ export default function Chat() {
       let contact = contacts.find(c => c.firebase_uid === toUid);
 
       if (contact) {
+        // If we have a name override and it differs, update the display name temporarily for this session
+        if (nameOverride && contact.displayName !== nameOverride) {
+          contact = { ...contact, displayName: nameOverride };
+          // Optional: Update contacts state to reflect this change
+          setContacts(prev => prev.map(c => c.firebase_uid === toUid ? { ...c, displayName: nameOverride } : c));
+        }
+
         openChat(contact);
         navigate('/chat', { replace: true });
       } else {
-        fetchUserAndOpenChat(toUid);
+        fetchUserAndOpenChat(toUid, nameOverride);
       }
     }
   }, [searchParams, contacts, loading]);
 
-  async function fetchUserAndOpenChat(firebaseUid) {
+  async function fetchUserAndOpenChat(firebaseUid, nameOverride = null) {
     try {
       const token = localStorage.getItem("solennia_token");
 
@@ -377,7 +385,7 @@ export default function Chat() {
         last_name: user.last_name,
         role: user.role,
         avatar: avatar,
-        displayName: displayName
+        displayName: nameOverride || displayName
       };
 
       setContacts(prev => {

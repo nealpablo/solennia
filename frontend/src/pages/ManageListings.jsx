@@ -50,6 +50,7 @@ export default function ManageListings() {
     base_price: "",
     package_price: "",
     ai_description: "",
+    other_category_type: "",
   });
 
   // ===================================================
@@ -298,6 +299,7 @@ export default function ManageListings() {
         base_price: item.base_price || "",
         package_price: item.package_price || "",
         ai_description: item.ai_description || "",
+        other_category_type: item.other_category_type || "",
       });
       if (item.region) {
         setListingRegion(item.region);
@@ -326,6 +328,7 @@ export default function ManageListings() {
         base_price: item.base_price || "",
         package_price: item.package_price || "",
         ai_description: item.ai_description || "",
+        other_category_type: item.other_category_type || "",
       });
       if (item.region) {
         setListingRegion(item.region);
@@ -360,6 +363,7 @@ export default function ManageListings() {
       base_price: "",
       package_price: "",
       ai_description: "",
+      other_category_type: "",
     });
     setListingRegion("");
     setCities([]);
@@ -390,6 +394,7 @@ export default function ManageListings() {
       base_price: "",
       package_price: "",
       ai_description: "",
+      other_category_type: "",
     });
     setListingRegion("");
     setCities([]);
@@ -479,6 +484,14 @@ export default function ManageListings() {
       toast.error("Services offered is required");
       return false;
     }
+    if (isVenue && form.venue_subcategory === 'Other' && !form.other_category_type.trim()) {
+      toast.error("Please specify the venue type");
+      return false;
+    }
+    if (!isVenue && form.service_category === 'Others' && !form.other_category_type.trim()) {
+      toast.error("Please specify the service type");
+      return false;
+    }
     if (!form.description.trim()) {
       toast.error("Description is required");
       return false;
@@ -542,6 +555,7 @@ export default function ManageListings() {
           base_price: form.base_price || null,
           package_price: form.package_price || null,
           ai_description: form.ai_description || null,
+          other_category_type: form.venue_subcategory === 'Other' ? form.other_category_type : null,
         };
 
         const url = editingId ? `${API}/venue/listings/${editingId}` : `${API}/venue/listings`;
@@ -582,6 +596,7 @@ export default function ManageListings() {
           base_price: form.base_price || null,
           package_price: form.package_price || null,
           ai_description: form.ai_description || null,
+          other_category_type: form.service_category === 'Others' ? form.other_category_type : null,
         };
 
         const url = editingId ? `${API}/vendor/listings/${editingId}` : `${API}/vendor/listings`;
@@ -848,11 +863,25 @@ export default function ManageListings() {
                   </div>
                 </div>
 
+                {form.venue_subcategory === 'Other' && (
+                  <div className="mt-4">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Specify Venue Type <Req /></label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Museum, Art Gallery, Rooftop"
+                      className={`w-full p-3 border rounded-lg shadow-sm focus:ring-2 focus:ring-[#7a5d47] ${!form.other_category_type?.trim() ? 'border-red-300' : 'border-gray-300'}`}
+                      value={form.other_category_type || ''}
+                      onChange={(e) => setForm(f => ({ ...f, other_category_type: e.target.value }))}
+                      required
+                    />
+                  </div>
+                )}
+
                 {/* FIX: Amenities field now uses amenitiesRaw (plain string) for the input value.
                     onChange updates only the raw string — no splitting while typing.
                     onBlur trims whitespace for a clean display but still doesn't force a split.
                     The actual array is parsed only at validation/save time. */}
-                <div>
+                <div className="mt-4">
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Amenities (comma-separated) <Req />
                   </label>
@@ -907,7 +936,22 @@ export default function ManageListings() {
                   </select>
                   <p className="text-xs text-gray-500 mt-1">Appears on Suppliers page filter</p>
                 </div>
-                <div>
+
+                {form.service_category === 'Others' && (
+                  <div className="mt-4">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Specify Service Type <Req /></label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Makeup Artist, Event Planner, Host"
+                      className={`w-full p-3 border rounded-lg shadow-sm focus:ring-2 focus:ring-[#7a5d47] ${!form.other_category_type?.trim() ? 'border-red-300' : 'border-gray-300'}`}
+                      value={form.other_category_type || ''}
+                      onChange={(e) => setForm(f => ({ ...f, other_category_type: e.target.value }))}
+                      required
+                    />
+                  </div>
+                )}
+
+                <div className="mt-4">
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Services Offered <Req /></label>
                   <textarea
                     placeholder="Describe your services..."
