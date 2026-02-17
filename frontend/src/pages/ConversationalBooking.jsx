@@ -153,7 +153,7 @@ export default function ConversationalBooking() {
       <div style={pageStyles.wrapper}>
         <div style={pageStyles.headerSection}>
           <h1 style={pageStyles.title}>
-            Booking Assistant
+            Poison13
           </h1>
           <p style={pageStyles.subtitle}>
             Find and book suppliers and venues through the Solennia platform
