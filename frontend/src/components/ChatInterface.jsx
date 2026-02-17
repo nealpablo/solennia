@@ -36,7 +36,7 @@ export default function ChatInterface({ messages, onSendMessage, isProcessing })
           </div>
           <div>
             <h3 style={styles.headerTitle}>Solennia Booking Assistant</h3>
-            <p style={styles.headerSubtitle}>Vendor Recommendations & Booking</p>
+            <p style={styles.headerSubtitle}>Supplier and Venue Recommendations & Booking</p>
           </div>
         </div>
         <div style={styles.statusBadge}>
