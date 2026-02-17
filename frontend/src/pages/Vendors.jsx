@@ -377,7 +377,7 @@ function VendorCard({ vendor, navigate }) {
         {vendor.Category && (
           <div className="mb-2">
             <span className="inline-block px-2 py-1 bg-[#e8ddae]/50 text-xs rounded-full">
-              {vendor.Category}
+              {(vendor.Category === 'Others' ? vendor.other_category_type : vendor.Category) || vendor.Category}
             </span>
           </div>
         )}

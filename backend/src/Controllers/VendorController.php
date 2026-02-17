@@ -590,6 +590,7 @@ class VendorController
             'listing_id' => $vendorListing->id,
             'business_name' => $vendorListing->business_name,
             'category' => $vendorListing->service_category,
+            'other_category_type' => $vendorListing->other_category_type ?? null,
             'description' => $vendorListing->description ?? '',
             'pricing' => $vendorListing->pricing ?? '',
             'bio' => $vendorListing->description ?? '',

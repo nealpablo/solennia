@@ -46,6 +46,7 @@ return function (App $app) {
                     'v.venue_name as venue_name',
                     'v.venue_name as business_name',
                     'v.venue_subcategory',
+                    'v.other_category_type',
                     'v.description',
                     'v.address',
                     'v.venue_capacity',

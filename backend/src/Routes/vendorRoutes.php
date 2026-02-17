@@ -173,6 +173,7 @@ return function (App $app) {
                 'c.id as UserID',
                 'vl.business_name as BusinessName',
                 'vl.service_category as Category',
+                'vl.other_category_type',
                 'vl.description as Description',
                 'vl.description as bio',
                 'vl.logo as avatar',

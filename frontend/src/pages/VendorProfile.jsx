@@ -248,7 +248,7 @@ export default function VendorProfile() {
       state: {
         vendorUserId: vendorUserId,
         vendorName: vendor.business_name || vendor.BusinessName,
-        serviceName: vendor.business_name || vendor.BusinessName || vendor.category || vendor.Category,
+        serviceName: vendor.business_name || vendor.BusinessName || (vendor.category === 'Others' ? vendor.other_category_type : vendor.category) || vendor.Category,
         listingId: vendor.listing_id || listingId || null
       }
     });
@@ -272,7 +272,8 @@ export default function VendorProfile() {
         vendorContext: {
           vendorId: vendor.UserID || vendor.user_id,
           vendorName: vendorName,
-          category: category
+          vendorName: vendorName,
+          category: (vendor.category === 'Others' ? vendor.other_category_type : vendor.category) || vendor.Category
         }
       }
     });
@@ -338,12 +339,13 @@ export default function VendorProfile() {
     gallery = [],
     firebase_uid,
     user_id,
-    UserID
+    UserID,
+    other_category_type
   } = vendor;
 
   // Handle case variations
   const displayName = business_name || BusinessName || "Vendor";
-  const displayCategory = category || Category || "";
+  const displayCategory = (category === 'Others' ? other_category_type : category) || Category || "";
   const displayAddress = address || BusinessAddress || "";
   const displayBio = bio || description || Description || "This vendor has not provided a full description yet.";
   const displayHero = hero_image_url || HeroImageUrl || "/images/default-hero.jpg";
