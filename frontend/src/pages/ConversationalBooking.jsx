@@ -240,7 +240,7 @@ export default function ConversationalBooking() {
             <div>
               <h1 style={pageStyles.title}>Lenni</h1>
               <p style={pageStyles.subtitle}>
-                Hi, I'm Lenni, your AI booking assistant. How can I help you plan your event?
+                Hi, I'm Lenni, ready to help you plan your event.
               </p>
             </div>
             {/* Clear chat button */}
