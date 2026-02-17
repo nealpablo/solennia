@@ -72,7 +72,7 @@ export default function VenueDetail() {
             location: data.venue.address,
             images: allImages.length > 0 ? allImages : [mainImage],
             capacity: data.venue.venue_capacity || "Not specified",
-            venue_type: (data.venue.venue_subcategory === 'Other' ? data.venue.other_category_type : data.venue.venue_subcategory) || "",
+            venue_type: (['Other', 'Others'].includes(data.venue.venue_subcategory) && data.venue.other_category_type) ? data.venue.other_category_type : (data.venue.venue_subcategory || ""),
             description: data.venue.description || "No description available.",
             amenities: data.venue.venue_amenities
               ? data.venue.venue_amenities.split(',').map(a => a.trim())

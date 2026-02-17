@@ -390,7 +390,7 @@ function VenueCard({ venue, navigate }) {
         {venue.venue_subcategory && (
           <div className="mb-2">
             <span className="inline-block px-2 py-1 bg-[#e8ddae]/50 text-xs rounded-full">
-              {(venue.venue_subcategory === 'Other' ? venue.other_category_type : venue.venue_subcategory) || venue.venue_subcategory}
+              {(['Other', 'Others'].includes(venue.venue_subcategory) && venue.other_category_type) ? venue.other_category_type : venue.venue_subcategory}
             </span>
           </div>
         )}

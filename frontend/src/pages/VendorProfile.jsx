@@ -345,7 +345,8 @@ export default function VendorProfile() {
 
   // Handle case variations
   const displayName = business_name || BusinessName || "Vendor";
-  const displayCategory = (category === 'Others' ? other_category_type : category) || Category || "";
+  const rawCategory = category || Category || "";
+  const displayCategory = (['Others', 'Other'].includes(rawCategory) && other_category_type) ? other_category_type : rawCategory;
   const displayAddress = address || BusinessAddress || "";
   const displayBio = bio || description || Description || "This vendor has not provided a full description yet.";
   const displayHero = hero_image_url || HeroImageUrl || "/images/default-hero.jpg";
