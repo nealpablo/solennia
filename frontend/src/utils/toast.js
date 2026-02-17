@@ -15,7 +15,7 @@ function initToastContainer() {
 // Add toast styles to document
 function addToastStyles() {
   if (document.getElementById('global-toast-styles')) return;
-  
+
   const style = document.createElement('style');
   style.id = 'global-toast-styles';
   style.textContent = `
@@ -113,17 +113,22 @@ function addToastStyles() {
 }
 
 // Show toast notification
-export function showToast(message, type = 'info', duration = 3000) {
+export function showToast(message, type = 'info', durationArg = 3000) {
+  // Handle if duration is passed as an object { duration: 5000 }
+  const duration = (typeof durationArg === 'object' && durationArg !== null)
+    ? (durationArg.duration || 3000)
+    : durationArg;
+
   addToastStyles();
   const container = initToastContainer();
-  
+
   // Create toast element
   const toast = document.createElement('div');
   toast.className = `toast ${type}`;
   toast.textContent = message;
-  
+
   container.appendChild(toast);
-  
+
   // Remove toast after duration
   setTimeout(() => {
     toast.classList.add('hiding');

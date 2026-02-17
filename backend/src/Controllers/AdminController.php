@@ -118,6 +118,15 @@ class AdminController
             $weekAgo = date('Y-m-d', strtotime('-7 days'));
             $monthAgo = date('Y-m-d', strtotime('-1 month'));
 
+            // Status counts for doughnut chart
+            $analytics['completed_bookings'] = DB::table('booking')->where('BookingStatus', 'Completed')->count();
+            $analytics['cancelled_bookings'] = DB::table('booking')->where('BookingStatus', 'Cancelled')->count();
+            $analytics['rejected_bookings']  = DB::table('booking')->where('BookingStatus', 'Rejected')->count();
+
+            // Total Vendors and Venues
+            $analytics['total_vendors'] = DB::table('event_service_provider')->count();
+            $analytics['total_venues'] = DB::table('venue_listings')->count();
+
             $analytics['bookings_this_week'] = DB::table('booking')
                 ->where(function ($q) use ($weekAgo) {
                     $q->where('CreatedAt', '>=', $weekAgo)
@@ -149,9 +158,32 @@ class AdminController
                     ->count();
             }
             $analytics['last_4_weeks'] = $last4Weeks;
+            
+            // Recent system-wide bookings
+            $recentBookings = DB::table('booking')
+                ->leftJoin('credential', 'booking.UserID', '=', 'credential.id')
+                ->select(
+                    'booking.ID', 
+                    'booking.EventDate', 
+                    'booking.BookingStatus', 
+                    'booking.CreatedAt',
+                    'booking.TotalAmount',
+                    'booking.ServiceName',
+                    'credential.username',
+                    'credential.first_name',
+                    'credential.last_name'
+                )
+                ->orderBy('booking.CreatedAt', 'DESC')
+                ->limit(5)
+                ->get()
+                ->map(function ($b) {
+                    $b->client_name = trim(($b->first_name ?? '') . ' ' . ($b->last_name ?? '')) ?: ($b->username ?? 'User');
+                    return $b;
+                });
 
             return $this->json($response, true, "Admin analytics retrieved", 200, [
-                'analytics' => $analytics
+                'analytics' => $analytics,
+                'recent_bookings' => $recentBookings
             ]);
 
         } catch (\Exception $e) {

@@ -6,6 +6,7 @@ import { updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 
 import toast from "../utils/toast";
 import FeedbackModal from "../components/FeedbackModal";
 import BookingAnalyticsChart from "../components/BookingAnalyticsChart";
+import AdminAnalyticsChart from "../components/AdminAnalyticsChart";
 import { useConfirmModal } from "../hooks/useConfirmModal";
 import "../style.css";
 
@@ -95,7 +96,7 @@ export default function Profile() {
   const [availabilityForm, setAvailabilityForm] = useState({
     start_time: "09:00",
     end_time: "17:00",
-    is_available: true,
+    is_available: false,
     notes: ""
   });
   const [editingAvailability, setEditingAvailability] = useState(null);
@@ -109,6 +110,7 @@ export default function Profile() {
   // Analytics Dashboard States
   const [analytics, setAnalytics] = useState(null);
   const [loadingAnalytics, setLoadingAnalytics] = useState(false);
+  const [vendorRecentBookings, setVendorRecentBookings] = useState([]);
 
   // Client Dashboard States
   const [clientAnalytics, setClientAnalytics] = useState(null);
@@ -120,6 +122,7 @@ export default function Profile() {
   // Admin Dashboard States
   const [adminAnalytics, setAdminAnalytics] = useState(null);
   const [loadingAdminAnalytics, setLoadingAdminAnalytics] = useState(false);
+  const [adminRecentBookings, setAdminRecentBookings] = useState([]);
 
   // My Listings (venue CRUD in profile)
   const [showListingModal, setShowListingModal] = useState(false);
@@ -136,11 +139,14 @@ export default function Profile() {
   const [savingService, setSavingService] = useState(false);
 
   /* ================= CALENDAR: FORMAT DATE TO LOCAL TIMEZONE ================= */
+  const toLocalISOString = (date) => {
+    const offset = date.getTimezoneOffset();
+    const localDate = new Date(date.getTime() - (offset * 60 * 1000));
+    return localDate.toISOString().split('T')[0];
+  };
+
   const formatDateToLocal = (date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    return toLocalISOString(date);
   };
 
   /* ================= HELPER TO GET PENDING RESCHEDULE DATA ================= */
@@ -322,15 +328,21 @@ export default function Profile() {
       });
   }, [token, profile?.id]);
 
-  /* ================= LOAD ANALYTICS ON MOUNT ================= */
+  /* ================= LOAD ANALYTICS ON MOUNT & POLL ================= */
   useEffect(() => {
-    if (role === 1) {
-      loadAnalytics();
-    } else if (role === 0) {
-      loadClientAnalytics();
-    } else if (role === 2) {
-      loadAdminAnalytics();
-    }
+    // Initial Load
+    if (role === 1) loadAnalytics();
+    else if (role === 0) loadClientAnalytics();
+    else if (role === 2) loadAdminAnalytics();
+
+    // Polling (every 10 seconds) for real-time updates
+    const interval = setInterval(() => {
+      if (role === 1) loadAnalytics(true);
+      else if (role === 0) loadClientAnalytics(true);
+      else if (role === 2) loadAdminAnalytics(true);
+    }, 10000);
+
+    return () => clearInterval(interval);
   }, [token, role]);
 
   useEffect(() => {
@@ -416,7 +428,13 @@ export default function Profile() {
   };
 
   const deleteVenueListing = async (id) => {
-    const confirmed = await confirm({ title: "Delete this venue listing?", message: "It will no longer appear on the Venues page. This action cannot be undone." }); if (!confirmed) return;
+    const confirmed = await confirm({
+      title: "Delete this venue listing?",
+      message: "It will no longer appear on the Venues page. This action cannot be undone.",
+      confirmText: "Delete",
+      confirmVariant: "danger"
+    });
+    if (!confirmed) return;
     try {
       const res = await fetch(`${API}/venue/listings/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) {
@@ -475,18 +493,18 @@ export default function Profile() {
 
     // 🔧 FIX: Set up polling to detect external updates (other users, other tabs)
     const pollInterval = setInterval(() => {
-      loadAvailability();
+      loadAvailability(true);
     }, 10000); // Poll every 10 seconds when modal is open
 
     // Cleanup interval when modal closes or component unmounts
     return () => clearInterval(pollInterval);
   }, [showCalendarModal, profile?.id, currentMonth, refreshTrigger, selectedVenue, ownedVenues, role]);
 
-  const loadAvailability = async () => {
+  const loadAvailability = async (isBackground = false) => {
     if (!profile?.id) return;
 
     try {
-      setLoadingAvailability(true);
+      if (!isBackground) setLoadingAvailability(true);
       const year = currentMonth.getFullYear();
       const month = currentMonth.getMonth() + 1;
 
@@ -509,7 +527,7 @@ export default function Profile() {
     } catch (err) {
       console.error("Failed to load availability:", err);
     } finally {
-      setLoadingAvailability(false);
+      if (!isBackground) setLoadingAvailability(false);
     }
   };
 
@@ -532,12 +550,18 @@ export default function Profile() {
 
   const isDateBooked = (date) => {
     const dateStr = formatDateToLocal(date);
-    return availability.some(a => a.date === dateStr && !a.is_available);
+    // Check if ANY entry for this date is unavailable/booked
+    return availability.some(a => a.date && a.date.startsWith(dateStr) && !a.is_available);
   };
 
   const isDateAvailable = (date) => {
+    // We no longer support explicit "Available" cells. logic should just return false or checking if NOT unavailable?
+    // But for now, let's keep it consistent: a date is available if it has an entry saying so AND no conflicting unavailable entry
     const dateStr = formatDateToLocal(date);
-    return availability.some(a => a.date === dateStr && a.is_available);
+    const entries = availability.filter(a => a.date && a.date.startsWith(dateStr));
+    const hasUnavailable = entries.some(a => !a.is_available);
+    if (hasUnavailable) return false;
+    return entries.some(a => a.is_available);
   };
 
   const hasBookingOnDate = (date) => {
@@ -554,7 +578,7 @@ export default function Profile() {
     return availability
       .filter(a => {
         const availDate = new Date(a.date);
-        return availDate >= today;
+        return availDate >= today && !a.is_available;
       })
       .sort((a, b) => new Date(a.date) - new Date(b.date))
       .slice(0, 5);
@@ -595,7 +619,7 @@ export default function Profile() {
       setAvailabilityForm({
         start_time: "09:00",
         end_time: "17:00",
-        is_available: true,
+        is_available: false,
         notes: ""
       });
     }
@@ -683,7 +707,14 @@ export default function Profile() {
 
   /* ================= CALENDAR: DELETE AVAILABILITY ================= */
   const deleteAvailability = async (availabilityId) => {
-    const confirmed = await confirm({ title: "Delete this availability entry?", message: "This action cannot be undone." }); if (!confirmed) return;
+    const confirmed = await confirm({
+      title: "Delete this availability entry?",
+      message: "This action cannot be undone.",
+      confirmText: "Delete",
+      cancelText: "Cancel",
+      confirmVariant: "danger"
+    });
+    if (!confirmed) return;
 
     if (!token) {
       toast.error("Please log in");
@@ -724,12 +755,12 @@ export default function Profile() {
     if (!dateString) return { date: 'N/A', time: 'N/A', full: 'N/A' };
 
     const date = new Date(dateString);
-    const dateFormatted = date.toLocaleDateString('en-US', {
+    const dateFormatted = date.toLocaleDateString('en-PH', {
       year: 'numeric',
       month: 'long',
       day: 'numeric'
     });
-    const timeFormatted = date.toLocaleTimeString('en-US', {
+    const timeFormatted = date.toLocaleTimeString('en-PH', {
       hour: '2-digit',
       minute: '2-digit',
       hour12: true
@@ -739,10 +770,10 @@ export default function Profile() {
   };
 
   /* ================= LOAD ANALYTICS ================= */
-  const loadAnalytics = async () => {
+  const loadAnalytics = async (isBackground = false) => {
     if (!token || role !== 1) return; // Only for vendors/venue owners
 
-    setLoadingAnalytics(true);
+    if (!isBackground) setLoadingAnalytics(true);
     try {
       const res = await fetch(`${API}/vendor/analytics`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -751,21 +782,22 @@ export default function Profile() {
       if (res.ok) {
         const data = await res.json();
         setAnalytics(data.analytics);
+        setVendorRecentBookings(data.recent_bookings || []);
       } else {
         console.error('Failed to load analytics:', res.status);
       }
     } catch (err) {
       console.error('Load analytics error:', err);
     } finally {
-      setLoadingAnalytics(false);
+      if (!isBackground) setLoadingAnalytics(false);
     }
   };
 
   /* ================= LOAD CLIENT ANALYTICS ================= */
-  const loadClientAnalytics = async () => {
+  const loadClientAnalytics = async (isBackground = false) => {
     if (!token || role !== 0) return;
 
-    setLoadingClientAnalytics(true);
+    if (!isBackground) setLoadingClientAnalytics(true);
     try {
       const [supplierRes, venueRes] = await Promise.all([
         fetch(`${API}/bookings/user`, { headers: { Authorization: `Bearer ${token}` } }),
@@ -840,15 +872,15 @@ export default function Profile() {
     } catch (error) {
       console.error('Failed to load client analytics:', error);
     } finally {
-      setLoadingClientAnalytics(false);
+      if (!isBackground) setLoadingClientAnalytics(false);
     }
   };
 
   /* ================= LOAD ADMIN ANALYTICS ================= */
-  const loadAdminAnalytics = async () => {
+  const loadAdminAnalytics = async (isBackground = false) => {
     if (!token || role !== 2) return;
 
-    setLoadingAdminAnalytics(true);
+    if (!isBackground) setLoadingAdminAnalytics(true);
     try {
       const res = await fetch(`${API}/admin/analytics`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -857,13 +889,14 @@ export default function Profile() {
       if (res.ok) {
         const data = await res.json();
         setAdminAnalytics(data.analytics);
+        setAdminRecentBookings(data.recent_bookings || []);
       } else {
         console.error('Failed to load admin analytics:', res.status);
       }
     } catch (error) {
       console.error('Failed to load admin analytics:', error);
     } finally {
-      setLoadingAdminAnalytics(false);
+      if (!isBackground) setLoadingAdminAnalytics(false);
     }
   };
 
@@ -932,7 +965,13 @@ export default function Profile() {
 
   /* ================= ACCEPT BOOKING (VENDOR) ================= */
   const acceptBooking = async (bookingId) => {
-    const confirmed = await confirm({ title: 'Accept this booking request?', message: 'This will confirm the booking for the client.' }); if (!confirmed) return;
+    const confirmed = await confirm({
+      title: 'Accept this booking request?',
+      message: 'This will confirm the booking for the client.',
+      confirmText: 'Accept',
+      confirmVariant: 'success'
+    });
+    if (!confirmed) return;
 
     setProcessingBooking(true);
     try {
@@ -964,7 +1003,13 @@ export default function Profile() {
 
   /* ================= REJECT BOOKING (VENDOR) ================= */
   const rejectBooking = async (bookingId) => {
-    const confirmed = await confirm({ title: 'Reject this booking request?', message: 'This will decline the booking request.' }); if (!confirmed) return;
+    const confirmed = await confirm({
+      title: 'Reject this booking request?',
+      message: 'This will decline the booking request.',
+      confirmText: 'Reject',
+      confirmVariant: 'danger'
+    });
+    if (!confirmed) return;
 
     // Show custom modal for rejection reason
     setRejectModal({ show: true, bookingId, reason: "" });
@@ -1011,7 +1056,13 @@ export default function Profile() {
 
   /* =================  COMPLETE BOOKING (VENDOR) ================= */
   const completeBooking = async (bookingId) => {
-    const confirmed = await confirm({ title: 'Mark this booking as completed?', message: 'The client will be able to leave a review.' }); if (!confirmed) return;
+    const confirmed = await confirm({
+      title: 'Mark this booking as completed?',
+      message: 'The client will be able to leave a review.',
+      confirmText: 'Complete',
+      confirmVariant: 'success'
+    });
+    if (!confirmed) return;
 
     setProcessingBooking(true);
     try {
@@ -1042,7 +1093,13 @@ export default function Profile() {
 
   /* ================= CANCEL BOOKING (CLIENT) ================= */
   const cancelBooking = async (bookingId) => {
-    const confirmed = await confirm({ title: 'Cancel this booking?', message: 'This action cannot be undone.' }); if (!confirmed) return;
+    const confirmed = await confirm({
+      title: 'Cancel this booking?',
+      message: 'This action cannot be undone.',
+      confirmText: 'Cancel Booking',
+      confirmVariant: 'danger'
+    });
+    if (!confirmed) return;
 
     setProcessingBooking(true);
     try {
@@ -1406,13 +1463,7 @@ export default function Profile() {
     if (role === 1) {
       const isVenue = vendorStatus?.category?.toLowerCase() === "venue";
 
-      // Check if vendor needs profile setup
-      if (vendorStatus && vendorStatus.needs_setup) {
-        // For venues, redirect to manage-listings to create venue listing
-        // For vendors, redirect to vendor-profile-setup
-        return isVenue ? "/manage-listings?venue" : "/vendor-profile-setup";
-      }
-      // Both venue and vendor redirect to manage-listings with appropriate query param
+      // Always redirect to manage-listings, whether creating first listing or using existing
       return isVenue ? "/manage-listings?venue" : "/manage-listings?vendor";
     }
     return null;
@@ -1822,29 +1873,7 @@ export default function Profile() {
                               <p className="text-[10px] text-gray-500 mb-2 line-clamp-1">{vendorStatus.category || "Vendor"}</p>
                             </>
                           )}
-                          <button
-                            onClick={() => {
-                              if (vendorStatus.category?.toLowerCase() === "venue") {
-                                // For venues, open the listing modal or navigate to manage
-                                if (ownedVenues.length > 0) {
-                                  openEditListing(ownedVenues[0]);
-                                } else {
-                                  setShowListingModal(true);
-                                }
-                              } else {
-                                setServiceForm({
-                                  bio: vendorStatus.bio || "",
-                                  services: vendorStatus.services || "",
-                                  service_areas: vendorStatus.service_areas || "",
-                                  address: vendorStatus.address || vendorStatus.business_address || ""
-                                });
-                                setShowServiceModal(true);
-                              }
-                            }}
-                            className="w-full bg-[#e8ddae] text-[#3b2f25] px-2 py-1.5 rounded text-xs font-semibold hover:bg-[#dbcf9f] transition-colors mb-1"
-                          >
-                            {vendorStatus.category?.toLowerCase() === "venue" ? (ownedVenues.length > 0 ? "Edit Venue" : "Add Venue") : "Edit Listing Details"}
-                          </button>
+
                         </div>
                       )}
                     </div>
@@ -1997,6 +2026,72 @@ export default function Profile() {
                           <div className="mt-4">
                             <BookingAnalyticsChart analytics={analytics} />
                           </div>
+
+                          {/* Recent Booking Activity - aligned with Client Dashboard */}
+                          <div className="mt-6">
+                            <div className="bg-white rounded-xl shadow-sm border border-[#c9bda4] p-6">
+                              <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-lg font-semibold text-[#5b4636]">Recent Booking Activity</h3>
+                                <span className="text-xs text-gray-500">Last 5 bookings</span>
+                              </div>
+
+                              {!vendorRecentBookings || vendorRecentBookings.length === 0 ? (
+                                <div className="text-center py-8 text-gray-500">
+                                  <p>No recent booking activity</p>
+                                </div>
+                              ) : (
+                                <div className="space-y-4">
+                                  {vendorRecentBookings.map((booking, idx) => {
+                                    const statusColors = {
+                                      Pending: "bg-yellow-100 text-yellow-800 border-yellow-200",
+                                      Confirmed: "bg-green-100 text-green-800 border-green-200",
+                                      Completed: "bg-blue-100 text-blue-800 border-blue-200",
+                                      Cancelled: "bg-red-100 text-red-800 border-red-200",
+                                      Rejected: "bg-gray-100 text-gray-800 border-gray-200",
+                                    };
+                                    const statusColor = statusColors[booking.BookingStatus] || "bg-gray-100 text-gray-800 border-gray-200";
+
+                                    return (
+                                      <div key={idx} className="flex flex-col gap-2 p-3 rounded-lg border border-gray-100 hover:border-[#e8ddae] hover:bg-[#fdfaf5] transition-colors">
+                                        <div className="flex items-start justify-between">
+                                          <div className="flex items-start gap-3">
+                                            <div className={`w-2 h-2 mt-2 rounded-full ${booking.BookingStatus === 'Confirmed' ? 'bg-green-500' :
+                                              booking.BookingStatus === 'Pending' ? 'bg-yellow-500' :
+                                                booking.BookingStatus === 'Cancelled' ? 'bg-red-500' : 'bg-gray-400'
+                                              }`}></div>
+                                            <div>
+                                              <p className="font-medium text-[#5b4636] text-sm">
+                                                {booking.client_name || "Client"}
+                                              </p>
+                                              <p className="text-xs text-[#7a5d47] font-medium mt-0.5">
+                                                {booking.ServiceName || "Service"}
+                                              </p>
+                                              <p className="text-xs text-gray-500 mt-0.5">
+                                                Event: {formatDateTime(booking.EventDate).full}
+                                              </p>
+                                            </div>
+                                          </div>
+                                          <div className="text-right">
+                                            <span className={`text-[10px] px-2 py-0.5 rounded-full border font-medium ${statusColor}`}>
+                                              {booking.BookingStatus}
+                                            </span>
+                                            <p className="text-sm font-bold text-[#5b4636] mt-1">
+                                              ₱{parseFloat(booking.TotalAmount || 0).toLocaleString()}
+                                            </p>
+                                          </div>
+                                        </div>
+                                        <div className="text-right">
+                                          <p className="text-[10px] text-gray-400">
+                                            Booked: {formatDateTime(booking.CreatedAt).date}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          </div>
                         </>
                       ) : role === 0 ? (
                         /* CLIENT DASHBOARD ANALYTICS */
@@ -2099,7 +2194,7 @@ export default function Profile() {
                                             <div className="flex-1">
                                               <p className="font-semibold text-gray-900 text-sm">{booking.service_name || 'N/A'}</p>
                                               <p className="text-xs text-gray-600 mt-1">
-                                                {new Date(booking.EventDate || booking.start_date).toLocaleDateString()}
+                                                {formatDateTime(booking.EventDate || booking.start_date).full}
                                               </p>
                                             </div>
                                             <span className={`text-xs px-2 py-1 rounded-full font-medium ${getClientBookingStatusClass(booking.BookingStatus)}`}>
@@ -2359,7 +2454,7 @@ export default function Profile() {
                         </div>
                       ) : adminAnalytics ? (
                         <>
-                          <div className="grid grid-cols-2 gap-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                             <div className="bg-white rounded-xl p-3 border border-[#c9bda4] shadow-sm hover:shadow-md hover:border-[#7a5d47] transition-all">
                               <div className="flex items-center justify-between mb-1">
                                 <h3 className="text-xs font-semibold text-[#5b4636] uppercase tracking-wide">Users</h3>
@@ -2368,24 +2463,100 @@ export default function Profile() {
                                 </svg>
                               </div>
                               <p className="text-2xl font-bold text-[#7a5d47]">{adminAnalytics.total_users}</p>
-                              <p className="text-xs text-gray-600 mt-0.5">All registered users</p>
+                              <p className="text-xs text-gray-600 mt-0.5">Registered users</p>
                             </div>
 
                             <div className="bg-white rounded-xl p-3 border border-[#c9bda4] shadow-sm hover:shadow-md hover:border-[#7a5d47] transition-all">
                               <div className="flex items-center justify-between mb-1">
-                                <h3 className="text-xs font-semibold text-[#5b4636] uppercase tracking-wide">Providers</h3>
+                                <h3 className="text-xs font-semibold text-[#5b4636] uppercase tracking-wide">Vendors</h3>
                                 <svg className="w-5 h-5 text-[#7a5d47]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                                 </svg>
                               </div>
-                              <p className="text-2xl font-bold text-[#7a5d47]">{adminAnalytics.total_providers}</p>
-                              <p className="text-xs text-gray-600 mt-0.5">Active service providers</p>
+                              <p className="text-2xl font-bold text-[#7a5d47]">{adminAnalytics.total_vendors || 0}</p>
+                              <p className="text-xs text-gray-600 mt-0.5">Service providers</p>
+                            </div>
+
+                            <div className="bg-white rounded-xl p-3 border border-[#c9bda4] shadow-sm hover:shadow-md hover:border-[#7a5d47] transition-all">
+                              <div className="flex items-center justify-between mb-1">
+                                <h3 className="text-xs font-semibold text-[#5b4636] uppercase tracking-wide">Venues</h3>
+                                <svg className="w-5 h-5 text-[#7a5d47]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                                </svg>
+                              </div>
+                              <p className="text-2xl font-bold text-[#7a5d47]">{adminAnalytics.total_venues || 0}</p>
+                              <p className="text-xs text-gray-600 mt-0.5">Listed venues</p>
                             </div>
                           </div>
 
-                          {/* Booking Analytics Chart - same as client */}
-                          <div className="mt-4">
-                            <BookingAnalyticsChart analytics={adminAnalytics} />
+                          {/* Platform Overview Chart */}
+                          <div className="mb-6">
+                            <AdminAnalyticsChart analytics={adminAnalytics} />
+                          </div>
+
+                          {/* Recent System Activity - Admin */}
+                          <div className="mt-6">
+                            <div className="bg-white rounded-xl shadow-sm border border-[#c9bda4] p-6">
+                              <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-lg font-semibold text-[#5b4636]">Recent System Activity</h3>
+                                <span className="text-xs text-gray-500">Last 5 bookings system-wide</span>
+                              </div>
+
+                              {!adminRecentBookings || adminRecentBookings.length === 0 ? (
+                                <div className="text-center py-8 text-gray-500">
+                                  <p>No recent activity</p>
+                                </div>
+                              ) : (
+                                <div className="space-y-4">
+                                  {adminRecentBookings.map((booking, idx) => {
+                                    const statusColors = {
+                                      Pending: "bg-yellow-100 text-yellow-800 border-yellow-200",
+                                      Confirmed: "bg-green-100 text-green-800 border-green-200",
+                                      Completed: "bg-blue-100 text-blue-800 border-blue-200",
+                                      Cancelled: "bg-red-100 text-red-800 border-red-200",
+                                      Rejected: "bg-gray-100 text-gray-800 border-gray-200",
+                                    };
+                                    const statusColor = statusColors[booking.BookingStatus] || "bg-gray-100 text-gray-800 border-gray-200";
+
+                                    return (
+                                      <div key={idx} className="flex flex-col gap-2 p-3 rounded-lg border border-gray-100 hover:border-[#e8ddae] hover:bg-[#fdfaf5] transition-colors">
+                                        <div className="flex items-start justify-between">
+                                          <div className="flex items-start gap-3">
+                                            <div className="w-8 h-8 rounded-full bg-[#f6f0e8] flex items-center justify-center text-[#7a5d47] text-xs font-bold">
+                                              {(booking.client_name || "U")[0]}
+                                            </div>
+                                            <div>
+                                              <p className="font-medium text-[#5b4636] text-sm">
+                                                {booking.client_name || "User"}
+                                              </p>
+                                              <p className="text-xs text-[#7a5d47] font-medium mt-0.5">
+                                                {booking.ServiceName || "Service"}
+                                              </p>
+                                              <p className="text-xs text-gray-500">
+                                                Event: {formatDateTime(booking.EventDate).full}
+                                              </p>
+                                            </div>
+                                          </div>
+                                          <div className="text-right">
+                                            <span className={`text-[10px] px-2 py-0.5 rounded-full border font-medium ${statusColor}`}>
+                                              {booking.BookingStatus}
+                                            </span>
+                                            <p className="text-sm font-bold text-[#5b4636] mt-1">
+                                              ₱{parseFloat(booking.TotalAmount || 0).toLocaleString()}
+                                            </p>
+                                          </div>
+                                        </div>
+                                        <div className="text-right">
+                                          <p className="text-[10px] text-gray-400">
+                                            Booked: {formatDateTime(booking.CreatedAt).date}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </>
                       ) : (
@@ -3744,33 +3915,41 @@ export default function Profile() {
                 const upcomingAvailability = getUpcomingAvailability();
                 return upcomingAvailability.length > 0 && (
                   <div className="bg-white border border-gray-200 rounded-lg p-4 mb-6">
-                    <h4 className="font-semibold text-gray-700 mb-3">Your Upcoming Availability:</h4>
+                    <h4 className="font-semibold text-gray-700 mb-3">Upcoming Bookings & Unavailable Dates:</h4>
                     <div className="space-y-2">
                       {upcomingAvailability.map((avail, index) => (
                         <div
                           key={index}
-                          className={`p-3 rounded-lg border ${avail.is_available
+                          className={`p-3 rounded-lg border ${avail.source === 'booking'
                             ? 'bg-green-50 border-green-200'
-                            : 'bg-red-50 border-red-200'
+                            : avail.is_available
+                              ? 'bg-white border-gray-200'
+                              : 'bg-red-50 border-red-200'
                             }`}
                         >
                           <div className="flex justify-between items-center">
                             <div>
-                              <p className="font-medium">
-                                {avail.is_available ? '✓' : '✕'} {formatDate(avail.date)}
+                              <p className="font-medium flex items-center gap-2">
+                                {/* Icon: Check for Booking, X for Unavailable */}
+                                <span className={avail.source === 'booking' ? 'text-green-600' : 'text-red-600'}>
+                                  {avail.source === 'booking' ? '✓' : '✕'}
+                                </span>
+                                {formatDate(avail.date)}
                               </p>
-                              <p className="text-sm text-gray-600">
-                                {avail.start_time?.substring(0, 5)} - {avail.end_time?.substring(0, 5)}
+                              <p className="text-sm text-gray-600 pl-6">
+                                {avail.start_time
+                                  ? `${avail.start_time.substring(0, 5)} - ${avail.end_time ? avail.end_time.substring(0, 5) : ''}`
+                                  : (avail.event_time || avail.EventTime || 'All Day')}
                               </p>
                               {avail.notes && (
-                                <p className="text-xs text-gray-500 mt-1">{avail.notes}</p>
+                                <p className="text-xs text-gray-500 mt-1 pl-6">{avail.notes}</p>
                               )}
                             </div>
-                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${avail.is_available
-                              ? 'bg-green-500 text-white'
-                              : 'bg-red-500 text-white'
+                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${avail.source === 'booking'
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-red-100 text-red-800'
                               }`}>
-                              {avail.is_available ? 'Available' : 'Booked'}
+                              {avail.source === 'booking' ? 'Booked' : 'Unavailable'}
                             </span>
                           </div>
                         </div>
@@ -3811,10 +3990,6 @@ export default function Profile() {
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 rounded-full bg-[#e5e0d5] border border-[#c9bda4]"></div>
                     <span>Unavailable/Booked</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-[#e8ddae] border border-[#7a5d47]"></div>
-                    <span>Available</span>
                   </div>
                 </div>
 
@@ -3863,16 +4038,14 @@ export default function Profile() {
                             ? 'bg-[#f0ebe0] opacity-50 cursor-not-allowed border-transparent'
                             : isBooking || isBooked
                               ? 'bg-[#e5e0d5] border-[#c9bda4] text-[#7a5d47]'
-                              : isAvailable
-                                ? 'bg-[#e8ddae] border-[#7a5d47] text-[#5d4436] font-semibold'
-                                : 'bg-white border-[#e8ddae] hover:border-[#7a5d47] hover:bg-[#fcfbf9]'
+                              : 'bg-white border-[#e8ddae] hover:border-[#7a5d47] hover:bg-[#fcfbf9]'
                             } ${isToday ? 'ring-2 ring-[#7a5d47]' : ''}`}
-                          title={isBooking ? 'Booked' : availabilityData.length > 0 ? `${availabilityData[0].is_available ? 'Available' : 'Unavailable'}` : 'Click to set availability'}
+                          title={isBooking ? 'Booked' : isBooked ? 'Unavailable' : 'Click to set unavailable'}
                         >
                           <span className="font-semibold">{day}</span>
-                          {availabilityData.length > 0 && (
+                          {availabilityData.length > 0 && (hasBookingOnDate(date) || !availabilityData[0].is_available) && (
                             <span className="text-xs mt-1 font-bold">
-                              {isBooking ? '✓' : availabilityData[0].is_available ? '✓' : '✕'}
+                              {isBooking ? '✓' : '✕'}
                             </span>
                           )}
                         </div>
@@ -3915,27 +4088,9 @@ export default function Profile() {
             <form onSubmit={saveAvailability} className="p-6">
               <div className="mb-4">
                 <label className="block text-sm font-semibold mb-2">Status</label>
-                <div className="flex gap-4">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="is_available"
-                      checked={availabilityForm.is_available === true}
-                      onChange={() => setAvailabilityForm({ ...availabilityForm, is_available: true })}
-                      className="w-4 h-4"
-                    />
-                    <span>Available</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="is_available"
-                      checked={availabilityForm.is_available === false}
-                      onChange={() => setAvailabilityForm({ ...availabilityForm, is_available: false })}
-                      className="w-4 h-4"
-                    />
-                    <span>Booked/Unavailable</span>
-                  </label>
+                <div className="p-3 bg-gray-100 rounded-lg border border-gray-200 text-gray-600 text-sm font-medium flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                  Unavailable / Booked
                 </div>
               </div>
 

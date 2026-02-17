@@ -279,7 +279,7 @@ export default function ManageListings() {
       }
     } else {
       setForm({
-        venue_name: item.venue_name || "",
+        venue_name: item.venue_name || item.business_name || "",
         region: item.region || "",
         city: item.city || "",
         specific_address: item.specific_address || "",
@@ -601,7 +601,7 @@ export default function ManageListings() {
                 {listings.map((item, idx) => {
                   const keyId = item.id || idx;
                   const thumb = item.icon_url || item.logo || item.portfolio || item.hero_image || item.HeroImageUrl || (Array.isArray(item.gallery) && item.gallery[0]) || null;
-                  const name = item.venue_name || item.name || item.BusinessName || "Untitled";
+                  const name = item.venue_name || item.name || item.BusinessName || item.business_name || "Untitled";
                   const desc = (item.description || item.services || "").slice(0, 120);
 
                   return (

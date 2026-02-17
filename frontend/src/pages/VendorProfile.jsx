@@ -37,11 +37,17 @@ export default function VendorProfile() {
   /* =========================
      FORMAT DATE TO LOCAL TIMEZONE
   ========================= */
+  /* =========================
+     FORMAT DATE TO LOCAL TIMEZONE
+  ========================= */
+  const toLocalISOString = (date) => {
+    const offset = date.getTimezoneOffset();
+    const localDate = new Date(date.getTime() - (offset * 60 * 1000));
+    return localDate.toISOString().split('T')[0];
+  };
+
   const formatDateToLocal = (date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    return toLocalISOString(date);
   };
 
   /* =========================
@@ -193,24 +199,28 @@ export default function VendorProfile() {
     return manualAvail;
   };
 
-  const isDateBooked = (date) => {
-    const dateStr = formatDateToLocal(date);
-    // Check if date is marked as unavailable in the availability data
-    // This includes both manual unavailability and bookings (source: 'booking')
-    return availability.some(a => a.date === dateStr && !a.is_available);
-  };
-
-  // All dates are available by default unless marked as unavailable
-  const isDateAvailable = (date) => {
-    const dateStr = formatDateToLocal(date);
-    // Check if date has availability marked as available
-    return availability.some(a => a.date === dateStr && a.is_available);
-  };
-
   const hasBookingOnDate = (date) => {
     const dateStr = formatDateToLocal(date);
-    // Check if the date has a booking (source: 'booking' from backend)
-    return availability.some(a => a.date === dateStr && !a.is_available && a.source === 'booking');
+    // Check if the date has a booking from the separate bookings state
+    return vendorBookings.some(b => {
+      const d = b.event_date || b.EventDate;
+      return d && d.startsWith(dateStr);
+    });
+  };
+
+  const isDateAvailable = (date) => {
+    const dateStr = formatDateToLocal(date);
+    const entries = availability.filter(a => a.date && a.date.startsWith(dateStr));
+    const hasUnavailable = entries.some(a => !a.is_available);
+    if (hasUnavailable) return false;
+    return entries.some(a => a.is_available);
+  };
+
+  const isDateBooked = (date) => {
+    const dateStr = formatDateToLocal(date);
+    // Check availability (manual) OR separate bookings
+    const isManualUnavailable = availability.some(a => a.date && a.date.startsWith(dateStr) && !a.is_available);
+    return isManualUnavailable || hasBookingOnDate(date);
   };
 
   /* =========================
@@ -220,7 +230,7 @@ export default function VendorProfile() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const manualUpcoming = availability.filter(a => new Date(a.date) >= today);
+    const manualUpcoming = availability.filter(a => new Date(a.date) >= today && !a.is_available);
     const bookingsUpcoming = vendorBookings.map(b => ({
       id: `booking-${b.ID || b.id}`,
       date: (b.event_date || b.EventDate || '').split('T')[0],
@@ -584,7 +594,7 @@ export default function VendorProfile() {
                         alt={`Gallery image ${i + 1}`}
                         className="w-full h-full object-cover hover:scale-110 transition-transform duration-300"
                         onError={(e) => {
-                                  e.target.src = "/images/placeholder.svg";
+                          e.target.src = "/images/placeholder.svg";
                           e.target.style.cursor = "default";
                           e.target.onclick = null;
                         }}
@@ -672,10 +682,6 @@ export default function VendorProfile() {
                     <span className="legend-dot legend-booked"></span>
                     <span>Unavailable/Booked</span>
                   </div>
-                  <div className="legend-item">
-                    <span className="legend-dot legend-available"></span>
-                    <span>Available</span>
-                  </div>
                 </div>
 
                 <div className="calendar-weekdays">
@@ -719,9 +725,9 @@ export default function VendorProfile() {
                         <span className="calendar-day-number">{day}</span>
                         {hasBooking ? (
                           <div className="calendar-day-indicator">✓</div>
-                        ) : availabilityData.length > 0 && (
+                        ) : availabilityData.length > 0 && !availabilityData[0].is_available && (
                           <div className="calendar-day-indicator">
-                            {availabilityData[0].is_available ? '✓' : '✕'}
+                            ✕
                           </div>
                         )}
                       </div>

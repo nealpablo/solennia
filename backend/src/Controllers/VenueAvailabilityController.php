@@ -6,19 +6,10 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Illuminate\Database\Capsule\Manager as DB;
 
-/**
- * Venue Availability Controller
- * Mirrors VendorAvailabilityController for venues.
- * - GET: Public, returns availability + merged booking dates (booked = unavailable)
- * - POST/PATCH/DELETE: Venue owner only, cannot edit booked dates
- */
+
 class VenueAvailabilityController
 {
-    /**
-     * Get availability for a venue (PUBLIC)
-     * Merges venue_availability with booking table - booked dates shown as unavailable
-     * GET /api/venue/availability/{venue_id}?year=2025&month=2
-     */
+  
     public function index(Request $request, Response $response, array $args)
     {
         $venueId = (int) ($args['venue_id'] ?? 0);
@@ -85,14 +76,31 @@ class VenueAvailabilityController
 
         $bookedDates = [];
         foreach ($bookings as $b) {
-            $start = new \DateTime($b->start_date);
-            $end = new \DateTime($b->end_date);
-            $end->modify('+1 day');
-            $interval = new \DateInterval('P1D');
-            $period = new \DatePeriod($start, $interval, $end);
-            foreach ($period as $d) {
-                $ds = $d->format('Y-m-d');
-                $bookedDates[$ds] = true;
+            // Safety check for missing dates
+            if (empty($b->start_date) || empty($b->end_date)) continue;
+
+            try {
+                $start = new \DateTime($b->start_date);
+                $end = new \DateTime($b->end_date);
+
+                // FIX: Handle inverted dates (start > end) to prevent DatePeriod exception
+                if ($start > $end) {
+                    $temp = $start;
+                    $start = $end;
+                    $end = $temp;
+                }
+
+                $end->modify('+1 day');
+                $interval = new \DateInterval('P1D');
+                $period = new \DatePeriod($start, $interval, $end);
+                foreach ($period as $d) {
+                    $ds = $d->format('Y-m-d');
+                    $bookedDates[$ds] = true;
+                }
+            } catch (\Exception $e) {
+                // Log invalid date error but don't crash the request
+                error_log("Date parsing error for booking ID {$b->ID}: " . $e->getMessage());
+                continue;
             }
         }
 

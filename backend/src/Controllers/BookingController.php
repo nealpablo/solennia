@@ -6,19 +6,7 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Illuminate\Database\Capsule\Manager as DB;
 
-/**
- * ============================================
- * BOOKING CONTROLLER - COMPLETE UNIFIED FIX
- * ============================================
- * FIXED VERSION - Vendors now see BOTH:
- * - Supplier service bookings
- * - Venue bookings for venues they own
- * 
- * Each booking tagged with 'booking_type'
- * + Reschedule support
- * + Complete booking support (UC08)
- * ============================================
- */
+
 class BookingController
 {
     private function json(Response $res, array $data, int $status = 200): Response
@@ -88,6 +76,53 @@ class BookingController
                 ->where('ApplicationStatus', 'Approved')
                 ->first();
 
+            // JIT FIX: If vendor is not found in event_service_provider, check if they are actually approved in vendor_application/credential
+            if (!$eventServiceProvider) {
+                $isApprovedVendor = false;
+                
+                // Check vendor_application
+                $vendorApp = DB::table('vendor_application')
+                    ->where('user_id', $vendorUserId)
+                    ->where('status', 'Approved')
+                    ->first();
+                    
+                if ($vendorApp) {
+                    $isApprovedVendor = true;
+                } else {
+                    // Fallback: Check credential role
+                    $cred = DB::table('credential')->where('id', $vendorUserId)->first();
+                    if ($cred && $cred->role == 1) {
+                        $isApprovedVendor = true;
+                    }
+                }
+
+                if ($isApprovedVendor) {
+                    error_log("JIT_FIX: Creating missing profile for Approved Vendor ID: {$vendorUserId}");
+                    
+                    // Create minimal profile
+                    $businessName = $vendorApp->business_name ?? ($cred->username ?? 'Vendor');
+                    $businessEmail = $vendorApp->contact_email ?? ($cred->email ?? '');
+                    $category = $vendorApp->category ?? 'General';
+                    
+                    $newProfileId = DB::table('event_service_provider')->insertGetId([
+                        'UserID' => $vendorUserId,
+                        'BusinessName' => $businessName,
+                        'Category' => $category,
+                        'BusinessEmail' => $businessEmail,
+                        'ApplicationStatus' => 'Approved',
+                        'Description' => $vendorApp->description ?? 'Auto-generated profile',
+                        'Pricing' => $vendorApp->pricing ?? '',
+                        'DateApproved' => date('Y-m-d H:i:s'),
+                        'verification_score' => 50
+                    ]);
+                    
+                    // Fetch the newly created profile
+                    $eventServiceProvider = DB::table('event_service_provider')
+                        ->where('ID', $newProfileId)
+                        ->first();
+                }
+            }
+
             if (!$eventServiceProvider) {
                 return $this->json($res, [
                     'success' => false,
@@ -95,6 +130,7 @@ class BookingController
                 ], 404);
             }
 
+            // Check for existing booking conflict
             $existingBooking = DB::table('booking')
                 ->where('EventServiceProviderID', $eventServiceProvider->ID)
                 ->where('EventDate', $eventDate)

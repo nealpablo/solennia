@@ -1264,8 +1264,35 @@ class VendorController
                 $analytics['last_4_weeks'] = $last4Weeks;
             }
 
+            // Get recent bookings (last 5)
+            $recentBookings = [];
+            if ($espId || !empty($venueIds)) {
+                $recentBookings = DB::table('booking')
+                    ->where($scopeFilter)
+                    ->leftJoin('credential', 'booking.UserID', '=', 'credential.id')
+                    ->select(
+                        'booking.ID', 
+                        'booking.EventDate', 
+                        'booking.BookingStatus', 
+                        'booking.CreatedAt',
+                        'booking.TotalAmount',
+                        'booking.ServiceName',
+                        'credential.first_name', 
+                        'credential.last_name', 
+                        'credential.username'
+                    )
+                    ->orderBy('booking.CreatedAt', 'DESC')
+                    ->limit(5)
+                    ->get()
+                    ->map(function ($b) {
+                        $b->client_name = trim(($b->first_name ?? '') . ' ' . ($b->last_name ?? '')) ?: ($b->username ?? 'Client');
+                        return $b;
+                    });
+            }
+
             return $this->json($response, true, "Analytics retrieved", 200, [
-                'analytics' => $analytics
+                'analytics' => $analytics,
+                'recent_bookings' => $recentBookings
             ]);
 
         } catch (\Exception $e) {

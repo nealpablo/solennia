@@ -184,6 +184,33 @@ return function (App $app) {
                     ->where('id', $appRow->id)
                     ->update(['status' => 'Approved']);
 
+                // Create initial event_service_provider record if it doesn't exist
+                $existingProfile = DB::table('event_service_provider')
+                    ->where('UserID', $appRow->user_id)
+                    ->first();
+
+                if (!$existingProfile) {
+                    DB::table('event_service_provider')->insert([
+                        'UserID' => $appRow->user_id,
+                        'BusinessName' => $appRow->business_name,
+                        'Category' => $appRow->category,
+                        'BusinessEmail' => $appRow->contact_email ?? $businessEmail,
+                        'BusinessAddress' => $appRow->address,
+                        'Description' => $appRow->description,
+                        'Pricing' => $appRow->pricing,
+                        'ApplicationStatus' => 'Approved',
+                        // Map new fields
+                        'region' => $appRow->region,
+                        'city' => $appRow->city,
+                        'contact_number' => $appRow->contact_number,
+                        // Initialize required fields with defaults if null
+                        'bio' => $appRow->description ?? 'Welcome to my business!',
+                        'services' => $appRow->category ?? 'General Services',
+                        'verification_score' => 50, // Base score for approved vendors
+                        'DateApproved' => date('Y-m-d H:i:s')
+                    ]);
+                }
+
                 // Send approval notification
                 $sendNotification(
                     $appRow->user_id,

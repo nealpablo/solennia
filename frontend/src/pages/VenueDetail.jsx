@@ -160,11 +160,17 @@ export default function VenueDetail() {
   /* =========================
      CALENDAR HELPERS
   ========================= */
+  /* =========================
+     CALENDAR HELPERS
+  ========================= */
+  const toLocalISOString = (date) => {
+    const offset = date.getTimezoneOffset();
+    const localDate = new Date(date.getTime() - (offset * 60 * 1000));
+    return localDate.toISOString().split('T')[0];
+  };
+
   const formatDateToLocal = (date) => {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
+    return toLocalISOString(date);
   };
 
   const getAvailabilityForDate = (date) => {
@@ -174,21 +180,24 @@ export default function VenueDetail() {
 
   const isDateBooked = (date) => {
     const dateStr = formatDateToLocal(date);
-    return availability.some((a) => a.date === dateStr && !a.is_available);
+    // Check if ANY entry for this date is unavailable/booked
+    return availability.some((a) => a.date && a.date.startsWith(dateStr) && !a.is_available);
   };
 
   // All dates are available by default unless marked as unavailable
   const isDateAvailable = (date) => {
     const dateStr = formatDateToLocal(date);
-    // Return TRUE unless there's an availability record marking it as unavailable
-    return !availability.some((a) => a.date === dateStr && !a.is_available);
+    const entries = availability.filter(a => a.date && a.date.startsWith(dateStr));
+    const hasUnavailable = entries.some(a => !a.is_available);
+    if (hasUnavailable) return false;
+    return entries.some(a => a.is_available);
   };
 
   const getUpcomingAvailability = () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     return availability
-      .filter((a) => new Date(a.date) >= today)
+      .filter((a) => new Date(a.date) >= today && !a.is_available)
       .sort((a, b) => new Date(a.date) - new Date(b.date))
       .slice(0, 5);
   };
@@ -570,13 +579,11 @@ export default function VenueDetail() {
                         <button type="button" onClick={nextMonth} className="calendar-nav-btn">→</button>
                       </div>
                       <div className="calendar-legend">
-                        <div className="legend-item">
-                          <span className="legend-dot legend-booked"></span>
-                          <span>Unavailable</span>
-                        </div>
-                        <div className="legend-item">
-                          <span className="legend-dot legend-available"></span>
-                          <span>Booked</span>
+                        <div className="calendar-legend">
+                          <div className="legend-item">
+                            <span className="legend-dot legend-booked"></span>
+                            <span>Unavailable/Booked</span>
+                          </div>
                         </div>
                       </div>
                       <div className="calendar-weekdays">
@@ -610,9 +617,9 @@ export default function VenueDetail() {
                               }
                             >
                               <span className="calendar-day-number">{day}</span>
-                              {availabilityData.length > 0 && (
+                              {availabilityData.length > 0 && !availabilityData[0].is_available && (
                                 <div className="calendar-day-indicator">
-                                  {availabilityData[0].is_available ? '✓' : '✕'}
+                                  ✕
                                 </div>
                               )}
                             </div>

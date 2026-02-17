@@ -8,11 +8,7 @@ use Illuminate\Database\Capsule\Manager as DB;
 
 class VendorAvailabilityController
 {
-    /**
-     * Get availability for a vendor (PUBLIC - no auth)
-     * Merges vendor_availability with booking table - booked dates shown as unavailable
-     * GET /api/vendor/availability/{vendor_id}?year=2025&month=2
-     */
+ 
     public function index(Request $request, Response $response, array $args)
     {
         $vendorId = $args['vendor_id'] ?? null;
@@ -108,19 +104,32 @@ class VendorAvailabilityController
             
             $bookedDates = [];
             foreach ($bookings as $b) {
-                // Handle both EventDate (single day) and start_date/end_date (multi-day)
-                if ($b->start_date && $b->end_date) {
-                    $start = new \DateTime($b->start_date);
-                    $end = new \DateTime($b->end_date);
-                    $end->modify('+1 day');
-                    $interval = new \DateInterval('P1D');
-                    $period = new \DatePeriod($start, $interval, $end);
-                    foreach ($period as $d) {
-                        $ds = $d->format('Y-m-d');
-                        $bookedDates[$ds] = true;
+                try {
+                    // Handle both EventDate (single day) and start_date/end_date (multi-day)
+                    if (!empty($b->start_date) && !empty($b->end_date)) {
+                        $start = new \DateTime($b->start_date);
+                        $end = new \DateTime($b->end_date);
+                        
+                        // FIX: Handle inverted dates
+                        if ($start > $end) {
+                            $temp = $start;
+                            $start = $end;
+                            $end = $temp;
+                        }
+
+                        $end->modify('+1 day');
+                        $interval = new \DateInterval('P1D');
+                        $period = new \DatePeriod($start, $interval, $end);
+                        foreach ($period as $d) {
+                            $ds = $d->format('Y-m-d');
+                            $bookedDates[$ds] = true;
+                        }
+                    } else if (!empty($b->EventDate)) {
+                        $bookedDates[date('Y-m-d', strtotime($b->EventDate))] = true;
                     }
-                } else if ($b->EventDate) {
-                    $bookedDates[date('Y-m-d', strtotime($b->EventDate))] = true;
+                } catch (\Exception $e) {
+                    error_log("Date parsing error for vendor booking ID {$b->ID}: " . $e->getMessage());
+                    continue;
                 }
             }
             
@@ -174,7 +183,11 @@ class VendorAvailabilityController
         }
         
         // Check if user is vendor (role = 1)
-        if (!isset($user->role) || $user->role != 1) {
+        // Refetch user from DB to ensure we have the latest role (handling stale tokens after approval)
+        $userId = $user->mysql_id ?? $user->sub ?? null;
+        $dbUser = DB::table('credential')->find($userId);
+
+        if (!$dbUser || $dbUser->role != 1) {
             return $this->json($response, [
                 'success' => false,
                 'error' => 'Only vendors can manage availability'
@@ -278,7 +291,11 @@ class VendorAvailabilityController
             ], 401);
         }
         
-        if (!isset($user->role) || $user->role != 1) {
+        // Refetch user from DB
+        $userId = $user->mysql_id ?? $user->sub ?? null;
+        $dbUser = DB::table('credential')->find($userId);
+
+        if (!$dbUser || $dbUser->role != 1) {
             return $this->json($response, [
                 'success' => false,
                 'error' => 'Only vendors can manage availability'
@@ -385,7 +402,11 @@ class VendorAvailabilityController
             ], 401);
         }
         
-        if (!isset($user->role) || $user->role != 1) {
+        // Refetch user from DB
+        $userId = $user->mysql_id ?? $user->sub ?? null;
+        $dbUser = DB::table('credential')->find($userId);
+
+        if (!$dbUser || $dbUser->role != 1) {
             return $this->json($response, [
                 'success' => false,
                 'error' => 'Only vendors can manage availability'
