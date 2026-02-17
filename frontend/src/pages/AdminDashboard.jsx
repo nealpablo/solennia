@@ -202,7 +202,7 @@ export default function AdminDashboard() {
                 </svg>
                 Booking Statistics
               </h2>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-10">
                 <div className="bg-white rounded-xl p-3 border shadow-sm hover:shadow-md transition-shadow border-[#c9bda4]">
                   <div className="flex items-center justify-between mb-1">
                     <h3 className="text-xs font-semibold text-[#5b4636] uppercase">Total</h3>
