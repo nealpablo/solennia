@@ -321,20 +321,7 @@ function VendorCard({ vendor, navigate }) {
             </svg>
           </button>
 
-          <button
-            onClick={handleChatClick}
-            className="w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center hover:bg-white transition-colors"
-            title="Chat with supplier"
-          >
-            <svg
-              className="w-5 h-5 stroke-gray-700"
-              viewBox="0 0 24 24"
-              fill="none"
-              strokeWidth="2"
-            >
-              <path d="M21 15a4 4 0 0 1-4 4H7l-4 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
-            </svg>
-          </button>
+
         </div>
       </div>
 
