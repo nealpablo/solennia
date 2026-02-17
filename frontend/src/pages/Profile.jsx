@@ -2579,6 +2579,7 @@ export default function Profile() {
                               <p className="text-xs text-gray-600 mt-0.5">Listed venues</p>
                             </div>
                           </div>
+                          <br></br>
 
                           {/* Platform Overview Chart */}
                           <div className="mb-6">
