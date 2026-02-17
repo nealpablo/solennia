@@ -153,7 +153,7 @@ export default function AdminAnalyticsChart({ analytics }) {
     if (!analytics) return null;
 
     return (
-        <div className="bg-white rounded-xl p-6 border border-[#c9bda4] h-full shadow-sm">
+        <div className="bg-white rounded-xl p-6 border border-[#c9bda4] shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
                 <h3 className="text-sm font-semibold text-[#5b4636] uppercase tracking-wide">Platform Overview</h3>
                 <div className="flex items-center gap-4">
@@ -173,7 +173,7 @@ export default function AdminAnalyticsChart({ analytics }) {
                     </button>
                 </div>
             </div>
-            <div className="w-full h-[240px]">
+            <div className="w-full h-[200px]">
                 <canvas ref={canvasRef} />
             </div>
         </div>
