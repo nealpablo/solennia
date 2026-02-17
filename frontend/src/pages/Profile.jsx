@@ -107,6 +107,11 @@ export default function Profile() {
   const [ownedVenues, setOwnedVenues] = useState([]);
   const [selectedVenue, setSelectedVenue] = useState(null); // null = show vendor calendar
 
+  /* ================= CONFIRMATION MODAL STATE ================= */
+  // The `confirm` from `useConfirmModal` is already declared above.
+  // This line `const { confirm } = useConfirm();` is redundant and `useConfirm` is not imported.
+  // Assuming the user intended to keep `selectedVenue` and just add the new states.
+
   // Analytics Dashboard States
   const [analytics, setAnalytics] = useState(null);
   const [loadingAnalytics, setLoadingAnalytics] = useState(false);
@@ -115,6 +120,7 @@ export default function Profile() {
   // Client Dashboard States
   const [clientAnalytics, setClientAnalytics] = useState(null);
   const [clientRecentBookings, setClientRecentBookings] = useState([]);
+  const [clientCompletedBookings, setClientCompletedBookings] = useState([]); // ✅ NEW: Completed bookings state
   const [clientAllBookings, setClientAllBookings] = useState([]);
   const [dashboardDetailFilter, setDashboardDetailFilter] = useState(null); // 'total' | 'upcoming' | 'completed' | 'cancelled' | 'rejected'
   const [loadingClientAnalytics, setLoadingClientAnalytics] = useState(false);
@@ -883,12 +889,24 @@ export default function Profile() {
       });
       setClientAllBookings(allBookings);
 
+      // Sort by CreatedAt for "Recent Activity" (newest first)
       const sortedBookings = [...allBookings].sort((a, b) => {
         const dateA = new Date(a.CreatedAt || a.BookingDate || 0);
         const dateB = new Date(b.CreatedAt || b.BookingDate || 0);
         return dateB - dateA;
       });
       setClientRecentBookings(sortedBookings.slice(0, 5));
+
+      // ✅ NEW: Sort by EventDate for "Recently Completed" (most recent event first)
+      const completed = allBookings
+        .filter(b => b.BookingStatus === 'Completed')
+        .sort((a, b) => {
+          const dateA = new Date(a.EventDate || a.start_date || 0);
+          const dateB = new Date(b.EventDate || b.start_date || 0);
+          return dateB - dateA; // Most recent event first
+        });
+      setClientCompletedBookings(completed.slice(0, 5)); // Top 5
+
     } catch (error) {
       console.error('Failed to load client analytics:', error);
     } finally {
@@ -2021,6 +2039,18 @@ export default function Profile() {
                               <p className="text-xs text-gray-600 mt-0.5">Did not proceed</p>
                             </div>
 
+                            {/* Rejected Bookings */}
+                            <div className="bg-white rounded-xl p-3 border border-[#c9bda4] shadow-sm hover:shadow-md hover:border-[#7a5d47] transition-all">
+                              <div className="flex items-center justify-between mb-1">
+                                <h3 className="text-xs font-semibold text-[#5b4636] uppercase tracking-wide">Rejected</h3>
+                                <svg className="w-5 h-5 text-[#7a5d47]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </div>
+                              <p className="text-2xl font-bold text-[#7a5d47]">{analytics.rejected_bookings}</p>
+                              <p className="text-xs text-gray-600 mt-0.5">Declined requests</p>
+                            </div>
+
                             {/* Average Rating */}
                             <div className="bg-white rounded-xl p-3 border border-[#c9bda4] shadow-sm hover:shadow-md hover:border-[#7a5d47] transition-all">
                               <div className="flex items-center justify-between mb-1">
@@ -2201,6 +2231,43 @@ export default function Profile() {
                                 <div className="col-span-2 sm:col-span-3 lg:col-span-5">
                                   <BookingAnalyticsChart analytics={clientAnalytics} />
                                 </div>
+
+                                {/* ✅ NEW: Recently Completed Activity */}
+                                {clientCompletedBookings.length > 0 && (
+                                  <div className="col-span-2 sm:col-span-3 lg:col-span-5 mt-4">
+                                    <h3 className="text-sm font-semibold text-[#1565c0] mb-3 flex items-center gap-2">
+                                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                      </svg>
+                                      Recently Completed
+                                    </h3>
+                                    <div className="space-y-2">
+                                      {clientCompletedBookings.map((booking, idx) => (
+                                        <div key={idx} className="bg-blue-50/50 rounded-lg p-3 border border-blue-100 shadow-sm hover:shadow-md transition-shadow">
+                                          <div className="flex justify-between items-start">
+                                            <div className="flex-1">
+                                              <p className="font-semibold text-gray-900 text-sm">{booking.service_name || 'N/A'}</p>
+                                              <p className="text-xs text-gray-600 mt-1">
+                                                Completed on: {formatDateTime(booking.EventDate || booking.start_date).full}
+                                              </p>
+                                            </div>
+                                            <div className="flex flex-col items-end gap-2">
+                                              <span className="text-xs px-2 py-1 rounded-full font-medium bg-[#e3f2fd] text-[#1565c0] border border-blue-200">
+                                                Completed
+                                              </span>
+                                              <button
+                                                onClick={() => openFeedbackModal(booking)}
+                                                className="text-[10px] font-semibold text-[#7a5d47] hover:underline flex items-center gap-1"
+                                              >
+                                                ⭐ Leave Review
+                                              </button>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
 
                                 {/* Recent Activity */}
                                 {clientRecentBookings.length > 0 && (
