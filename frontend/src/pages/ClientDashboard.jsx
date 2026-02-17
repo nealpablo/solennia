@@ -122,55 +122,48 @@ export default function ClientDashboard() {
           <p className="text-gray-600">Overview of your bookings and activity</p>
         </div>
 
-        {/* Analytics Cards - 2 Column Grid like Profile Dashboard */}
+        {/* Analytics Cards - Solennia palette */}
         {analytics && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
-            {/* Total Bookings */}
-            <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200 shadow-sm hover:shadow-md transition-shadow">
+            <div className="bg-white rounded-xl p-4 border border-[#c9bda4] shadow-sm hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between mb-2">
-                <h3 className="text-sm font-semibold text-blue-900">Total Bookings</h3>
-                <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <h3 className="text-sm font-semibold text-[#5b4636]">Total Bookings</h3>
+                <svg className="w-6 h-6 text-[#7a5d47]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                 </svg>
               </div>
-              <p className="text-3xl font-bold text-blue-700">{analytics.total_bookings}</p>
-              <p className="text-xs text-blue-600 mt-1">All-time bookings</p>
+              <p className="text-3xl font-bold text-[#7a5d47]">{analytics.total_bookings}</p>
+              <p className="text-xs text-gray-600 mt-1">All-time bookings</p>
             </div>
-
-            {/* Upcoming Bookings */}
-            <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 border border-green-200 shadow-sm hover:shadow-md transition-shadow">
+            <div className="bg-white rounded-xl p-4 border border-[#c9bda4] shadow-sm hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between mb-2">
-                <h3 className="text-sm font-semibold text-green-900">Upcoming</h3>
-                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <h3 className="text-sm font-semibold text-[#5b4636]">Upcoming</h3>
+                <svg className="w-6 h-6 text-[#7a5d47]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
               </div>
-              <p className="text-3xl font-bold text-green-700">{analytics.upcoming_bookings}</p>
-              <p className="text-xs text-green-600 mt-1">Pending & Confirmed</p>
+              <p className="text-3xl font-bold text-[#7a5d47]">{analytics.upcoming_bookings}</p>
+              <p className="text-xs text-gray-600 mt-1">Pending & Confirmed</p>
             </div>
-
-            {/* Completed Bookings */}
-            <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4 border border-purple-200 shadow-sm hover:shadow-md transition-shadow">
+            <div className="bg-white rounded-xl p-4 border border-[#c9bda4] shadow-sm hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between mb-2">
-                <h3 className="text-sm font-semibold text-purple-900">Completed</h3>
-                <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <h3 className="text-sm font-semibold text-[#5b4636]">Completed</h3>
+                <svg className="w-6 h-6 text-[#7a5d47]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
-              <p className="text-3xl font-bold text-purple-700">{analytics.completed_bookings}</p>
-              <p className="text-xs text-purple-600 mt-1">Successfully delivered</p>
+              <p className="text-3xl font-bold text-[#7a5d47]">{analytics.completed_bookings}</p>
+              <p className="text-xs text-gray-600 mt-1">Successfully delivered</p>
             </div>
-
-            {/* Cancelled Bookings */}
-            <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl p-4 border border-red-200 shadow-sm hover:shadow-md transition-shadow">
+            <div className="bg-white rounded-xl p-4 border border-[#c9bda4] shadow-sm hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between mb-2">
-                <h3 className="text-sm font-semibold text-red-900">Cancelled</h3>
-                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <h3 className="text-sm font-semibold text-[#5b4636]">Cancelled</h3>
+                <svg className="w-6 h-6 text-[#7a5d47]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
-              <p className="text-3xl font-bold text-red-700">{analytics.cancelled_bookings}</p>
-              <p className="text-xs text-red-600 mt-1">Did not proceed</p>
+              <p className="text-3xl font-bold text-[#7a5d47]">{analytics.cancelled_bookings}</p>
+              <p className="text-xs text-gray-600 mt-1">Did not proceed</p>
             </div>
           </div>
         )}
