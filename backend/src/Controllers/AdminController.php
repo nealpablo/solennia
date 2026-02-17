@@ -191,4 +191,101 @@ class AdminController
             return $this->json($response, false, "Failed to load admin analytics", 500);
         }
     }
+
+    /**
+     * Migrate legacy Event Service Providers to Vendor Listings
+     */
+    public function migrateLegacyVendors(Request $req, Response $res)
+    {
+        try {
+            $user = $req->getAttribute('user');
+            if (!$user || !isset($user->mysql_id)) {
+                return $this->json($res, false, "Unauthorized", 401);
+            }
+
+            // Check if user is admin (role = 2)
+            $userRole = DB::table('credential')
+                ->where('id', $user->mysql_id)
+                ->value('role');
+
+            if ($userRole != 2) {
+                return $this->json($res, false, "Forbidden: Admin access required", 403);
+            }
+
+            $migratedCount = 0;
+            $errors = [];
+
+            // Get all approved ESPs
+            $esps = DB::table('event_service_provider')
+                ->where('ApplicationStatus', 'Approved')
+                ->get();
+
+            foreach ($esps as $esp) {
+                try {
+                    // Check if a listing already exists for this user
+                    $exists = DB::table('vendor_listings')
+                        ->where('user_id', $esp->UserID)
+                        ->exists();
+
+                    if ($exists) {
+                        continue;
+                    }
+
+                    // Prepare data migration
+                    $gallery = [];
+                    if (!empty($esp->gallery)) {
+                        $gallery = is_string($esp->gallery) 
+                            ? json_decode($esp->gallery, true) ?: []
+                            : $esp->gallery;
+                    } elseif (!empty($esp->portfolio)) {
+                         // Some legacy data might have portfolio url which isn't exactly gallery but better than nothing
+                         // Actually let's assume portfolio is a single image url or doc, maybe not gallery array.
+                    }
+
+                    // Construct address
+                    $address = $esp->BusinessAddress ?? $esp->service_areas ?? '';
+                    
+                    $insertData = [
+                        'user_id' => $esp->UserID,
+                        'business_name' => $esp->BusinessName ?? 'My Business',
+                        'address' => $address,
+                        'region' => $esp->region ?? null,
+                        'city' => $esp->city ?? null,
+                        'specific_address' => $esp->BusinessAddress ?? null,
+                        'service_category' => $esp->Category ?? $esp->service_category ?? null,
+                        'other_category_type' => null, // Legacy didn't have this
+                        'services' => $esp->services ?? null,
+                        'pricing' => $esp->Pricing ?? null,
+                        'description' => $esp->Description ?? $esp->bio ?? null,
+                        'hero_image' => $esp->HeroImageUrl ?? null,
+                        'logo' => $esp->business_logo_url ?? $esp->avatar ?? null,
+                        'gallery' => json_encode($gallery),
+                        'event_type' => $esp->service_type_tag ?? null,
+                        'budget_range' => $esp->budget_tier ?? null,
+                        'base_price' => $esp->base_price ?? null,
+                        'package_price' => $esp->package_price ?? null,
+                        'ai_description' => $esp->ai_description ?? null,
+                        'status' => 'Active',
+                        'created_at' => $esp->DateApproved ?? date('Y-m-d H:i:s'),
+                        'updated_at' => date('Y-m-d H:i:s')
+                    ];
+
+                    DB::table('vendor_listings')->insert($insertData);
+                    $migratedCount++;
+
+                } catch (\Exception $e) {
+                    $errors[] = "Failed to migrate UserID {$esp->UserID}: " . $e->getMessage();
+                }
+            }
+
+            return $this->json($res, true, "Migration completed", 200, [
+                'migrated_count' => $migratedCount,
+                'errors' => $errors
+            ]);
+
+        } catch (\Exception $e) {
+            error_log("MIGRATE_VENDORS_ERROR: " . $e->getMessage());
+            return $this->json($res, false, "Migration failed: " . $e->getMessage(), 500);
+        }
+    }
 }

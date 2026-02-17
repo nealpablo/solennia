@@ -117,15 +117,63 @@ class VendorAvailabilityController
                             $end = $temp;
                         }
 
-                        $end->modify('+1 day');
+                        // For multi-day, we need to handle specific times for first and last day
+                        // For middle days, it's full day
+                        $startTime = $start->format('H:i:s');
+                        $endTime = $end->format('H:i:s');
+                        
+                        // If times are 00:00:00, it might be a full day booking or time wasn't set
+                        // But if they are set, we want to respect them.
+
+                        $periodEnd = clone $end;
+                        $periodEnd->modify('+1 day'); // DatePeriod excludes end date
                         $interval = new \DateInterval('P1D');
-                        $period = new \DatePeriod($start, $interval, $end);
+                        $period = new \DatePeriod($start, $interval, $periodEnd);
+                        
                         foreach ($period as $d) {
                             $ds = $d->format('Y-m-d');
-                            $bookedDates[$ds] = true;
+                            
+                            // Determine time for this specific day
+                            $thisDayStart = '00:00:00';
+                            $thisDayEnd = '23:59:59';
+                            
+                            if ($ds === $start->format('Y-m-d')) {
+                                $thisDayStart = $startTime;
+                            }
+                            
+                            if ($ds === $end->format('Y-m-d')) {
+                                $thisDayEnd = $endTime;
+                            }
+                            
+                            $bookedDates[$ds] = [
+                                'start' => $thisDayStart,
+                                'end' => $thisDayEnd
+                            ];
                         }
                     } else if (!empty($b->EventDate)) {
-                        $bookedDates[date('Y-m-d', strtotime($b->EventDate))] = true;
+                        $dateObj = new \DateTime($b->EventDate);
+                        $ds = $dateObj->format('Y-m-d');
+                        $time = $dateObj->format('H:i:s');
+                        
+                        // If EventDate has time component (not 00:00:00), use it as start time
+                        // Default end time to +hours or just end of day? 
+                        // Usually single day bookings might be "at 2pm". 
+                        // Let's see if we can get a better duration. 
+                        // If no specific end time stored, we might have to guess or use 
+                        // a default duration if we want to show a range.
+                        // However, the issue is "00:00 - 23:59". 
+                        // If we have a start time, let's at least show that.
+                        
+                        $isMidnight = $time === '00:00:00';
+                        $startT = $isMidnight ? '00:00:00' : $time;
+                        $endT = $isMidnight ? '23:59:59' : date('H:i:s', strtotime($time . ' +4 hours')); // Assume 4h duration if not specified?
+                        // Actually, if we look at `booking` table, does it have Duration? No.
+                        // But `EventDate` is DATETIME.
+                        
+                        $bookedDates[$ds] = [
+                            'start' => $startT,
+                            'end' => $endT
+                        ];
                     }
                 } catch (\Exception $e) {
                     error_log("Date parsing error for vendor booking ID {$b->ID}: " . $e->getMessage());
@@ -134,12 +182,15 @@ class VendorAvailabilityController
             }
             
             // Merge: for each booked date, add/override as unavailable
-            foreach (array_keys($bookedDates) as $date) {
+            foreach ($bookedDates as $date => $times) {
                 $exists = false;
                 foreach ($availability as &$a) {
                     if ($a['date'] === $date) {
                         $a['is_available'] = false;
                         $a['source'] = 'booking';
+                        // Update times to reflect the booking
+                        $a['start_time'] = $times['start'];
+                        $a['end_time'] = $times['end'];
                         $exists = true;
                         break;
                     }
@@ -148,8 +199,8 @@ class VendorAvailabilityController
                     $availability[] = [
                         'id' => null,
                         'date' => $date,
-                        'start_time' => '00:00:00',
-                        'end_time' => '23:59:59',
+                        'start_time' => $times['start'],
+                        'end_time' => $times['end'],
                         'is_available' => false,
                         'notes' => 'Booked',
                         'source' => 'booking'

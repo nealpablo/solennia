@@ -436,4 +436,10 @@ return function (App $app) {
         return $controller->getAdminAnalytics($req, $res);
     })->add(new AuthMiddleware());
 
+    // Admin: Migrate legacy vendors
+    $app->post('/api/admin/migrate-vendors', function (Request $req, Response $res) {
+        $controller = new \Src\Controllers\AdminController();
+        return $controller->migrateLegacyVendors($req, $res);
+    })->add(new AuthMiddleware());
+
 };

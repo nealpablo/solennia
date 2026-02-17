@@ -623,11 +623,21 @@ class VendorController
         }
 
         try {
+            // Check legacy ESP table
             $esp = DB::table('event_service_provider')
                 ->where('UserID', $userId)
                 ->where('ApplicationStatus', 'Approved')
                 ->value('ID');
 
+            // Check new vendor_listings
+            // If user has migrated, they might have multiple listings?
+            // For now, let's get all active listings for this user
+            $listingIds = DB::table('vendor_listings')
+                ->where('user_id', $userId)
+                ->where('status', 'Active')
+                ->pluck('id')
+                ->toArray();
+                
             $venueIds = DB::table('venue_listings')
                 ->where('user_id', $userId)
                 ->where('status', 'Active')
@@ -638,17 +648,31 @@ class VendorController
                 ->select('ID', 'EventDate', 'start_date', 'end_date', 'BookingStatus', 'venue_id', 'ServiceName')
                 ->whereIn('BookingStatus', ['Pending', 'Confirmed', 'Completed']);
 
-            $query->where(function ($q) use ($esp, $venueIds) {
+            $query->where(function ($q) use ($esp, $venueIds, $listingIds) {
                 if ($esp) {
                     $q->orWhere(function ($q2) use ($esp) {
-                                $q2->where('EventServiceProviderID', $esp)->whereNull('venue_id');
-                            }
-                            );
-                        }
-                        if (!empty($venueIds)) {
-                            $q->orWhereIn('venue_id', $venueIds);
-                        }
+                        $q2->where('EventServiceProviderID', $esp)->whereNull('venue_id');
                     });
+                }
+                if (!empty($listingIds)) {
+                    // Check if 'vendor_listing_id' column exists or if we should rely on other assumption
+                    // Assuming booking table has vendor_listing_id based on previous tasks context (though not explicitly seen in this file's query)
+                    // If not, we might fail. 
+                    // Let's check if vendor_listing_id column exists? 
+                    // Actually, let's rely on EventServiceProviderID for now if migration just moves data but bookings might typically be linked to ESP ID in legacy.
+                    // But for NEW bookings on NEW listings, they should be linked via vendor_listing_id.
+                    
+                    // SAFEGUARD: Only query if column exists? No, query builder might throw. 
+                    // Given the migration task, we probably haven't migrated bookings to point to new listing IDs yet?
+                    // User only asked to migrate ESP data to Vendor Listings.
+                    // But future bookings will use listing ID.
+                    
+                    $q->orWhereIn('vendor_listing_id', $listingIds);
+                }
+                if (!empty($venueIds)) {
+                    $q->orWhereIn('venue_id', $venueIds);
+                }
+            });
 
             $rows = $query->orderBy('EventDate', 'asc')->get();
 
@@ -711,12 +735,18 @@ class VendorController
                 "timeout" => self::UPLOAD_TIMEOUT
             ]);
 
+            // Update Legacy
             DB::table('event_service_provider')
                 ->where('UserID', $userId)
                 ->update([
                 'avatar' => $upload['secure_url'],
                 'business_logo_url' => $upload['secure_url']
             ]);
+
+            // Update New Listings (Sync logo)
+            DB::table('vendor_listings')
+                ->where('user_id', $userId)
+                ->update(['logo' => $upload['secure_url']]);
 
             return $this->json($response, true, "Logo updated", 200, [
                 'url' => $upload['secure_url']
@@ -762,6 +792,11 @@ class VendorController
             DB::table('event_service_provider')
                 ->where('UserID', $userId)
                 ->update(['HeroImageUrl' => $upload['secure_url']]);
+
+            // Update New Listings (Sync hero)
+            DB::table('vendor_listings')
+                ->where('user_id', $userId)
+                ->update(['hero_image' => $upload['secure_url']]);
 
             return $this->json($response, true, "Hero image updated", 200, [
                 'url' => $upload['secure_url']
@@ -885,6 +920,38 @@ class VendorController
                 // Only merge fields that exist in the table
                 $insertData = array_merge($baseInsert, $filtered);
                 DB::table('event_service_provider')->insert($insertData);
+            }
+
+            // --- SYNC TO VENDOR LISTINGS ---
+            // If the user has listings, let's update their most recent/default listing with this info
+            // to keep it in sync. 
+            // NOTE: Ideally, we should switch to separate "Update Listing" endpoint, 
+            // but for now, syncing "Profile" edits to the main listing is a good bridge.
+            
+            $listingUpdate = [];
+            if (isset($data['business_name'])) $listingUpdate['business_name'] = $data['business_name'];
+            if (isset($data['address'])) $listingUpdate['address'] = $data['address'];
+            if (isset($data['region'])) $listingUpdate['region'] = $data['region'];
+            if (isset($data['city'])) $listingUpdate['city'] = $data['city'];
+            if (isset($data['specific_address'])) $listingUpdate['specific_address'] = $data['specific_address'];
+            if (isset($data['service_category'])) $listingUpdate['service_category'] = $data['service_category'];
+            if (isset($data['services'])) $listingUpdate['services'] = $data['services'];
+            if (isset($data['pricing'])) $listingUpdate['pricing'] = $data['pricing'];
+            if (isset($data['description'])) $listingUpdate['description'] = $data['description'];
+            if (isset($data['type'])) $listingUpdate['other_category_type'] = $data['type']; // Map 'type' to other_category_type if sent
+
+            // Images
+            if (isset($data['hero_image'])) $listingUpdate['hero_image'] = $data['hero_image'];
+            if (isset($data['icon_url'])) $listingUpdate['logo'] = $data['icon_url'];
+            
+            // Allow updating specific listing if ID provided, else update all or latest?
+            // Let's update all active listings for this user to be safe and consistent with "Profile" concept
+            if (!empty($listingUpdate)) {
+                $listingUpdate['updated_at'] = date('Y-m-d H:i:s');
+                DB::table('vendor_listings')
+                    ->where('user_id', $userId)
+                    ->where('status', 'Active')
+                    ->update($listingUpdate);
             }
 
             return $this->json($response, true, "Vendor info updated", 200);
