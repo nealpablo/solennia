@@ -462,52 +462,57 @@ export default function AdminPanel() {
 
                   {selectedApp.gov_id && (
                     <div onClick={(e) => { e.stopPropagation(); previewDocument(selectedApp.gov_id, "Government ID"); }} className="cursor-pointer group">
-                      <div className="relative h-24 bg-gray-100 rounded border overflow-hidden">
-                        <img src={selectedApp.gov_id} alt="Valid ID" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" onError={(e) => { e.target.style.display = 'none'; }} />
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/10 transition-colors">
-                          <span className="text-xs font-semibold text-white drop-shadow-md">Valid ID</span>
+                      <div className="relative h-40 bg-gray-200 rounded border overflow-hidden flex items-center justify-center">
+                        <img src={selectedApp.gov_id} alt="Valid ID" className="max-w-full max-h-full object-contain opacity-90 group-hover:opacity-100 transition-opacity" onError={(e) => { e.target.style.display = 'none'; }} />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/10 transition-colors">
+                          <span className="text-xs font-semibold text-transparent group-hover:text-white drop-shadow-md transition-colors">View ID</span>
                         </div>
                       </div>
+                      <p className="text-xs text-center mt-1 text-gray-500 font-medium">Government ID</p>
                     </div>
                   )}
                   {selectedApp.permits && (
                     <div onClick={(e) => { e.stopPropagation(); previewDocument(selectedApp.permits, "Business Permit"); }} className="cursor-pointer group">
-                      <div className="relative h-24 bg-gray-100 rounded border overflow-hidden">
-                        <img src={selectedApp.permits} alt="Permit" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" onError={(e) => { e.target.style.display = 'none'; }} />
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/10 transition-colors">
-                          <span className="text-xs font-semibold text-white drop-shadow-md">Permit</span>
+                      <div className="relative h-40 bg-gray-200 rounded border overflow-hidden flex items-center justify-center">
+                        <img src={selectedApp.permits} alt="Permit" className="max-w-full max-h-full object-contain opacity-90 group-hover:opacity-100 transition-opacity" onError={(e) => { e.target.style.display = 'none'; }} />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/10 transition-colors">
+                          <span className="text-xs font-semibold text-transparent group-hover:text-white drop-shadow-md transition-colors">View Permit</span>
                         </div>
                       </div>
+                      <p className="text-xs text-center mt-1 text-gray-500 font-medium">Business Permit</p>
                     </div>
                   )}
                   {selectedApp.portfolio && (
                     <div onClick={(e) => { e.stopPropagation(); previewDocument(selectedApp.portfolio, "Portfolio"); }} className="cursor-pointer group">
-                      <div className="relative h-24 bg-gray-100 rounded border overflow-hidden">
-                        <img src={selectedApp.portfolio} alt="Portfolio" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" onError={(e) => { e.target.style.display = 'none'; }} />
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/10 transition-colors">
-                          <span className="text-xs font-semibold text-white drop-shadow-md">Services/Portfolio</span>
+                      <div className="relative h-40 bg-gray-200 rounded border overflow-hidden flex items-center justify-center">
+                        <img src={selectedApp.portfolio} alt="Portfolio" className="max-w-full max-h-full object-contain opacity-90 group-hover:opacity-100 transition-opacity" onError={(e) => { e.target.style.display = 'none'; }} />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/10 transition-colors">
+                          <span className="text-xs font-semibold text-transparent group-hover:text-white drop-shadow-md transition-colors">View Portfolio</span>
                         </div>
                       </div>
+                      <p className="text-xs text-center mt-1 text-gray-500 font-medium">Portfolio</p>
                     </div>
                   )}
                   {selectedApp.selfie_with_id && (
                     <div onClick={(e) => { e.stopPropagation(); previewDocument(selectedApp.selfie_with_id, "Selfie with ID"); }} className="cursor-pointer group">
-                      <div className="relative h-24 bg-gray-100 rounded border overflow-hidden">
-                        <img src={selectedApp.selfie_with_id} alt="Selfie" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-transparent transition-colors">
-                          <span className="text-xs font-semibold text-white drop-shadow-md">Selfie w/ ID</span>
+                      <div className="relative h-40 bg-gray-200 rounded border overflow-hidden flex items-center justify-center">
+                        <img src={selectedApp.selfie_with_id} alt="Selfie" className="max-w-full max-h-full object-contain opacity-90 group-hover:opacity-100 transition-opacity" />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/10 transition-colors">
+                          <span className="text-xs font-semibold text-transparent group-hover:text-white drop-shadow-md transition-colors">View Selfie</span>
                         </div>
                       </div>
+                      <p className="text-xs text-center mt-1 text-gray-500 font-medium">Selfie w/ ID</p>
                     </div>
                   )}
                   {selectedApp.sample_photos && (
                     <div onClick={(e) => { e.stopPropagation(); previewDocument(selectedApp.sample_photos, "Sample Work"); }} className="cursor-pointer group">
-                      <div className="relative h-24 bg-gray-100 rounded border overflow-hidden">
-                        <img src={selectedApp.sample_photos} alt="Sample" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-transparent transition-colors">
-                          <span className="text-xs font-semibold text-white drop-shadow-md">Sample Work</span>
+                      <div className="relative h-40 bg-gray-200 rounded border overflow-hidden flex items-center justify-center">
+                        <img src={selectedApp.sample_photos} alt="Sample" className="max-w-full max-h-full object-contain opacity-90 group-hover:opacity-100 transition-opacity" />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/10 transition-colors">
+                          <span className="text-xs font-semibold text-transparent group-hover:text-white drop-shadow-md transition-colors">View Sample</span>
                         </div>
                       </div>
+                      <p className="text-xs text-center mt-1 text-gray-500 font-medium">Sample Work</p>
                     </div>
                   )}
                   {selectedApp.menu_list && (
