@@ -558,56 +558,6 @@ class VendorController
                 ->first();
 
             if (!$vendorListing) {
-                // FALLBACK: Check legacy event_service_provider
-                $legacy = DB::table('event_service_provider')
-                    ->where('UserID', $userId)
-                    ->where('ApplicationStatus', 'Approved')
-                    ->first();
-                
-                if ($legacy) {
-                     return $this->json($response, true, "Vendor retrieved (legacy)", 200, [
-                        'vendor' => [
-                            'id' => $legacy->UserID,
-                            'listing_id' => null, // No listing ID for legacy
-                            'business_name' => $legacy->BusinessName,
-                            'category' => $legacy->Category,
-                            'other_category_type' => null,
-                            'description' => $legacy->Description,
-                            'pricing' => $legacy->Pricing,
-                            'bio' => $legacy->bio,
-                            'services' => $legacy->services,
-                            'service_areas' => $legacy->service_areas,
-                            'avatar' => $legacy->avatar,
-                            'HeroImageUrl' => $legacy->HeroImageUrl,
-                            'gallery' => [], // parse if needed, assumed empty or handled elsewhere
-                            'status' => 'Approved',
-                            'verification_score' => $legacy->verification_score ?? 0,
-                            'region' => $legacy->region ?? null,
-                            'city' => $legacy->city ?? null,
-                            'facebook_page' => null,
-                            'instagram_page' => null,
-                            'source' => 'event_service_provider',
-                            'firebase_uid' => DB::table('credential')->where('id', $userId)->value('firebase_uid'),
-                        ]
-                    ]);
-                }
-
-                // FIX: before returning 404, check if user has an INACTIVE listing
-                // (i.e. suspended). Return a 200 with suspended flag so the frontend
-                // can show a "this supplier is suspended" page instead of a broken 404.
-                $inactiveListing = DB::table('vendor_listings')
-                    ->where('user_id', $userId)
-                    ->where('status', 'Inactive')
-                    ->orderByDesc('created_at')
-                    ->first();
-
-                if ($inactiveListing) {
-                    return $this->json($response, true, "Vendor suspended", 200, [
-                        'vendor'    => $this->formatVendorListing($inactiveListing, $userId),
-                        'suspended' => true,
-                    ]);
-                }
-
                 return $this->json($response, false, "Vendor not found", 404);
             }
 
