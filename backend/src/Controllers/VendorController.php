@@ -558,6 +558,40 @@ class VendorController
                 ->first();
 
             if (!$vendorListing) {
+                // FALLBACK: Check legacy event_service_provider
+                $legacy = DB::table('event_service_provider')
+                    ->where('UserID', $userId)
+                    ->where('ApplicationStatus', 'Approved')
+                    ->first();
+                
+                if ($legacy) {
+                     return $this->json($response, true, "Vendor retrieved (legacy)", 200, [
+                        'vendor' => [
+                            'id' => $legacy->UserID,
+                            'listing_id' => null, // No listing ID for legacy
+                            'business_name' => $legacy->BusinessName,
+                            'category' => $legacy->Category,
+                            'other_category_type' => null,
+                            'description' => $legacy->Description,
+                            'pricing' => $legacy->Pricing,
+                            'bio' => $legacy->bio,
+                            'services' => $legacy->services,
+                            'service_areas' => $legacy->service_areas,
+                            'avatar' => $legacy->avatar,
+                            'HeroImageUrl' => $legacy->HeroImageUrl,
+                            'gallery' => [], // parse if needed, assumed empty or handled elsewhere
+                            'status' => 'Approved',
+                            'verification_score' => $legacy->verification_score ?? 0,
+                            'region' => $legacy->region ?? null,
+                            'city' => $legacy->city ?? null,
+                            'facebook_page' => null,
+                            'instagram_page' => null,
+                            'source' => 'event_service_provider',
+                            'firebase_uid' => DB::table('credential')->where('id', $userId)->value('firebase_uid'),
+                        ]
+                    ]);
+                }
+
                 return $this->json($response, false, "Vendor not found", 404);
             }
 

@@ -284,11 +284,7 @@ return function (App $app) {
 
         try {
             $users = DB::table('credential')
-                ->select(
-                    'id', 'first_name', 'last_name', 'username', 'email',
-                    'role', 'is_verified', 'created_at',
-                    'warning_count', 'suspended_at', 'suspended_by'
-                )
+                ->select('credential.*')
                 ->orderByDesc('created_at')
                 ->get();
 
