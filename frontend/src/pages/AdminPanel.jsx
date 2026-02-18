@@ -252,7 +252,7 @@ export default function AdminPanel() {
         .lb-body { flex: 1; min-height: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; background: #f9fafb; position: relative; padding: 1rem; }
         .lb-pdf { width: 100%; height: 100%; border: none; display: block; }
         .lb-img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; pointer-events: none; user-select: none; }
-        .confirm-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 9999; }
+        .confirm-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10002; }
         .confirm-card { background: #fff; padding: 1.5rem; border-radius: .75rem; width: 100%; max-width: 22rem; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
         .reject-modal-card { background: #fff; padding: 1.5rem; border-radius: .75rem; width: 100%; max-width: 32rem; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
         .reject-reason-input { width: 100%; padding: 0.75rem; border: 2px solid #e5e7eb; border-radius: 0.5rem; font-size: 0.875rem; resize: vertical; font-family: inherit; }
