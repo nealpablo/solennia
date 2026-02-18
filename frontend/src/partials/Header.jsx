@@ -324,8 +324,7 @@ export default function Header() {
                     onClick={closeMobileMenu}
                     className="block px-4 py-3 rounded-lg hover:bg-[#e8ddae] transition-colors"
                   >
-                    <span>🤖</span>
-                    <span>AI Assistant</span>
+                    <span>Solennia AI</span>
                   </Link>
                 </li>
 

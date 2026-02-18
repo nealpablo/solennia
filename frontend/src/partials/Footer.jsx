@@ -59,7 +59,7 @@ export default function Footer() {
                 </li>
                 <li>
                   <Link to="/ai-booking" style={styles.link}>
-                    AI Assistant
+                    Solennia AI
                   </Link>
                 </li>
                 <li>
