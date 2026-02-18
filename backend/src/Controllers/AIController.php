@@ -98,7 +98,7 @@ class AIController
             $stage = $data['stage'] ?? 'discovery';
             $history = $data['history'] ?? [];
 
-            // FIX #3: Receive the suggestedVendors list from the frontend so we can
+            // Receive the suggestedVendors list from the frontend so we can
             // keep the search results in scope across turns and resolve names to IDs.
             $previousSuggestedVendors = $data['suggestedVendors'] ?? [];
 
@@ -153,7 +153,7 @@ class AIController
             $aiResponse = '';
             $extractedInfo = [];
             $suggestedVendors = $previousSuggestedVendors; // carry forward
-            $currentRecommendations = []; // 
+            $currentRecommendations = [];
             $bookingCreated = false;
             $bookingId = null;
             $newStage = $stage;
@@ -196,7 +196,20 @@ class AIController
 
                 switch ($functionName) {
                     case 'extract_booking_info':
-                        // FIX: Normalise guest count BEFORE merging (handles "40 people", "forty guests", etc.)
+                        // BUG FIX #3: Reject negative guest counts before any processing
+                        if (isset($arguments['guests'])) {
+                            $guestValue = (int) $arguments['guests'];
+                            if ($guestValue < 0) {
+                                error_log("EXTRACT_BOOKING_INFO: Rejected negative guest count={$guestValue}");
+                                $functionResult = [
+                                    'status' => 'error',
+                                    'message' => 'Invalid guest count: ' . $guestValue . '. Guest count cannot be negative or zero. Please ask the user to provide a valid positive number of guests.'
+                                ];
+                                break;
+                            }
+                        }
+
+                        // Normalise guest count BEFORE merging (handles "40 people", "forty guests", etc.)
                         if (isset($arguments['guests'])) {
                             $arguments['guests'] = $this->normalizeGuestCount($arguments['guests'], $message);
                         } elseif (empty($currentData['guests'])) {
@@ -207,7 +220,17 @@ class AIController
                             }
                         }
 
-                        // FIX #1: Before merging, resolve vendor_name / venue_name to a real DB id
+                        // BUG FIX #3: Double-check after normalization — reject if still negative or zero
+                        if (isset($arguments['guests']) && (int)$arguments['guests'] <= 0) {
+                            error_log("EXTRACT_BOOKING_INFO: Rejected invalid guest count after normalization: " . $arguments['guests']);
+                            $functionResult = [
+                                'status' => 'error',
+                                'message' => 'Invalid guest count after parsing. Guest count must be a positive number. Please ask the user to provide a valid number of guests.'
+                            ];
+                            break;
+                        }
+
+                        // Before merging, resolve vendor_name / venue_name to a real DB id
                         // using the already-displayed suggestedVendors list as the authoritative source.
                         $arguments = $this->resolveVendorIdFromName($arguments, $suggestedVendors);
 
@@ -278,7 +301,7 @@ class AIController
                         $venueId = $arguments['venue_id'] ?? null;
                         $vendorId = $arguments['vendor_id'] ?? null;
 
-                        // FIX #2: Validate IDs against suggestedVendors before trusting them
+                        // Validate IDs against suggestedVendors before trusting them
                         if ($venueId) {
                             $venueId = $this->validateVendorIdInResults((int) $venueId, $suggestedVendors, 'venue')
                                 ?? ($currentData['venue_id'] ?? null);
@@ -320,7 +343,7 @@ class AIController
                         $venueId = $arguments['venue_id'] ?? null;
                         $vendorId = $arguments['vendor_id'] ?? null;
 
-                        // FIX #2: Hard-validate IDs against suggestedVendors before booking.
+                        // Hard-validate IDs against suggestedVendors before booking.
                         if ($venueId) {
                             $validatedVenueId = $this->validateVendorIdInResults((int) $venueId, $suggestedVendors, 'venue');
                             if (!$validatedVenueId) {
@@ -469,7 +492,7 @@ class AIController
                 'extractedInfo' => $extractedInfo,
                 'stage' => $newStage,
                 'suggestedVendors' => $suggestedVendors,
-                'currentRecommendations' => $currentRecommendations, // For UI display only
+                'currentRecommendations' => $currentRecommendations, // For UI display only — render cards from THIS, not suggestedVendors
                 'bookingCreated' => $bookingCreated,
                 'bookingId' => $bookingId
             ]);
@@ -489,7 +512,7 @@ class AIController
     // =========================================================================
 
     /**
-     * FIX: Convert written-out numbers and "X people/guests/pax" phrases to integers.
+     * Convert written-out numbers and "X people/guests/pax" phrases to integers.
      * Examples: "40 people" → 40, "forty guests" → 40, "around 50 pax" → 50
      */
     private function normalizeGuestCount($raw, string $originalMessage = ''): int
@@ -617,7 +640,7 @@ class AIController
     }
 
     /**
-     * FIX #1: Resolve vendor_name / venue_name → real numeric DB id.
+     * Resolve vendor_name / venue_name → real numeric DB id.
      * Checks the already-shown suggestedVendors list first (most reliable),
      * then falls back to an EXACT match DB query (no fuzzy LIKE).
      */
@@ -695,7 +718,7 @@ class AIController
     }
 
     /**
-     * FIX #2: Confirm that a vendor_id/venue_id actually appeared in suggestedVendors.
+     * Confirm that a vendor_id/venue_id actually appeared in suggestedVendors.
      * Returns the validated int ID, or null if it cannot be verified.
      */
     private function validateVendorIdInResults(int $id, array $suggestedVendors, string $type): ?int
@@ -724,7 +747,7 @@ class AIController
     }
 
     /**
-     * FIX #3: Build the system prompt, injecting a vendor ID reference block so the
+     * Build the system prompt, injecting a vendor ID reference block so the
      * AI always has the correct numeric IDs across turns and never needs to guess.
      */
     private function getConversationalBookingPrompt(array $currentData, string $stage, array $suggestedVendors = []): string
@@ -846,6 +869,8 @@ ABSOLUTE RULES - NEVER BREAK THESE:
    - NEVER leave guests empty or set it to null when the user has clearly stated a count.
    - NEVER store the phrase as-is (e.g. do not store '40 people' as the guests value).
    - Always pass an INTEGER to the guests field of extract_booking_info.
+   - CRITICAL: NEVER accept or pass a negative number as a guest count. If the user provides a negative number (e.g. '-50 guests'), this is INVALID. Respond: 'The number of guests cannot be negative. Please provide a valid number of guests.' Do NOT call extract_booking_info with a negative guests value.
+   - A guest count of 0 (zero) is also invalid. Always require a positive integer.
 
 6. HUMAN-LIKE BOOKING LOGIC:
    - Ask questions one at a time, not all at once.
@@ -874,7 +899,7 @@ INFORMATION TO GATHER (in order):
 7. Vendor/venue selection (from search results only)
 
 FUNCTION USAGE:
-- extract_booking_info: Call IMMEDIATELY when user provides ANY booking detail. NEVER skip this. Always validate dates are not before {$currentDate} before extracting. When user selects a vendor by name, pass vendor_name AND the correct vendor_id/venue_id from the ID REFERENCE block above.
+- extract_booking_info: Call IMMEDIATELY when user provides ANY booking detail. NEVER skip this. Always validate dates are not before {$currentDate} before extracting. When user selects a vendor by name, pass vendor_name AND the correct vendor_id/venue_id from the ID REFERENCE block above. NEVER call with a negative guests value — return an error message to the user instead.
 - search_vendors: Call when user asks to find/browse vendors or says ANY of: 'supplier', 'suppliers', 'vendor', 'vendors', 'show all', 'list all', 'send all', 'available suppliers', 'available vendors', OR mentions a specific vendor/category name.
   - When user says 'supplier(s)' or 'vendor(s)' with NO category specified, call search_vendors with NO category parameter - this returns ALL types.
   - CRITICAL: If 'vendor_id' or 'venue_id' is ALREADY present in CURRENT BOOKING DATA, do NOT call search_vendors. Focus ONLY on completing the booking for the selected ID.
@@ -982,7 +1007,7 @@ CRITICAL: Use exact numeric IDs from the PREVIOUSLY SHOWN VENDOR ID REFERENCE bl
         return [
             [
                 'name' => 'extract_booking_info',
-                'description' => 'Extract event details from user message. When user selects a vendor by name, you MUST include the vendor_id or venue_id from the PREVIOUSLY SHOWN VENDOR ID REFERENCE in the system prompt. For guest counts, ALWAYS pass an integer — parse "40 people", "forty guests", "around 50 pax" etc. into their numeric equivalent.',
+                'description' => 'Extract event details from user message. When user selects a vendor by name, you MUST include the vendor_id or venue_id from the PREVIOUSLY SHOWN VENDOR ID REFERENCE in the system prompt. For guest counts, ALWAYS pass an integer — parse "40 people", "forty guests", "around 50 pax" etc. into their numeric equivalent. NEVER pass a negative or zero guest count — if the user provides a negative number, do NOT call this function; instead respond with an error message.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
@@ -991,7 +1016,7 @@ CRITICAL: Use exact numeric IDs from the PREVIOUSLY SHOWN VENDOR ID REFERENCE bl
                         'time' => ['type' => 'string', 'description' => 'Event start time (e.g. 2:00 PM)'],
                         'location' => ['type' => 'string'],
                         'budget' => ['type' => 'number'],
-                        'guests' => ['type' => 'integer', 'description' => 'Number of guests as an INTEGER. Parse natural language: "40 people"→40, "forty guests"→40, "around 50 pax"→50, "100 attendees"→100. NEVER store a string here. NEVER leave null when user stated a count.'],
+                        'guests' => ['type' => 'integer', 'description' => 'Number of guests as a POSITIVE INTEGER. Parse natural language: "40 people"→40, "forty guests"→40, "around 50 pax"→50, "100 attendees"→100. NEVER store a string here. NEVER leave null when user stated a count. NEVER pass a negative number or zero — if user gives a negative/zero value, do NOT call this function.'],
                         'venue_id' => ['type' => 'integer', 'description' => 'Venue ID chosen by user. MUST come from the PREVIOUSLY SHOWN VENDOR ID REFERENCE or live search results. NEVER invent.'],
                         'venue_name' => ['type' => 'string', 'description' => 'Name of the venue chosen by user'],
                         'vendor_id' => ['type' => 'integer', 'description' => 'Supplier ID chosen by user. MUST come from the PREVIOUSLY SHOWN VENDOR ID REFERENCE or live search results. NEVER invent.'],
@@ -1015,7 +1040,7 @@ CRITICAL: Use exact numeric IDs from the PREVIOUSLY SHOWN VENDOR ID REFERENCE bl
                             'enum' => ['Photography & Videography', 'Catering', 'Venue', 'Coordination & Hosting', 'Decoration', 'Entertainment', 'Others']
                         ],
                         'keyword' => ['type' => 'string', 'description' => 'Specific vendor name, venue type (e.g. Church, Garden), or keyword'],
-                        'budget_max' => ['type' => 'number'],
+                        'budget_max' => ['type' => 'number', 'description' => 'Maximum budget filter. When provided, only return vendors/venues with pricing at or below this amount.'],
                         'location' => ['type' => 'string'],
                         'limit' => ['type' => 'integer', 'description' => 'Optional: Override default limit. Leave empty to show all when no filters, or 10 when filters applied.']
                     ],
@@ -1070,11 +1095,13 @@ CRITICAL: Use exact numeric IDs from the PREVIOUSLY SHOWN VENDOR ID REFERENCE bl
                     }
                 }
 
-                // FIX: Ensure guests is always stored as an integer
+                // Ensure guests is always stored as a positive integer
                 if ($key === 'guests') {
                     $value = (int) $value;
-                    if ($value <= 0)
+                    if ($value <= 0) {
+                        error_log("REJECTED INVALID GUEST COUNT: {$value}");
                         continue;
+                    }
                 }
 
                 if ($key === 'preferences' && isset($merged['preferences'])) {
@@ -1233,6 +1260,11 @@ CRITICAL: Use exact numeric IDs from the PREVIOUSLY SHOWN VENDOR ID REFERENCE bl
             });
         }
 
+        // BUG FIX #2 (supplier side): Apply budget_max filter to supplier listings
+        if (!empty($criteria['budget_max'])) {
+            $query->where('pricing', '<=', $criteria['budget_max']);
+        }
+
         $hasFilters = !empty($criteria['location']) || !empty($criteria['budget_max']) || !empty($criteria['keyword']);
         $limit = $hasFilters ? ($criteria['limit'] ?? 10) : 100;
 
@@ -1281,6 +1313,11 @@ CRITICAL: Use exact numeric IDs from the PREVIOUSLY SHOWN VENDOR ID REFERENCE bl
 
         if (!empty($criteria['location'])) {
             $query->where('address', 'LIKE', '%' . $criteria['location'] . '%');
+        }
+
+        // BUG FIX #2: Apply budget_max filter to venue listings — previously missing entirely
+        if (!empty($criteria['budget_max'])) {
+            $query->where('pricing', '<=', $criteria['budget_max']);
         }
 
         $hasFilters = !empty($criteria['location']) || !empty($criteria['budget_max']) || !empty($criteria['keyword']);
