@@ -592,6 +592,22 @@ class VendorController
                     ]);
                 }
 
+                // FIX: before returning 404, check if user has an INACTIVE listing
+                // (i.e. suspended). Return a 200 with suspended flag so the frontend
+                // can show a "this supplier is suspended" page instead of a broken 404.
+                $inactiveListing = DB::table('vendor_listings')
+                    ->where('user_id', $userId)
+                    ->where('status', 'Inactive')
+                    ->orderByDesc('created_at')
+                    ->first();
+
+                if ($inactiveListing) {
+                    return $this->json($response, true, "Vendor suspended", 200, [
+                        'vendor'    => $this->formatVendorListing($inactiveListing, $userId),
+                        'suspended' => true,
+                    ]);
+                }
+
                 return $this->json($response, false, "Vendor not found", 404);
             }
 
