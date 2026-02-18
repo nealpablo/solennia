@@ -51,7 +51,6 @@ return function (App $app) {
                     'va.venue_amenities',
                     'va.venue_operating_hours',
                     'va.venue_parking',
-                    // NEW FIELDS
                     'va.contact_number',
                     'va.region',
                     'va.city',
@@ -125,7 +124,6 @@ return function (App $app) {
             }
 
             if ($action === 'deny') {
-                // Update application status
                 DB::table('vendor_application')
                     ->where('id', $appId)
                     ->update([
@@ -133,8 +131,7 @@ return function (App $app) {
                         'rejection_reason' => $reason
                     ]);
 
-                // Send detailed denial notification with reason
-                $notificationMessage = $reason 
+                $notificationMessage = $reason
                     ? "Your vendor application has been denied.\n\nReason: {$reason}\n\nYou may reapply after addressing the concerns mentioned above."
                     : "Your vendor application has been denied. Please contact support for more information.";
 
@@ -174,44 +171,43 @@ return function (App $app) {
                     throw new \Exception('Business email missing');
                 }
 
-                // Update user role to supplier (role 1)
+                // Update user role to supplier (role 1), clear any previous suspension
                 DB::table('credential')
                     ->where('id', $appRow->user_id)
-                    ->update(['role' => 1]);
+                    ->update([
+                        'role'         => 1,
+                        'suspended_at' => null,
+                        'suspended_by' => null,
+                    ]);
 
-                // Mark application as approved
                 DB::table('vendor_application')
                     ->where('id', $appRow->id)
                     ->update(['status' => 'Approved']);
 
-                // Create initial event_service_provider record if it doesn't exist
                 $existingProfile = DB::table('event_service_provider')
                     ->where('UserID', $appRow->user_id)
                     ->first();
 
                 if (!$existingProfile) {
                     DB::table('event_service_provider')->insert([
-                        'UserID' => $appRow->user_id,
-                        'BusinessName' => $appRow->business_name,
-                        'Category' => $appRow->category,
-                        'BusinessEmail' => $appRow->contact_email ?? $businessEmail,
-                        'BusinessAddress' => $appRow->address,
-                        'Description' => $appRow->description,
-                        'Pricing' => $appRow->pricing,
+                        'UserID'            => $appRow->user_id,
+                        'BusinessName'      => $appRow->business_name,
+                        'Category'          => $appRow->category,
+                        'BusinessEmail'     => $appRow->contact_email ?? $businessEmail,
+                        'BusinessAddress'   => $appRow->address,
+                        'Description'       => $appRow->description,
+                        'Pricing'           => $appRow->pricing,
                         'ApplicationStatus' => 'Approved',
-                        // Map new fields
-                        'region' => $appRow->region,
-                        'city' => $appRow->city,
-                        'contact_number' => $appRow->contact_number,
-                        // Initialize required fields with defaults if null
-                        'bio' => $appRow->description ?? 'Welcome to my business!',
-                        'services' => $appRow->category ?? 'General Services',
-                        'verification_score' => 50, // Base score for approved vendors
-                        'DateApproved' => date('Y-m-d H:i:s')
+                        'region'            => $appRow->region,
+                        'city'              => $appRow->city,
+                        'contact_number'    => $appRow->contact_number,
+                        'bio'               => $appRow->description ?? 'Welcome to my business!',
+                        'services'          => $appRow->category ?? 'General Services',
+                        'verification_score'=> 50,
+                        'DateApproved'      => date('Y-m-d H:i:s')
                     ]);
                 }
 
-                // Send approval notification
                 $sendNotification(
                     $appRow->user_id,
                     'application_approved',
@@ -219,7 +215,7 @@ return function (App $app) {
                     'Congratulations! Your vendor application has been approved. You can now access your vendor dashboard and complete your profile setup.'
                 );
 
-                error_log("VENDOR_APPROVED: UserID={$appRow->user_id}, Category={$appRow->category}. User will complete profile setup.");
+                error_log("VENDOR_APPROVED: UserID={$appRow->user_id}, Category={$appRow->category}.");
             });
 
             $res->getBody()->write(json_encode([
@@ -288,7 +284,11 @@ return function (App $app) {
 
         try {
             $users = DB::table('credential')
-                ->select('id', 'first_name', 'last_name', 'username', 'email', 'role', 'is_verified', 'created_at')
+                ->select(
+                    'id', 'first_name', 'last_name', 'username', 'email',
+                    'role', 'is_verified', 'created_at',
+                    'warning_count', 'suspended_at', 'suspended_by'
+                )
                 ->orderByDesc('created_at')
                 ->get();
 
@@ -315,11 +315,15 @@ return function (App $app) {
     })->add(new AuthMiddleware());
 
     // Admin: Update user role
-    $app->post('/api/admin/users/role', function (Request $req, Response $res) {
+    // FIX: Now also deactivates/reactivates listings and tracks suspended_at
+    $app->post('/api/admin/users/role', function (Request $req, Response $res) use ($sendNotification) {
 
         try {
-            $data = (array) $req->getParsedBody();
-            $userId = (int) ($data['user_id'] ?? 0);
+            $user    = $req->getAttribute('user');
+            $adminId = $user->mysql_id ?? null;
+
+            $data    = (array) $req->getParsedBody();
+            $userId  = (int) ($data['user_id'] ?? 0);
             $newRole = (int) ($data['role'] ?? -1);
 
             if (!$userId || $newRole < 0 || $newRole > 2) {
@@ -330,11 +334,9 @@ return function (App $app) {
                 return $res->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
 
-            $userExists = DB::table('credential')
-                ->where('id', $userId)
-                ->exists();
+            $targetUser = DB::table('credential')->where('id', $userId)->first();
 
-            if (!$userExists) {
+            if (!$targetUser) {
                 $res->getBody()->write(json_encode([
                     'success' => false,
                     'error'   => 'User not found'
@@ -342,9 +344,67 @@ return function (App $app) {
                 return $res->withHeader('Content-Type', 'application/json')->withStatus(404);
             }
 
-            DB::table('credential')
-                ->where('id', $userId)
-                ->update(['role' => $newRole]);
+            DB::transaction(function () use ($userId, $newRole, $adminId, $targetUser, $sendNotification) {
+
+                $credentialUpdate = ['role' => $newRole];
+
+                // --- SUSPENDING (demoting to client role 0) ---
+                if ($newRole === 0 && $targetUser->role === 1) {
+                    // Track when suspension happened and who did it
+                    $credentialUpdate['suspended_at'] = date('Y-m-d H:i:s');
+                    $credentialUpdate['suspended_by'] = $adminId;
+
+                    // Deactivate all vendor listings
+                    DB::table('vendor_listings')
+                        ->where('user_id', $userId)
+                        ->update(['status' => 'Inactive', 'updated_at' => date('Y-m-d H:i:s')]);
+
+                    // Deactivate all venue listings
+                    DB::table('venue_listings')
+                        ->where('user_id', $userId)
+                        ->update(['status' => 'Inactive', 'updated_at' => date('Y-m-d H:i:s')]);
+
+                    // Notify the supplier
+                    $sendNotification(
+                        $userId,
+                        'account_suspended',
+                        '⚠️ Account Suspended',
+                        'Your supplier account has been suspended by an administrator. Your listings have been deactivated. If you believe this is a mistake, please contact support.'
+                    );
+
+                    error_log("SUPPLIER_SUSPENDED: UserID={$userId} suspended by AdminID={$adminId}");
+                }
+
+                // --- REINSTATING (promoting back to supplier role 1) ---
+                if ($newRole === 1 && $targetUser->role === 0) {
+                    // Clear suspension timestamps
+                    $credentialUpdate['suspended_at'] = null;
+                    $credentialUpdate['suspended_by'] = null;
+
+                    // Reactivate their listings
+                    DB::table('vendor_listings')
+                        ->where('user_id', $userId)
+                        ->update(['status' => 'Active', 'updated_at' => date('Y-m-d H:i:s')]);
+
+                    DB::table('venue_listings')
+                        ->where('user_id', $userId)
+                        ->update(['status' => 'Active', 'updated_at' => date('Y-m-d H:i:s')]);
+
+                    // Notify the supplier they've been reinstated
+                    $sendNotification(
+                        $userId,
+                        'account_reinstated',
+                        '✅ Account Reinstated',
+                        'Your supplier account has been reinstated. Your listings are now active again. Please ensure you follow platform guidelines going forward.'
+                    );
+
+                    error_log("SUPPLIER_REINSTATED: UserID={$userId} reinstated by AdminID={$adminId}");
+                }
+
+                DB::table('credential')
+                    ->where('id', $userId)
+                    ->update($credentialUpdate);
+            });
 
             $res->getBody()->write(json_encode([
                 'success' => true,
@@ -368,6 +428,125 @@ return function (App $app) {
 
     })->add(new AuthMiddleware());
 
+    // Admin: Issue a warning to a supplier
+    // POST /api/admin/suppliers/{userId}/warn
+    // Increments warning_count. At 3 warnings, auto-suspends.
+    $app->post('/api/admin/suppliers/{userId}/warn', function (Request $req, Response $res, array $args) use ($sendNotification) {
+
+        try {
+            $adminUser = $req->getAttribute('user');
+            $adminId   = $adminUser->mysql_id ?? null;
+
+            // Verify admin
+            $adminProfile = DB::table('credential')->where('id', $adminId)->first();
+            if (!$adminProfile || (int)($adminProfile->role ?? 0) !== 2) {
+                $res->getBody()->write(json_encode(['success' => false, 'error' => 'Access denied - Admin only']));
+                return $res->withHeader('Content-Type', 'application/json')->withStatus(403);
+            }
+
+            $userId   = (int) ($args['userId'] ?? 0);
+            $data     = (array) $req->getParsedBody();
+            $reportId = (int) ($data['report_id'] ?? 0);
+            $reason   = trim($data['reason'] ?? '');
+
+            $supplier = DB::table('credential')->where('id', $userId)->first();
+
+            if (!$supplier || $supplier->role !== 1) {
+                $res->getBody()->write(json_encode(['success' => false, 'error' => 'Supplier not found']));
+                return $res->withHeader('Content-Type', 'application/json')->withStatus(404);
+            }
+
+            $autoSuspended = false;
+
+            DB::transaction(function () use ($userId, $adminId, $reportId, $reason, $supplier, $sendNotification, &$autoSuspended) {
+
+                $newWarningCount = ($supplier->warning_count ?? 0) + 1;
+
+                DB::table('credential')
+                    ->where('id', $userId)
+                    ->update(['warning_count' => $newWarningCount]);
+
+                // Update the linked report if provided
+                if ($reportId) {
+                    DB::table('supplier_reports')
+                        ->where('ID', $reportId)
+                        ->update([
+                            'Status'     => 'Resolved',
+                            'AdminNotes' => ($reason ? $reason . "\n" : '') . "[System] Warning #{$newWarningCount} issued.",
+                            'ReviewedBy' => $adminId,
+                            'ReviewedAt' => DB::raw('NOW()'),
+                            'UpdatedAt'  => DB::raw('NOW()')
+                        ]);
+                }
+
+                // Notify supplier of warning
+                $warningMsg = $newWarningCount < 3
+                    ? "You have received warning #{$newWarningCount} on your account." .
+                      ($reason ? " Reason: {$reason}." : '') .
+                      " Please note: 3 warnings will result in automatic suspension."
+                    : "You have received warning #{$newWarningCount}.";
+
+                $sendNotification($userId, 'account_warning', "⚠️ Account Warning #{$newWarningCount}", $warningMsg);
+
+                // AUTO-SUSPEND at 3 warnings
+                if ($newWarningCount >= 3) {
+                    $autoSuspended = true;
+
+                    DB::table('credential')
+                        ->where('id', $userId)
+                        ->update([
+                            'role'         => 0,
+                            'suspended_at' => date('Y-m-d H:i:s'),
+                            'suspended_by' => $adminId,
+                        ]);
+
+                    DB::table('vendor_listings')
+                        ->where('user_id', $userId)
+                        ->update(['status' => 'Inactive', 'updated_at' => date('Y-m-d H:i:s')]);
+
+                    DB::table('venue_listings')
+                        ->where('user_id', $userId)
+                        ->update(['status' => 'Inactive', 'updated_at' => date('Y-m-d H:i:s')]);
+
+                    $sendNotification(
+                        $userId,
+                        'account_suspended',
+                        '🚫 Account Suspended',
+                        'Your account has been automatically suspended after receiving 3 warnings. All your listings have been deactivated. Contact support if you wish to appeal.'
+                    );
+
+                    error_log("AUTO_SUSPENDED: UserID={$userId} suspended after 3 warnings by AdminID={$adminId}");
+                }
+            });
+
+            $newCount = ($supplier->warning_count ?? 0) + 1;
+
+            $res->getBody()->write(json_encode([
+                'success'        => true,
+                'message'        => $autoSuspended
+                    ? "Warning issued. Supplier has been automatically suspended after reaching 3 warnings."
+                    : "Warning #{$newCount} issued to supplier.",
+                'warning_count'  => $newCount,
+                'auto_suspended' => $autoSuspended,
+            ]));
+
+            return $res->withHeader('Content-Type', 'application/json');
+
+        } catch (\Throwable $e) {
+            error_log('ISSUE_WARNING_ERROR: ' . $e->getMessage());
+
+            $res->getBody()->write(json_encode([
+                'success' => false,
+                'error'   => 'Failed to issue warning: ' . $e->getMessage()
+            ]));
+
+            return $res
+                ->withHeader('Content-Type', 'application/json')
+                ->withStatus(500);
+        }
+
+    })->add(new AuthMiddleware());
+
     // Admin: Delete user
     $app->delete('/api/admin/users/{userId}', function (Request $req, Response $res, array $args) {
 
@@ -382,9 +561,7 @@ return function (App $app) {
                 return $res->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
 
-            $userExists = DB::table('credential')
-                ->where('id', $userId)
-                ->exists();
+            $userExists = DB::table('credential')->where('id', $userId)->exists();
 
             if (!$userExists) {
                 $res->getBody()->write(json_encode([

@@ -1,24 +1,15 @@
 <?php
 
-namespace Src\Controllers;
-
+use Slim\App;
+use Illuminate\Database\Capsule\Manager as DB;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
-use Illuminate\Database\Capsule\Manager as DB;
+use Src\Middleware\AuthMiddleware;
 
+return function (App $app) {
 
-class FeedbackController
-{
-    private function json(Response $res, array $data, int $status = 200): Response
-    {
-        $res->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-        return $res
-            ->withHeader('Content-Type', 'application/json; charset=utf-8')
-            ->withStatus($status);
-    }
-
-    private function sendNotification($userId, $type, $title, $message)
-    {
+    // Helper function to send notifications
+    $sendNotification = function ($userId, $type, $title, $message) {
         try {
             DB::table('notifications')->insert([
                 'user_id' => $userId,
@@ -26,535 +17,606 @@ class FeedbackController
                 'title' => $title,
                 'message' => $message,
                 'read' => false,
-                'created_at' => DB::raw('NOW()')
+                'created_at' => date('Y-m-d H:i:s')
             ]);
-        } catch (\Throwable $e) {
-            error_log("NOTIFICATION_ERROR: " . $e->getMessage());
+        } catch (\Exception $e) {
+            error_log("Failed to send notification: " . $e->getMessage());
         }
-    }
+    };
 
-    /**
-     * ============================================
-     * For users to provide feedback about the platform itself
-     */
-    public function submitGeneralFeedback(Request $req, Response $res): Response
-    {
+    // Admin: Get vendor applications
+    $app->get('/api/admin/vendor-applications', function (Request $req, Response $res) {
+
         try {
-            $user = $req->getAttribute('user');
-            $userId = isset($user->mysql_id) ? (int)$user->mysql_id : 0;
+            $all = ($req->getQueryParams()['all'] ?? '') === '1';
 
-            if ($userId <= 0) {
-                return $this->json($res, [
-                    'success' => false,
-                    'error' => 'Unauthorized'
-                ], 401);
+            $query = DB::table('vendor_application as va')
+                ->leftJoin('credential as c', 'va.user_id', '=', 'c.id')
+                ->select(
+                    'va.id',
+                    'va.user_id',
+                    'va.business_name',
+                    'va.category',
+                    'va.contact_email',
+                    'va.address',
+                    'va.description',
+                    'va.pricing',
+                    'va.created_at',
+                    DB::raw('COALESCE(va.status, "Pending") as status'),
+                    'va.permits',
+                    'va.gov_id',
+                    'va.portfolio',
+                    'va.venue_subcategory',
+                    'va.venue_capacity',
+                    'va.venue_amenities',
+                    'va.venue_operating_hours',
+                    'va.venue_parking',
+                    'va.contact_number',
+                    'va.region',
+                    'va.city',
+                    'va.selfie_with_id',
+                    'va.social_links',
+                    'va.sample_photos',
+                    'va.menu_list',
+                    'c.first_name',
+                    'c.last_name',
+                    'c.username',
+                    'c.email'
+                )
+                ->orderBy('va.created_at', 'desc');
+
+            if (!$all) {
+                $query->where(function ($w) {
+                    $w->whereNull('va.status')
+                      ->orWhere('va.status', 'Pending');
+                });
             }
 
-            $data = (array) $req->getParsedBody();
-            $message = trim($data['message'] ?? '');
+            $rows = $query->get();
 
-            if ($message === '') {
-                return $this->json($res, [
-                    'success' => false,
-                    'error' => 'Message is required'
-                ], 400);
-            }
+            $res->getBody()->write(json_encode([
+                'success'      => true,
+                'applications' => $rows
+            ]));
 
-            DB::table('feedback')->insert([
-                'user_id' => $userId,
-                'message' => $message,
-                'created_at' => DB::raw('NOW()')
-            ]);
-
-            return $this->json($res, [
-                'success' => true,
-                'message' => 'Feedback submitted successfully'
-            ], 201);
+            return $res->withHeader('Content-Type', 'application/json');
 
         } catch (\Throwable $e) {
-            error_log('GENERAL_FEEDBACK_ERROR: ' . $e->getMessage());
-            return $this->json($res, [
+            error_log('ADMIN_LIST_ERROR: ' . $e->getMessage());
+
+            $res->getBody()->write(json_encode([
                 'success' => false,
-                'error' => 'Failed to submit feedback'
-            ], 500);
+                'error'   => 'Server error fetching vendor applications'
+            ]));
+
+            return $res
+                ->withHeader('Content-Type', 'application/json')
+                ->withStatus(500);
         }
-    }
 
-    /**
-     * For clients to rate vendors after completed bookings
-     */
-    public function submitBookingFeedback(Request $req, Response $res, array $args): Response
-    {
+    })->add(new AuthMiddleware());
+
+    // Admin: Approve/deny vendor application
+    $app->post('/api/admin/vendor-application/decision', function (Request $req, Response $res) use ($sendNotification) {
+
         try {
-            $user = $req->getAttribute('user');
-            if (!$user || !isset($user->mysql_id)) {
-                return $this->json($res, [
+            $data   = (array) $req->getParsedBody();
+            $appId  = (int) ($data['id'] ?? 0);
+            $action = strtolower(trim($data['action'] ?? ''));
+            $reason = trim($data['reason'] ?? '');
+
+            if (!$appId || !in_array($action, ['approve', 'deny'], true)) {
+                $res->getBody()->write(json_encode([
                     'success' => false,
-                    'error' => 'Unauthorized. Please log in.'
-                ], 401);
+                    'error'   => 'Invalid request'
+                ]));
+                return $res->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
 
-            $userId = $user->mysql_id;
-            $bookingId = $args['id'] ?? null;
-            $data = (array) $req->getParsedBody();
+            $appRow = DB::table('vendor_application')->where('id', $appId)->first();
 
-            // Validate required fields
-            if (!isset($data['rating']) || $data['rating'] < 1 || $data['rating'] > 5) {
-                return $this->json($res, [
+            if (!$appRow) {
+                $res->getBody()->write(json_encode([
                     'success' => false,
-                    'error' => 'Rating must be between 1 and 5 stars'
-                ], 400);
+                    'error'   => 'Application not found'
+                ]));
+                return $res->withHeader('Content-Type', 'application/json')->withStatus(404);
             }
 
-            // Get booking details
-            $booking = DB::table('booking as b')
-                ->leftJoin('event_service_provider as esp', 'b.EventServiceProviderID', '=', 'esp.ID')
-                ->where('b.ID', $bookingId)
-                ->where('b.UserID', $userId)
-                ->select('b.*', 'esp.UserID as vendor_user_id', 'esp.BusinessName as vendor_name')
-                ->first();
-
-            if (!$booking) {
-                return $this->json($res, [
-                    'success' => false,
-                    'error' => 'Booking not found or access denied'
-                ], 404);
-            }
-
-            // Check if booking is completed
-            if ($booking->BookingStatus !== 'Completed') {
-                return $this->json($res, [
-                    'success' => false,
-                    'error' => 'You can only leave feedback for completed bookings'
-                ], 400);
-            }
-
-            // Check if feedback already exists
-            $existingFeedback = DB::table('booking_feedback')
-                ->where('BookingID', $bookingId)
-                ->first();
-
-            if ($existingFeedback) {
-                return $this->json($res, [
-                    'success' => false,
-                    'error' => 'Feedback already submitted for this booking'
-                ], 409);
-            }
-
-            DB::beginTransaction();
-
-            try {
-                // Insert feedback
-                $feedbackId = DB::table('booking_feedback')->insertGetId([
-                    'BookingID' => $bookingId,
-                    'UserID' => $userId,
-                    'EventServiceProviderID' => $booking->EventServiceProviderID,
-                    'Rating' => (int) $data['rating'],
-                    'Comment' => $data['comment'] ?? null,
-                    'IsReported' => isset($data['report']) && $data['report'] ? 1 : 0,
-                    'CreatedAt' => DB::raw('NOW()')
-                ]);
-
-                // If this includes a report, create the report entry
-                if (isset($data['report']) && $data['report']) {
-                    if (empty($data['report_reason']) || empty($data['report_details'])) {
-                        throw new \Exception('Report reason and details are required');
-                    }
-
-                    $validReasons = ['violated_agreement', 'no_response', 'poor_service', 'unprofessional', 'safety_concern', 'other'];
-                    if (!in_array($data['report_reason'], $validReasons)) {
-                        throw new \Exception('Invalid report reason');
-                    }
-
-                    DB::table('supplier_reports')->insert([
-                        'FeedbackID' => $feedbackId,
-                        'BookingID' => $bookingId,
-                        'ReportedBy' => $userId,
-                        'EventServiceProviderID' => $booking->EventServiceProviderID,
-                        'ReportReason' => $data['report_reason'],
-                        'ReportDetails' => $data['report_details'],
-                        'Status' => 'Pending',
-                        'CreatedAt' => DB::raw('NOW()')
+            if ($action === 'deny') {
+                DB::table('vendor_application')
+                    ->where('id', $appId)
+                    ->update([
+                        'status' => 'Denied',
+                        'rejection_reason' => $reason
                     ]);
 
-                    // Notify admins about the report (role 2 = admin)
-                    $admins = DB::table('credential')
-                        ->where('role', 2)
-                        ->get();
+                $notificationMessage = $reason
+                    ? "Your vendor application has been denied.\n\nReason: {$reason}\n\nYou may reapply after addressing the concerns mentioned above."
+                    : "Your vendor application has been denied. Please contact support for more information.";
 
-                    foreach ($admins as $admin) {
-                        $this->sendNotification(
-                            $admin->id,
-                            'supplier_report',
-                            'New Supplier Report',
-                            "A client has reported {$booking->vendor_name} for review"
-                        );
-                    }
-                }
+                $sendNotification(
+                    $appRow->user_id,
+                    'application_denied',
+                    '❌ Application Denied',
+                    $notificationMessage
+                );
 
-                // Notify vendor/venue owner about the feedback
-                // Determine who should receive the notification
-                $notificationRecipientId = null;
-                $recipientType = 'vendor';
-                
-                // For venue bookings, get the venue owner's user ID
-                if (!empty($booking->venue_id)) {
-                    $venue = DB::table('venue_listings')
-                        ->where('id', $booking->venue_id)
-                        ->first();
-                    
-                    if ($venue && !empty($venue->firebase_uid)) {
-                        // Get user ID from credential table using firebase_uid
-                        $venueOwner = DB::table('credential')
-                            ->where('firebase_uid', $venue->firebase_uid)
-                            ->first();
-                        
-                        if ($venueOwner) {
-                            $notificationRecipientId = $venueOwner->id;
-                            $recipientType = 'venue';
-                        }
-                    }
-                }
-                
-                // For vendor service bookings, use vendor_user_id
-                if (!$notificationRecipientId && !empty($booking->vendor_user_id)) {
-                    $notificationRecipientId = $booking->vendor_user_id;
-                    $recipientType = 'vendor';
-                }
-                
-                // Send notification if we have a valid recipient
-                if ($notificationRecipientId) {
-                    $this->sendNotification(
-                        $notificationRecipientId,
-                        'feedback_received',
-                        'New Feedback Received',
-                        "You received a {$data['rating']}-star review"
-                    );
-                }
-
-                DB::commit();
-
-                return $this->json($res, [
+                $res->getBody()->write(json_encode([
                     'success' => true,
-                    'message' => 'Feedback submitted successfully',
-                    'feedback_id' => $feedbackId
-                ], 201);
+                    'message' => 'Application denied and notification sent to applicant.'
+                ]));
 
-            } catch (\Throwable $e) {
-                DB::rollBack();
-                throw $e;
+                return $res->withHeader('Content-Type', 'application/json');
             }
 
-        } catch (\Throwable $e) {
-            error_log("BOOKING_FEEDBACK_ERROR: " . $e->getMessage());
-            return $this->json($res, [
-                'success' => false,
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
+            // Approve application
+            DB::transaction(function () use ($appRow, $sendNotification) {
 
-    /**
-     * Get feedback for a specific booking
-     * GET /api/bookings/{id}/feedback
-     */
-    public function getBookingFeedback(Request $req, Response $res, array $args): Response
-    {
-        try {
-            $user = $req->getAttribute('user');
-            if (!$user || !isset($user->mysql_id)) {
-                return $this->json($res, ['success' => false, 'error' => 'Unauthorized'], 401);
-            }
+                $businessEmail = $appRow->contact_email;
 
-            $userId = $user->mysql_id;
-            $bookingId = $args['id'] ?? null;
+                if (!$businessEmail) {
+                    $businessEmail = DB::table('credential')
+                        ->where('id', $appRow->user_id)
+                        ->value('email');
 
-            // Get booking to verify access
-            $booking = DB::table('booking')
-                ->where('ID', $bookingId)
-                ->where('UserID', $userId)
-                ->first();
+                    if ($businessEmail) {
+                        DB::table('vendor_application')
+                            ->where('id', $appRow->id)
+                            ->update(['contact_email' => $businessEmail]);
+                    }
+                }
 
-            if (!$booking) {
-                return $this->json($res, ['success' => false, 'error' => 'Access denied'], 403);
-            }
+                if (!$businessEmail) {
+                    throw new \Exception('Business email missing');
+                }
 
-            // Get feedback if exists
-            $feedback = DB::table('booking_feedback as bf')
-                ->leftJoin('supplier_reports as sr', 'bf.ID', '=', 'sr.FeedbackID')
-                ->where('bf.BookingID', $bookingId)
-                ->select('bf.*', 'sr.ID as report_id', 'sr.ReportReason', 'sr.ReportDetails', 'sr.Status as report_status')
-                ->first();
+                // Update user role to supplier (role 1), clear any previous suspension
+                DB::table('credential')
+                    ->where('id', $appRow->user_id)
+                    ->update([
+                        'role'         => 1,
+                        'suspended_at' => null,
+                        'suspended_by' => null,
+                    ]);
 
-            return $this->json($res, [
-                'success' => true,
-                'feedback' => $feedback
-            ]);
+                DB::table('vendor_application')
+                    ->where('id', $appRow->id)
+                    ->update(['status' => 'Approved']);
 
-        } catch (\Throwable $e) {
-            error_log("GET_FEEDBACK_ERROR: " . $e->getMessage());
-            return $this->json($res, ['success' => false, 'error' => 'Failed to get feedback'], 500);
-        }
-    }
-
-    public function getVendorFeedback(Request $req, Response $res, array $args): Response
-    {
-        try {
-            $vendorId = $args['id'] ?? null;
-            $vendorEspId = null;
-
-            // 1. Try Legacy ESP
-            $vendor = DB::table('event_service_provider')
-                ->where('UserID', $vendorId)
-                ->first();
-
-            if ($vendor) {
-                $vendorEspId = $vendor->ID;
-            } else {
-                // 2. Try Vendor Listings (New System)
-                // If the user has a vendor listing, we might need to find how their bookings are stored.
-                // Currently bookings link to EventServiceProviderID.
-                // If the booking functionality hasn't been updated to support listing_id directly,
-                // we might not find feedbacks for pure vendor_listings yet unless they have a dummy ESP record.
-                // However, let's assume if we can't find ESP, we check if they are a valid vendor at least.
-                
-                $listing = DB::table('vendor_listings')
-                    ->where('user_id', $vendorId)
-                    ->where('status', 'Active')
+                $existingProfile = DB::table('event_service_provider')
+                    ->where('UserID', $appRow->user_id)
                     ->first();
-                
-                if (!$listing) {
-                     return $this->json($res, ['success' => false, 'error' => 'Vendor not found'], 404);
+
+                if (!$existingProfile) {
+                    DB::table('event_service_provider')->insert([
+                        'UserID'            => $appRow->user_id,
+                        'BusinessName'      => $appRow->business_name,
+                        'Category'          => $appRow->category,
+                        'BusinessEmail'     => $appRow->contact_email ?? $businessEmail,
+                        'BusinessAddress'   => $appRow->address,
+                        'Description'       => $appRow->description,
+                        'Pricing'           => $appRow->pricing,
+                        'ApplicationStatus' => 'Approved',
+                        'region'            => $appRow->region,
+                        'city'              => $appRow->city,
+                        'contact_number'    => $appRow->contact_number,
+                        'bio'               => $appRow->description ?? 'Welcome to my business!',
+                        'services'          => $appRow->category ?? 'General Services',
+                        'verification_score'=> 50,
+                        'DateApproved'      => date('Y-m-d H:i:s')
+                    ]);
                 }
-                // If they have a listing but no ESP, we can't easily find bookings by ESP ID.
-                // But maybe bookings are using a different mechanism or we should check for bookings by vendor_user_id if available?
-                // The booking table has vendor_user_id? Let's check the query below.
-                // The query below uses `where('bf.EventServiceProviderID', $vendor->ID)`.
-                // If there is no ESP ID, this query will fail or return nothing.
-                
-                // For now, let's just return empty feedback if no ESP record exists, rather than 404.
-                // This prevents the page from crashing/erroring with 404.
-                return $this->json($res, [
-                    'success' => true,
-                    'feedback' => [],
-                    'average_rating' => null,
-                    'total_reviews' => 0
-                ]);
-            }
 
-            // Get all feedback for this vendor (EXCLUDING venue-only bookings)
-            // Only show reviews where the booking does NOT have a venue_id (vendor services only)
-            $feedback = DB::table('booking_feedback as bf')
-                ->leftJoin('credential as c', 'bf.UserID', '=', 'c.id')
-                ->leftJoin('booking as b', 'bf.BookingID', '=', 'b.ID')
-                ->where('bf.EventServiceProviderID', $vendorEspId)
-                ->whereNull('b.venue_id')  // Exclude venue bookings
-                ->select([
-                    'bf.*',
+                $sendNotification(
+                    $appRow->user_id,
+                    'application_approved',
+                    'Application Approved! 🎉',
+                    'Congratulations! Your vendor application has been approved. You can now access your vendor dashboard and complete your profile setup.'
+                );
+
+                error_log("VENDOR_APPROVED: UserID={$appRow->user_id}, Category={$appRow->category}.");
+            });
+
+            $res->getBody()->write(json_encode([
+                'success' => true,
+                'message' => 'Vendor approved. They can now complete their profile setup.'
+            ]));
+
+            return $res->withHeader('Content-Type', 'application/json');
+
+        } catch (\Throwable $e) {
+            error_log('ADMIN_DECISION_ERROR: ' . $e->getMessage());
+
+            $res->getBody()->write(json_encode([
+                'success' => false,
+                'error'   => 'Failed to process application: ' . $e->getMessage()
+            ]));
+
+            return $res
+                ->withHeader('Content-Type', 'application/json')
+                ->withStatus(500);
+        }
+
+    })->add(new AuthMiddleware());
+
+    // Admin: Get feedbacks
+    $app->get('/api/admin/feedbacks', function (Request $req, Response $res) {
+
+        try {
+            $rows = DB::table('feedback as f')
+                ->leftJoin('credential as c', 'f.user_id', '=', 'c.id')
+                ->select(
+                    'f.id',
+                    'f.message',
+                    'f.created_at',
                     'c.first_name',
                     'c.last_name',
-                    'c.avatar',
-                    'b.ServiceName',
-                    'b.EventType',
-                    'b.EventDate'
-                ])
-                ->orderBy('bf.CreatedAt', 'DESC')
+                    'c.username'
+                )
+                ->orderBy('f.created_at', 'desc')
                 ->get();
 
-            // Calculate average rating and total reviews for vendor-only bookings
-            $avgRating = DB::table('booking_feedback as bf')
-                ->join('booking as b', 'bf.BookingID', '=', 'b.ID')
-                ->where('bf.EventServiceProviderID', $vendorEspId)
-                ->whereNull('b.venue_id')
-                ->avg('bf.Rating');
+            $res->getBody()->write(json_encode([
+                'success'   => true,
+                'feedbacks' => $rows
+            ]));
 
-            $totalReviews = DB::table('booking_feedback as bf')
-                ->join('booking as b', 'bf.BookingID', '=', 'b.ID')
-                ->where('bf.EventServiceProviderID', $vendorEspId)
-                ->whereNull('b.venue_id')
-                ->count();
-
-            return $this->json($res, [
-                'success' => true,
-                'feedback' => $feedback,
-                'average_rating' => $avgRating ? round($avgRating, 1) : null,
-                'total_reviews' => $totalReviews
-            ]);
+            return $res->withHeader('Content-Type', 'application/json');
 
         } catch (\Throwable $e) {
-            error_log("GET_VENDOR_FEEDBACK_ERROR: " . $e->getMessage());
-            return $this->json($res, ['success' => false, 'error' => 'Failed to get feedback'], 500);
+            error_log('ADMIN_FEEDBACKS_ERROR: ' . $e->getMessage());
+
+            $res->getBody()->write(json_encode([
+                'success' => false,
+                'error'   => 'Failed to fetch feedbacks'
+            ]));
+
+            return $res
+                ->withHeader('Content-Type', 'application/json')
+                ->withStatus(500);
         }
-    }
 
-    /**
-     * Get all reports (Admin only)
-     * GET /api/admin/reports
-     */
-    public function getAllReports(Request $req, Response $res): Response
-    {
+    })->add(new AuthMiddleware());
+
+    // Admin: Get all users
+    $app->get('/api/admin/users', function (Request $req, Response $res) {
+
         try {
-            $user = $req->getAttribute('user');
-            if (!$user || !isset($user->mysql_id)) {
-                return $this->json($res, ['success' => false, 'error' => 'Unauthorized'], 401);
-            }
-
-            // Check if user is admin (role 2 = admin)
-            $userProfile = DB::table('credential')->where('id', $user->mysql_id)->first();
-            if (!$userProfile || (int)($userProfile->role ?? 0) !== 2) {
-                return $this->json($res, ['success' => false, 'error' => 'Access denied - Admin only'], 403);
-            }
-
-            $params = $req->getQueryParams();
-            $status = $params['status'] ?? null;
-
-            $query = DB::table('supplier_reports as sr')
-                ->leftJoin('booking_feedback as bf', 'sr.FeedbackID', '=', 'bf.ID')
-                ->leftJoin('booking as b', 'sr.BookingID', '=', 'b.ID')
-                ->leftJoin('credential as c', 'sr.ReportedBy', '=', 'c.id')
-                ->leftJoin('event_service_provider as esp', 'sr.EventServiceProviderID', '=', 'esp.ID')
-                ->leftJoin('credential as vc', 'esp.UserID', '=', 'vc.id')
-                ->select([
-                    'sr.*',
-                    'bf.Rating',
-                    'bf.Comment as feedback_comment',
-                    'b.ServiceName',
-                    'b.EventDate',
-                    'b.ID as BookingID',
-                    'c.first_name as reporter_first_name',
-                    'c.last_name as reporter_last_name',
-                    'c.email as reporter_email',
-                    'esp.BusinessName as vendor_name',
-                    'esp.UserID as vendor_user_id',
-                    'vc.email as vendor_email'
-                ])
-                ->orderBy('sr.CreatedAt', 'DESC');
-
-            if ($status) {
-                $query->where('sr.Status', $status);
-            }
-
-            $reports = $query->get();
-
-            return $this->json($res, [
-                'success' => true,
-                'reports' => $reports
-            ]);
-
-        } catch (\Throwable $e) {
-            error_log("GET_REPORTS_ERROR: " . $e->getMessage());
-            return $this->json($res, ['success' => false, 'error' => 'Failed to get reports'], 500);
-        }
-    }
-
-    /**
-     * Update report status (Admin only)
-     * PATCH /api/admin/reports/{id}
-     */
-    public function updateReportStatus(Request $req, Response $res, array $args): Response
-    {
-        try {
-            $user = $req->getAttribute('user');
-            if (!$user || !isset($user->mysql_id)) {
-                return $this->json($res, ['success' => false, 'error' => 'Unauthorized'], 401);
-            }
-
-            // Check if user is admin (role 2 = admin)
-            $userProfile = DB::table('credential')->where('id', $user->mysql_id)->first();
-            if (!$userProfile || (int)($userProfile->role ?? 0) !== 2) {
-                return $this->json($res, ['success' => false, 'error' => 'Access denied - Admin only'], 403);
-            }
-
-            $reportId = $args['id'] ?? null;
-            $data = (array) $req->getParsedBody();
-            $newStatus = $data['status'] ?? null;
-
-            $validStatuses = ['Pending', 'Under_Review', 'Resolved', 'Dismissed', 'Rejected'];
-            if (!in_array($newStatus, $validStatuses)) {
-                return $this->json($res, ['success' => false, 'error' => 'Invalid status'], 400);
-            }
-            // Store Rejected as Dismissed in DB if table uses Dismissed
-            $statusToSave = ($newStatus === 'Rejected') ? 'Dismissed' : $newStatus;
-
-            DB::table('supplier_reports')
-                ->where('ID', $reportId)
-                ->update([
-                    'Status' => $statusToSave,
-                    'AdminNotes' => $data['admin_notes'] ?? null,
-                    'ReviewedBy' => $user->mysql_id,
-                    'ReviewedAt' => DB::raw('NOW()'),
-                    'UpdatedAt' => DB::raw('NOW()')
-                ]);
-
-            return $this->json($res, [
-                'success' => true,
-                'message' => 'Report status updated successfully'
-            ]);
-
-        } catch (\Throwable $e) {
-            error_log("UPDATE_REPORT_ERROR: " . $e->getMessage());
-            return $this->json($res, ['success' => false, 'error' => 'Failed to update report'], 500);
-        }
-    }
-
-    /**
-     * Get all feedback for a venue
-     * GET /api/venues/{id}/feedback
-     */
-    public function getVenueFeedback(Request $req, Response $res, array $args): Response
-    {
-        try {
-            $venueId = $args['id'] ?? null;
-
-            // Get venue details
-            $venue = DB::table('venue_listings')
-                ->where('id', $venueId)
-                ->first();
-
-            if (!$venue) {
-                return $this->json($res, ['success' => false, 'error' => 'Venue not found'], 404);
-            }
-
-            // Get all feedback for this venue from bookings
-            $feedback = DB::table('booking_feedback as bf')
-                ->leftJoin('credential as c', 'bf.UserID', '=', 'c.id')
-                ->leftJoin('booking as b', 'bf.BookingID', '=', 'b.ID')
-                ->where('b.venue_id', $venueId)
-                ->select([
-                    'bf.*',
-                    'c.first_name',
-                    'c.last_name',
-                    'c.avatar',
-                    'b.ServiceName',
-                    'b.EventType',
-                    'b.EventDate',
-                    'b.start_date',
-                    'b.end_date'
-                ])
-                ->orderBy('bf.CreatedAt', 'DESC')
+            $users = DB::table('credential')
+                ->select(
+                    'id', 'first_name', 'last_name', 'username', 'email',
+                    'role', 'is_verified', 'created_at',
+                    'warning_count', 'suspended_at', 'suspended_by'
+                )
+                ->orderByDesc('created_at')
                 ->get();
 
-            // Calculate average rating and total reviews for this venue
-            $avgRating = DB::table('booking_feedback as bf')
-                ->join('booking as b', 'bf.BookingID', '=', 'b.ID')
-                ->where('b.venue_id', $venueId)
-                ->avg('bf.Rating');
-
-            $totalReviews = DB::table('booking_feedback as bf')
-                ->join('booking as b', 'bf.BookingID', '=', 'b.ID')
-                ->where('b.venue_id', $venueId)
-                ->count();
-
-            return $this->json($res, [
+            $res->getBody()->write(json_encode([
                 'success' => true,
-                'feedback' => $feedback,
-                'average_rating' => $avgRating ? round($avgRating, 1) : null,
-                'total_reviews' => $totalReviews
-            ]);
+                'users'   => $users
+            ]));
+
+            return $res->withHeader('Content-Type', 'application/json');
 
         } catch (\Throwable $e) {
-            error_log("GET_VENUE_FEEDBACK_ERROR: " . $e->getMessage());
-            return $this->json($res, ['success' => false, 'error' => 'Failed to get feedback'], 500);
+            error_log('ADMIN_USERS_ERROR: ' . $e->getMessage());
+
+            $res->getBody()->write(json_encode([
+                'success' => false,
+                'error'   => 'Failed to fetch users'
+            ]));
+
+            return $res
+                ->withHeader('Content-Type', 'application/json')
+                ->withStatus(500);
         }
-    }
-}
+
+    })->add(new AuthMiddleware());
+
+    // Admin: Update user role
+    // FIX: Now also deactivates/reactivates listings and tracks suspended_at
+    $app->post('/api/admin/users/role', function (Request $req, Response $res) use ($sendNotification) {
+
+        try {
+            $user    = $req->getAttribute('user');
+            $adminId = $user->mysql_id ?? null;
+
+            $data    = (array) $req->getParsedBody();
+            $userId  = (int) ($data['user_id'] ?? 0);
+            $newRole = (int) ($data['role'] ?? -1);
+
+            if (!$userId || $newRole < 0 || $newRole > 2) {
+                $res->getBody()->write(json_encode([
+                    'success' => false,
+                    'error'   => 'Invalid user or role'
+                ]));
+                return $res->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+
+            $targetUser = DB::table('credential')->where('id', $userId)->first();
+
+            if (!$targetUser) {
+                $res->getBody()->write(json_encode([
+                    'success' => false,
+                    'error'   => 'User not found'
+                ]));
+                return $res->withHeader('Content-Type', 'application/json')->withStatus(404);
+            }
+
+            DB::transaction(function () use ($userId, $newRole, $adminId, $targetUser, $sendNotification) {
+
+                $credentialUpdate = ['role' => $newRole];
+
+                // --- SUSPENDING (demoting to client role 0) ---
+                if ($newRole === 0 && $targetUser->role === 1) {
+                    // Track when suspension happened and who did it
+                    $credentialUpdate['suspended_at'] = date('Y-m-d H:i:s');
+                    $credentialUpdate['suspended_by'] = $adminId;
+
+                    // Deactivate all vendor listings
+                    DB::table('vendor_listings')
+                        ->where('user_id', $userId)
+                        ->update(['status' => 'Inactive', 'updated_at' => date('Y-m-d H:i:s')]);
+
+                    // Deactivate all venue listings
+                    DB::table('venue_listings')
+                        ->where('user_id', $userId)
+                        ->update(['status' => 'Inactive', 'updated_at' => date('Y-m-d H:i:s')]);
+
+                    // Notify the supplier
+                    $sendNotification(
+                        $userId,
+                        'account_suspended',
+                        '⚠️ Account Suspended',
+                        'Your supplier account has been suspended by an administrator. Your listings have been deactivated. If you believe this is a mistake, please contact support.'
+                    );
+
+                    error_log("SUPPLIER_SUSPENDED: UserID={$userId} suspended by AdminID={$adminId}");
+                }
+
+                // --- REINSTATING (promoting back to supplier role 1) ---
+                if ($newRole === 1 && $targetUser->role === 0) {
+                    // Clear suspension timestamps
+                    $credentialUpdate['suspended_at'] = null;
+                    $credentialUpdate['suspended_by'] = null;
+
+                    // Reactivate their listings
+                    DB::table('vendor_listings')
+                        ->where('user_id', $userId)
+                        ->update(['status' => 'Active', 'updated_at' => date('Y-m-d H:i:s')]);
+
+                    DB::table('venue_listings')
+                        ->where('user_id', $userId)
+                        ->update(['status' => 'Active', 'updated_at' => date('Y-m-d H:i:s')]);
+
+                    // Notify the supplier they've been reinstated
+                    $sendNotification(
+                        $userId,
+                        'account_reinstated',
+                        '✅ Account Reinstated',
+                        'Your supplier account has been reinstated. Your listings are now active again. Please ensure you follow platform guidelines going forward.'
+                    );
+
+                    error_log("SUPPLIER_REINSTATED: UserID={$userId} reinstated by AdminID={$adminId}");
+                }
+
+                DB::table('credential')
+                    ->where('id', $userId)
+                    ->update($credentialUpdate);
+            });
+
+            $res->getBody()->write(json_encode([
+                'success' => true,
+                'message' => 'User role updated'
+            ]));
+
+            return $res->withHeader('Content-Type', 'application/json');
+
+        } catch (\Throwable $e) {
+            error_log('ADMIN_UPDATE_ROLE_ERROR: ' . $e->getMessage());
+
+            $res->getBody()->write(json_encode([
+                'success' => false,
+                'error'   => 'Failed to update role'
+            ]));
+
+            return $res
+                ->withHeader('Content-Type', 'application/json')
+                ->withStatus(500);
+        }
+
+    })->add(new AuthMiddleware());
+
+    // Admin: Issue a warning to a supplier
+    // POST /api/admin/suppliers/{userId}/warn
+    // Increments warning_count. At 3 warnings, auto-suspends.
+    $app->post('/api/admin/suppliers/{userId}/warn', function (Request $req, Response $res, array $args) use ($sendNotification) {
+
+        try {
+            $adminUser = $req->getAttribute('user');
+            $adminId   = $adminUser->mysql_id ?? null;
+
+            // Verify admin
+            $adminProfile = DB::table('credential')->where('id', $adminId)->first();
+            if (!$adminProfile || (int)($adminProfile->role ?? 0) !== 2) {
+                $res->getBody()->write(json_encode(['success' => false, 'error' => 'Access denied - Admin only']));
+                return $res->withHeader('Content-Type', 'application/json')->withStatus(403);
+            }
+
+            $userId   = (int) ($args['userId'] ?? 0);
+            $data     = (array) $req->getParsedBody();
+            $reportId = (int) ($data['report_id'] ?? 0);
+            $reason   = trim($data['reason'] ?? '');
+
+            $supplier = DB::table('credential')->where('id', $userId)->first();
+
+            if (!$supplier || $supplier->role !== 1) {
+                $res->getBody()->write(json_encode(['success' => false, 'error' => 'Supplier not found']));
+                return $res->withHeader('Content-Type', 'application/json')->withStatus(404);
+            }
+
+            $autoSuspended = false;
+
+            DB::transaction(function () use ($userId, $adminId, $reportId, $reason, $supplier, $sendNotification, &$autoSuspended) {
+
+                $newWarningCount = ($supplier->warning_count ?? 0) + 1;
+
+                DB::table('credential')
+                    ->where('id', $userId)
+                    ->update(['warning_count' => $newWarningCount]);
+
+                // Update the linked report if provided
+                if ($reportId) {
+                    DB::table('supplier_reports')
+                        ->where('ID', $reportId)
+                        ->update([
+                            'Status'     => 'Resolved',
+                            'AdminNotes' => ($reason ? $reason . "\n" : '') . "[System] Warning #{$newWarningCount} issued.",
+                            'ReviewedBy' => $adminId,
+                            'ReviewedAt' => DB::raw('NOW()'),
+                            'UpdatedAt'  => DB::raw('NOW()')
+                        ]);
+                }
+
+                // Notify supplier of warning
+                $warningMsg = $newWarningCount < 3
+                    ? "You have received warning #{$newWarningCount} on your account." .
+                      ($reason ? " Reason: {$reason}." : '') .
+                      " Please note: 3 warnings will result in automatic suspension."
+                    : "You have received warning #{$newWarningCount}.";
+
+                $sendNotification($userId, 'account_warning', "⚠️ Account Warning #{$newWarningCount}", $warningMsg);
+
+                // AUTO-SUSPEND at 3 warnings
+                if ($newWarningCount >= 3) {
+                    $autoSuspended = true;
+
+                    DB::table('credential')
+                        ->where('id', $userId)
+                        ->update([
+                            'role'         => 0,
+                            'suspended_at' => date('Y-m-d H:i:s'),
+                            'suspended_by' => $adminId,
+                        ]);
+
+                    DB::table('vendor_listings')
+                        ->where('user_id', $userId)
+                        ->update(['status' => 'Inactive', 'updated_at' => date('Y-m-d H:i:s')]);
+
+                    DB::table('venue_listings')
+                        ->where('user_id', $userId)
+                        ->update(['status' => 'Inactive', 'updated_at' => date('Y-m-d H:i:s')]);
+
+                    $sendNotification(
+                        $userId,
+                        'account_suspended',
+                        '🚫 Account Suspended',
+                        'Your account has been automatically suspended after receiving 3 warnings. All your listings have been deactivated. Contact support if you wish to appeal.'
+                    );
+
+                    error_log("AUTO_SUSPENDED: UserID={$userId} suspended after 3 warnings by AdminID={$adminId}");
+                }
+            });
+
+            $newCount = ($supplier->warning_count ?? 0) + 1;
+
+            $res->getBody()->write(json_encode([
+                'success'        => true,
+                'message'        => $autoSuspended
+                    ? "Warning issued. Supplier has been automatically suspended after reaching 3 warnings."
+                    : "Warning #{$newCount} issued to supplier.",
+                'warning_count'  => $newCount,
+                'auto_suspended' => $autoSuspended,
+            ]));
+
+            return $res->withHeader('Content-Type', 'application/json');
+
+        } catch (\Throwable $e) {
+            error_log('ISSUE_WARNING_ERROR: ' . $e->getMessage());
+
+            $res->getBody()->write(json_encode([
+                'success' => false,
+                'error'   => 'Failed to issue warning: ' . $e->getMessage()
+            ]));
+
+            return $res
+                ->withHeader('Content-Type', 'application/json')
+                ->withStatus(500);
+        }
+
+    })->add(new AuthMiddleware());
+
+    // Admin: Delete user
+    $app->delete('/api/admin/users/{userId}', function (Request $req, Response $res, array $args) {
+
+        try {
+            $userId = (int) ($args['userId'] ?? 0);
+
+            if (!$userId) {
+                $res->getBody()->write(json_encode([
+                    'success' => false,
+                    'error'   => 'Invalid user ID'
+                ]));
+                return $res->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+
+            $userExists = DB::table('credential')->where('id', $userId)->exists();
+
+            if (!$userExists) {
+                $res->getBody()->write(json_encode([
+                    'success' => false,
+                    'error'   => 'User not found'
+                ]));
+                return $res->withHeader('Content-Type', 'application/json')->withStatus(404);
+            }
+
+            DB::table('credential')->where('id', $userId)->delete();
+
+            $res->getBody()->write(json_encode([
+                'success' => true,
+                'message' => 'User deleted'
+            ]));
+
+            return $res->withHeader('Content-Type', 'application/json');
+
+        } catch (\Throwable $e) {
+            error_log('ADMIN_DELETE_USER_ERROR: ' . $e->getMessage());
+
+            $res->getBody()->write(json_encode([
+                'success' => false,
+                'error'   => 'Failed to delete user'
+            ]));
+
+            return $res
+                ->withHeader('Content-Type', 'application/json')
+                ->withStatus(500);
+        }
+
+    })->add(new AuthMiddleware());
+
+    // Admin: Get all reports
+    $app->get('/api/admin/reports', function (Request $req, Response $res) {
+        $controller = new \Src\Controllers\FeedbackController();
+        return $controller->getAllReports($req, $res);
+    })->add(new AuthMiddleware());
+
+    // Admin: Update report status
+    $app->patch('/api/admin/reports/{id}', function (Request $req, Response $res, array $args) {
+        $controller = new \Src\Controllers\FeedbackController();
+        return $controller->updateReportStatus($req, $res, $args);
+    })->add(new AuthMiddleware());
+
+    // Admin: Get dashboard analytics
+    $app->get('/api/admin/analytics', function (Request $req, Response $res) {
+        $controller = new \Src\Controllers\AdminController();
+        return $controller->getAdminAnalytics($req, $res);
+    })->add(new AuthMiddleware());
+
+    // Admin: Migrate legacy vendors
+    $app->post('/api/admin/migrate-vendors', function (Request $req, Response $res) {
+        $controller = new \Src\Controllers\AdminController();
+        return $controller->migrateLegacyVendors($req, $res);
+    })->add(new AuthMiddleware());
+
+};
