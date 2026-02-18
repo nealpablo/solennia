@@ -35,7 +35,7 @@ export default function ChatInterface({ messages, onSendMessage, isProcessing })
             <span style={styles.avatarText}>S</span>
           </div>
           <div>
-            <h3 style={styles.headerTitle}>Solennia Booking Assistant</h3>
+            <h3 style={styles.headerTitle}>Lenni Chatbot</h3>
             <p style={styles.headerSubtitle}>Supplier and Venue Recommendations & Booking</p>
           </div>
         </div>

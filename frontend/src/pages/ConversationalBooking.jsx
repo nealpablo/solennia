@@ -17,7 +17,7 @@ const VENDORS_KEY = 'solennia_chat_vendors';
 
 const DEFAULT_WELCOME = {
   role: 'assistant',
-  content: "Welcome to the Solennia Booking Assistant.\n\nI can help you find and book event vendors and venues registered on the Solennia platform.\n\nWhat type of event are you planning?"
+  content: "Welcome I am Lenni. How are you?.\n\nI can help you find and book event vendors and venues registered on the Solennia platform.\n\nWhat type of event are you planning?"
 };
 
 const DEFAULT_DATA = {
