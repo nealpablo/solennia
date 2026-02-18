@@ -1,622 +1,210 @@
 <?php
 
-use Slim\App;
+namespace Src\Controllers;
+
 use Illuminate\Database\Capsule\Manager as DB;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
-use Src\Middleware\AuthMiddleware;
 
-return function (App $app) {
+class FeedbackController
+{
+    private function json(Response $response, bool $success, string $message, int $status = 200, array $extra = [])
+    {
+        $payload = array_merge([
+            'success' => $success,
+            $success ? 'message' : 'error' => $message,
+        ], $extra);
 
-    // Helper function to send notifications
-    $sendNotification = function ($userId, $type, $title, $message) {
+        $response->getBody()->write(json_encode($payload, JSON_UNESCAPED_UNICODE));
+        return $response->withHeader('Content-Type', 'application/json')
+            ->withStatus($status);
+    }
+
+    private function sendNotification($userId, $type, $title, $message)
+    {
         try {
             DB::table('notifications')->insert([
-                'user_id' => $userId,
-                'type' => $type,
-                'title' => $title,
-                'message' => $message,
-                'read' => false,
+                'user_id'    => $userId,
+                'type'       => $type,
+                'title'      => $title,
+                'message'    => $message,
+                'read'       => false,
                 'created_at' => date('Y-m-d H:i:s')
             ]);
-        } catch (\Exception $e) {
-            error_log("Failed to send notification: " . $e->getMessage());
+        } catch (\Throwable $e) {
+            error_log("NOTIFICATION_ERROR: " . $e->getMessage());
         }
-    };
+    }
 
-    // Admin: Get vendor applications
-    $app->get('/api/admin/vendor-applications', function (Request $req, Response $res) {
-
+    /**
+     * Check if a column exists in credential table without crashing.
+     * Used to degrade gracefully when DB migration hasn't run yet.
+     */
+    private function credentialHasColumn(string $column): bool
+    {
         try {
-            $all = ($req->getQueryParams()['all'] ?? '') === '1';
+            $cols = DB::select("SHOW COLUMNS FROM `credential` LIKE ?", [$column]);
+            return !empty($cols);
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
 
-            $query = DB::table('vendor_application as va')
-                ->leftJoin('credential as c', 'va.user_id', '=', 'c.id')
-                ->select(
-                    'va.id',
-                    'va.user_id',
-                    'va.business_name',
-                    'va.category',
-                    'va.contact_email',
-                    'va.address',
-                    'va.description',
-                    'va.pricing',
-                    'va.created_at',
-                    DB::raw('COALESCE(va.status, "Pending") as status'),
-                    'va.permits',
-                    'va.gov_id',
-                    'va.portfolio',
-                    'va.venue_subcategory',
-                    'va.venue_capacity',
-                    'va.venue_amenities',
-                    'va.venue_operating_hours',
-                    'va.venue_parking',
-                    'va.contact_number',
-                    'va.region',
-                    'va.city',
-                    'va.selfie_with_id',
-                    'va.social_links',
-                    'va.sample_photos',
-                    'va.menu_list',
-                    'c.first_name',
-                    'c.last_name',
-                    'c.username',
-                    'c.email'
-                )
-                ->orderBy('va.created_at', 'desc');
-
-            if (!$all) {
-                $query->where(function ($w) {
-                    $w->whereNull('va.status')
-                      ->orWhere('va.status', 'Pending');
-                });
+    /**
+     * Get All Reports (For Admin Panel)
+     *
+     * ROOT CAUSE OF 500: Was joining on r.ReporterID and r.VendorID — those columns
+     * don't exist. Real columns are r.ReportedBy and r.EventServiceProviderID.
+     * Also: selecting warning_count / suspended_at which may not exist yet in DB.
+     * FIX: correct column names + runtime column-existence check so it never 500s.
+     */
+    public function getAllReports(Request $req, Response $res)
+    {
+        try {
+            $user = $req->getAttribute('user');
+            if (!$user || !isset($user->mysql_id)) {
+                return $this->json($res, false, "Unauthorized", 401);
             }
 
-            $rows = $query->get();
+            $adminDef = DB::table('credential')->where('id', $user->mysql_id)->first();
+            if (!$adminDef || (int)$adminDef->role !== 2) {
+                return $this->json($res, false, "Access denied", 403);
+            }
 
-            $res->getBody()->write(json_encode([
-                'success'      => true,
-                'applications' => $rows
-            ]));
+            // Safely check if new columns exist before selecting them
+            $hasNewCols = $this->credentialHasColumn('warning_count');
 
-            return $res->withHeader('Content-Type', 'application/json');
+            $selectCols = [
+                'r.ID',
+                'r.FeedbackID',
+                'r.BookingID',
+                'r.ReportedBy',
+                'r.EventServiceProviderID',
+                'r.ReportReason',
+                'r.ReportDetails',
+                'r.Status',
+                'r.AdminNotes',
+                'r.ReviewedBy',
+                'r.ReviewedAt',
+                'r.CreatedAt',
+                'reporter.first_name as reporter_first_name',
+                'reporter.last_name  as reporter_last_name',
+                'reporter.email      as reporter_email',
+                'vc.email            as vendor_email',
+                'vc.id               as vendor_user_id',
+                'esp.BusinessName    as vendor_name',
+                'b.ServiceName',
+                'b.EventDate',
+            ];
+
+            if ($hasNewCols) {
+                $selectCols[] = 'vc.warning_count as vendor_warning_count';
+                $selectCols[] = 'vc.suspended_at  as vendor_suspended_at';
+            } else {
+                $selectCols[] = DB::raw('0    as vendor_warning_count');
+                $selectCols[] = DB::raw('NULL as vendor_suspended_at');
+            }
+
+            $reports = DB::table('supplier_reports as r')
+                // FIX: correct column names
+                ->leftJoin('credential as reporter',    'r.ReportedBy',             '=', 'reporter.id')
+                ->leftJoin('event_service_provider as esp', 'r.EventServiceProviderID', '=', 'esp.ID')
+                ->leftJoin('credential as vc',          'esp.UserID',               '=', 'vc.id')
+                ->leftJoin('booking as b',              'r.BookingID',              '=', 'b.ID')
+                ->select($selectCols)
+                ->orderBy('r.CreatedAt', 'desc')
+                ->get();
+
+            // Fallback: fill vendor_name from credential if ESP profile missing
+            foreach ($reports as $report) {
+                if (empty($report->vendor_name) && !empty($report->vendor_user_id)) {
+                    $v = DB::table('credential')->where('id', $report->vendor_user_id)->first();
+                    $report->vendor_name = $v
+                        ? (trim(($v->first_name ?? '') . ' ' . ($v->last_name ?? '')) ?: ($v->username ?? 'Unknown Vendor'))
+                        : 'Unknown Vendor';
+                }
+                if (!isset($report->vendor_warning_count)) $report->vendor_warning_count = 0;
+                if (!isset($report->vendor_suspended_at))  $report->vendor_suspended_at  = null;
+            }
+
+            return $this->json($res, true, "Reports fetched", 200, ['reports' => $reports]);
 
         } catch (\Throwable $e) {
-            error_log('ADMIN_LIST_ERROR: ' . $e->getMessage());
-
-            $res->getBody()->write(json_encode([
-                'success' => false,
-                'error'   => 'Server error fetching vendor applications'
-            ]));
-
-            return $res
-                ->withHeader('Content-Type', 'application/json')
-                ->withStatus(500);
+            error_log("GET_ALL_REPORTS_ERROR: " . $e->getMessage());
+            return $this->json($res, false, "Failed to fetch reports: " . $e->getMessage(), 500);
         }
+    }
 
-    })->add(new AuthMiddleware());
-
-    // Admin: Approve/deny vendor application
-    $app->post('/api/admin/vendor-application/decision', function (Request $req, Response $res) use ($sendNotification) {
-
+    /**
+     * Update Report Status (Admin only)
+     * Also notifies both client and supplier of outcome.
+     */
+    public function updateReportStatus(Request $req, Response $res, array $args)
+    {
         try {
-            $data   = (array) $req->getParsedBody();
-            $appId  = (int) ($data['id'] ?? 0);
-            $action = strtolower(trim($data['action'] ?? ''));
-            $reason = trim($data['reason'] ?? '');
-
-            if (!$appId || !in_array($action, ['approve', 'deny'], true)) {
-                $res->getBody()->write(json_encode([
-                    'success' => false,
-                    'error'   => 'Invalid request'
-                ]));
-                return $res->withHeader('Content-Type', 'application/json')->withStatus(400);
+            $user = $req->getAttribute('user');
+            if (!$user || !isset($user->mysql_id)) {
+                return $this->json($res, false, "Unauthorized", 401);
             }
 
-            $appRow = DB::table('vendor_application')->where('id', $appId)->first();
-
-            if (!$appRow) {
-                $res->getBody()->write(json_encode([
-                    'success' => false,
-                    'error'   => 'Application not found'
-                ]));
-                return $res->withHeader('Content-Type', 'application/json')->withStatus(404);
+            $adminDef = DB::table('credential')->where('id', $user->mysql_id)->first();
+            if (!$adminDef || (int)$adminDef->role !== 2) {
+                return $this->json($res, false, "Access denied", 403);
             }
 
-            if ($action === 'deny') {
-                DB::table('vendor_application')
-                    ->where('id', $appId)
-                    ->update([
-                        'status' => 'Denied',
-                        'rejection_reason' => $reason
-                    ]);
+            $reportId   = $args['id'] ?? null;
+            $data       = (array) $req->getParsedBody();
+            $status     = $data['status']      ?? null;
+            $adminNotes = $data['admin_notes'] ?? null;
 
-                $notificationMessage = $reason
-                    ? "Your vendor application has been denied.\n\nReason: {$reason}\n\nYou may reapply after addressing the concerns mentioned above."
-                    : "Your vendor application has been denied. Please contact support for more information.";
-
-                $sendNotification(
-                    $appRow->user_id,
-                    'application_denied',
-                    '❌ Application Denied',
-                    $notificationMessage
-                );
-
-                $res->getBody()->write(json_encode([
-                    'success' => true,
-                    'message' => 'Application denied and notification sent to applicant.'
-                ]));
-
-                return $res->withHeader('Content-Type', 'application/json');
+            if (!$reportId || !$status) {
+                return $this->json($res, false, "Missing ID or status", 400);
             }
 
-            // Approve application
-            DB::transaction(function () use ($appRow, $sendNotification) {
+            $report = DB::table('supplier_reports')->where('ID', $reportId)->first();
+            if (!$report) {
+                return $this->json($res, false, "Report not found", 404);
+            }
 
-                $businessEmail = $appRow->contact_email;
+            DB::table('supplier_reports')
+                ->where('ID', $reportId)
+                ->update([
+                    'Status'     => $status,
+                    'AdminNotes' => $adminNotes,
+                    'ReviewedBy' => $user->mysql_id,
+                    'ReviewedAt' => date('Y-m-d H:i:s'),
+                    'UpdatedAt'  => date('Y-m-d H:i:s'),
+                ]);
 
-                if (!$businessEmail) {
-                    $businessEmail = DB::table('credential')
-                        ->where('id', $appRow->user_id)
-                        ->value('email');
+            // Notify client who filed
+            if (!empty($report->ReportedBy)) {
+                $clientMsg = match($status) {
+                    'Resolved'     => 'Your report has been reviewed and resolved. Thank you for helping keep Solennia safe.',
+                    'Dismissed'    => 'Your report has been reviewed. After investigation, no action was taken at this time.',
+                    'Under_Review' => 'Your report is currently under active review. We will notify you of the outcome.',
+                    default        => 'Your report status has been updated.',
+                };
+                $this->sendNotification($report->ReportedBy, 'report_update', 'Report Update', $clientMsg);
+            }
 
-                    if ($businessEmail) {
-                        DB::table('vendor_application')
-                            ->where('id', $appRow->id)
-                            ->update(['contact_email' => $businessEmail]);
-                    }
-                }
-
-                if (!$businessEmail) {
-                    throw new \Exception('Business email missing');
-                }
-
-                // Update user role to supplier (role 1), clear any previous suspension
-                DB::table('credential')
-                    ->where('id', $appRow->user_id)
-                    ->update([
-                        'role'         => 1,
-                        'suspended_at' => null,
-                        'suspended_by' => null,
-                    ]);
-
-                DB::table('vendor_application')
-                    ->where('id', $appRow->id)
-                    ->update(['status' => 'Approved']);
-
-                $existingProfile = DB::table('event_service_provider')
-                    ->where('UserID', $appRow->user_id)
+            // Notify supplier on resolution
+            if (!empty($report->EventServiceProviderID) && in_array($status, ['Resolved', 'Dismissed'])) {
+                $esp = DB::table('event_service_provider')
+                    ->where('ID', $report->EventServiceProviderID)
                     ->first();
-
-                if (!$existingProfile) {
-                    DB::table('event_service_provider')->insert([
-                        'UserID'            => $appRow->user_id,
-                        'BusinessName'      => $appRow->business_name,
-                        'Category'          => $appRow->category,
-                        'BusinessEmail'     => $appRow->contact_email ?? $businessEmail,
-                        'BusinessAddress'   => $appRow->address,
-                        'Description'       => $appRow->description,
-                        'Pricing'           => $appRow->pricing,
-                        'ApplicationStatus' => 'Approved',
-                        'region'            => $appRow->region,
-                        'city'              => $appRow->city,
-                        'contact_number'    => $appRow->contact_number,
-                        'bio'               => $appRow->description ?? 'Welcome to my business!',
-                        'services'          => $appRow->category ?? 'General Services',
-                        'verification_score'=> 50,
-                        'DateApproved'      => date('Y-m-d H:i:s')
-                    ]);
+                if ($esp && !empty($esp->UserID)) {
+                    $supplierMsg = $status === 'Resolved'
+                        ? 'A complaint filed against your account has been reviewed and actioned. Please review platform guidelines to avoid future issues.'
+                        : 'A complaint filed against your account has been reviewed and dismissed. No action was taken.';
+                    $this->sendNotification($esp->UserID, 'report_outcome', 'Account Notice', $supplierMsg);
                 }
-
-                $sendNotification(
-                    $appRow->user_id,
-                    'application_approved',
-                    'Application Approved! 🎉',
-                    'Congratulations! Your vendor application has been approved. You can now access your vendor dashboard and complete your profile setup.'
-                );
-
-                error_log("VENDOR_APPROVED: UserID={$appRow->user_id}, Category={$appRow->category}.");
-            });
-
-            $res->getBody()->write(json_encode([
-                'success' => true,
-                'message' => 'Vendor approved. They can now complete their profile setup.'
-            ]));
-
-            return $res->withHeader('Content-Type', 'application/json');
-
-        } catch (\Throwable $e) {
-            error_log('ADMIN_DECISION_ERROR: ' . $e->getMessage());
-
-            $res->getBody()->write(json_encode([
-                'success' => false,
-                'error'   => 'Failed to process application: ' . $e->getMessage()
-            ]));
-
-            return $res
-                ->withHeader('Content-Type', 'application/json')
-                ->withStatus(500);
-        }
-
-    })->add(new AuthMiddleware());
-
-    // Admin: Get feedbacks
-    $app->get('/api/admin/feedbacks', function (Request $req, Response $res) {
-
-        try {
-            $rows = DB::table('feedback as f')
-                ->leftJoin('credential as c', 'f.user_id', '=', 'c.id')
-                ->select(
-                    'f.id',
-                    'f.message',
-                    'f.created_at',
-                    'c.first_name',
-                    'c.last_name',
-                    'c.username'
-                )
-                ->orderBy('f.created_at', 'desc')
-                ->get();
-
-            $res->getBody()->write(json_encode([
-                'success'   => true,
-                'feedbacks' => $rows
-            ]));
-
-            return $res->withHeader('Content-Type', 'application/json');
-
-        } catch (\Throwable $e) {
-            error_log('ADMIN_FEEDBACKS_ERROR: ' . $e->getMessage());
-
-            $res->getBody()->write(json_encode([
-                'success' => false,
-                'error'   => 'Failed to fetch feedbacks'
-            ]));
-
-            return $res
-                ->withHeader('Content-Type', 'application/json')
-                ->withStatus(500);
-        }
-
-    })->add(new AuthMiddleware());
-
-    // Admin: Get all users
-    $app->get('/api/admin/users', function (Request $req, Response $res) {
-
-        try {
-            $users = DB::table('credential')
-                ->select(
-                    'id', 'first_name', 'last_name', 'username', 'email',
-                    'role', 'is_verified', 'created_at',
-                    'warning_count', 'suspended_at', 'suspended_by'
-                )
-                ->orderByDesc('created_at')
-                ->get();
-
-            $res->getBody()->write(json_encode([
-                'success' => true,
-                'users'   => $users
-            ]));
-
-            return $res->withHeader('Content-Type', 'application/json');
-
-        } catch (\Throwable $e) {
-            error_log('ADMIN_USERS_ERROR: ' . $e->getMessage());
-
-            $res->getBody()->write(json_encode([
-                'success' => false,
-                'error'   => 'Failed to fetch users'
-            ]));
-
-            return $res
-                ->withHeader('Content-Type', 'application/json')
-                ->withStatus(500);
-        }
-
-    })->add(new AuthMiddleware());
-
-    // Admin: Update user role
-    // FIX: Now also deactivates/reactivates listings and tracks suspended_at
-    $app->post('/api/admin/users/role', function (Request $req, Response $res) use ($sendNotification) {
-
-        try {
-            $user    = $req->getAttribute('user');
-            $adminId = $user->mysql_id ?? null;
-
-            $data    = (array) $req->getParsedBody();
-            $userId  = (int) ($data['user_id'] ?? 0);
-            $newRole = (int) ($data['role'] ?? -1);
-
-            if (!$userId || $newRole < 0 || $newRole > 2) {
-                $res->getBody()->write(json_encode([
-                    'success' => false,
-                    'error'   => 'Invalid user or role'
-                ]));
-                return $res->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
 
-            $targetUser = DB::table('credential')->where('id', $userId)->first();
-
-            if (!$targetUser) {
-                $res->getBody()->write(json_encode([
-                    'success' => false,
-                    'error'   => 'User not found'
-                ]));
-                return $res->withHeader('Content-Type', 'application/json')->withStatus(404);
-            }
-
-            DB::transaction(function () use ($userId, $newRole, $adminId, $targetUser, $sendNotification) {
-
-                $credentialUpdate = ['role' => $newRole];
-
-                // --- SUSPENDING (demoting to client role 0) ---
-                if ($newRole === 0 && $targetUser->role === 1) {
-                    // Track when suspension happened and who did it
-                    $credentialUpdate['suspended_at'] = date('Y-m-d H:i:s');
-                    $credentialUpdate['suspended_by'] = $adminId;
-
-                    // Deactivate all vendor listings
-                    DB::table('vendor_listings')
-                        ->where('user_id', $userId)
-                        ->update(['status' => 'Inactive', 'updated_at' => date('Y-m-d H:i:s')]);
-
-                    // Deactivate all venue listings
-                    DB::table('venue_listings')
-                        ->where('user_id', $userId)
-                        ->update(['status' => 'Inactive', 'updated_at' => date('Y-m-d H:i:s')]);
-
-                    // Notify the supplier
-                    $sendNotification(
-                        $userId,
-                        'account_suspended',
-                        '⚠️ Account Suspended',
-                        'Your supplier account has been suspended by an administrator. Your listings have been deactivated. If you believe this is a mistake, please contact support.'
-                    );
-
-                    error_log("SUPPLIER_SUSPENDED: UserID={$userId} suspended by AdminID={$adminId}");
-                }
-
-                // --- REINSTATING (promoting back to supplier role 1) ---
-                if ($newRole === 1 && $targetUser->role === 0) {
-                    // Clear suspension timestamps
-                    $credentialUpdate['suspended_at'] = null;
-                    $credentialUpdate['suspended_by'] = null;
-
-                    // Reactivate their listings
-                    DB::table('vendor_listings')
-                        ->where('user_id', $userId)
-                        ->update(['status' => 'Active', 'updated_at' => date('Y-m-d H:i:s')]);
-
-                    DB::table('venue_listings')
-                        ->where('user_id', $userId)
-                        ->update(['status' => 'Active', 'updated_at' => date('Y-m-d H:i:s')]);
-
-                    // Notify the supplier they've been reinstated
-                    $sendNotification(
-                        $userId,
-                        'account_reinstated',
-                        '✅ Account Reinstated',
-                        'Your supplier account has been reinstated. Your listings are now active again. Please ensure you follow platform guidelines going forward.'
-                    );
-
-                    error_log("SUPPLIER_REINSTATED: UserID={$userId} reinstated by AdminID={$adminId}");
-                }
-
-                DB::table('credential')
-                    ->where('id', $userId)
-                    ->update($credentialUpdate);
-            });
-
-            $res->getBody()->write(json_encode([
-                'success' => true,
-                'message' => 'User role updated'
-            ]));
-
-            return $res->withHeader('Content-Type', 'application/json');
+            return $this->json($res, true, "Report status updated", 200);
 
         } catch (\Throwable $e) {
-            error_log('ADMIN_UPDATE_ROLE_ERROR: ' . $e->getMessage());
-
-            $res->getBody()->write(json_encode([
-                'success' => false,
-                'error'   => 'Failed to update role'
-            ]));
-
-            return $res
-                ->withHeader('Content-Type', 'application/json')
-                ->withStatus(500);
+            error_log("UPDATE_REPORT_STATUS_ERROR: " . $e->getMessage());
+            return $this->json($res, false, "Failed to update report status", 500);
         }
-
-    })->add(new AuthMiddleware());
-
-    // Admin: Issue a warning to a supplier
-    // POST /api/admin/suppliers/{userId}/warn
-    // Increments warning_count. At 3 warnings, auto-suspends.
-    $app->post('/api/admin/suppliers/{userId}/warn', function (Request $req, Response $res, array $args) use ($sendNotification) {
-
-        try {
-            $adminUser = $req->getAttribute('user');
-            $adminId   = $adminUser->mysql_id ?? null;
-
-            // Verify admin
-            $adminProfile = DB::table('credential')->where('id', $adminId)->first();
-            if (!$adminProfile || (int)($adminProfile->role ?? 0) !== 2) {
-                $res->getBody()->write(json_encode(['success' => false, 'error' => 'Access denied - Admin only']));
-                return $res->withHeader('Content-Type', 'application/json')->withStatus(403);
-            }
-
-            $userId   = (int) ($args['userId'] ?? 0);
-            $data     = (array) $req->getParsedBody();
-            $reportId = (int) ($data['report_id'] ?? 0);
-            $reason   = trim($data['reason'] ?? '');
-
-            $supplier = DB::table('credential')->where('id', $userId)->first();
-
-            if (!$supplier || $supplier->role !== 1) {
-                $res->getBody()->write(json_encode(['success' => false, 'error' => 'Supplier not found']));
-                return $res->withHeader('Content-Type', 'application/json')->withStatus(404);
-            }
-
-            $autoSuspended = false;
-
-            DB::transaction(function () use ($userId, $adminId, $reportId, $reason, $supplier, $sendNotification, &$autoSuspended) {
-
-                $newWarningCount = ($supplier->warning_count ?? 0) + 1;
-
-                DB::table('credential')
-                    ->where('id', $userId)
-                    ->update(['warning_count' => $newWarningCount]);
-
-                // Update the linked report if provided
-                if ($reportId) {
-                    DB::table('supplier_reports')
-                        ->where('ID', $reportId)
-                        ->update([
-                            'Status'     => 'Resolved',
-                            'AdminNotes' => ($reason ? $reason . "\n" : '') . "[System] Warning #{$newWarningCount} issued.",
-                            'ReviewedBy' => $adminId,
-                            'ReviewedAt' => DB::raw('NOW()'),
-                            'UpdatedAt'  => DB::raw('NOW()')
-                        ]);
-                }
-
-                // Notify supplier of warning
-                $warningMsg = $newWarningCount < 3
-                    ? "You have received warning #{$newWarningCount} on your account." .
-                      ($reason ? " Reason: {$reason}." : '') .
-                      " Please note: 3 warnings will result in automatic suspension."
-                    : "You have received warning #{$newWarningCount}.";
-
-                $sendNotification($userId, 'account_warning', "⚠️ Account Warning #{$newWarningCount}", $warningMsg);
-
-                // AUTO-SUSPEND at 3 warnings
-                if ($newWarningCount >= 3) {
-                    $autoSuspended = true;
-
-                    DB::table('credential')
-                        ->where('id', $userId)
-                        ->update([
-                            'role'         => 0,
-                            'suspended_at' => date('Y-m-d H:i:s'),
-                            'suspended_by' => $adminId,
-                        ]);
-
-                    DB::table('vendor_listings')
-                        ->where('user_id', $userId)
-                        ->update(['status' => 'Inactive', 'updated_at' => date('Y-m-d H:i:s')]);
-
-                    DB::table('venue_listings')
-                        ->where('user_id', $userId)
-                        ->update(['status' => 'Inactive', 'updated_at' => date('Y-m-d H:i:s')]);
-
-                    $sendNotification(
-                        $userId,
-                        'account_suspended',
-                        '🚫 Account Suspended',
-                        'Your account has been automatically suspended after receiving 3 warnings. All your listings have been deactivated. Contact support if you wish to appeal.'
-                    );
-
-                    error_log("AUTO_SUSPENDED: UserID={$userId} suspended after 3 warnings by AdminID={$adminId}");
-                }
-            });
-
-            $newCount = ($supplier->warning_count ?? 0) + 1;
-
-            $res->getBody()->write(json_encode([
-                'success'        => true,
-                'message'        => $autoSuspended
-                    ? "Warning issued. Supplier has been automatically suspended after reaching 3 warnings."
-                    : "Warning #{$newCount} issued to supplier.",
-                'warning_count'  => $newCount,
-                'auto_suspended' => $autoSuspended,
-            ]));
-
-            return $res->withHeader('Content-Type', 'application/json');
-
-        } catch (\Throwable $e) {
-            error_log('ISSUE_WARNING_ERROR: ' . $e->getMessage());
-
-            $res->getBody()->write(json_encode([
-                'success' => false,
-                'error'   => 'Failed to issue warning: ' . $e->getMessage()
-            ]));
-
-            return $res
-                ->withHeader('Content-Type', 'application/json')
-                ->withStatus(500);
-        }
-
-    })->add(new AuthMiddleware());
-
-    // Admin: Delete user
-    $app->delete('/api/admin/users/{userId}', function (Request $req, Response $res, array $args) {
-
-        try {
-            $userId = (int) ($args['userId'] ?? 0);
-
-            if (!$userId) {
-                $res->getBody()->write(json_encode([
-                    'success' => false,
-                    'error'   => 'Invalid user ID'
-                ]));
-                return $res->withHeader('Content-Type', 'application/json')->withStatus(400);
-            }
-
-            $userExists = DB::table('credential')->where('id', $userId)->exists();
-
-            if (!$userExists) {
-                $res->getBody()->write(json_encode([
-                    'success' => false,
-                    'error'   => 'User not found'
-                ]));
-                return $res->withHeader('Content-Type', 'application/json')->withStatus(404);
-            }
-
-            DB::table('credential')->where('id', $userId)->delete();
-
-            $res->getBody()->write(json_encode([
-                'success' => true,
-                'message' => 'User deleted'
-            ]));
-
-            return $res->withHeader('Content-Type', 'application/json');
-
-        } catch (\Throwable $e) {
-            error_log('ADMIN_DELETE_USER_ERROR: ' . $e->getMessage());
-
-            $res->getBody()->write(json_encode([
-                'success' => false,
-                'error'   => 'Failed to delete user'
-            ]));
-
-            return $res
-                ->withHeader('Content-Type', 'application/json')
-                ->withStatus(500);
-        }
-
-    })->add(new AuthMiddleware());
-
-    // Admin: Get all reports
-    $app->get('/api/admin/reports', function (Request $req, Response $res) {
-        $controller = new \Src\Controllers\FeedbackController();
-        return $controller->getAllReports($req, $res);
-    })->add(new AuthMiddleware());
-
-    // Admin: Update report status
-    $app->patch('/api/admin/reports/{id}', function (Request $req, Response $res, array $args) {
-        $controller = new \Src\Controllers\FeedbackController();
-        return $controller->updateReportStatus($req, $res, $args);
-    })->add(new AuthMiddleware());
-
-    // Admin: Get dashboard analytics
-    $app->get('/api/admin/analytics', function (Request $req, Response $res) {
-        $controller = new \Src\Controllers\AdminController();
-        return $controller->getAdminAnalytics($req, $res);
-    })->add(new AuthMiddleware());
-
-    // Admin: Migrate legacy vendors
-    $app->post('/api/admin/migrate-vendors', function (Request $req, Response $res) {
-        $controller = new \Src\Controllers\AdminController();
-        return $controller->migrateLegacyVendors($req, $res);
-    })->add(new AuthMiddleware());
-
-};
+    }
+}

@@ -272,7 +272,6 @@ export default function VendorProfile() {
         vendorContext: {
           vendorId: vendor.UserID || vendor.user_id,
           vendorName: vendorName,
-          vendorName: vendorName,
           category: (vendor.category === 'Others' ? vendor.other_category_type : vendor.category) || vendor.Category
         }
       }
@@ -340,7 +339,11 @@ export default function VendorProfile() {
     firebase_uid,
     user_id,
     UserID,
-    other_category_type
+    other_category_type,
+    pricing,
+    budget_range,
+    base_price,
+    package_price
   } = vendor;
 
   // Handle case variations
@@ -454,7 +457,7 @@ export default function VendorProfile() {
           {/* Tabs */}
           <div className="border-b border-gray-300 mb-6">
             <div className="flex gap-6">
-              {["overview", "services", "media", "availability", "review"].map((tab) => (
+              {["overview", "services", "pricing", "media", "availability", "review"].map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
@@ -506,6 +509,47 @@ export default function VendorProfile() {
                   })()}
                 </p>
               </div>
+            </div>
+          )}
+
+          {activeTab === "pricing" && (
+            <div className="space-y-6">
+              <h3 className="text-lg font-semibold mb-3">Pricing & Packages</h3>
+
+              {!pricing && !budget_range && !base_price && !package_price ? (
+                <p className="text-gray-500 italic">No pricing information provided yet.</p>
+              ) : (
+                <div className="space-y-4">
+                  {pricing && (
+                    <div className="bg-[#f6f0e8] rounded-lg p-4 border border-[#d4c5a9]">
+                      <h4 className="text-sm font-semibold text-[#5b4636] uppercase tracking-wide mb-2">Pricing Details</h4>
+                      <p className="text-gray-700 whitespace-pre-line">{pricing}</p>
+                    </div>
+                  )}
+
+                  {budget_range && (
+                    <div className="bg-white rounded-lg p-4 border border-gray-200">
+                      <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-1">Budget Range</h4>
+                      <p className="text-gray-800 font-medium">{budget_range}</p>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {base_price && (
+                      <div className="bg-white rounded-lg p-4 border border-gray-200">
+                        <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-1">Base Price</h4>
+                        <p className="text-gray-800 font-medium text-lg">₱{Number(base_price).toLocaleString()}</p>
+                      </div>
+                    )}
+                    {package_price && (
+                      <div className="bg-white rounded-lg p-4 border border-gray-200">
+                        <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-1">Package Price</h4>
+                        <p className="text-gray-800 font-medium text-lg">₱{Number(package_price).toLocaleString()}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

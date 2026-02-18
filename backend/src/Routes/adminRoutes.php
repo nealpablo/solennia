@@ -283,12 +283,30 @@ return function (App $app) {
     $app->get('/api/admin/users', function (Request $req, Response $res) {
 
         try {
+            // FIX: Use explicit safe column list so the query never 500s even when
+            // warning_count / suspended_at haven't been migrated to the DB yet.
+            // We check for column existence at runtime and fall back to NULL.
+            $baseSelect = [
+                'id', 'first_name', 'last_name', 'username', 'email',
+                'role', 'is_verified', 'created_at', 'avatar', 'firebase_uid'
+            ];
+
+            $hasSuspendedAt  = count(DB::select("SHOW COLUMNS FROM credential LIKE 'suspended_at'"))  > 0;
+            $hasWarningCount = count(DB::select("SHOW COLUMNS FROM credential LIKE 'warning_count'")) > 0;
+            $hasSuspendedBy  = count(DB::select("SHOW COLUMNS FROM credential LIKE 'suspended_by'"))  > 0;
+
+            $rawExtras = [];
+            if ($hasWarningCount) $baseSelect[] = 'warning_count';
+            else                  $rawExtras[]  = DB::raw('0    as warning_count');
+
+            if ($hasSuspendedAt)  $baseSelect[] = 'suspended_at';
+            else                  $rawExtras[]  = DB::raw('NULL as suspended_at');
+
+            if ($hasSuspendedBy)  $baseSelect[] = 'suspended_by';
+            else                  $rawExtras[]  = DB::raw('NULL as suspended_by');
+
             $users = DB::table('credential')
-                ->select(
-                    'id', 'first_name', 'last_name', 'username', 'email',
-                    'role', 'is_verified', 'created_at',
-                    'warning_count', 'suspended_at', 'suspended_by'
-                )
+                ->select(array_merge($baseSelect, $rawExtras))
                 ->orderByDesc('created_at')
                 ->get();
 
@@ -344,15 +362,20 @@ return function (App $app) {
                 return $res->withHeader('Content-Type', 'application/json')->withStatus(404);
             }
 
-            DB::transaction(function () use ($userId, $newRole, $adminId, $targetUser, $sendNotification) {
+            // Check which new columns exist before using them
+            $hasSuspendedCols = count(DB::select("SHOW COLUMNS FROM credential LIKE 'suspended_at'")) > 0;
+
+            DB::transaction(function () use ($userId, $newRole, $adminId, $targetUser, $sendNotification, $hasSuspendedCols) {
 
                 $credentialUpdate = ['role' => $newRole];
 
                 // --- SUSPENDING (demoting to client role 0) ---
                 if ($newRole === 0 && $targetUser->role === 1) {
-                    // Track when suspension happened and who did it
-                    $credentialUpdate['suspended_at'] = date('Y-m-d H:i:s');
-                    $credentialUpdate['suspended_by'] = $adminId;
+                    // Track when suspension happened and who did it (only if columns exist)
+                    if ($hasSuspendedCols) {
+                        $credentialUpdate['suspended_at'] = date('Y-m-d H:i:s');
+                        $credentialUpdate['suspended_by'] = $adminId;
+                    }
 
                     // Deactivate all vendor listings
                     DB::table('vendor_listings')
@@ -377,9 +400,11 @@ return function (App $app) {
 
                 // --- REINSTATING (promoting back to supplier role 1) ---
                 if ($newRole === 1 && $targetUser->role === 0) {
-                    // Clear suspension timestamps
-                    $credentialUpdate['suspended_at'] = null;
-                    $credentialUpdate['suspended_by'] = null;
+                    // Clear suspension timestamps (only if columns exist)
+                    if ($hasSuspendedCols) {
+                        $credentialUpdate['suspended_at'] = null;
+                        $credentialUpdate['suspended_by'] = null;
+                    }
 
                     // Reactivate their listings
                     DB::table('vendor_listings')
@@ -456,15 +481,22 @@ return function (App $app) {
                 return $res->withHeader('Content-Type', 'application/json')->withStatus(404);
             }
 
+            // Safely read warning_count — column may not exist yet if migration hasn't run
+            $hasWarningCount = count(DB::select("SHOW COLUMNS FROM credential LIKE 'warning_count'")) > 0;
+            $currentWarnings = $hasWarningCount ? ((int)($supplier->warning_count ?? 0)) : 0;
+
             $autoSuspended = false;
 
-            DB::transaction(function () use ($userId, $adminId, $reportId, $reason, $supplier, $sendNotification, &$autoSuspended) {
+            DB::transaction(function () use ($userId, $adminId, $reportId, $reason, $supplier, $sendNotification, &$autoSuspended, $hasWarningCount, $currentWarnings) {
 
-                $newWarningCount = ($supplier->warning_count ?? 0) + 1;
+                $newWarningCount = $currentWarnings + 1;
 
-                DB::table('credential')
-                    ->where('id', $userId)
-                    ->update(['warning_count' => $newWarningCount]);
+                // Only update warning_count if the column exists
+                if ($hasWarningCount) {
+                    DB::table('credential')
+                        ->where('id', $userId)
+                        ->update(['warning_count' => $newWarningCount]);
+                }
 
                 // Update the linked report if provided
                 if ($reportId) {
@@ -492,13 +524,14 @@ return function (App $app) {
                 if ($newWarningCount >= 3) {
                     $autoSuspended = true;
 
+                    $suspendUpdate = ['role' => 0];
+                    if (count(DB::select("SHOW COLUMNS FROM credential LIKE 'suspended_at'")) > 0) {
+                        $suspendUpdate['suspended_at'] = date('Y-m-d H:i:s');
+                        $suspendUpdate['suspended_by'] = $adminId;
+                    }
                     DB::table('credential')
                         ->where('id', $userId)
-                        ->update([
-                            'role'         => 0,
-                            'suspended_at' => date('Y-m-d H:i:s'),
-                            'suspended_by' => $adminId,
-                        ]);
+                        ->update($suspendUpdate);
 
                     DB::table('vendor_listings')
                         ->where('user_id', $userId)
@@ -519,7 +552,7 @@ return function (App $app) {
                 }
             });
 
-            $newCount = ($supplier->warning_count ?? 0) + 1;
+            $newCount = $currentWarnings + 1;
 
             $res->getBody()->write(json_encode([
                 'success'        => true,

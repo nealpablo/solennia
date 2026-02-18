@@ -41,6 +41,7 @@ function suspendedLabel(suspendedAt) {
   return `Suspended ${ago} (since ${dateStr})`;
 }
 
+
 export default function AdminPanel() {
   const [apps, setApps] = useState([]);
   const [users, setUsers] = useState([]);
@@ -197,28 +198,6 @@ export default function AdminPanel() {
     } catch (err) { toast.error(err.message); }
   }
 
-  // Issue a warning to a supplier — increments warning_count, auto-suspends at 3
-  async function issueWarning(vendorUserId, reportId, reason) {
-    try {
-      const res = await fetch(`${API_BASE}/admin/suppliers/${vendorUserId}/warn`, {
-        method: "POST", headers: authHeaders(),
-        body: JSON.stringify({ report_id: reportId, reason }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.message || json.error);
-
-      if (json.auto_suspended) {
-        toast.success(`Warning issued. Supplier automatically suspended after 3 warnings.`);
-      } else {
-        toast.success(json.message || `Warning #${json.warning_count} issued.`);
-      }
-
-      setReportModal({ show: false, report: null, status: "", notes: "" });
-      loadReports();
-      loadUsers();
-    } catch (err) { toast.error(err.message); }
-  }
-
   const vendorApps = apps.filter(a => a.category !== "Venue");
   const venueApps = apps.filter(a => a.category === "Venue");
 
@@ -242,8 +221,6 @@ export default function AdminPanel() {
         .admin-panel button.approve-btn:hover, button.approve-btn:hover { background: #6a503d; border-color: #4a3323; }
         .admin-panel button.deny-btn, button.deny-btn { background: #e63946; color: #fff; border: 2px solid #d62828; }
         .admin-panel button.deny-btn:hover, button.deny-btn:hover { background: #d62828; border-color: #c1121f; }
-        .admin-panel button.warn-btn, button.warn-btn { background: #d97706; color: #fff; border: 2px solid #b45309; }
-        .admin-panel button.warn-btn:hover, button.warn-btn:hover { background: #b45309; border-color: #92400e; }
         .lb-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center; z-index: 9999; padding: 1rem; }
         .lb-content { background: #fff; border-radius: 12px; overflow: hidden; width: 650px; height: 800px; max-width: 95vw; max-height: 90vh; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); display: flex; flex-direction: column; position: relative; }
         .lb-header { display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.25rem; background: #fcf9ee; border-bottom: 2px solid #e8ddae; z-index: 10; }
@@ -265,10 +242,6 @@ export default function AdminPanel() {
         .tab-btn.active { color: #7a5d47; border-bottom-color: #7a5d47; }
         .badge { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; margin-left: 0.5rem; }
         .badge.pending { background: #fef3c7; color: #92400e; }
-        .warning-badge { display: inline-flex; align-items: center; gap: 3px; padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 700; }
-        .warning-badge.w1 { background: #fef3c7; color: #92400e; }
-        .warning-badge.w2 { background: #fed7aa; color: #9a3412; }
-        .warning-badge.w3 { background: #fecaca; color: #991b1b; }
         .suspended-badge { display: inline-flex; align-items: center; gap: 4px; padding: 0.2rem 0.6rem; border-radius: 4px; font-size: 0.7rem; font-weight: 700; background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
       `}</style>
 
@@ -407,12 +380,6 @@ export default function AdminPanel() {
                 <span className="text-gray-500">Supplier/Venue:</span>
                 <div>
                   <span className="font-medium">{reportModal.report.vendor_name} ({reportModal.report.vendor_email})</span>
-                  {/* Warning count badge */}
-                  {reportModal.report.vendor_warning_count > 0 && (
-                    <span className={`warning-badge ml-2 w${Math.min(reportModal.report.vendor_warning_count, 3)}`}>
-                      ⚠ {reportModal.report.vendor_warning_count} warning{reportModal.report.vendor_warning_count > 1 ? "s" : ""}
-                    </span>
-                  )}
                   {/* Suspended badge */}
                   {reportModal.report.vendor_suspended_at && (
                     <div className="suspended-badge mt-1">
@@ -469,28 +436,6 @@ export default function AdminPanel() {
               <button className="px-4 py-2 rounded-lg border border-gray-300 font-medium hover:bg-gray-100" onClick={() => setReportModal({ show: false, report: null, status: "", notes: "" })}>
                 Cancel
               </button>
-
-              {/* Issue Warning button — only if supplier is not already suspended */}
-              {reportModal.report.vendor_user_id && !reportModal.report.vendor_suspended_at && (
-                <button
-                  className="warn-btn px-4 py-2"
-                  onClick={async () => {
-                    const warningCount = reportModal.report.vendor_warning_count || 0;
-                    const nextWarning = warningCount + 1;
-                    const willSuspend = nextWarning >= 3;
-                    const confirmMsg = willSuspend
-                      ? `Issue warning #${nextWarning}? This will AUTOMATICALLY SUSPEND the supplier (3rd warning).`
-                      : `Issue warning #${nextWarning} to this supplier? They currently have ${warningCount} warning(s).`;
-
-                    const ok = await openConfirm(confirmMsg, willSuspend ? "Warn & Suspend" : "Issue Warning", "warn-btn");
-                    if (!ok) return;
-                    await issueWarning(reportModal.report.vendor_user_id, reportModal.report.ID, reportModal.notes);
-                  }}
-                  title="Issue a formal warning. 3 warnings = auto-suspend."
-                >
-                  ⚠ Issue Warning ({reportModal.report.vendor_warning_count || 0}/3)
-                </button>
-              )}
 
               {/* Suspend button — only if not already suspended */}
               {reportModal.report.vendor_user_id && !reportModal.report.vendor_suspended_at && (
@@ -643,10 +588,10 @@ export default function AdminPanel() {
             <h2 className="text-2xl font-semibold mb-6">User Management</h2>
             <div className="table-container">
               <table>
-                <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Warnings</th><th>Suspension</th><th>Created</th><th>Actions</th></tr></thead>
+                <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Suspension</th><th>Created</th><th>Actions</th></tr></thead>
                 <tbody>
                   {users.length === 0 ? (
-                    <tr><td colSpan="7" className="text-center py-4">No users found</td></tr>
+                    <tr><td colSpan="6" className="text-center py-4">No users found</td></tr>
                   ) : users.map((u) => {
                     const name = [u.first_name, u.last_name].filter(Boolean).join(" ") || u.username || "Unknown";
                     return (
@@ -654,14 +599,6 @@ export default function AdminPanel() {
                         <td>{name}</td>
                         <td>{u.email}</td>
                         <td>{roleLabel(u.role)}</td>
-                        {/* Warning count column */}
-                        <td>
-                          {u.warning_count > 0 ? (
-                            <span className={`warning-badge w${Math.min(u.warning_count, 3)}`}>
-                              ⚠ {u.warning_count} warning{u.warning_count > 1 ? "s" : ""}
-                            </span>
-                          ) : <span className="text-gray-400 text-xs">—</span>}
-                        </td>
                         {/* Suspended days column */}
                         <td>
                           {u.suspended_at ? (
@@ -711,12 +648,6 @@ export default function AdminPanel() {
                       <td>
                         <div className="font-medium">{r.vendor_name}</div>
                         <div className="text-xs text-gray-500">{r.vendor_email}</div>
-                        {/* Warning count in table */}
-                        {r.vendor_warning_count > 0 && (
-                          <span className={`warning-badge w${Math.min(r.vendor_warning_count, 3)}`}>
-                            ⚠ {r.vendor_warning_count} warning{r.vendor_warning_count > 1 ? "s" : ""}
-                          </span>
-                        )}
                         {/* Suspended badge in table */}
                         {r.vendor_suspended_at && (
                           <div className="suspended-badge mt-1">
