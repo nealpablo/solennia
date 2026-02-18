@@ -599,9 +599,6 @@ export default function Chat() {
           <div className="chat-empty-state">
             <div className="empty-icon">💬</div>
             <p>Select a conversation to start messaging</p>
-            <p style={{ fontSize: '0.875rem', color: '#888', marginTop: '0.5rem' }}>
-              Need help planning? Try our <a href="/ai-booking" style={{ color: '#f59e0b', fontWeight: '600' }}>🤖 AI Assistant</a>
-            </p>
           </div>
         ) : (
           <>
