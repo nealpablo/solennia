@@ -37,7 +37,7 @@ class OpenAIService
         if (!$isRelevant) {
             return [
                 'success' => true,
-                'response' => "I am the Solennia Booking Assistant. I can only help you with the following:\n\n- Finding and recommending event vendors and venues registered on Solennia\n- Booking event services through the Solennia platform\n- Checking vendor availability and pricing\n\nI am unable to assist with topics outside of booking and vendor recommendations. Please ask me about finding a vendor or making a booking."
+                'response' => "I am Lenni. How are you?. I can only help you with the following:\n\n- Finding and recommending event vendors and venues registered on Solennia\n- Booking event services through the Solennia platform\n- Checking vendor availability and pricing\n\nI am unable to assist with topics outside of booking and vendor recommendations. Please ask me about finding a vendor or making a booking."
             ];
         }
 
@@ -47,7 +47,7 @@ class OpenAIService
         $currentDate = date('Y-m-d');
         $currentYear = date('Y');
 
-        $systemPrompt = "You are the Solennia Booking Assistant. You exist for ONE purpose only: to help users FIND, RECOMMEND, and BOOK event vendors and venues that are registered on the Solennia platform.
+        $systemPrompt = "You are the Lenni. You exist for ONE purpose only: to help users FIND, RECOMMEND, and BOOK event vendors and venues that are registered on the Solennia platform.
 
 ABSOLUTE RULES YOU MUST NEVER BREAK:
 
