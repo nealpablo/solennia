@@ -3,26 +3,26 @@ import { tokenExpired } from "../utils/auth";
 import { useNavigate } from "react-router-dom";
 import toast from "../utils/toast";
 
-const API = 
-  import.meta.env.VITE_API_BASE || 
+const API =
+  import.meta.env.VITE_API_BASE ||
   import.meta.env.VITE_API_URL ||
-  (import.meta.env.PROD 
+  (import.meta.env.PROD
     ? "https://solennia.up.railway.app/api" : "/api");
 
 export default function VendorProfileSetup() {
   const navigate = useNavigate();
   const token = localStorage.getItem("solennia_token");
-  
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [application, setApplication] = useState(null);
-  
+
   const [form, setForm] = useState({
     bio: "",
     services: "",
     service_areas: "",
   });
-  
+
   const [logo, setLogo] = useState(null);
   const [logoPreview, setLogoPreview] = useState(null);
   const [hero, setHero] = useState(null);
@@ -42,36 +42,36 @@ export default function VendorProfileSetup() {
       const res = await fetch(`${API}/vendor/status`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      
+
       const data = await res.json();
-      
+
       if (!data.success) {
         toast.error("Unable to load supplier status");
         navigate("/profile");
         return;
       }
-      
+
       // If profile already exists, redirect to dashboard
       if (data.has_profile) {
         toast.info("Profile already complete! Redirecting to dashboard...");
         navigate("/vendor-dashboard");
         return;
       }
-      
+
       // If not approved, redirect to profile
       if (data.status !== "approved") {
         toast.info("Please wait for your application to be approved");
         navigate("/profile");
         return;
       }
-      
+
       // Load application data
       setApplication({
         business_name: "Your Business",
         category: data.category || "General"
       });
       setLoading(false);
-      
+
     } catch (err) {
       console.error("Status check error:", err);
       toast.error("Failed to load supplier status");
@@ -95,7 +95,7 @@ export default function VendorProfileSetup() {
     const file = e.target.files[0];
     if (file) {
       if (file.size > 10 * 1024 * 1024) {
-        toast.error("Hero image must be under 10MB");
+        toast.error("Banner image must be under 10MB");
         return;
       }
       setHero(file);
@@ -105,28 +105,28 @@ export default function VendorProfileSetup() {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    
+
     if (!form.bio.trim() || !form.services.trim()) {
       toast.error("Please fill in all required fields (Bio and Services)");
       return;
     }
-    
+
     setSaving(true);
-    
+
     try {
       const formData = new FormData();
       formData.append("bio", form.bio);
       formData.append("services", form.services);
       formData.append("service_areas", form.service_areas);
-      
+
       if (logo) {
         formData.append("logo", logo);
       }
-      
+
       if (hero) {
         formData.append("hero", hero);
       }
-      
+
       const res = await fetch(`${API}/vendor/profile`, {
         method: "POST",
         headers: {
@@ -134,9 +134,9 @@ export default function VendorProfileSetup() {
         },
         body: formData
       });
-      
+
       const data = await res.json();
-      
+
       if (data.success) {
         toast.success("Supplier profile created successfully! 🎉");
 
@@ -151,7 +151,7 @@ export default function VendorProfileSetup() {
       } else {
         toast.error(data.error || "Failed to create profile");
       }
-      
+
     } catch (err) {
       console.error("Profile creation error:", err);
       toast.error("Failed to create profile");
@@ -264,9 +264,9 @@ export default function VendorProfileSetup() {
               <div className="flex items-center gap-4">
                 {logoPreview ? (
                   <div className="relative">
-                    <img 
-                      src={logoPreview} 
-                      alt="Logo preview" 
+                    <img
+                      src={logoPreview}
+                      alt="Logo preview"
                       className="w-32 h-32 object-cover rounded-lg border-2 border-gray-300"
                     />
                     <button
@@ -316,9 +316,9 @@ export default function VendorProfileSetup() {
               <div className="space-y-4">
                 {heroPreview ? (
                   <div className="relative">
-                    <img 
-                      src={heroPreview} 
-                      alt="Hero preview" 
+                    <img
+                      src={heroPreview}
+                      alt="Hero preview"
                       className="w-full h-48 object-cover rounded-lg border-2 border-gray-300"
                     />
                     <button

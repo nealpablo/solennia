@@ -228,7 +228,7 @@ class VendorController
                 if (isset($files['hero']) && $files['hero']->getError() === UPLOAD_ERR_OK) {
                     if ($files['hero']->getSize() > self::MAX_FILE_SIZE) {
                         DB::rollBack();
-                        return $this->json($response, false, "Hero image too large (max 10MB)", 400);
+                        return $this->json($response, false, "Banner image too large (max 10MB)", 400);
                     }
                     try {
                         $tmpPath = $files['hero']->getStream()->getMetadata('uri');
@@ -848,7 +848,7 @@ class VendorController
                 ->where('user_id', $userId)
                 ->update(['hero_image' => $upload['secure_url']]);
 
-            return $this->json($response, true, "Hero image updated", 200, [
+            return $this->json($response, true, "Banner image updated", 200, [
                 'url' => $upload['secure_url']
             ]);
 

@@ -527,7 +527,7 @@ export default function ManageListings() {
       return false;
     }
     if (!form.hero_image) {
-      toast.error("Hero image is required — please upload one");
+      toast.error("Banner image is required — please upload one");
       return false;
     }
     if (!form.icon_url) {
@@ -1037,7 +1037,7 @@ export default function ManageListings() {
                 {/* Hero Image */}
                 <div className={`p-4 rounded-lg border-2 ${!form.hero_image ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-transparent'}`}>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Hero Image <Req />
+                    Banner Image <Req />
                     <MissingBadge show={!form.hero_image} />
                   </label>
                   {form.hero_image && (
@@ -1062,7 +1062,7 @@ export default function ManageListings() {
                     htmlFor="hero-upload"
                     className={`inline-block px-4 py-2 border rounded-lg cursor-pointer transition-colors ${!form.hero_image ? 'bg-red-100 border-red-300 text-red-700 hover:bg-red-200' : 'bg-white border-gray-300 hover:bg-gray-50'}`}
                   >
-                    {uploading ? "Uploading..." : (form.hero_image ? "Replace Hero Image" : "Upload Hero Image")}
+                    {uploading ? "Uploading..." : (form.hero_image ? "Replace Banner Image" : "Upload Banner Image")}
                   </label>
                 </div>
 
