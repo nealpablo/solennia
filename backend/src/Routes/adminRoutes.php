@@ -172,13 +172,15 @@ return function (App $app) {
                 }
 
                 // Update user role to supplier (role 1), clear any previous suspension
+                $credUpdate = ['role' => 1];
+                if (count(DB::select("SHOW COLUMNS FROM credential LIKE 'suspended_at'")) > 0) {
+                    $credUpdate['suspended_at'] = null;
+                    $credUpdate['suspended_by'] = null;
+                }
+
                 DB::table('credential')
                     ->where('id', $appRow->user_id)
-                    ->update([
-                        'role'         => 1,
-                        'suspended_at' => null,
-                        'suspended_by' => null,
-                    ]);
+                    ->update($credUpdate);
 
                 DB::table('vendor_application')
                     ->where('id', $appRow->id)
